@@ -979,10 +979,21 @@ test("redirect notice: recognizes file redirects and excludes non-redirects", as
       const result = await call(f, { command });
       assert.ok(!textOf(result).includes("Note: output redirected to a file"), command);
     }
+    const pipeNotice =
+      "Note: the saved output holds only what the final pipe printed; rerun without the pipe to keep it all.";
     const redirectNotice =
       "Note: output redirected to a file is not shown or saved by Bash; run the command plainly to have its output saved for Read or rg.";
+    assert.equal(textOf(await call(f, { command: "printf a | grep a > f" })), redirectNotice);
+    assert.equal(
+      textOf(await call(f, { command: "printf a | grep a 2> e" })),
+      `a\n\n${pipeNotice}\n\n${redirectNotice}`,
+    );
     assert.equal(textOf(await call(f, { command: "true > f >&2" })), redirectNotice);
-    assert.equal(textOf(await call(f, { command: "printf a | cat > f" })), redirectNotice);
+    for (const command of ['echo "x > y" | grep x 2> e', "cmd > f; printf a | grep a 2> e"]) {
+      const text = textOf(await call(f, { command }));
+      assert.ok(text.includes(pipeNotice), command);
+      assert.ok(text.includes(redirectNotice), command);
+    }
   } finally {
     f.cleanup();
   }
@@ -1510,35 +1521,46 @@ test("header: a 1500-character line shows its last 500, and the header form coun
   }
 });
 
-test("rejection: a head, tail, or grep last stage is refused before the host, naming the stem (Section 2)", async () => {
+test("pipe notice: a head, tail, or grep last stage adds one line after the excerpt", async () => {
   const f = makeFixture();
+  const notice =
+    "Note: the saved output holds only what the final pipe printed; rerun without the pipe to keep it all.";
   try {
-    f.deps.hostProvider = () => undefined;
-    const cases = [
-      ["ls | tail 20", "ls"],
-      ["  printf 'a|b' | head -1 ", "printf 'a|b'"],
-      ["seq 60 | cat | grep 1", "seq 60 | cat"],
-      ["printf a | grep a > f", "printf a"],
-    ] as const;
-    for (const [command, stem] of cases) {
-      const result = await call(f, { command, background: true });
-      assert.equal(result.isError, true, command);
-      assert.equal(
-        textOf(result),
-        `Refused: do not pipe to head, tail or grep. Run \`${stem}\` plainly: its full output is saved to a file, for Read or rg.`,
-      );
-    }
-    for (const row of f.registry.list()) {
-      assert.equal(row.status, "failed");
-      assert.equal(row.consumed, true);
-    }
-    assert.ok(!existsSync(join(f.agentDir, "output")));
+    // The pipe keeps one line; nothing is cut, and the notice still appears.
+    const head = await call(f, { command: "printf 'a\\nb\\nc\\n' | head -1" });
+    assert.equal(textOf(head), `a\n\n${notice}`);
+    assert.equal(head.details.truncated, false);
+    const tail = await call(f, { command: "seq 12 | tail -2" });
+    assert.equal(textOf(tail), `11\n12\n\n${notice}`);
+    // A cut excerpt carries the notice between the marker and the status line.
+    const grep = await call(f, { command: "seq 60 | grep ''; exit 2" });
+    assert.equal(
+      textOf(grep),
+      `[Lines 1–10 of 60 not shown; full output: ${grep.details.outputPath}. Search it with rg or Read it.]\n` +
+        Array.from({ length: 50 }, (_, i) => String(i + 11)).join("\n") +
+        `\n\n${notice}\n\nCommand exited with code 2`,
+    );
+    assert.equal(grep.details.truncated, true);
   } finally {
     f.cleanup();
   }
 });
 
-test("rejection: no top-level pipe to a filter stage runs the command", async () => {
+test("pipe notice: it precedes the leftover notice, one empty line apart", async () => {
+  const f = makeFixture();
+  try {
+    const result = await call(f, { command: "printf 'a\\nb\\n' | head -1; sleep 0.3 &" });
+    assert.equal(
+      textOf(result),
+      "a\n\nNote: the saved output holds only what the final pipe printed; rerun without the pipe to keep it all.\n\nCommand left a process running; it was terminated. Use background: true, not & or nohup.",
+    );
+    assert.equal(detailsOf(result).leftover, true);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("pipe notice: no top-level pipe to a filter stage means no notice", async () => {
   const f = makeFixture();
   try {
     writeFileSync(join(f.root, "input.txt"), "first\nsecond\n");
@@ -1555,7 +1577,7 @@ test("rejection: no top-level pipe to a filter stage runs the command", async ()
       ["printf 'x\\n' | grep x | cat", "x"],
       // `headless` is a word of its own, not `head`.
       ["headless() { cat; }; printf 'x\\n' | headless", "x"],
-      // No pipe at all.
+      // No pipe at all, so no notice names a pipe that is not there.
       ["head -1 input.txt", "first"],
     ] as const;
     for (const [command, expected] of cases) {
