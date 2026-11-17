@@ -62,7 +62,7 @@ export const bashParameterSchema = Type.Object(
   {
     command: Type.String({
       pattern: "\\S",
-      description: `Shell command text: one line or several, passed to the shell unchanged. Run it plainly: long output is cut to its last lines and saved in full to a file. Do not pipe to head, tail or grep. At least one character that is not white space.`,
+      description: `Shell command text: one line or several, passed to the shell unchanged. Never pipe it: output is captured in full to a file automatically. At least one character that is not white space.`,
     }),
     timeout: Type.Optional(
       Type.Integer({
@@ -852,7 +852,7 @@ export function makeBashTool(deps: BashToolDeps) {
     name: "Bash",
     label: "Bash",
     description:
-      "Run a shell command as a task, in the foreground or, with `background: true`, as a background task that returns at once with a task ID and keeps running. Output is written to a file and to the task's output feed; long output shows a bounded excerpt of its last lines. An omitted `timeout` gives a foreground call 600000 ms and imposes none on a background call. Do not start processes with & or nohup: use background: true. Run commands plainly, without piping to head, tail or grep or redirecting to a file: full output is saved for Read or rg. Temporary files go under $TMPDIR, the session's tmp folder, never /tmp; create them with mktemp \"$TMPDIR/name.XXXXXX\", since a bare mktemp may ignore $TMPDIR.",
+      "Run a shell command as a task, in the foreground or, with `background: true`, as a background task that returns at once with a task ID and keeps running. Output is written to a file and to the task's output feed; long output shows a bounded excerpt of its last lines. An omitted `timeout` gives a foreground call 600000 ms and imposes none on a background call. Do not start processes with & or nohup: use background: true. Never pipe commands or redirect their output: it is captured in full to a file automatically, for Read or rg. Temporary files go under $TMPDIR, the session's tmp folder, never /tmp; create them with mktemp \"$TMPDIR/name.XXXXXX\", since a bare mktemp may ignore $TMPDIR.",
     promptSnippet: "Run a shell command as a task, in the foreground or background",
     parameters: bashParameterSchema,
     async execute(

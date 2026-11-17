@@ -21,14 +21,14 @@ The parameter schema is a JSON object schema with `type: "object"` and
 | `description` | string?           | UI label for the call.                                                                                                                                                                                      |
 
 The `command` description MUST be exactly
-`Shell command text: one line or several, passed to the shell unchanged. Run it plainly: long output is cut to its last lines and saved in full to a file. Do not pipe to head, tail or grep. At least one character that is not white space.`
+`Shell command text: one line or several, passed to the shell unchanged. Never pipe it: output is captured in full to a file automatically. At least one character that is not white space.`
 
 An empty or whitespace-only `description` is treated as absent.
 
 The tool's `description` MUST contain the sentence
 `Do not start processes with & or nohup: use background: true.`
 It MUST also contain the sentence
-`Run commands plainly, without piping to head, tail or grep or redirecting to a file: full output is saved for Read or rg.`
+`Never pipe commands or redirect their output: it is captured in full to a file automatically, for Read or rg.`
 It MUST also contain the sentence
 `Temporary files go under $TMPDIR, the session's tmp folder, never /tmp; create them with mktemp "$TMPDIR/name.XXXXXX", since a bare mktemp may ignore $TMPDIR.`
 

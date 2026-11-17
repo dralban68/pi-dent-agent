@@ -1596,7 +1596,7 @@ test("schema: the command description states the plain-run rule verbatim (Sectio
   };
   assert.equal(
     schema.properties.command?.description,
-    "Shell command text: one line or several, passed to the shell unchanged. Run it plainly: long output is cut to its last lines and saved in full to a file. Do not pipe to head, tail or grep. At least one character that is not white space.",
+    "Shell command text: one line or several, passed to the shell unchanged. Never pipe it: output is captured in full to a file automatically. At least one character that is not white space.",
   );
 });
 
@@ -1773,7 +1773,7 @@ test("description tells the model to run plainly and keeps the background warnin
     const tool = makeBashTool(f.deps);
     assert.ok(
       tool.description.includes(
-        "Run commands plainly, without piping to head, tail or grep or redirecting to a file: full output is saved for Read or rg.",
+        "Never pipe commands or redirect their output: it is captured in full to a file automatically, for Read or rg.",
       ),
     );
     assert.ok(
