@@ -1,6 +1,6 @@
 # Billing specification
 
-This document specifies how pi-dent consumes the billing service, the bundled purse extension
+This document specifies how pi-dent consumes the billing service, the bundled pi-dent-purse extension
 ([package.md](package.md), Section 2): the subset of its protocol pi-dent
 relies on, when pi-dent queries it, the held billing it keeps, how billing entries map to guided
 models, and the billing text placed in the guidance message

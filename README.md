@@ -1,7 +1,7 @@
 # pi-dent
 
 A generic coding agent, built as a pi extension: it registers the `Bash`, `Task`, `Agent`, `Fleet`,
-`Script`, `Plugin`, `Skill`, `Session`, `Schedule`, `Search`, `Markdown`, and `AskUserQuestion` tools and the `tasks`, `fleet`, and `pi-dent`
+`Script`, `Plugin`, `Skill`, `Session`, `Schedule`, `Search`, `Markdown`, and `AskUserQuestion` tools and the `tasks`, `fleet`, and `dent`
 slash commands, replaces the host's built-in `bash` tool, and adds the task browser.
 Specifications live in [specs/](specs/AGENTS.md); the formal
 source of truth for every behavior.
@@ -37,7 +37,7 @@ Paths in a user-scope `packages` list resolve against `~/.pi/agent`, so `../../s
 `pi config` enables or disables the resources a package declares.
 
 Listing the package is the whole installation. It loads pi-dent and its bundled extensions, each
-as its own extension: `purse` (the billing service), `pi-dent-terms` (the `Terms` tool),
+as its own extension: `pi-dent-purse` (the billing service), `pi-dent-terms` (the `Terms` tool),
 `pi-mcp-adapter`, `pi-anthropic-oauth`, and `pi-web-access`, per
 [specs/package.md](specs/package.md). Those extensions come from this package, so they must not
 also appear in `packages` — a second copy loads twice and its tools collide. Update them with

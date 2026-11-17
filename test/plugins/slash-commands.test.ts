@@ -211,8 +211,8 @@ test("registers one command per commands/*.md, named <namespace>:<command>, non-
     assert.deepEqual([...stub.commands.keys()].toSorted(), [
       "alpha:greet",
       "alpha:plain",
+      "dent",
       "fleet",
-      "pi-dent",
       "recap",
       "tasks",
     ]);

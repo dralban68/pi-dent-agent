@@ -646,9 +646,9 @@ Cancellation is cooperative, not an OS hard kill:
   `{ protocol: 1, provider: string, headers: Record<string, string> }`, with `provider` the
   child's current model provider and `headers` the response headers. Header arrays MUST be
   joined with `", "`; other non-string values MUST be converted with `String(value)`.
-  This implements purse's query protocol (pi-dent-purse `specs/query-protocol.md`), Section 7.
+  This implements pi-dent-purse's query protocol (its `specs/query-protocol.md`), Section 7.
   pi-dent MUST NOT forward the main session's own responses, which the host already delivers
-  to purse. A throw from `emit` MUST be ignored and MUST NOT fail the dispatch.
+  to pi-dent-purse. A throw from `emit` MUST be ignored and MUST NOT fail the dispatch.
 
 ## 13. Usage
 

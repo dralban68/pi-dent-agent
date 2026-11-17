@@ -9,7 +9,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { must } from "../support/must.ts";
 
 /**
- * The `/pi-dent` command per specs/slash-commands.md Section 2: the info notification
+ * The `/dent` command per specs/slash-commands.md Section 2: the info notification
  * with the four counts of the boot snapshot. index.ts is loaded through jiti, as in
  * test/plugins/slash-commands.test.ts, because its module graph is not loadable under
  * native type stripping.
@@ -68,7 +68,7 @@ interface Fixture {
 }
 
 function makeFixture(): Fixture {
-  const root = mkdtempSync(join(tmpdir(), "pi-dent-pi-dent-command-"));
+  const root = mkdtempSync(join(tmpdir(), "pi-dent-dent-command-"));
   const home = join(root, "home");
   const project = join(root, "project");
   const confDir = join(home, ".pi", "pi-dent");
@@ -128,7 +128,7 @@ function clearBootWindow(stub: StubPi): void {
   stub.handlers.get("session_shutdown")?.({ reason: "reload" });
 }
 
-test("/pi-dent shows the boot snapshot's agent, skill, plugin, and diagnostic counts", async () => {
+test("/dent shows the boot snapshot's agent, skill, plugin, and diagnostic counts", async () => {
   const fixture = makeFixture();
   const stub = makeStubPi();
   try {
@@ -145,7 +145,7 @@ test("/pi-dent shows the boot snapshot's agent, skill, plugin, and diagnostic co
       }),
     );
     await factory(stub.pi);
-    const command = must(stub.commands.get("pi-dent"));
+    const command = must(stub.commands.get("dent"));
     await command.handler("", notifyCtx(stub.notices));
     assert.deepEqual(stub.notices, [
       {

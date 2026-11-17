@@ -888,7 +888,7 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
-  pi.registerCommand("pi-dent", {
+  pi.registerCommand("dent", {
     description: "Confirm the pi-dent extension is loaded",
     handler: async (_args, ctx) => {
       ctx.ui.notify(

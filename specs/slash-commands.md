@@ -16,14 +16,14 @@ Plugin commands are owned by [plugin.md](plugin.md), Section 5.
 - Notifications use the host `notify` API ([config-file.md](config-file.md), Section 6) at the
   stated level.
 
-| Name      | Description                               | Arguments            | Section |
-| --------- | ----------------------------------------- | -------------------- | ------- |
-| `pi-dent` | `Confirm the pi-dent extension is loaded` | Ignored              | 2       |
-| `tasks`   | `Open the task browser`                   | `[<verb> <taskId>]`  | 3       |
-| `fleet`   | `List sibling sessions and query one`     | `[<target> <query>]` | 4       |
-| `recap`   | `Recap the current session`               | Ignored              | 5       |
+| Name    | Description                               | Arguments            | Section |
+| ------- | ----------------------------------------- | -------------------- | ------- |
+| `dent`  | `Confirm the pi-dent extension is loaded` | Ignored              | 2       |
+| `tasks` | `Open the task browser`                   | `[<verb> <taskId>]`  | 3       |
+| `fleet` | `List sibling sessions and query one`     | `[<target> <query>]` | 4       |
+| `recap` | `Recap the current session`               | Ignored              | 5       |
 
-## 2. `pi-dent`
+## 2. `dent`
 
 The command MUST show the `info` notification
 `pi-dent extension is loaded (<a> agents, <s> skills, <p> plugins, <d> boot diagnostics)`, the
