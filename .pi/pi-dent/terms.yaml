@@ -1,0 +1,2530 @@
+terms:
+  - id: adoption
+    label: adoption
+    meaning: The move of a running or unconsumed row into the nearest live attaching task registry when its own registry ends
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: agent
+    label: Agent
+    meaning: "The tool that runs an agent definition, or an inline prompt, as a task in a child session"
+    owner: specs/agent-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    distinguish:
+      - agent-definition
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: agent-catalog
+    label: agent catalog
+    meaning: The boot-snapshot set of available agents injected into the Agent tool description
+    owner: specs/agent.md
+    group: Dispatch
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: agent-definition
+    label: agent definition
+    meaning: "The Markdown file that configures a static dispatch and supplies the child's system prompt"
+    owner: specs/agent.md
+    group: Dispatch
+    key: shared
+    status: active
+    reject:
+      - personality
+    distinguish:
+      - agent
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: agent-directory
+    label: agent directory
+    meaning: "A session's own directory, holding its children's session files, result spills, and the files its tools write"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    reject:
+      - scratch directory
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: agent-identity
+    label: agent identity
+    meaning: "The name a dispatch's agent goes by"
+    owner: specs/agent-tool.md
+    group: Dispatch
+    key: shared
+    status: active
+    reject:
+      - definition name
+    distinguish:
+      - agent-definition
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: agent-run
+    label: agent run
+    meaning: "One host agent loop, from a prompt until the agent is idle"
+    owner: specs/task.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: argument-string
+    label: argument string
+    meaning: The text of a slash command invocation that follows its command token
+    owner: specs/slash-commands.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: askuserquestion
+    label: AskUserQuestion
+    meaning: "The tool through which a main session's model asks the user multiple-choice questions and waits for the answers"
+    owner: specs/ask-user-question-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: attaching-task-registry
+    label: attaching task registry
+    meaning: The task registry of the task row a child registry belongs to
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: attempt
+    label: attempt
+    meaning: "One execution of a dispatch, in the dispatch's child session"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - dispatch
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: background-delivery
+    label: background delivery
+    meaning: The delivery in which the tool call returns a task ID and the task runs on
+    owner: specs/agent-tool.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: bash
+    label: Bash
+    meaning: "The tool that runs a shell command as a task, in place of the host's built-in bash"
+    owner: specs/bash-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    distinguish:
+      - script
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: billing-annotation
+    label: billing annotation
+    meaning: "The bracketed billing text ending a guided model's line"
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    distinguish:
+      - billing-note
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: billing-note
+    label: billing note
+    meaning: The fixed guidance message line explaining billing annotations
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    distinguish:
+      - billing-report
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: billing-poll
+    label: billing poll
+    meaning: A billing query in auto mode for the guidance billing providers
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: billing-reply
+    label: billing reply
+    meaning: What the promise of a billing query settles to
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    distinguish:
+      - reply
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: billing-report
+    label: billing report
+    meaning: "The Session tool's per-provider billing records and their text"
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    distinguish:
+      - billing-note
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: boot
+    label: boot
+    meaning: "A process start or a reload, at which a new boot window opens"
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: boot-snapshot
+    label: boot snapshot
+    meaning: "The image of configuration, agent definitions, skills, and plugins that a boot window shares"
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: boot-window
+    label: boot window
+    meaning: The period during which one boot snapshot is shared
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: browser
+    label: browser
+    meaning: "A full-screen terminal view shown in place of the editor, of which the open ones form a stack and the top one takes all input"
+    owner: specs/browser-navigation.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - task-browser
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: browser-kill
+    label: browser kill
+    meaning: "The cancel of a running task that the task browser's kill key performs"
+    owner: specs/task-browser.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - kill-key
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: reown
+        from: specs/task-registry.md
+        to: specs/task-browser.md
+  - id: browser-stack
+    label: browser stack
+    meaning: "The open full-screen browsers, newest on top; only the top one is rendered and takes keys"
+    owner: specs/browser-navigation.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: caller-supplied-environment
+    label: caller-supplied environment
+    meaning: The extra environment variables a tool call receives from the session that invokes it
+    owner: specs/bash-tool.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: cancellation-handler
+    label: cancellation handler
+    meaning: The function an owning contract sets on a running row to request its cancellation
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: catch-up
+    label: catch-up
+    meaning: The step that brings the session index rows of one session file up to the file
+    owner: specs/session-index.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - rebuild
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: child-guidance
+    label: child guidance
+    meaning: "The billing text appended to a child session's system prompt"
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - guidance-message
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: update
+        meaning: "The guided-model text appended to a child session's system prompt"
+  - id: child-session
+    label: child session
+    meaning: The isolated in-process session one dispatch runs in
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    reject:
+      - subprocess
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: child-session-record
+    label: child session record
+    meaning: A session record that makes a child session the target of the Fleet messages and queries of the session that dispatched it
+    owner: specs/session-store.md
+    group: Fleet
+    key: shared
+    status: active
+    reject:
+      - agent record
+      - subagent record
+    distinguish:
+      - child-session
+      - hidden-record
+      - target
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: class-reference
+    label: class reference
+    meaning: A model string form naming a model class instead of one model
+    owner: specs/model-string.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - concrete-selector
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: cohort
+    label: cohort
+    meaning: The tasks started from one assistant message
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: command-token
+    label: command token
+    meaning: The part of a slash command invocation that names the command
+    owner: specs/slash-commands.md
+    group: Plugins
+    key: shared
+    status: active
+    distinguish:
+      - argument-string
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: completion-notification
+    label: completion notification
+    meaning: "The single message listing a cohort's unconsumed background tasks once none of them runs"
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - reply
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: concrete-selector
+    label: concrete selector
+    meaning: A model string form naming a provider and a model id
+    owner: specs/model-string.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - class-reference
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: configured-model
+    label: configured model
+    meaning: An inventory model whose provider has authentication configured in the model runtime
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - inventory
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: consumed-bytes
+    label: consumed bytes
+    meaning: The leading bytes of a session file that the search index has read and describes
+    owner: specs/session-index.md
+    group: Sessions
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: contained-path
+    label: contained path
+    meaning: A relative path that stays inside its root after normalization and symbolic-link resolution
+    owner: specs/plugin.md
+    group: Plugins
+    key: shared
+    status: active
+    reject:
+      - safe path
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: current-lineage
+    label: current lineage
+    meaning: "The path of session entries, from the last one back through its parents, that a session last continued"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: cwd-parameter
+    label: cwd parameter
+    meaning: "The optional working-directory parameter of Agent, Script, and Bash, with one contract for blank values, default, resolution, and rejection"
+    owner: specs/task.md
+    group: Tasks
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: date-time
+    label: date-time
+    meaning: A string naming an instant with a time-zone offset
+    owner: specs/schedule-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - local-time-stamp
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: delivery-mode
+    label: delivery mode
+    meaning: How a target session takes a Fleet message
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: descriptor
+    label: descriptor
+    meaning: What a model string resolves to
+    owner: specs/model-string.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: details-page
+    label: details page
+    meaning: The task browser page that renders one task row and its session events
+    owner: specs/task-browser.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - list-page
+      - task-detail-feed
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: diagnostic
+    label: diagnostic
+    meaning: "One message reported to the user about a configuration, discovery, or catalog problem, or about a failure at run time that has no tool result to carry it"
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: update
+        meaning: "One message reported to the user about a configuration, discovery, or catalog problem"
+  - id: dispatch
+    label: dispatch
+    meaning: "One Agent invocation, or the run of a Fleet query, resolving a dispatch plan and running its attempts"
+    owner: specs/agent-tool.md
+    group: Dispatch
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: dispatch-plan
+    label: dispatch plan
+    meaning: The frozen resolution of everything a dispatch runs with
+    owner: specs/agent-tool.md
+    group: Dispatch
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: dispatch-restriction
+    label: dispatch restriction
+    meaning: The plan-resolution check that lets an Agent dispatch run only on a guided model while model guidance is active
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: dispatching-session
+    label: dispatching session
+    meaning: "The session that owns a dispatch: the one whose Agent call started it, or the target running a Fleet query"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - main-session
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: display-label
+    label: display label
+    meaning: "A task row's label reduced to its first line without escape sequences or control characters"
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: dynamic-dispatch
+    label: dynamic dispatch
+    meaning: "A dispatch whose agent is defined by the call's prompt and uses no definition"
+    owner: specs/agent-tool.md
+    group: Dispatch
+    key: shared
+    status: active
+    distinguish:
+      - static-dispatch
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: effective-thinking-level
+    label: effective thinking level
+    meaning: "The thinking level a dispatch runs at, as thinking precedence settles it"
+    owner: specs/agent-tool.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - thinking-level
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: effective-tool-cap
+    label: effective tool cap
+    meaning: The subset of the tool cap a child session binds in-process
+    owner: specs/agent-tool.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - tool-cap
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: extension-command
+    label: extension command
+    meaning: "A slash command pi-dent registers under a fixed name of its own, as opposed to a plugin command"
+    owner: specs/slash-commands.md
+    group: Plugins
+    key: shared
+    status: active
+    distinguish:
+      - host-command
+      - plugin-command
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: update
+        meaning: A slash command pi-dent registers itself
+  - id: extension-instance
+    label: extension instance
+    meaning: "One call of pi-dent's extension factory"
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    distinguish:
+      - boot-window
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: failed-write
+    label: failed write
+    meaning: A session index write transaction that fails for a reason other than a busy database
+    owner: specs/session-index.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: fallback
+    label: fallback
+    meaning: The reserved model class that absorbs a resolution miss
+    owner: specs/model-string.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: file-order
+    label: file order
+    meaning: "The order of one session's transcript items by their place in its session file"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - transcript-order
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: final-answer
+    label: final answer
+    meaning: "The child's accepted terminal text, handed to the caller"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: fleet
+    label: Fleet
+    meaning: The tool that carries messages and queries between sibling sessions
+    owner: specs/fleet-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: fleet-2
+    label: fleet
+    meaning: "The main sessions of one machine, discovered from the local session store"
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: shared
+    status: active
+    reject:
+      - swarm
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: fleet-feed
+    label: fleet feed
+    meaning: A machine-scope fleet listing set as one JSON widget line for an RPC client that announces PI_DENT_FEEDS
+    owner: specs/fleet-tool.md
+    group: Tasks
+    key: local
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+      - date: 2026-11-15
+        op: update
+        status: deprecated
+      - date: 2026-11-15
+        op: update
+  - id: foreground-delivery
+    label: foreground delivery
+    meaning: The delivery in which the tool call blocks until the task settles
+    owner: specs/agent-tool.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: frontmatter
+    label: frontmatter
+    meaning: The block of keys and values at the top of a Markdown resource file
+    owner: specs/skill.md
+    group: Resources and observation
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: guidance-billing-text
+    label: guidance billing text
+    meaning: The billing annotations and billing note of the guidance message
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    distinguish:
+      - billing-report
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: guidance-message
+    label: guidance message
+    meaning: "The custom message presenting billing annotations and the session's rules to the main session"
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: update
+        meaning: "The custom message presenting guided models and the session's rules to the main session"
+  - id: guided-model
+    label: guided model
+    meaning: A model entry of model guidance whose key matches at least one model of a model list
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - configured-model
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: held-billing
+    label: held billing
+    meaning: The latest billing entry per provider that an extension instance keeps
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: hidden-record
+    label: hidden record
+    meaning: A session record that addresses waited-query replies to a child session outside the fleet
+    owner: specs/session-store.md
+    group: Fleet
+    key: shared
+    status: active
+    reject:
+      - shadow record
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: host
+    label: host
+    meaning: The pi process and extension API pi-dent runs in
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: host-command
+    label: host command
+    meaning: A slash command the host itself provides
+    owner: specs/fleet-tool.md
+    group: Plugins
+    key: shared
+    status: active
+    distinguish:
+      - extension-command
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: host-key-identifier
+    label: host key identifier
+    meaning: "A key name, optionally preceded by distinct modifier names joined by +, in the exact letter case of the host's key type"
+    owner: specs/task-browser.md
+    group: Tasks
+    key: local
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: idle
+    label: idle
+    meaning: "A session's condition when the host reports nothing in progress in it"
+    owner: specs/session-store.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: index-prune
+    label: index prune
+    meaning: The deletion of session index rows whose session file no longer exists
+    owner: specs/session-index.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - retention-sweep
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: interactive-terminal-ui
+    label: interactive terminal UI
+    meaning: "A session's user interface in terminal mode, as opposed to a session without one"
+    owner: specs/task-browser.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: interrupted-notification
+    label: interrupted notification
+    meaning: "The single message listing a rebuild's inserted interrupted task rows"
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - completion-notification
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: interrupted-task
+    label: interrupted task
+    meaning: "A background agent task whose task record still said running when its session was rebuilt, settled as interrupted"
+    owner: specs/task-record.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: inventory
+    label: inventory
+    meaning: "The host runtime's registered model list"
+    owner: specs/model-string.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: invoking-session
+    label: invoking session
+    meaning: The session whose model made a tool call
+    owner: specs/task.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: item-address
+    label: item address
+    meaning: The string naming one transcript item relative to the session that searches it
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - task-id
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: item-kind
+    label: item kind
+    meaning: "What a transcript item is, by the part of the conversation it came from"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - task-kind
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: json-sidecar
+    label: JSON sidecar
+    meaning: The file holding a JSON-compatible Script return value verbatim
+    owner: specs/script-tool.md
+    group: Tasks
+    key: shared
+    status: deprecated
+    distinguish:
+      - result-spill
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: deprecate
+        reason: out-of-scope
+  - id: kill-key
+    label: kill key
+    meaning: The details page key that kills the running task the page shows
+    owner: specs/task-browser.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - browser-kill
+      - navigation-key
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: layer
+    label: layer
+    meaning: One of the configuration file positions merged into the configuration
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: layer-definition
+    label: layer definition
+    meaning: "An agent definition discovered in the agents folder of a layer directory, referenced by bare name"
+    owner: specs/agent.md
+    group: Dispatch
+    key: local
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+      - date: 2026-11-15
+        op: update
+  - id: layer-directory
+    label: layer directory
+    meaning: "The directory holding a layer's configuration file and its agents and skills folders"
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    reject:
+      - config dir
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: list-page
+    label: list page
+    meaning: "The task browser page that lists the task rows, one selected"
+    owner: specs/task-browser.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: live-session
+    label: live session
+    meaning: A session with a non-hidden record in the local session store whose owner process is not gone
+    owner: specs/session-store.md
+    group: Fleet
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: update
+        meaning: A session with a record in the local session store whose owner process is not gone
+  - id: live-session-identity
+    label: live session identity
+    meaning: "A session's standing in the boot window that registered it and was not refused; a child session has none"
+    owner: specs/session-store.md
+    group: Fleet
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: local-offset
+    label: local offset
+    meaning: The UTC offset of the local zone at one instant
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    distinguish:
+      - local-zone
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: local-session-store
+    label: local session store
+    meaning: The database through which pi-dent processes on one machine share session records and messages
+    owner: specs/session-store.md
+    group: Fleet
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: local-time-stamp
+    label: local time stamp
+    meaning: "The rendering of an instant in the local zone with that zone's offset"
+    owner: specs/schedule-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - date-time
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: local-zone
+    label: local zone
+    meaning: "The time zone the extension instance reads once, in its factory call"
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: main-session
+    label: main session
+    meaning: "A session the user runs directly, as opposed to the child session a dispatch runs in"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    reject:
+      - orchestrator
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: match-text
+    label: match text
+    meaning: "The leading part of a transcript item's text that a query is matched against"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: merge
+    label: merge
+    meaning: "The deep merge of one layer's configuration over another's"
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: message-envelope
+    label: message envelope
+    meaning: The line naming the sender and subject that precedes the body of a delivered Fleet message
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: confusable
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+      - date: 2026-11-15
+        op: update
+  - id: model-catalog
+    label: model catalog
+    meaning: "The guided models with their use texts, listed in the Agent tool description"
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - agent-catalog
+      - guidance-message
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: model-class
+    label: model class
+    meaning: A configured name that resolution maps to a model
+    owner: specs/model-string.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: model-entry
+    label: model entry
+    meaning: "One value of the models record of model guidance: its key names one model, optionally with a thinking level, and its when text says when to use it"
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - guided-model
+    history:
+      - date: 2026-11-15
+        op: add
+      - date: 2026-11-15
+        op: update
+        meaning: "One value of the models record of model guidance: its key matches models, and its when text says when to use them"
+  - id: model-guidance
+    label: model guidance
+    meaning: The configuration that says when to use which model
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - model-class
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: model-list
+    label: model list
+    meaning: The set of models a guidance computation is made against
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    distinguish:
+      - inventory
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: model-runtime
+    label: model runtime
+    meaning: "The live pi runtime providing providers, authentication, and the model inventory"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: model-string
+    label: model string
+    meaning: The single string grammar that selects a model wherever a model is named
+    owner: specs/model-string.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: model-turn
+    label: model turn
+    meaning: "One request to the model and the tool calls it leads to, as the host counts turns"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: confusable
+    status: active
+    distinguish:
+      - turn
+      - turn-record
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: namespace
+    label: namespace
+    meaning: The plugin name that prefixes its commands and identifies its resources
+    owner: specs/plugin.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: navigation-key
+    label: navigation key
+    meaning: A key every browser page answers in addition to the keys its own specification gives it
+    owner: specs/browser-navigation.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - task-browser-shortcut
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: off-lineage
+    label: off-lineage
+    meaning: "Said of a session entry or transcript item that is not on its session's current lineage"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - current-lineage
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: orphan
+    label: orphan
+    meaning: "A task row marked at adoption, its registry having ended while the row was running or unconsumed"
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: output-file
+    label: output file
+    meaning: "The file a Bash or Script task's output is appended to as it arrives"
+    owner: specs/script-tool.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - json-sidecar
+      - result-spill
+      - progress-projection
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: owner-process
+    label: owner process
+    meaning: The process of the boot window that registered a session record
+    owner: specs/session-store.md
+    group: Fleet
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: owning-layer
+    label: owning layer
+    meaning: The layer a configuration key is attributed to
+    owner: specs/config-file.md
+    group: Resources and observation
+    key: shared
+    status: active
+    reject:
+      - primary layer
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: plugin
+    label: Plugin
+    meaning: The tool that reads one plugin resource file of a plugin
+    owner: specs/plugin-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: plugin-2
+    label: plugin
+    meaning: A configured directory with a root manifest
+    owner: specs/plugin.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: plugin-admission-order
+    label: plugin admission order
+    meaning: "The order of admitted plugins, by their plugins key, that orders plugin skills and other plugin contributions"
+    owner: specs/plugin.md
+    group: Skills and plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: plugin-catalog
+    label: plugin catalog
+    meaning: The boot-snapshot index of admitted plugins by namespace
+    owner: specs/plugin.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: plugin-command
+    label: plugin command
+    meaning: "A plugin's command resource, invoked under its namespace"
+    owner: specs/plugin.md
+    group: Plugins
+    key: shared
+    status: active
+    distinguish:
+      - extension-command
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: update
+  - id: plugin-context
+    label: plugin context
+    meaning: "The text of an admitted plugin's root context.md, appended to system prompts"
+    owner: specs/plugin.md
+    group: Plugins
+    key: shared
+    status: active
+    distinguish:
+      - plugin-resource
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: plugin-manifest
+    label: plugin manifest
+    meaning: "The root plugin.json declaring a plugin's namespace"
+    owner: specs/plugin.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: plugin-resource
+    label: plugin resource
+    meaning: "A file in one of a plugin's resource folders"
+    owner: specs/plugin.md
+    group: Plugins
+    key: shared
+    status: active
+    distinguish:
+      - plugin-script
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: plugin-root
+    label: plugin root
+    meaning: "A plugin's directory, the resolved path of its plugins entry, inside which every plugin file must lie"
+    owner: specs/plugin.md
+    group: Skills and plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: plugin-script
+    label: plugin script
+    meaning: "A plugin file run through Script, and not a plugin resource"
+    owner: specs/plugin.md
+    group: Plugins
+    key: shared
+    status: active
+    distinguish:
+      - plugin-resource
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: pre-start-rejection
+    label: pre-start rejection
+    meaning: "A failure of a tool's own checks or of plan resolution that ends an invocation before anything runs"
+    owner: specs/agent-tool.md
+    group: Tasks
+    key: shared
+    status: active
+    reject:
+      - pre-launch rejection
+    distinguish:
+      - schema-rejection
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: progress-projection
+    label: progress projection
+    meaning: "The timestamped lines a running task row accumulates, read by Task and the task browser"
+    owner: specs/task-registry.md
+    group: Resources and observation
+    key: shared
+    status: active
+    reject:
+      - progress snapshot
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: project
+    label: project
+    meaning: A main session together with its project members and their session trees
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - repository-root
+      - fleet-2
+      - sessions-directory
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: project-member
+    label: project member
+    meaning: "Another session's session file in a main session's sessions directory"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - sibling-session
+      - fleet-2
+      - child-session
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: project-trust
+    label: project trust
+    meaning: "The host's mark that a project's own files may be used; pi-dent ignores it and trusts the workspace, reading every project file either way"
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    reject:
+      - workspace trust
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: query
+    label: query
+    meaning: "A Fleet request and reply: the target runs it in an isolated child session and answers once it settles"
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: read-bound
+    label: read bound
+    meaning: The point in a session file up to which one tool call reads it
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: reap
+    label: reap
+    meaning: "To collect the exit status of a terminated child process, so that it leaves the parent's process table"
+    owner: specs/script-tool.md
+    group: Sessions and execution
+    key: confusable
+    status: active
+    forms:
+      - reaping
+      - reaped
+      - reaps
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: rebuild
+    label: rebuild
+    meaning: The scan that re-inserts task rows from task records into the task registry
+    owner: specs/task-record.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - recovery
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: recovery
+    label: recovery
+    meaning: The bounded re-prompting of a failed attempt in the same child session
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: registration-order
+    label: registration order
+    meaning: "The order in which a task registry's rows were registered in it, an adopted row counting as registered at its adoption"
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: registry-change
+    label: registry change
+    meaning: Any change to the rows of a task registry
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: reload
+    label: reload
+    meaning: The host command that ends a boot window and starts another without ending the session
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: reply
+    label: reply
+    meaning: The one message the target of a Fleet query sends back to the querying session
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: shared
+    status: active
+    distinguish:
+      - billing-reply
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: report-query
+    label: report query
+    meaning: The auto billing query of one Session call
+    owner: specs/billing.md
+    group: Billing
+    key: shared
+    status: active
+    distinguish:
+      - billing-poll
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: repository-root
+    label: repository root
+    meaning: The nearest ancestor directory of a working directory that contains a .git entry
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: shared
+    status: active
+    reject:
+      - project root
+      - repo path
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: result-spill
+    label: result spill
+    meaning: "The file a long background result is written to, in addition to its task row"
+    owner: specs/agent-tool.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: retention-sweep
+    label: retention sweep
+    meaning: "The deletion of agent directories, with everything in them, older than the retention age"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    reject:
+      - garbage collection
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: safe-name
+    label: safe name
+    meaning: An input reduced to a form usable in a file name by replacing disallowed characters
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    reject:
+      - sanitized name
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: schedule
+    label: Schedule
+    meaning: The tool that schedules a message into the invoking session
+    owner: specs/schedule-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: schedule-2
+    label: schedule
+    meaning: A pending message that the session holding it inserts into itself when it is due
+    owner: specs/schedule-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: add
+      - date: 2026-11-14
+        op: update
+  - id: schema-rejection
+    label: schema rejection
+    meaning: "A call the host turns away because its arguments do not satisfy the tool's parameter schema"
+    owner: specs/task.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - pre-start-rejection
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: script
+    label: Script
+    meaning: The tool that runs a TypeScript source or a plugin script in-process
+    owner: specs/script-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: search
+    label: Search
+    meaning: The tool that finds and returns transcript items of the sessions the invoking session reaches
+    owner: specs/search-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: session
+    label: Session
+    meaning: The tool that reports facts about the invoking session
+    owner: specs/session-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: session-2
+    label: session
+    meaning: "One conversation of the host, run by its own agent loop and kept in a session file"
+    owner: specs/session-store.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - session-file
+      - session-entry
+    history:
+      - date: 2026-11-14
+        op: add
+  - id: session-entry
+    label: session entry
+    meaning: The JSON object of one line of a session file
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - task-row
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+      - date: 2026-11-14
+        op: update
+  - id: session-event
+    label: session event
+    meaning: "One displayed event of a child session, derived from one content block of a session entry"
+    owner: specs/task-browser.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - session-entry
+    history:
+      - date: 2026-11-15
+        op: add
+      - date: 2026-11-15
+        op: update
+        meaning: "One displayed event of a child session, derived from a line of its session file"
+  - id: session-file
+    label: session file
+    meaning: "A session's retained transcript file"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: session-header
+    label: session header
+    meaning: "The first session entry of a session file, which identifies the session"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - session-entry
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: session-id
+    label: session ID
+    meaning: "The identifier of a session, carried by its session header"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - task-id
+      - live-session-identity
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: session-index
+    label: session index
+    meaning: The database in which pi-dent processes keep where session entries lie and which transcript items they yield
+    owner: specs/session-index.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - local-session-store
+      - boot-snapshot
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: session-key
+    label: session key
+    meaning: The name of a session relative to the session that searches it
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - task-id
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: session-rules
+    label: session rules
+    meaning: "The rule texts, in rules order, of the guidance rules whose match matches a session's model"
+    owner: specs/model-guidance.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: session-temporary-folder
+    label: session temporary folder
+    meaning: "The folder PI_DENT_SESSION_DIR/tmp that Bash and Script name in TMPDIR, TMP and TEMP"
+    owner: specs/bash-tool.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: session-tree
+    label: session tree
+    meaning: A session together with every session whose session file lies beneath it in agent directories
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - task-tree
+      - fleet-2
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: session-tree-order
+    label: session tree order
+    meaning: The depth-first order of the members of a session tree
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: deprecated
+    distinguish:
+      - transcript-order
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: sessions-directory
+    label: sessions directory
+    meaning: "The directory that holds a main session's session file"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - agent-directory
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: settings-file
+    label: settings file
+    meaning: "One of the host's own JSON settings files, the global one in the host's configuration directory or the project one under .pi/, as opposed to pi-dent's configuration file"
+    owner: specs/bash-tool.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: sibling-session
+    label: sibling session
+    meaning: "Another session in the fleet, the target of a Fleet message or query"
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: shared
+    status: active
+    distinguish:
+      - child-session
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: skill
+    label: Skill
+    meaning: "The tool that loads a skill's content into the invoking session"
+    owner: specs/skill-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: skill-2
+    label: skill
+    meaning: "A directory holding a SKILL.md file, discovered in a layer directory or a plugin"
+    owner: specs/skill.md
+    group: Resources and observation
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: skill-body
+    label: skill body
+    meaning: "The text of a SKILL.md after its frontmatter, which a Skill load returns"
+    owner: specs/skill.md
+    group: Skills and plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: skill-catalog
+    label: skill catalog
+    meaning: The boot-snapshot catalog of the skills a session can load
+    owner: specs/skill.md
+    group: Resources and observation
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: skill-reference
+    label: skill reference
+    meaning: "A file under a skill's references/ folder"
+    owner: specs/skill.md
+    group: Resources and observation
+    key: shared
+    status: active
+    distinguish:
+      - skill-2
+      - plugin-script
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: slash-command
+    label: slash command
+    meaning: A command the console invokes by name with a leading slash
+    owner: specs/slash-commands.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: snapshot-notice
+    label: snapshot notice
+    meaning: "The closing line of a Fleet list result, stating that discovery is a local snapshot"
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: stale-row
+    label: stale row
+    meaning: A session index row that the line read back from the session file no longer bears out
+    owner: specs/session-index.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    reject:
+      - uncaught-up file
+    distinguish:
+      - orphan
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: static-dispatch
+    label: static dispatch
+    meaning: A dispatch whose agent is resolved from the agent catalog by key
+    owner: specs/agent-tool.md
+    group: Dispatch
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: target
+    label: target
+    meaning: "A resolved Fleet destination: a live fleet session, or a live child session of the calling session"
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: update
+        meaning: A resolved Fleet destination among live fleet sessions
+  - id: task
+    label: Task
+    meaning: "The tool that reads, kills, and lists the invoking session's task rows"
+    owner: specs/task-tool.md
+    group: Tools
+    key: shared
+    status: deprecated
+    reason: out-of-scope
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: deprecate
+        reason: out-of-scope
+  - id: task-2
+    label: task
+    meaning: "The supervised record of one Agent, Script, or Bash invocation or one Fleet query dispatch"
+    owner: specs/task.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - task
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: task-browser
+    label: task browser
+    meaning: "The full-screen terminal UI listing the task tree and showing one task's details"
+    owner: specs/task-browser.md
+    group: Tasks
+    key: shared
+    status: active
+    reject:
+      - dashboard
+    distinguish:
+      - task-tree-widget
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: task-browser-shortcut
+    label: task browser shortcut
+    meaning: The key that opens and closes the task browser
+    owner: specs/task-browser.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: task-detail-feed
+    label: task detail feed
+    meaning: The details page of one watched task set as one JSON widget line for an RPC client that announces PI_DENT_FEEDS
+    owner: specs/task.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - task-browser
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-15
+        op: update
+      - date: 2026-11-15
+        op: update
+  - id: task-feed
+    label: task feed
+    meaning: "The task tree widget's content set as one JSON widget line for an RPC client that announces PI_DENT_FEEDS"
+    owner: specs/task.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - task-tree-widget
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: task-id
+    label: task ID
+    meaning: The handle that identifies one task across tools and registries
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: task-kind
+    label: task kind
+    meaning: "The tool that started a task, as recorded on its row"
+    owner: specs/task.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: task-record
+    label: task record
+    meaning: "The file a dispatching session writes beside a background Agent task's session file so the task can be rebuilt"
+    owner: specs/task-record.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - task-row
+      - session-file
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: task-registry
+    label: task registry
+    meaning: "The store of task rows in registration order, owned by one session or one Fleet query"
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: task-row
+    label: task row
+    meaning: "The task registry entry holding one task's state"
+    owner: specs/task-registry.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: task-tree
+    label: task tree
+    meaning: "A session's task rows with each agent task's child-session tasks nested beneath it"
+    owner: specs/task.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: task-tree-widget
+    label: task tree widget
+    meaning: The above-editor rendering of the running and interrupted part of the task tree
+    owner: specs/task.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: thinking-level
+    label: thinking level
+    meaning: The effort setting a model string can carry and a model can support
+    owner: specs/model-string.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: tool-call-id
+    label: tool-call ID
+    meaning: The ID that pairs a tool call with its result in a session transcript
+    owner: specs/session-transcript.md
+    group: Sessions
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: tool-call-signal
+    label: tool-call signal
+    meaning: The abort signal the host passes to one tool execution
+    owner: specs/task.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: tool-cap
+    label: tool cap
+    meaning: "The dispatching session's live active tool set, bounding the child's tools"
+    owner: specs/agent-tool.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: tool-card
+    label: tool card
+    meaning: "The box in which the host's conversation view shows one Bash or Script call"
+    owner: specs/tool-card.md
+    group: Resources and observation
+    key: shared
+    status: active
+    distinguish:
+      - task-row
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: tool-error
+    label: tool error
+    meaning: A tool result with isError true
+    owner: specs/task.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: transcript-item
+    label: transcript item
+    meaning: One searchable piece of a session entry
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - session-entry
+      - task-row
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: transcript-order
+    label: transcript order
+    meaning: The total order of the transcript items of several sessions by time
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - file-order
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+  - id: turn
+    label: turn
+    meaning: "A user message that arrives while no turn is in progress, the user messages that arrive during it, and the agent run that follows"
+    owner: specs/session-store.md
+    group: Sessions
+    key: confusable
+    status: active
+    distinguish:
+      - turn-record
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: turn-record
+    label: turn record
+    meaning: "One turn's entry in a session record's turns_json"
+    owner: specs/session-store.md
+    group: Sessions
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+      - date: 2026-11-15
+        op: update
+        meaning: "A session's record of its current or last turn, with command, goal, files and start time, kept in the local session store"
+  - id: unknown-key-rule
+    label: unknown-key rule
+    meaning: The handling of an unknown key in a defined configuration object
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    reject:
+      - strict mode
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: usable-entry-id
+    label: usable entry ID
+    meaning: "A session entry's ID that an item address can carry"
+    owner: specs/session-transcript.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
+  - id: waited-query
+    label: waited query
+    meaning: "A Fleet query from a child session, whose tool call returns the reply"
+    owner: specs/fleet-tool.md
+    group: Fleet
+    key: shared
+    status: active
+    reject:
+      - blocking query
+      - sync query
+    history:
+      - date: 2026-11-14
+        op: import
+        from: specs/thesaurus.md
+      - date: 2026-11-14
+        op: update
+  - id: watched-task
+    label: watched task
+    meaning: "The one task, named by the tasks command, whose details page the task detail feed carries"
+    owner: specs/task.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-15
+        op: add
