@@ -50,9 +50,6 @@ const PARTIAL_INTERVAL_MS = 150;
 
 const LEFTOVER_NOTICE =
   "Command left a process running; it was terminated. Use background: true, not & or nohup.";
-/** The body line of a filter-piped call (Section 5). */
-const PIPE_NOTICE =
-  "Note: the saved output holds only what the final pipe printed; rerun without the pipe to keep it all.";
 const REDIRECT_NOTICE =
   "Note: output redirected to a file is not shown or saved by Bash; run the command plainly to have its output saved for Read or rg.";
 /** The pipeline stages that make a call filter-piped (Section 5). */
@@ -297,26 +294,27 @@ function lastTopLevelPipe(command: string): number {
   return last;
 }
 
-/** Whether the call is filter-piped: a head, tail, or grep stage after the last top-level `|` (Section 5). */
-export function isFilterPiped(command: string): boolean {
+/**
+ * The rejection text of a filter-piped call (a head, tail, or grep stage after the last top-level
+ * `|`), else `undefined` (Sections 2 and 5).
+ */
+export function filterPipeRejection(command: string): string | undefined {
   const pipe = lastTopLevelPipe(command);
-  if (pipe < 0) return false;
+  if (pipe < 0) return undefined;
   const stage = command.slice(pipe + 1).trimStart();
-  return FILTER_STAGES.some(
+  const piped = FILTER_STAGES.some(
     (name) => stage.startsWith(name) && !/[A-Za-z0-9_]/.test(stage.charAt(name.length)),
   );
-}
-
-interface FileRedirection {
-  redirected: boolean;
-  stdout: boolean;
+  if (!piped) return undefined;
+  const stem = command.slice(0, pipe).trim();
+  return `Refused: do not pipe to head, tail or grep. Run \`${stem}\` plainly: its full output is saved to a file, for Read or rg.`;
 }
 
 /** Whether a top-level trailing redirection sends output to a file (Section 5). */
-export function fileRedirection(command: string): FileRedirection {
+export function isFileRedirected(command: string): boolean {
   const text = command.trimEnd();
   let quote: "'" | '"' | undefined;
-  const operators: { start: number; end: number; target: string; stdout: boolean }[] = [];
+  const operators: { start: number; end: number; target: string }[] = [];
   for (let i = 0; i < text.length; i += 1) {
     const c = text.charAt(i);
     if (quote === "'") {
@@ -337,11 +335,7 @@ export function fileRedirection(command: string): FileRedirection {
     }
     const redirectStart = i;
     let start = i;
-    let fd: string | undefined;
-    if (/\d/.test(c) && (text.charAt(i + 1) === ">" || text.charAt(i + 1) === "&")) {
-      fd = c;
-      start += 1;
-    }
+    if (/\d/.test(c) && (text.charAt(i + 1) === ">" || text.charAt(i + 1) === "&")) start += 1;
     if (
       text.charAt(start) === ">" &&
       text.charAt(start + 1) === "&" &&
@@ -352,7 +346,6 @@ export function fileRedirection(command: string): FileRedirection {
         start: redirectStart,
         end,
         target: `&${text.charAt(start + 2)}`,
-        stdout: fd === undefined || fd === "1",
       });
       i = end - 1;
       continue;
@@ -374,13 +367,7 @@ export function fileRedirection(command: string): FileRedirection {
       while (end < text.length && !/[\s;&|]/.test(text.charAt(end))) end += 1;
       target = text.slice(targetStart, end);
     }
-    if (target !== "")
-      operators.push({
-        start: redirectStart,
-        end,
-        target,
-        stdout: fd === undefined || fd === "1" || op.startsWith("&"),
-      });
+    if (target !== "") operators.push({ start: redirectStart, end, target });
     i = Math.max(i, end - 1);
   }
   let end = text.length;
@@ -391,8 +378,7 @@ export function fileRedirection(command: string): FileRedirection {
     trailing.unshift(redirect);
     end = redirect.start;
   }
-  const files = trailing.filter(({ target }) => target !== "/dev/null" && !/^&\d+$/.test(target));
-  return { redirected: files.length > 0, stdout: files.some(({ stdout }) => stdout) };
+  return trailing.some(({ target }) => target !== "/dev/null" && !/^&\d+$/.test(target));
 }
 
 /** A progress entry: the first code points of the line's display text (Section 4). */
@@ -807,9 +793,7 @@ export function formatBashOutcome(
   const excerpt = output.excerpt(outputPath);
   const parts: string[] = [];
   if (excerpt.text !== "") parts.push(excerpt.text);
-  const redirection = fileRedirection(command);
-  if (isFilterPiped(command) && !redirection.stdout) parts.push(PIPE_NOTICE);
-  if (redirection.redirected) parts.push(REDIRECT_NOTICE);
+  if (isFileRedirected(command)) parts.push(REDIRECT_NOTICE);
   const status = statusLine(outcome, timeoutMs, browserKill);
   if (status !== undefined) parts.push(status);
   if (outcome.leftover) parts.push(LEFTOVER_NOTICE);
@@ -880,6 +864,9 @@ export function makeBashTool(deps: BashToolDeps) {
       // A Section 2 failure is a pre-start rejection: the row is consumed and
       // settles failed with the error text, and no output file is created.
       const reject = (message: string): ToolResult => rejectCall(registry, row, message);
+
+      const piped = filterPipeRejection(params.command);
+      if (piped !== undefined) return reject(piped);
 
       const host = deps.hostProvider();
       if (!host) return reject("pi-dent: no live host session for the Bash call");

@@ -49,6 +49,9 @@ condition on the arguments is the tool's.
 The checks the schema cannot express MUST reject the call as a pre-start rejection (Section 6),
 checked in this order, the first failure reported:
 
+- A filter-piped `command` (Section 5); the failure text is verbatim
+  ``Refused: do not pipe to head, tail or grep. Run `<stem>` plainly: its full output is saved to a file, for Read or rg.``,
+  where `<stem>` is `command` before its last top-level `|`, with surrounding white space removed.
 - The host session that invoked the call; the failure text is verbatim
   `pi-dent: no live host session for the Bash call`.
 - The `cwd` check of [task.md](task.md), Section 1.1.
@@ -218,19 +221,18 @@ checked in this order, the first failure reported:
   last one, with leading white space removed, begins with `head`, `tail`, or `grep` as a word. A
   `|` is top-level when it is outside single and double quotes, is not escaped by a backslash
   outside single quotes, and is not part of a `||`. The word ends at the end of the text or
-  before a character that is not an ASCII letter, a digit, or `_`. The tool MUST NOT block or
-  rewrite the command of a filter-piped call.
+  before a character that is not an ASCII letter, a digit, or `_`. A filter-piped call is
+  rejected (Section 2).
 
   > Note (non-normative): a pipe inside `$( )`, a heredoc body, or a `#` comment counts as
-  > top-level under this rule, so a call may carry the notice for it.
+  > top-level under this rule, so a call may be rejected for it.
 
-- A command is file-redirected when, after trailing white space is removed, it ends with a run of top-level redirections of which at least one counts. Every redirection in that run whose target is a file counts: a target of `/dev/null` and a descriptor target of the form `&N` do not count. The redirection operators are exactly `>`, `>>`, `>|`, `&>`, and `&>>`, optionally preceded by any single file descriptor digit; whitespace can occur between an operator and its target, and a quoted target counts as one word. Top-level uses the quoting and escaping rules for `|` above. Redirections inside quotes do not count. The call is stdout-redirected when at least one counted redirection has no descriptor digit, has descriptor digit `1`, or has an operator starting with `&`. The tool MUST NOT block or rewrite the command of a file-redirected call.
+- A command is file-redirected when, after trailing white space is removed, it ends with a run of top-level redirections of which at least one counts. Every redirection in that run whose target is a file counts: a target of `/dev/null` and a descriptor target of the form `&N` do not count. The redirection operators are exactly `>`, `>>`, `>|`, `&>`, and `&>>`, optionally preceded by any single file descriptor digit; whitespace can occur between an operator and its target, and a quoted target counts as one word. Top-level uses the quoting and escaping rules for `|` above. Redirections inside quotes do not count. The tool MUST NOT block or rewrite the command of a file-redirected call.
 
   > Note (non-normative): This lexical rule can flag text in comments, heredocs, or command substitutions, and can miss shell syntax whose redirection target is not one word.
 
 - The body is these parts, each present as stated, joined by one empty line (`\n\n`), in the order listed: 1. the excerpt
-  (Section 4), when it is non-empty, which begins with its header when truncated; 2. the pipe notice `Note: the saved output holds only what the final pipe printed; rerun without the pipe to keep it all.`
-  when the call is filter-piped and the call is not stdout-redirected, whether or not the excerpt is truncated; the pipe notice is omitted when the call is stdout-redirected; 3. the redirect notice `Note: output redirected to a file is not shown or saved by Bash; run the command plainly to have its output saved for Read or rg.` when the call is file-redirected; 4. the status line, when the table gives one; 5. the leftover notice
+  (Section 4), when it is non-empty, which begins with its header when truncated; 2. the redirect notice `Note: output redirected to a file is not shown or saved by Bash; run the command plainly to have its output saved for Read or rg.` when the call is file-redirected; 3. the status line, when the table gives one; 4. the leftover notice
   `Command left a process running; it was terminated. Use background: true, not & or nohup.` when the run has a
   leftover process (Section 3). With no part present the body is `(no output)`.
 - A foreground call returns once the run has ended, with the body as `content[0].text` and
@@ -357,8 +359,6 @@ different names to the host, which compares tool names exactly.
 - A model request the host sends before delivering `session_start` is not covered.
 - Whether a host tool selection entry that removes `Bash` from the default tools (`-Bash`)
   leaves it inactive is the host's.
-- Whether a later descriptor duplication redirects stdout to another stream, and whether the
-  pipe notice is omitted in that case, is unspecified.
 - `shellPath` or `shellCommandPrefix` values that are not strings are unspecified.
 - The header and the row's `resultPath` name `outputPath` even when the file could not be created
   or written.
