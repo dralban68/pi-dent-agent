@@ -303,7 +303,7 @@ A resource is an object:
 - When both layers have the same `file`, as when `cwd` is the user's home directory, `layer` is
   `project`.
 
-### 11.2 Script listing
+### 11.2 Plugin script listing
 
 No catalog holds plugin scripts, and the `Script` tool lists none: it resolves the one path a
 call names ([script-tool.md](script-tool.md), Section 2). The plugin inventory lists them, and

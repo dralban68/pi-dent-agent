@@ -21,12 +21,12 @@ The parameter schema is a JSON object schema with `type: "object"` and
 | `description` | string?           | UI label for the call.                                                                                                                                                                                      |
 
 The `command` description MUST be exactly
-`Shell command text: one line or several, passed to the shell unchanged. Its output is captured to a file by default: do not cut it with | tail, | head or | grep. At least one character that is not white space.`
+``Shell command text: one line or several, passed to the shell unchanged. Its output is captured to a file by default: do not cut it with `| tail`, `| head` or `| grep`. At least one character that is not white space.``
 
 An empty or whitespace-only `description` is treated as absent.
 
 The tool's `description` MUST begin with the sentence
-`Bash output is captured to a file by default: never cut it with | tail, | head or | grep or redirect it, and Read or rg that file instead of rerunning the command.`
+`` `Bash` output is captured to a file by default: never cut it with `| tail`, `| head` or `| grep` or redirect it, and `Read` or `rg` that file instead of rerunning the command. ``
 It MUST contain the sentence
 `Do not start processes with & or nohup: use background: true.`
 It MUST also contain the sentence
@@ -120,7 +120,7 @@ checked in this order, the first failure reported:
   carries the leftover notice (Section 5).
 
   > Note (non-normative): a process started with `&` or `nohup` outlives the shell and is not
-  > supervised by the task; reaping it keeps every process a call starts inside the task's
+  > supervised by the task; terminating it keeps every process a call starts inside the task's
   > lifetime. `background: true` is the supported way to keep a command running.
 
 ## 4. Output capture
