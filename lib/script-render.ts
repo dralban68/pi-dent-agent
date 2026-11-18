@@ -36,7 +36,7 @@ function isPlainObject(value: object): boolean {
   return proto === Object.prototype || proto === null;
 }
 
-function isJsonCompatible(value: unknown, ancestors: Set<object> = new Set()): boolean {
+export function isJsonCompatible(value: unknown, ancestors: Set<object> = new Set()): boolean {
   if (value === null) return true;
   if (typeof value === "boolean") return true;
   if (typeof value === "number") return Number.isFinite(value);

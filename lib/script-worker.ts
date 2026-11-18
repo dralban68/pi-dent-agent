@@ -5,7 +5,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { ChildProcess } from "node:child_process";
 import * as vm from "node:vm";
 import { Writable } from "node:stream";
-import { renderReturn } from "./script-render.ts";
+import { isJsonCompatible, renderReturn } from "./script-render.ts";
 import { TEMP_VARIABLES } from "./session-tmp.ts";
 import { parentPort, workerData } from "node:worker_threads";
 import { createJiti } from "jiti";
@@ -26,6 +26,11 @@ interface ScriptWorkerData {
   input: unknown;
   /** Package name -> absolute directory, for jiti's `alias` (bundled packages). */
   aliases: Record<string, string>;
+  /** Bound tool names, in declaration order (Section 10.3). */
+  toolNames: string[];
+  /** The tool declarations (Section 10.2). */
+  toolTypes: string;
+  background: boolean;
 }
 
 const port = parentPort;
@@ -130,6 +135,94 @@ process.on("uncaughtException", (thrown: unknown) => {
   // process.exit outside its own flow: the loop must keep running (Section 6).
   if (exitCalled || isScriptExit(thrown)) return;
   reportError(thrown instanceof Error ? thrown : new Error(String(thrown)));
+});
+
+// --- tool functions and dent (Sections 4 and 10.3) ----------------------------
+// A nested call is one `tool-call` message; the runner answers with `tool-result`. The port is
+// referenced only while a call is pending, so a script awaiting nothing else still ends as before.
+interface PendingCall {
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
+}
+const pendingCalls = new Map<number, PendingCall>();
+let nextCallId = 0;
+let listening = false;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const freezeResult = (value: unknown): unknown => {
+  if (!isRecord(value)) return value;
+  const content = Array.isArray(value.content)
+    ? Object.freeze(value.content.map((part: unknown) => Object.freeze(part)))
+    : value.content;
+  return Object.freeze({
+    text: value.text,
+    content,
+    details: value.details,
+    structured: value.structured,
+  });
+};
+
+const onToolResult = (message: unknown): void => {
+  if (!isRecord(message) || message.type !== "tool-result" || typeof message.id !== "number") {
+    return;
+  }
+  const call = pendingCalls.get(message.id);
+  if (call === undefined) return;
+  pendingCalls.delete(message.id);
+  if (pendingCalls.size === 0) port.unref();
+  // No code of the script runs after process.exit (Section 3).
+  if (exitCalled) return;
+  const reply = message.reply;
+  if (isRecord(reply) && reply.ok === true) {
+    call.resolve(freezeResult(reply.value));
+    return;
+  }
+  const failure = isRecord(reply) && isRecord(reply.error) ? reply.error : {};
+  const error = new Error(String(failure.message ?? "tool call failed"));
+  if (typeof failure.name === "string" && failure.name !== "Error") error.name = failure.name;
+  call.reject(error);
+};
+
+const toolFunction =
+  (name: string) =>
+  (args: unknown): Promise<unknown> => {
+    if (data.background) {
+      return Promise.reject(new Error(`tools.${name} is not available in a background run`));
+    }
+    const plain =
+      isRecord(args) &&
+      !Array.isArray(args) &&
+      [Object.prototype, null].includes(Object.getPrototypeOf(args));
+    if (!plain || !isJsonCompatible(args)) {
+      return Promise.reject(new Error(`tools.${name} args must be a JSON-compatible object`));
+    }
+    return new Promise((resolveCall, rejectCall) => {
+      const id = nextCallId++;
+      pendingCalls.set(id, { resolve: resolveCall, reject: rejectCall });
+      if (!listening) {
+        listening = true;
+        port.on("message", onToolResult);
+      }
+      port.ref();
+      port.postMessage({ type: "tool-call", id, name, args });
+    });
+  };
+
+const scriptTools: Record<string, unknown> = Object.freeze(
+  Object.fromEntries(data.toolNames.map((name) => [name, toolFunction(name)])),
+);
+const scriptDent = Object.freeze({ toolTypes: (): string => data.toolTypes });
+Object.defineProperty(globalThis, "tools", {
+  value: scriptTools,
+  writable: true,
+  configurable: true,
+});
+Object.defineProperty(globalThis, "dent", {
+  value: scriptDent,
+  writable: true,
+  configurable: true,
 });
 
 // --- cwd-observing process proxy --------------------------------------------
@@ -865,6 +958,8 @@ void (async () => {
       __filename: data.filename,
       __dirname: dirname(data.filename),
       input: data.input,
+      tools: scriptTools,
+      dent: scriptDent,
       Buffer,
       process: scriptProcess,
       console: scriptConsole,

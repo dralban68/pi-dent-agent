@@ -1,7 +1,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Type, type Static } from "typebox";
-import { defineTool } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import type { BootSnapshot, ToolResult } from "./engine.ts";
 import type { HostSession } from "./host.ts";
 import type { ScriptTaskRow, TaskRegistry } from "./registry.ts";
@@ -10,6 +10,8 @@ import { resolveCwdParam } from "./cwd-param.ts";
 import { ensureOutputDir, outputPathsFor } from "./output-file.ts";
 import { resolvePluginScriptPath } from "./plugins.ts";
 import { runScript, type ScriptRunResult } from "./script-runner.ts";
+import { callBoundTool } from "./script-tool-calls.ts";
+import { DEFAULT_TOOLS_ALLOW, selectTools, toolDeclarations } from "./script-tool-types.ts";
 import { type ReturnValueRender } from "./script-render.ts";
 import { renderCardCall } from "./tool-card.ts";
 import {
@@ -25,7 +27,8 @@ import { errorCode, errorMessage } from "./util.ts";
 /**
  * The Script tool (specs/script-tool.md): in-process execution of agent-authored
  * JavaScript or TypeScript, its sources, inputs, results, timeout, and delivery
- * modes. Pure compute — no host bridge (Section 7).
+ * modes, and the tool functions through which a script calls the session's other tools
+ * (Section 10).
  */
 
 export const scriptParameterSchema = Type.Object(
@@ -107,6 +110,8 @@ interface ScriptToolDeps {
   agentDir: (host: HostSession) => string;
   /** Extra environment variables for the script worker, merged over process.env (never mutating it). */
   extraEnv?: () => Record<string, string> | undefined;
+  /** `script.tools.allow` (Section 8); absent gives the default. */
+  toolsAllow?: () => readonly string[];
 }
 
 interface ResolvedSource {
@@ -323,13 +328,17 @@ export function makeScriptTool(deps: ScriptToolDeps) {
     name: "Script",
     label: "Script",
     description:
-      "Run one JavaScript or TypeScript program in a fresh worker thread with the caller's privileges and full Node capabilities: ESM, TypeScript syntax, top-level await, no build step, no state kept between calls. Source: inline `code`, or a plugin script (`plugin` + `path`). Imports: node:* builtins and the bundled cheerio, csv-parse, csv-stringify, fast-xml-parser, file-type, glob, gray-matter, ini, js-yaml, jsonc-parser, jszip, semver, smol-toml; any other package resolves from `cwd`, or for a plugin script from its own location. fetch and the other web globals are available; console output is captured. Child processes: use async `spawn`, `exec`, or `execFile` with `await`; `spawnSync`, `execSync`, and `execFileSync` throw. Every settled run terminates every process it spawned, so start a process that must outlive the run with `Bash` `background: true`. No agent dispatch, skills, or MCP tools. `background: true` returns a task ID at once, with a completion notification.",
+      "Run one JavaScript or TypeScript program in a fresh worker thread with the caller's privileges and full Node capabilities: ESM, TypeScript syntax, top-level await, no build step, no state kept between calls. Source: inline `code`, or a plugin script (`plugin` + `path`). Imports: node:* builtins and the bundled cheerio, csv-parse, csv-stringify, fast-xml-parser, file-type, glob, gray-matter, ini, js-yaml, jsonc-parser, jszip, semver, smol-toml; any other package resolves from `cwd`, or for a plugin script from its own location. fetch and the other web globals are available; console output is captured. Child processes: use async `spawn`, `exec`, or `execFile` with `await`; `spawnSync`, `execSync`, and `execFileSync` throw. Every settled run terminates every process it spawned, so start a process that must outlive the run with `Bash` `background: true`. `tools.<Name>(args)` calls another tool of the session, MCP tools included, and resolves to `{ text, content, details, structured }` or rejects with the tool's error; `dent.toolTypes()` returns their TypeScript declarations. Tool functions reject in a background run. `background: true` returns a task ID at once, with a completion notification.",
     promptSnippet: "Run an in-process JavaScript or TypeScript program",
     parameters: scriptParameterSchema,
+    // Section 10.1: a call can reach every callable tool.
+    reachesTools: () => "all",
     async execute(
       toolCallId: string,
       params: ScriptToolParams,
       signal: AbortSignal | undefined,
+      _onUpdate: unknown,
+      ctx: ExtensionToolContext | undefined,
     ): Promise<ToolResult> {
       const registry = deps.registry();
       // Section 2: the source shape is checked before the row is registered,
@@ -414,6 +423,24 @@ export function makeScriptTool(deps: ScriptToolDeps) {
         };
         if (timeoutMs !== undefined) request.timeoutMs = timeoutMs;
         if (!background && signal !== undefined) request.signal = signal;
+        // Section 10.1: the callable tools are read once, after the checks of Section 2.
+        const selection = selectTools(ctx?.tools ?? [], deps.toolsAllow?.() ?? DEFAULT_TOOLS_ALLOW);
+        request.tools = {
+          names: selection.bound.map((tool) => tool.name),
+          declarations: toolDeclarations(selection),
+          background,
+          call: async (name, args, callSignal) => {
+            const tool = selection.bound.find((candidate) => candidate.name === name);
+            if (tool === undefined || ctx === undefined)
+              throw new Error(`tool ${name} is not bound`);
+            return callBoundTool(
+              tool,
+              args,
+              (toolName, toolArgs, options) => ctx.executeTool(toolName, toolArgs, options),
+              callSignal,
+            );
+          },
+        };
         const extra = deps.extraEnv?.();
         if (extra !== undefined && Object.keys(extra).length > 0) request.extraEnv = extra;
         // The run's chunks feed the row's progress projection line by line, in

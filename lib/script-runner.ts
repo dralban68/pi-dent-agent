@@ -1,8 +1,10 @@
 import { Worker } from "node:worker_threads";
 import type { ReturnValueRender } from "./script-render.ts";
+import type { ToolCallReply } from "./script-tool-calls.ts";
+import { toolDeclarations } from "./script-tool-types.ts";
 import { applySessionTmp } from "./session-tmp.ts";
 import { killTreeWindows, prefixBytes, signalGroup } from "./tool-common.ts";
-import { errorCode } from "./util.ts";
+import { errorCode, errorMessage } from "./util.ts";
 import { typeStrippingOptions } from "./worker-options.ts";
 
 /**
@@ -88,6 +90,20 @@ export interface ScriptRunRequest {
    * kept (no `env` option).
    */
   extraEnv?: Record<string, string>;
+  /** The tool functions (Section 10); absent binds none. */
+  tools?: ScriptRunTools;
+}
+
+/** The tool functions of a run (Section 10.3). */
+export interface ScriptRunTools {
+  /** Bound tool names, in declaration order. */
+  names: string[];
+  /** The tool declarations (Section 10.2), returned by `dent.toolTypes()`. */
+  declarations: string;
+  /** A background run's tool functions reject without a nested call (step 1). */
+  background: boolean;
+  /** Runs one nested call; the signal aborts at settlement. */
+  call: (name: string, args: unknown, signal: AbortSignal) => Promise<ToolCallReply>;
 }
 
 export interface ScriptRunResult {
@@ -160,6 +176,8 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
     const groupPids = new Set<number>();
     let worker: Worker | undefined;
     let timer: NodeJS.Timeout | undefined;
+    /** Signals of the nested calls still running (Section 10.3). */
+    const nestedCalls = new Set<AbortController>();
 
     const finish = (partial: Partial<ScriptRunResult>) => {
       void worker?.terminate();
@@ -230,6 +248,9 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
       ended = Date.now();
       if (timer) clearTimeout(timer);
       req.signal?.removeEventListener("abort", onAbort);
+      // Section 10.3: nested calls still running are aborted, not awaited, and their outcomes dropped.
+      for (const controller of nestedCalls) controller.abort();
+      nestedCalls.clear();
       settleTree(partial);
     };
 
@@ -257,6 +278,9 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         cwd: req.cwd,
         input: req.input,
         aliases: req.aliases,
+        toolNames: req.tools?.names ?? [],
+        toolTypes: req.tools?.declarations ?? toolDeclarations({ bound: [], unbound: [] }),
+        background: req.tools?.background ?? false,
       },
       env: workerEnv,
     });
@@ -293,6 +317,9 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
           // is free to be reused: it is no longer part of the tree (Section 6).
           if (groupPids.has(msg.pid) && groupIsEmpty(msg.pid)) groupPids.delete(msg.pid);
           break;
+        case "tool-call":
+          if (!settled) startNestedCall(msg.id, String(msg.name), msg.args);
+          break;
         case "exit-called":
           settle({ exitReason: "exit-called", exitCode: msg.code ?? 0 });
           break;
@@ -319,6 +346,30 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
           break;
       }
     });
+
+    /** Section 10.3, step 3 onward: run the nested call and post its reply unless the run settled. */
+    function startNestedCall(id: unknown, name: string, args: unknown): void {
+      const controller = new AbortController();
+      nestedCalls.add(controller);
+      const call = req.tools?.call;
+      const pending: Promise<ToolCallReply> =
+        call === undefined || !req.tools?.names.includes(name)
+          ? Promise.resolve({
+              ok: false,
+              error: { name: "Error", message: `tool ${name} is not bound` },
+            })
+          : call(name, args, controller.signal);
+      void pending
+        .catch((error: unknown): ToolCallReply => ({
+          ok: false,
+          error: { name: "Error", message: errorMessage(error) },
+        }))
+        .then((reply) => {
+          nestedCalls.delete(controller);
+          if (settled) return;
+          worker?.postMessage({ type: "tool-result", id, reply });
+        });
+    }
 
     worker.on("error", (err: unknown) => {
       // A worker that throws a non-Error value passes it through raw; normalise

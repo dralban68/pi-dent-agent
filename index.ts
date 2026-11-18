@@ -35,6 +35,7 @@ import {
   makeTaskTool,
 } from "./lib/tools.ts";
 import { makeScriptTool } from "./lib/script-tool.ts";
+import { DEFAULT_TOOLS_ALLOW } from "./lib/script-tool-types.ts";
 import { makeBashTool, readBashSettings } from "./lib/bash-tool.ts";
 import { makeSearchTool, searchRuntime } from "./lib/search-tool.ts";
 import { makeMarkdownTool, markdownRuntime } from "pi-dent-markdown";
@@ -52,7 +53,7 @@ import {
   makeAskUserQuestionTool,
 } from "./lib/ask-user-question-tool.ts";
 import { readFileSync } from "node:fs";
-import { parseFooter, parseTaskBrowser } from "./lib/config.ts";
+import { parseFooter, parseScript, parseTaskBrowser } from "./lib/config.ts";
 import { createFooterComponent } from "./lib/footer.ts";
 import { TaskBrowserOverlay } from "./lib/task-browser.ts";
 import { startTaskWidget, type TaskPaint, type TaskWidgetHandle } from "./lib/task-widget.ts";
@@ -724,6 +725,7 @@ export default function (pi: ExtensionAPI) {
 
   // Task browser (task-browser.md): the shortcut opens the overlay; the overlay closes itself on it.
   const taskBrowserShortcut = parseTaskBrowser(boot.config).shortcut;
+  const scriptToolsAllow = parseScript(boot.config).toolsAllow ?? DEFAULT_TOOLS_ALLOW;
   const toggleTaskBrowser = async (ctx: ExtensionContext): Promise<void> => {
     if (closeTaskBrowser) {
       closeTaskBrowser();
@@ -834,6 +836,8 @@ export default function (pi: ExtensionAPI) {
       hostProvider: () => currentHost,
       cohortFor: (toolCallId) => cohorts.cohortFor(toolCallId),
       agentDir: agentDirForHost,
+      // script-tool.md Section 8; its diagnostics are boot diagnostics.
+      toolsAllow: () => scriptToolsAllow,
     }),
   );
   pi.registerTool(
