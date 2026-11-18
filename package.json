@@ -21,6 +21,7 @@
   ],
   "type": "module",
   "scripts": {
+    "prepare": "node scripts/link-local.ts",
     "test": "node --import \"$PWD/lib/strip-types-hook.mjs\" --test --test-timeout=30000 test/",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",

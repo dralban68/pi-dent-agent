@@ -74,6 +74,8 @@ try {
     if (match?.[1] !== undefined) bundled.push(match[1]);
   }
   delete manifest.devDependencies;
+  // `prepare` runs scripts/link-local.ts, which is not packed: `npm pack` below would fail on it.
+  if (isRecord(manifest.scripts)) delete manifest.scripts.prepare;
   manifest.bundleDependencies = bundled;
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 

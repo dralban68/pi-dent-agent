@@ -69,6 +69,9 @@ import { GUIDANCE_CUSTOM_TYPE, modelCatalog, parsedModelGuidance } from "./lib/m
 import { GuidanceController } from "./lib/guidance-controller.ts";
 import { renderGuidanceMessage } from "./lib/guidance-render.ts";
 import { readLocalZone } from "./lib/billing-text.ts";
+import { localLinkDiagnostics } from "./lib/local-links.ts";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * The boot snapshot is cached per process so one boot window (process start
@@ -205,6 +208,10 @@ export default function (pi: ExtensionAPI) {
     }
     heldDiagnostics.push(diagnostic);
   };
+  // package.md Section 5.3: a declared local link that is missing, or in use, is told at load.
+  for (const diagnostic of localLinkDiagnostics(dirname(fileURLToPath(import.meta.url)))) {
+    reportDiagnostic(diagnostic);
+  }
   // footer.md Section 1.1: the configuration is read once per boot window, and its diagnostics
   // hold until the session's UI shows them.
   const footerSettings = parseFooter(boot.config);
