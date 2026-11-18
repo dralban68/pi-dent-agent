@@ -656,6 +656,10 @@ const SESSION_NOTE_LINES: readonly (readonly [tools: readonly string[], line: st
     ["Bash"],
     "Run a long-running command with `Bash` and `background: true`, never with `&` or `nohup`.",
   ],
+  [
+    ["Bash"],
+    "Before every `Bash` call, check the command: if it ends in `| tail`, `| head`, `| grep` or `> file`, delete that ending. `Bash` already returns only the last 50 lines and saves the full output to a file the result names.",
+  ],
   [["Skill"], "Load a `Skill` when the task matches one in `<available_skills>`."],
   [
     // A child that can dispatch an agent needs the transcript it can look back into.

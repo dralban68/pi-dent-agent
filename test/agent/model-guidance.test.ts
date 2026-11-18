@@ -367,11 +367,12 @@ test("session notes: the agent directory, a line per bound tool, the final-messa
       "- Read a file with `read` before editing it, not through `Bash`.",
       "- Run JavaScript or TypeScript with `Script`, never through `Bash`.",
       "- Run a long-running command with `Bash` and `background: true`, never with `&` or `nohup`.",
+      "- Before every `Bash` call, check the command: if it ends in `| tail`, `| head`, `| grep` or `> file`, delete that ending. `Bash` already returns only the last 50 lines and saves the full output to a file the result names.",
       "- Your final message is the result returned to the caller: make it complete, and claim only what you verified.",
     ].join("\n"),
   );
   const all = sessionNotes("/d", ["read", "edit", "Script", "Bash", "Skill"]);
-  assert.equal(all.split("\n").length, 8);
+  assert.equal(all.split("\n").length, 9);
 });
 
 test("an unguided inherited model dispatches", async () => {
