@@ -63,8 +63,6 @@ The remaining checks the schema cannot express MUST reject the call as a pre-sta
   ([plugin.md](plugin.md), Section 7; root: the plugin root).
 - A plugin script file that is missing at call time ([plugin.md](plugin.md), Section 7); the
   failure MUST name the resolved path.
-- A checked source that fails the type check (Section 10.3); the failure text is the one that
-  section gives.
 
 The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md), Section 8.
 
@@ -79,17 +77,15 @@ The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md
 - The guest sees the ECMAScript builtins its engine provides, and nothing else ambient: there is
   no `URL`, `AbortController`, `crypto`, `TextEncoder`, `TextDecoder`, `process`, or `require`.
   The host pre-binds `console`, `fetch` (Section 4), the `dent` namespace (Section 4), `input`,
-  and, for a checked source, `tools` (Section 10).
+  and `tools` (Section 10).
 - ESM semantics and TypeScript syntax MUST work with no build step. TypeScript is accepted with
   erasable syntax only: a construct whose removal changes runtime behavior — an `enum`, a
   namespace with runtime code, a parameter property — fails the run with the error text
   `type stripping failed: <message>`, `<message>` being the stripper's message. A stripping
-  failure settles the run as any other error (Section 3, below). A checked source is type-checked
-  before the run starts (Section 10.3); a source that fails the check never reaches the stripper.
+  failure settles the run as any other error (Section 3, below).
 - There is no module resolution: a static `import` or `export … from` declaration fails to
   resolve, and the run settles `threw` with the engine's error. A source the host cannot compile
-  settles the run the same way. Both apply to a source that reaches the run: a checked source
-  with such a declaration fails the type check first.
+  settles the run the same way.
 - Every call compiles its script afresh in a new sandbox: no module instance, no guest state, and
   no host-function memoization is carried across calls.
 - `input`, when provided, reaches the script as the top-level `input` binding and
@@ -366,11 +362,7 @@ call made that way is a nested call.
 
 ### 10.1 Bound tools
 
-- A checked source is inline `code`, or a plugin script whose `path` ends in `.ts`, `.mts`, or
-  `.cts`. Any other plugin script is an unchecked source: the host binds no `tools` for it, and
-  it has no way to call a tool.
-- The tool reads the callable tools once per call, after the checks of Section 2 that precede the
-  type check have passed. The bound tools are the callable tools of that reading, without:
+- The tool reads the callable tools once per call, after the checks of Section 2 have passed. The bound tools are the callable tools of that reading, without:
   - the tool named `Script`;
   - a tool whose name matches no entry of `script.tools.allow` (Section 8). An entry matches a
     name equal to it; an entry ending in `*` matches every name that starts with the text before
@@ -459,34 +451,16 @@ The type text of a schema is given by the first row of this table that applies. 
   sentence, `additionalProperties` last, joined by `, `. Every other keyword leaves the type text
   unchanged.
 
+The tool declarations are a reference for whoever writes the script: the tool MUST NOT
+type-check a script against them, and a script that misuses a tool function fails at run time
+(Section 10.3).
+
 > Note (non-normative): the declarations can be narrower or wider than the schema where a marker
-> says so; the host's validation of the arguments at call time (Section 10.4) is what holds.
+> says so; the host's validation of the arguments at call time (Section 10.3) is what holds.
 
-### 10.3 Type check
+### 10.3 Calling a tool
 
-- Before the sandbox is created, the tool MUST type-check a checked source as TypeScript, as an
-  ECMAScript module whatever its content, with the compiler's `strict` option on and every other
-  type-checking option at its default.
-- The check sees these global declarations and no other: the ECMAScript 2023 standard library
-  with no DOM and no Node.js declaration; `console` with the five methods of Section 3, each
-  `(...args: unknown[]) => void`; `fetch` and `dent` with the signatures of Section 4; `input`
-  of type `Json | undefined`; and the tool declarations of Section 10.2.
-- A check that reports one or more diagnostics of the error category fails the call as a
-  pre-start rejection (Section 2). Its text is the line `type check failed`, then one line per
-  diagnostic, `<line>:<column> TS<code>: <message>`, in ascending order of line, then column,
-  then code. `<line>` and `<column>` are the diagnostic's 1-based position in the source, a
-  column counting UTF-16 code units, and `0:0` for a diagnostic without a position; `<message>`
-  is the compiler's message, the lines of a message chain joined by `\n`. At most 50 diagnostics
-  are listed; when there are more, a last line `... <k> more` follows, `<k>` being the number
-  not listed.
-- Diagnostics of any other category are not reported and do not fail the call.
-- The check accepts what the compiler accepts: an `any` type, a type assertion, and the
-  compiler's suppression comments are not rejected.
-- An unchecked source is not type-checked.
-
-### 10.4 Calling a tool
-
-- For a checked source, `tools` is a frozen object whose own enumerable properties are the bound
+- `tools` is a frozen object whose own enumerable properties are the bound
   tools' names, in the order of the tool declarations, each a tool function. A tool function
   takes one argument, `args`, and returns a promise.
 - A tool function settles by the first of these steps that applies:
@@ -521,13 +495,6 @@ The type text of a schema is given by the first row of this table that applies. 
 
 ## 11. Specification gaps
 
-- The type check's diagnostics, their codes, and their messages are the compiler's and differ
-  between compiler versions; the compiler version is unspecified, and so is which sources pass.
-- The duration of the type check has no specified bound and is not part of the run's deadline or
-  `durationMs`.
-- Whether the guest engine provides every member of the ECMAScript 2023 standard library the
-  type check declares (Section 10.3) is unspecified: a script that passes the check can throw at
-  run time for a member the engine lacks.
 - The dialect of JSON Schema the host's tools use, and so the meaning of a keyword whose meaning
   differs between dialects, is unspecified; Section 10.2 reads the keywords it names and no
   other.
