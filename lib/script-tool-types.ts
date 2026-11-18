@@ -218,7 +218,7 @@ export function schemaTypeText(schema: unknown): string {
 /** A tool's doc text (Section 10.2): first line, trimmed, `*\/` defused, 200 characters. */
 function docText(description: string | undefined): string {
   const first = (description ?? "").split(/\r\n|\r|\n/, 1)[0] ?? "";
-  return Array.from(first.trim().replaceAll("*/", "* /")).slice(0, 200).join("");
+  return first.trim().replaceAll("*/", "* /").slice(0, 200);
 }
 
 const PREAMBLE = [
