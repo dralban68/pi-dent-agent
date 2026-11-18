@@ -761,44 +761,33 @@ export function readBootSnapshot(cwd = process.cwd()): BootSnapshot {
 }
 
 /**
- * The latest modification time (ms) among `dir`, every entry inside it at any
- * depth, and `extra` paths. Symlinks are not followed.
+ * Whether any of `dir`, every entry inside it at any depth, or `extra` paths has a
+ * modification time of `cutoff` or later. Stops at the first one; symlinks are not
+ * followed; unreadable entries count as old.
  */
-function lastActivity(dir: string, extra: string[] = []): number {
-  let latest = 0;
-  const visit = (path: string) => {
+function isActiveSince(dir: string, cutoff: number, extra: readonly string[] = []): boolean {
+  const recent = (path: string): boolean => {
     try {
-      latest = Math.max(latest, lstatSync(path).mtimeMs);
+      return lstatSync(path).mtimeMs >= cutoff;
     } catch {
-      return;
+      return false;
     }
+  };
+  const visit = (path: string): boolean => {
+    if (recent(path)) return true;
     let entries;
     try {
       entries = readdirSync(path, { withFileTypes: true });
     } catch {
-      return;
+      return false;
     }
-    for (const entry of entries) {
+    return entries.some((entry) => {
       const child = join(path, entry.name);
-      if (entry.isDirectory()) visit(child);
-      else {
-        try {
-          latest = Math.max(latest, lstatSync(child).mtimeMs);
-        } catch {
-          // Best effort.
-        }
-      }
-    }
+      return entry.isDirectory() ? visit(child) : recent(child);
+    });
   };
-  visit(dir);
-  for (const path of extra) {
-    try {
-      latest = Math.max(latest, lstatSync(path).mtimeMs);
-    } catch {
-      // Absent.
-    }
-  }
-  return latest;
+  if (visit(dir)) return true;
+  return extra.some(recent);
 }
 
 /**
@@ -819,7 +808,7 @@ export function retentionSweep(ttlDays: number, liveDirs: readonly string[] | un
     const top = resolve(path);
     if (live.some((dir) => dir === top || dir.startsWith(top + sep))) return;
     try {
-      if (lastActivity(path, sessionFile ? [sessionFile] : []) < cutoff) {
+      if (!isActiveSince(path, cutoff, sessionFile ? [sessionFile] : [])) {
         rmSync(path, { recursive: true, force: true });
       }
     } catch {
