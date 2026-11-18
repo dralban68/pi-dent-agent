@@ -100,14 +100,18 @@ interface Notified {
   level: string;
 }
 
+// package.md Section 5.3 notices follow the checkout's own .local-links, not the Bash rules tested here.
+const LOCAL_LINK_NOTICE = /^pi-dent: local links? /;
+
 function makeCtx(project: string, notified: Notified[]): ExtensionContext {
   return {
     cwd: project,
     mode: "print",
     hasUI: false,
     ui: {
-      notify: (message: string, level?: string) =>
-        notified.push({ message, level: level ?? "info" }),
+      notify: (message: string, level?: string) => {
+        if (!LOCAL_LINK_NOTICE.test(message)) notified.push({ message, level: level ?? "info" });
+      },
       setWidget: () => {},
       custom: () => {},
       select: async () => undefined,
