@@ -204,7 +204,8 @@ test("bound tools: Script, disallowed and unbindable tools are left out, sorted 
 const PREAMBLE = `type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type ToolContent =
   | { readonly type: "text"; readonly text: string }
-  | { readonly type: "image"; readonly data: string; readonly mimeType: string };
+  | { readonly type: "image"; readonly data: string; readonly mimeType: string }
+  | { readonly type: "other"; readonly kind: string };
 type ToolResult<S = undefined> = {
   readonly text: string;
   readonly content: readonly ToolContent[];

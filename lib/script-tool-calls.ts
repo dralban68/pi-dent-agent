@@ -9,7 +9,8 @@ import type { CallableTool } from "./script-tool-types.ts";
 /** A `ToolContent` part (Section 10.2). */
 export type ToolCallContent =
   | { type: "text"; text: string }
-  | { type: "image"; data: string; mimeType: string };
+  | { type: "image"; data: string; mimeType: string }
+  | { type: "other"; kind: string };
 
 /** The resolved value of a tool function, before the worker freezes it (Section 10.3). */
 export interface ToolCallValue {
@@ -39,16 +40,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-/** A content part reduced to the fields of `ToolContent`; other part types are dropped. */
-function contentPart(part: unknown): ToolCallContent | undefined {
-  if (!isRecord(part)) return undefined;
+/** A content part as a `ToolContent` (Section 10.3): text, image, or `other` naming its type. */
+function contentPart(part: unknown): ToolCallContent {
+  if (!isRecord(part)) return { type: "other", kind: "" };
   if (part.type === "text" && typeof part.text === "string") {
     return { type: "text", text: part.text };
   }
   if (part.type === "image" && typeof part.data === "string" && typeof part.mimeType === "string") {
     return { type: "image", data: part.data, mimeType: part.mimeType };
   }
-  return undefined;
+  return { type: "other", kind: typeof part.type === "string" ? part.type : "" };
 }
 
 /** `details` through a JSON round trip; `undefined` when it does not survive one (Section 10.3). */
@@ -83,9 +84,7 @@ export async function callBoundTool(
   signal: AbortSignal,
 ): Promise<ToolCallReply> {
   const outcome = await executeTool(tool.name, args, { signal });
-  const content = outcome.result.content
-    .map(contentPart)
-    .filter((part): part is ToolCallContent => part !== undefined);
+  const content = outcome.result.content.map(contentPart);
   const text = content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
   if (outcome.isError) {
     return {

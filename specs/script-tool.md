@@ -384,7 +384,8 @@ these lines verbatim, with `<members>` and `<unbound>` replaced as below:
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type ToolContent =
   | { readonly type: "text"; readonly text: string }
-  | { readonly type: "image"; readonly data: string; readonly mimeType: string };
+  | { readonly type: "image"; readonly data: string; readonly mimeType: string }
+  | { readonly type: "other"; readonly kind: string };
 type ToolResult<S = undefined> = {
   readonly text: string;
   readonly content: readonly ToolContent[];
@@ -401,7 +402,7 @@ declare const tools: {
   doc text is not empty, the line `  /** <doc> */`, then the line
   `  readonly <key>: (args: <A>) => Promise<<R>>;`. With no bound tool, the `<members>` line is
   absent.
-  - `<doc>` is the tool's `description` up to its first line break, with leading and trailing
+  - `<doc>` is the tool's `description` up to its first line break (`\r\n`, `\r`, or `\n`), with leading and trailing
     white space removed, every `*/` replaced by `* /`, cut to its first 200 characters (no
     marker).
   - `<key>` is the tool's name when it matches `[A-Za-z_$][A-Za-z0-9_$]*`, else the name as a
@@ -415,29 +416,35 @@ declare const tools: {
   absent.
 
 The type text of a schema is given by the first row of this table that applies. A `$defs` or
-`definitions` name is looked up in the root schema: the tool's `parameters` or `outputSchema`.
+`definitions` name is looked up in the root schema, the tool's `parameters` or `outputSchema`, and
+is all the text of the `$ref` after `#/$defs/` or `#/definitions/`, taken as written with no unescaping. A schema is
+being typed from the moment a `$ref` names it until its type text is complete, so a schema that
+refers to itself, directly or through others, meets the second `$ref` row. In every row, an `enum`,
+`anyOf`, `oneOf`, `allOf`, or `type` array that is empty, and an `enum`, `anyOf`, `oneOf`, or
+`allOf` that is not an array, counts as empty; a `properties` that is not an object, an array
+included, counts as absent.
 
-| Schema                                                                                    | Type text                                                                                                                                                      |
-| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `false`                                                                                   | `never`                                                                                                                                                        |
-| `true`, or a value that is not an object                                                  | `Json`                                                                                                                                                         |
-| has `$ref` equal to `#/$defs/<n>` or `#/definitions/<n>`, naming a schema not being typed | The type text of the named schema.                                                                                                                             |
-| has any other `$ref`: another form, a missing name, or a schema already being typed       | `Json /* unsupported: $ref */`                                                                                                                                 |
-| has `const`                                                                               | The literal of the value.                                                                                                                                      |
-| has `enum`                                                                                | The union of the literals of its values; `never` when empty.                                                                                                   |
-| has `anyOf` or `oneOf` (`anyOf` when both)                                                | The union of the type texts of its members; `never` when empty.                                                                                                |
-| has `allOf`                                                                               | The type texts of its members, each in parentheses when it is a union, joined by `&`; `Json` when empty.                                                       |
-| has `type`, an array                                                                      | The union of the type texts of the schema with `type` replaced by each entry in turn.                                                                          |
-| `type` is `"string"`, `"boolean"`, or `"null"`                                            | `string`, `boolean`, `null`.                                                                                                                                   |
-| `type` is `"number"` or `"integer"`                                                       | `number`                                                                                                                                                       |
-| `type` is `"array"`                                                                       | `<T>[]`, `<T>` being the type text of `items`, in parentheses when it is a union or an intersection; `Json[]` when `items` is absent.                          |
-| `type` is `"object"`, with `properties`                                                   | `{}` when `properties` is empty, else `{ <p>; <p> }`, one `<p>` per property in the schema's order: `<key>: <T>` when `required` names it, else `<key>?: <T>`. |
-| `type` is `"object"`, without `properties`                                                | `{ [key: string]: <T> }`, `<T>` being `never` when `additionalProperties` is `false`, `Json` when it is absent, else its type text.                            |
-| any other schema                                                                          | `Json`                                                                                                                                                         |
+| Schema                                                                                    | Type text                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `false`                                                                                   | `never`                                                                                                                                                                                                |
+| `true`, or a value that is not an object: `null` and an array included                    | `Json`                                                                                                                                                                                                 |
+| has `$ref` equal to `#/$defs/<n>` or `#/definitions/<n>`, naming a schema not being typed | The type text of the named schema.                                                                                                                                                                     |
+| has any other `$ref`: another form, a missing name, or a schema already being typed       | `Json /* unsupported: $ref */`                                                                                                                                                                         |
+| has `const`                                                                               | The literal of the value.                                                                                                                                                                              |
+| has `enum`                                                                                | The union of the literals of its values; `never` when empty.                                                                                                                                           |
+| has `anyOf` or `oneOf` (`anyOf` when both)                                                | The union of the type texts of its members; `never` when empty.                                                                                                                                        |
+| has `allOf`                                                                               | The type texts of its members, each in parentheses when it is a union, joined by an ampersand with one space on each side; `Json` when empty; a single member's type text unchanged when there is one. |
+| has `type`, an array                                                                      | The union of the type texts of the schema with `type` replaced by each entry in turn, each computed without the unsupported marker below; `never` when empty.                                          |
+| `type` is `"string"`, `"boolean"`, or `"null"`                                            | `string`, `boolean`, `null`.                                                                                                                                                                           |
+| `type` is `"number"` or `"integer"`                                                       | `number`                                                                                                                                                                                               |
+| `type` is `"array"`                                                                       | `<T>[]`, `<T>` being the type text of `items`, in parentheses when it is a union or an intersection; `Json[]` when `items` is absent.                                                                  |
+| `type` is `"object"`, with `properties`                                                   | `{}` when `properties` is empty, else `{ <p>; <p> }`, one `<p>` per property in the schema's order: `<key>: <T>` when `required` names it, else `<key>?: <T>`.                                         |
+| `type` is `"object"`, without `properties`                                                | `{ [key: string]: <T> }`, `<T>` being `never` when `additionalProperties` is `false`, `Json` when it is absent, else its type text.                                                                    |
+| any other schema                                                                          | `Json`                                                                                                                                                                                                 |
 
 - A literal is the value's JSON text when the value is `null`, a boolean, a number, or a string,
   and `Json` otherwise.
-- A union is its member type texts joined by `|`, a member that is an intersection in
+- A union is its member type texts joined by a vertical bar with one space on each side, a member that is an intersection in
   parentheses; a member text equal to an earlier one is dropped, and a union of one member is
   that member.
 - A property `<key>` follows the member `<key>` rule above.
@@ -448,8 +455,10 @@ The type text of a schema is given by the first row of this table that applies. 
   `unevaluatedProperties`, or `unevaluatedItems`, or has both `properties` and an
   `additionalProperties` other than `false`, the type text is followed by
   ` /* unsupported: <keywords> */`, `<keywords>` being those keywords in the order of this
-  sentence, `additionalProperties` last, joined by `, `. Every other keyword leaves the type text
-  unchanged.
+  sentence, `additionalProperties` last, joined by a comma and a space. The marker follows the
+  whole type text of that schema: for a `type` array, the union, once; for a `$ref` of the first
+  `$ref` row, the named schema's type text, markers of its own included. Every other keyword
+  leaves the type text unchanged.
 
 The tool declarations are a reference for whoever writes the script: the tool MUST NOT
 type-check a script against them, and a script that misuses a tool function fails at run time
@@ -471,14 +480,18 @@ type-check a script against them, and a script that misuses a tool function fail
   3. It starts a nested call of the tool with `args`. When the nested call's `isError` is true,
      it rejects with an `Error` whose `name` is `ToolError` and whose message is the result's
      text, or `tool <name> failed` when that text is empty.
-  4. When the tool has an `outputSchema`, and the result has no `structuredContent` or one that
-     does not validate against the `outputSchema`, it rejects with an `Error` whose message is
+  4. When the tool has an `outputSchema`, and the result has no `structuredContent`, or one that
+     does not validate against the `outputSchema`, or the `outputSchema` is one the validator
+     cannot evaluate, it rejects with an `Error` whose message is
      `tool <name> returned structured content that does not match its output schema`.
   5. It resolves to a frozen object of the `ToolResult` shape (Section 10.2).
 - The result's text is the `text` of the text parts of `content`, joined by `\n`. The resolved
   object has:
   - `text`: the result's text;
-  - `content`: the result's `content` parts, each reduced to the fields of `ToolContent`;
+  - `content`: one `ToolContent` per part of the result's `content`, in order. A part with
+    `type` `"text"` and a string `text`, or with `type` `"image"` and strings `data` and
+    `mimeType`, is reduced to those fields. Any other part becomes `{ type: "other", kind }`,
+    `kind` being the part's `type` when that is a string, else the empty string;
   - `details`: `JSON.parse(JSON.stringify(details))`, and `undefined` when `details` is
     `undefined`, or `JSON.stringify` throws or returns `undefined`;
   - `structured`: the `structuredContent` when the tool has an `outputSchema`, else `undefined`.
