@@ -32,7 +32,7 @@ adds to the dx repo standard (`dx:repo-setup`). pi-dent's own manifest rules are
 Rules: [specs/package.md](../specs/package.md), Section 5.
 
 - Create `.local-links` in the consumer's root (gitignored), one `<package name>=<absolute path>`
-  per line, for example `pi-dent-terms=/Users/me/src/pi-dent-terms`; `#` starts a comment line.
+  per line, for example `pi-dent-terms=<absolute path of the pi-dent-terms checkout>`; `#` starts a comment line.
   Run `node scripts/link-local.ts`: `node_modules/<name>` becomes a symlink to the checkout, and
   edits there are live after `/reload`. Nothing committable changes: no `package.json`,
   `pnpm-workspace.yaml` or lockfile entry.

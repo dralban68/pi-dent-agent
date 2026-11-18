@@ -32,3 +32,5 @@ pi -ne -e ./      # run the agent with this repository's extensions only
 - pi-dent owns its identifiers: `pi-dent.conf`, `~/.pi/pi-dent/`, `PI_DENT_*`.
 - One host: the pi extension. No embedded-host concepts.
 - The entry is `index.ts`, registered under `pi.extensions` in `package.json`.
+- Commit no absolute home path or user name: write `<absolute path of …>`. Only `package.json`'s
+  publishing fields name the owner's account; `test/repo/no-personal-paths.test.ts` enforces it.
