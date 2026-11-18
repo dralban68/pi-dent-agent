@@ -26,6 +26,7 @@ export const SUPPORTED_ROOT_KEYS = [
   "taskBrowser",
   "footer",
   "recapModel",
+  "script",
   // Owned by pi-dent-terms (config-file.md, Section 2): pi-dent never validates it.
   "terms",
 ] as const;
@@ -582,6 +583,64 @@ export function parseTaskBrowser(config: BootConfig): {
         `config: ${at}: taskBrowser.shortcut must be a non-empty string; ignored`,
       );
   }
+  return out;
+}
+
+/**
+ * The `script` configuration (script-tool.md Section 8) with its diagnostics: the allow lists,
+ * `undefined` where the key is absent or ignored.
+ */
+export function parseScript(config: BootConfig): {
+  networkAllow: string[] | undefined;
+  toolsAllow: string[] | undefined;
+  diagnostics: string[];
+} {
+  const out: {
+    networkAllow: string[] | undefined;
+    toolsAllow: string[] | undefined;
+    diagnostics: string[];
+  } = { networkAllow: undefined, toolsAllow: undefined, diagnostics: [] };
+  const at = (path: string[]): string => attributePath(config.layers, config.projectRoot, path);
+  /** The object at `path` when it is one; a diagnostic when it is present and is not. */
+  const object = (
+    value: unknown,
+    path: string[],
+    known: readonly string[],
+  ): Record<string, unknown> | undefined => {
+    if (value === undefined) return undefined;
+    const name = path.join(".");
+    if (!isPlainObject(value)) {
+      out.diagnostics.push(`config: ${at(path)}: ${name} must be an object; ignored`);
+      return undefined;
+    }
+    const unknownKeys = Object.keys(value).filter((key) => !known.includes(key));
+    if (unknownKeys.length > 0) {
+      out.diagnostics.push(
+        `config: ${unknownKeysMessage(name, unknownKeys, (key) => at([...path, key]))}`,
+      );
+    }
+    return value;
+  };
+  const allow = (
+    parent: Record<string, unknown> | undefined,
+    path: string[],
+  ): string[] | undefined => {
+    if (parent === undefined || !Object.hasOwn(parent, "allow")) return;
+    const value = parent.allow;
+    if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) {
+      return value.filter((entry): entry is string => typeof entry === "string");
+    }
+    const full = [...path, "allow"];
+    out.diagnostics.push(
+      `config: ${at(full)}: ${full.join(".")} must be an array of strings; ignored`,
+    );
+  };
+  const script = object(config.merged.script, ["script"], ["network", "tools"]);
+  if (script === undefined) return out;
+  const network = object(script.network, ["script", "network"], ["allow"]);
+  out.networkAllow = allow(network, ["script", "network"]);
+  const tools = object(script.tools, ["script", "tools"], ["allow"]);
+  out.toolsAllow = allow(tools, ["script", "tools"]);
   return out;
 }
 

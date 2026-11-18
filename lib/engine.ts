@@ -44,7 +44,7 @@ import {
 } from "./catalogs.ts";
 import { resolveCwdParam } from "./cwd-param.ts";
 import { type PluginEntry, appendPluginContext, discoverPlugins } from "./plugins.ts";
-import { type BootConfig, parseTaskBrowser, readConfig } from "./config.ts";
+import { type BootConfig, parseScript, parseTaskBrowser, readConfig } from "./config.ts";
 import type { CompactionSettings, HostSession } from "./host.ts";
 import type { BillingService } from "./billing.ts";
 import {
@@ -732,6 +732,9 @@ export function readBootSnapshot(cwd = process.cwd()): BootSnapshot {
     diagnostics.push({ level: "warning", message });
   }
   for (const message of parseTaskBrowser(config).diagnostics) {
+    diagnostics.push({ level: "warning", message });
+  }
+  for (const message of parseScript(config).diagnostics) {
     diagnostics.push({ level: "warning", message });
   }
   for (const message of parsedModelGuidance(config).diagnostics) {
