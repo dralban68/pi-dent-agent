@@ -315,11 +315,13 @@ terms:
     meaning: The extra environment variables a tool call receives from the session that invokes it
     owner: specs/bash-tool.md
     group: Tools
-    key: shared
+    key: local
     status: active
     history:
       - date: 2026-11-15
         op: add
+      - date: 2026-11-18
+        op: update
   - id: cancellation-handler
     label: cancellation handler
     meaning: The function an owning contract sets on a running row to request its cancellation
@@ -1642,14 +1644,18 @@ terms:
     owner: specs/script-tool.md
     group: Sessions and execution
     key: confusable
-    status: active
+    status: deprecated
     forms:
       - reaping
       - reaped
       - reaps
+    reason: out-of-scope
     history:
       - date: 2026-11-15
         op: add
+      - date: 2026-11-18
+        op: deprecate
+        reason: out-of-scope
   - id: rebuild
     label: rebuild
     meaning: The scan that re-inserts task rows from task records into the task registry
