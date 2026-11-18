@@ -55,7 +55,74 @@ The package name is `pi-dent-agent`. The `pi` key of `package.json` holds the pa
 - A library imported by an entry, such as `pi-dent-markdown`, MUST be a `dependencies` entry and
   MUST NOT have a row in Section 2 or a `pi.extensions` entry.
 
-## 5. Specification gaps
+## 5. Local links
+
+A local link is a symbolic link `node_modules/<name>` under the package root that points at a
+development checkout of the package `<name>`, in place of its installed version. Local links are
+declared in the file `.local-links` in the package root. The repository MUST ignore `.local-links`
+in git, and nothing in this section writes a file outside `node_modules/`.
+
+### 5.1 File format
+
+`.local-links` is UTF-8 text read line by line; a line ends at LF or CRLF. Each line is trimmed of
+leading and trailing whitespace. An empty line and a line starting with `#` declare nothing. Every
+other line declares one local link as `<name>=<path>`, split at its first `=`, both sides trimmed.
+
+The file is invalid when it cannot be read or a line fails a check below. Lines are checked in file
+order, each against the checks in listed order; the first failure gives the file's error message,
+where `<n>` is the 1-based line number.
+
+| Check                                                                                      | Error message                                                                      |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| The file exists and cannot be read                                                         | `.local-links: <the host's error message>`                                         |
+| The line has no `=`, `<path>` is empty, or `<name>` is not an npm package name (see below) | `.local-links line <n>: expected <package name>=<absolute path>`                   |
+| An earlier line declares the same `<name>`                                                 | `.local-links line <n>: duplicate package <name>`                                  |
+| `<path>` is not an absolute path                                                           | `.local-links line <n>: path is not absolute: <path>`                              |
+| `<path>` is not a directory holding a `package.json` whose `name` is the string `<name>`   | `.local-links line <n>: <path> is not a directory whose package.json names <name>` |
+
+An npm package name here matches `^(@[a-z0-9~-][a-z0-9._~-]*/)?[a-z0-9~-][a-z0-9._~-]*$`.
+
+A local link is in place when `node_modules/<name>` and `<path>` resolve, symbolic links followed,
+to the same existing directory.
+
+### 5.2 Link script
+
+`node scripts/link-local.ts`, run from any directory, acts on the package root that holds it. The
+`prepare` script of `package.json` MUST be exactly that command.
+
+- No `.local-links`: it MUST print nothing, change nothing, and exit with status 0.
+- Invalid file: it MUST write `link-local: <error message>` and a newline to standard error, exit
+  with status 1, and create or remove nothing, whichever line is at fault.
+- Otherwise, for each declared link in file order: when the link is in place it MUST print
+  `already linked <name> -> <path>` to standard output and leave it unchanged; when not, it MUST
+  remove whatever is at `node_modules/<name>` (a symbolic link itself, never its target), create
+  missing parent directories, create there a symbolic link to `<path>` as written, and print
+  `linked <name> -> <path>`. Each line ends with a newline. It exits with status 0.
+- A filesystem operation that fails MUST end the script with a non-zero status and the host's
+  error on standard error; links made before it stay.
+
+### 5.3 Load-time check
+
+Each time the host calls the factory of `./index.ts`, pi-dent checks the `.local-links` of its own
+package root and reports the outcome as a host UI notification of the level below, the message
+prefixed `pi-dent: `. A notification raised while no session is open MUST be shown at the next
+`session_start`.
+
+| Case                                   | Level     | Message                                                                                                             |
+| -------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- |
+| No `.local-links`, or no link declared | none      | none                                                                                                                |
+| Invalid file                           | `warning` | `local links: <error message>; correct .local-links, then run node scripts/link-local.ts`                           |
+| A declared link is not in place        | `warning` | `local link <name> is not in place: node_modules/<name> does not resolve to <path>; run node scripts/link-local.ts` |
+| Every declared link is in place        | `info`    | `local links in use: <names>`                                                                                       |
+
+The not-in-place warning is raised once per such link, in file order, and the info message is then
+omitted. `<names>` is the declared names in file order, joined by `, `. The check MUST NOT create
+or change a link.
+
+> Note (non-normative): a package manager command can reset a link to the installed version
+> without running `prepare`, so the load-time check is what tells the user.
+
+## 6. Specification gaps
 
 The behavior of `pi update --extensions` on the package's dependencies is not specified, and
 neither is the effect of a bundled extension failing to load on the remaining entries.
