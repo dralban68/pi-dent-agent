@@ -1,7 +1,8 @@
 # `Script` tool specification
 
 This document specifies the `Script` tool: sandboxed execution of agent-authored JavaScript or
-TypeScript, its sources, inputs, results, timeout, and delivery. The plugin script it can read is
+TypeScript, its sources, inputs, results, timeout, and delivery, and the typed functions through
+which a script calls the session's other tools. The plugin script it can read is
 owned by [plugin.md](plugin.md). The extension MUST register the tool through the host
 `registerTool` API with `name` and `label` `"Script"`; the host shows a call as a tool card
 ([tool-card.md](tool-card.md)).
@@ -62,6 +63,8 @@ The remaining checks the schema cannot express MUST reject the call as a pre-sta
   ([plugin.md](plugin.md), Section 7; root: the plugin root).
 - A plugin script file that is missing at call time ([plugin.md](plugin.md), Section 7); the
   failure MUST name the resolved path.
+- A checked source that fails the type check (Section 10.3); the failure text is the one that
+  section gives.
 
 The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md), Section 8.
 
@@ -75,16 +78,18 @@ The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md
   acts and reports a refusal as an error. No external runtime binary is invoked.
 - The guest sees the ECMAScript builtins its engine provides, and nothing else ambient: there is
   no `URL`, `AbortController`, `crypto`, `TextEncoder`, `TextDecoder`, `process`, or `require`.
-  The host pre-binds `console`, `fetch` (Section 4), the `dent` namespace (Section 4), and
-  `input`.
+  The host pre-binds `console`, `fetch` (Section 4), the `dent` namespace (Section 4), `input`,
+  and, for a checked source, `tools` (Section 10).
 - ESM semantics and TypeScript syntax MUST work with no build step. TypeScript is accepted with
   erasable syntax only: a construct whose removal changes runtime behavior — an `enum`, a
   namespace with runtime code, a parameter property — fails the run with the error text
   `type stripping failed: <message>`, `<message>` being the stripper's message. A stripping
-  failure settles the run as any other error (Section 3, below).
+  failure settles the run as any other error (Section 3, below). A checked source is type-checked
+  before the run starts (Section 10.3); a source that fails the check never reaches the stripper.
 - There is no module resolution: a static `import` or `export … from` declaration fails to
   resolve, and the run settles `threw` with the engine's error. A source the host cannot compile
-  settles the run the same way.
+  settles the run the same way. Both apply to a source that reaches the run: a checked source
+  with such a declaration fails the type check first.
 - Every call compiles its script afresh in a new sandbox: no module instance, no guest state, and
   no host-function memoization is carried across calls.
 - `input`, when provided, reaches the script as the top-level `input` binding and
@@ -120,7 +125,8 @@ The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md
 
 ## 4. Host functions
 
-The host functions are the guest's only effectful surface. Each is a method of the frozen global
+The host functions and the tool functions of Section 10 are the guest's only effectful surface.
+Each host function is a method of the frozen global
 `dent`, except `fetch`, which is a global of its own. A `path` or `name` argument that is not a
 string throws `dent.<function> <argument> must be a string`. A host function's failure — a
 refusal below, an I/O error, a missing file — throws an `Error` whose message is the failure's
@@ -139,6 +145,7 @@ text; a guest `try`/`catch` sees it like any error.
 - `dent.env(name)` returns the value of the environment variable `name`, or `undefined`.
 - `dent.tmpDir()` returns the session temporary folder
   ([bash-tool.md](bash-tool.md), Section 3), or `undefined` when the session has none.
+- `dent.toolTypes()` returns the tool declarations of the call (Section 10.2), as a string.
 - `fetch(url, init)` fetches a URL. `url` is a string. `init`, when present, is an object whose
   `method`, `headers`, and `body` are honored: `method` a string defaulting to `"GET"`,
   `headers` an object of string names and values, `body` a string. It resolves to a frozen
@@ -326,9 +333,11 @@ configures the sandbox:
 | `script`               | object?   | The sandbox options.                                                                                                                         |
 | `script.network`       | object?   | The network options.                                                                                                                         |
 | `script.network.allow` | string[]? | Host names `fetch` may reach, exact match compared case-insensitively; the entry `*` allows every host. Default: `fetch` refuses every host. |
+| `script.tools`         | object?   | The tool function options.                                                                                                                   |
+| `script.tools.allow`   | string[]? | Names of the tools a script may call (Section 10.1), compared case-sensitively. Default: `["*"]`.                                            |
 
-A `script` or `script.network` value that is not an object, and an `allow` that is not an array
-of strings, MUST produce one diagnostic naming its layer file
+A `script`, `script.network`, or `script.tools` value that is not an object, and an `allow` that
+is not an array of strings, MUST produce one diagnostic naming its layer file
 ([config-file.md](config-file.md), Section 4) and be ignored, so the default applies. Unknown
 keys follow the unknown-key rule ([config-file.md](config-file.md), Section 2). The key loads and
 merges per [config-file.md](config-file.md), Sections 3 and 7: arrays replace, so a layer
@@ -336,11 +345,199 @@ declaring `allow` replaces every lower layer's list whole.
 
 ## 9. Capability boundary
 
-The guest's only effectful surface is the host functions of Section 4. The sandbox MUST expose no
-binding through which a script can dispatch an agent, load a skill, call an MCP tool, run a
-process, or reach the host's module system; it has no host bridge.
+The guest's only effectful surface is the host functions of Section 4 and the tool functions of
+Section 10. The sandbox MUST expose no other binding through which a script can dispatch an agent,
+load a skill, call a tool, run a process, or reach the host's module system.
 
-## 10. Specification gaps
+> Note (non-normative): a tool function reaches whatever its tool reaches, so a script that can
+> call a shell or file-writing tool is not held by the write and fetch rules of Section 4;
+> `script.tools.allow` (Section 8) is the control for that.
+
+## 10. Tool functions
+
+A script calls the session's other tools through typed functions, one per tool, and never by
+passing a tool name as a string. The host gives a running tool the callable tools: the list of
+tools it can run on the session's behalf, each with a `name`, a `description`, a `parameters`
+JSON Schema, and optionally an `outputSchema` JSON Schema. The host also gives it a function that
+runs one callable tool by name with an arguments object, through the same argument validation,
+hooks, and permission checks as a call the model issues, and that resolves, without rejecting, to
+the tool's result (`content`, `details`, optional `structuredContent`) and an `isError` flag. A
+call made that way is a nested call.
+
+### 10.1 Bound tools
+
+- A checked source is inline `code`, or a plugin script whose `path` ends in `.ts`, `.mts`, or
+  `.cts`. Any other plugin script is an unchecked source: the host binds no `tools` for it, and
+  it has no way to call a tool.
+- The tool reads the callable tools once per call, after the checks of Section 2 that precede the
+  type check have passed. The bound tools are the callable tools of that reading, without:
+  - the tool named `Script`;
+  - a tool whose name matches no entry of `script.tools.allow` (Section 8). An entry matches a
+    name equal to it; an entry ending in `*` matches every name that starts with the text before
+    the `*`, so the entry `*` matches every name;
+  - a tool whose `parameters` is not an object with `type` equal to `"object"` (an unbindable
+    tool).
+- The tool registration MUST set the host's `reachesTools` field so that every `Script` call is
+  reported as reaching all tools.
+
+> Note (non-normative): `reachesTools` lets an extension that registers tools late, such as one
+> whose servers are still connecting, finish before the callable tools are read.
+
+### 10.2 Tool declarations
+
+The tool declarations are one TypeScript text, lines joined by `\n`, with a final `\n`. They are
+these lines verbatim, with `<members>` and `<unbound>` replaced as below:
+
+```ts
+type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+type ToolContent =
+  | { readonly type: "text"; readonly text: string }
+  | { readonly type: "image"; readonly data: string; readonly mimeType: string };
+type ToolResult<S = undefined> = {
+  readonly text: string;
+  readonly content: readonly ToolContent[];
+  readonly details: Json | undefined;
+  readonly structured: S;
+};
+declare const tools: {
+<members>
+};
+<unbound>
+```
+
+- `<members>` is one member per bound tool, in ascending order of name. A member is, when its
+  doc text is not empty, the line `  /** <doc> */`, then the line
+  `  readonly <key>: (args: <A>) => Promise<<R>>;`. With no bound tool, the `<members>` line is
+  absent.
+  - `<doc>` is the tool's `description` up to its first line break, with leading and trailing
+    white space removed, every `*/` replaced by `* /`, cut to its first 200 characters (no
+    marker).
+  - `<key>` is the tool's name when it matches `[A-Za-z_$][A-Za-z0-9_$]*`, else the name as a
+    JSON string literal.
+  - `<A>` is the type text of `parameters`.
+  - `<R>` is `ToolResult` when the tool has no `outputSchema`, else `ToolResult<<S>>`, `<S>`
+    being the type text of `outputSchema`.
+- `<unbound>` is one line per unbindable tool that is not `Script` and matches
+  `script.tools.allow`, in ascending order of name:
+  `// not bound: <name>: parameters is not an object schema`. With no such tool, the line is
+  absent.
+
+The type text of a schema is given by the first row of this table that applies. A `$defs` or
+`definitions` name is looked up in the root schema: the tool's `parameters` or `outputSchema`.
+
+| Schema                                                                                    | Type text                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `false`                                                                                   | `never`                                                                                                                                                        |
+| `true`, or a value that is not an object                                                  | `Json`                                                                                                                                                         |
+| has `$ref` equal to `#/$defs/<n>` or `#/definitions/<n>`, naming a schema not being typed | The type text of the named schema.                                                                                                                             |
+| has any other `$ref`: another form, a missing name, or a schema already being typed       | `Json /* unsupported: $ref */`                                                                                                                                 |
+| has `const`                                                                               | The literal of the value.                                                                                                                                      |
+| has `enum`                                                                                | The union of the literals of its values; `never` when empty.                                                                                                   |
+| has `anyOf` or `oneOf` (`anyOf` when both)                                                | The union of the type texts of its members; `never` when empty.                                                                                                |
+| has `allOf`                                                                               | The type texts of its members, each in parentheses when it is a union, joined by `&`; `Json` when empty.                                                       |
+| has `type`, an array                                                                      | The union of the type texts of the schema with `type` replaced by each entry in turn.                                                                          |
+| `type` is `"string"`, `"boolean"`, or `"null"`                                            | `string`, `boolean`, `null`.                                                                                                                                   |
+| `type` is `"number"` or `"integer"`                                                       | `number`                                                                                                                                                       |
+| `type` is `"array"`                                                                       | `<T>[]`, `<T>` being the type text of `items`, in parentheses when it is a union or an intersection; `Json[]` when `items` is absent.                          |
+| `type` is `"object"`, with `properties`                                                   | `{}` when `properties` is empty, else `{ <p>; <p> }`, one `<p>` per property in the schema's order: `<key>: <T>` when `required` names it, else `<key>?: <T>`. |
+| `type` is `"object"`, without `properties`                                                | `{ [key: string]: <T> }`, `<T>` being `never` when `additionalProperties` is `false`, `Json` when it is absent, else its type text.                            |
+| any other schema                                                                          | `Json`                                                                                                                                                         |
+
+- A literal is the value's JSON text when the value is `null`, a boolean, a number, or a string,
+  and `Json` otherwise.
+- A union is its member type texts joined by `|`, a member that is an intersection in
+  parentheses; a member text equal to an earlier one is dropped, and a union of one member is
+  that member.
+- A property `<key>` follows the member `<key>` rule above.
+- A schema with `type` `"object"` and `properties` has a closed type: `additionalProperties` adds
+  no index signature.
+- When the schema whose type text a row gives has one of the keywords `not`, `if`,
+  `prefixItems`, `patternProperties`, `propertyNames`, `dependentSchemas`, `contains`,
+  `unevaluatedProperties`, or `unevaluatedItems`, or has both `properties` and an
+  `additionalProperties` other than `false`, the type text is followed by
+  ` /* unsupported: <keywords> */`, `<keywords>` being those keywords in the order of this
+  sentence, `additionalProperties` last, joined by `, `. Every other keyword leaves the type text
+  unchanged.
+
+> Note (non-normative): the declarations can be narrower or wider than the schema where a marker
+> says so; the host's validation of the arguments at call time (Section 10.4) is what holds.
+
+### 10.3 Type check
+
+- Before the sandbox is created, the tool MUST type-check a checked source as TypeScript, as an
+  ECMAScript module whatever its content, with the compiler's `strict` option on and every other
+  type-checking option at its default.
+- The check sees these global declarations and no other: the ECMAScript 2023 standard library
+  with no DOM and no Node.js declaration; `console` with the five methods of Section 3, each
+  `(...args: unknown[]) => void`; `fetch` and `dent` with the signatures of Section 4; `input`
+  of type `Json | undefined`; and the tool declarations of Section 10.2.
+- A check that reports one or more diagnostics of the error category fails the call as a
+  pre-start rejection (Section 2). Its text is the line `type check failed`, then one line per
+  diagnostic, `<line>:<column> TS<code>: <message>`, in ascending order of line, then column,
+  then code. `<line>` and `<column>` are the diagnostic's 1-based position in the source, a
+  column counting UTF-16 code units, and `0:0` for a diagnostic without a position; `<message>`
+  is the compiler's message, the lines of a message chain joined by `\n`. At most 50 diagnostics
+  are listed; when there are more, a last line `... <k> more` follows, `<k>` being the number
+  not listed.
+- Diagnostics of any other category are not reported and do not fail the call.
+- The check accepts what the compiler accepts: an `any` type, a type assertion, and the
+  compiler's suppression comments are not rejected.
+- An unchecked source is not type-checked.
+
+### 10.4 Calling a tool
+
+- For a checked source, `tools` is a frozen object whose own enumerable properties are the bound
+  tools' names, in the order of the tool declarations, each a tool function. A tool function
+  takes one argument, `args`, and returns a promise.
+- A tool function settles by the first of these steps that applies:
+  1. In a background call, it rejects with an `Error` whose message is
+     `tools.<name> is not available in a background run`.
+  2. When `args` is not a plain object that is JSON-compatible (Section 6), it rejects with an
+     `Error` whose message is `tools.<name> args must be a JSON-compatible object`.
+  3. It starts a nested call of the tool with `args`. When the nested call's `isError` is true,
+     it rejects with an `Error` whose `name` is `ToolError` and whose message is the result's
+     text, or `tool <name> failed` when that text is empty.
+  4. When the tool has an `outputSchema`, and the result has no `structuredContent` or one that
+     does not validate against the `outputSchema`, it rejects with an `Error` whose message is
+     `tool <name> returned structured content that does not match its output schema`.
+  5. It resolves to a frozen object of the `ToolResult` shape (Section 10.2).
+- The result's text is the `text` of the text parts of `content`, joined by `\n`. The resolved
+  object has:
+  - `text`: the result's text;
+  - `content`: the result's `content` parts, each reduced to the fields of `ToolContent`;
+  - `details`: `JSON.parse(JSON.stringify(details))`, and `undefined` when `details` is
+    `undefined`, or `JSON.stringify` throws or returns `undefined`;
+  - `structured`: the `structuredContent` when the tool has an `outputSchema`, else `undefined`.
+- A script can have several nested calls running at once; the tool starts each when its tool
+  function is called, and the host orders them.
+- A nested call runs inside the run's deadline (Section 3). At settlement the tool MUST abort
+  the signal it gave every nested call still running, MUST NOT wait for them, and MUST drop their
+  outcomes.
+- A nested call of a tool that has left the callable tools since they were read fails as the host
+  reports it, by step 3.
+
+> Note (non-normative): step 1 is deliberate. A background run outlives the tool call it belongs
+> to, and whether the host accepts a nested call after that call has returned is unknown.
+
+## 11. Specification gaps
+
+- The type check's diagnostics, their codes, and their messages are the compiler's and differ
+  between compiler versions; the compiler version is unspecified, and so is which sources pass.
+- The duration of the type check has no specified bound and is not part of the run's deadline or
+  `durationMs`.
+- Whether the guest engine provides every member of the ECMAScript 2023 standard library the
+  type check declares (Section 10.3) is unspecified: a script that passes the check can throw at
+  run time for a member the engine lacks.
+- The dialect of JSON Schema the host's tools use, and so the meaning of a keyword whose meaning
+  differs between dialects, is unspecified; Section 10.2 reads the keywords it names and no
+  other.
+- Which tools the host makes callable, how it validates arguments, which hooks and permission
+  checks it applies to a nested call, its error texts, and how it orders concurrent nested calls
+  are the host's.
+- What the host records of a nested call, in the transcript and in its events, is the host's.
+- A nested call's result is bounded only by the guest's heap: whether a result larger than the
+  engine cap fails the tool function, and how, is unspecified.
+- The number of nested calls one run can make has no specified bound.
 
 - The engine's memory-limit enforcement is incomplete: several allocations escape it, so a guest
   can hold far more than its heap cap before the engine refuses (quickjs-emscripten issues #271
