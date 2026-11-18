@@ -2431,6 +2431,19 @@ terms:
     history:
       - date: 2026-11-15
         op: add
+  - id: tool-log
+    label: tool log
+    meaning: The session file in which a Script run records its source and the tool calls its script makes
+    owner: specs/script-tool.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - output-file
+      - session-file
+    history:
+      - date: 2026-11-18
+        op: add
   - id: transcript-item
     label: transcript item
     meaning: One searchable piece of a session entry
