@@ -168,7 +168,7 @@ export const SEARCH_PARAMETER_DESCRIPTIONS = {
   until:
     "Upper time bound, exclusive: an RFC 3339 date-time with a time-zone offset, or an age such as 90s, 15m, 2h, or 7d. For sessions it bounds when the session was last written.",
   session:
-    "For find and sessions: the session to search or list: self (default), the task ID of an Agent call of this session, a session key as shown before the colon of a hit address or at the start of a sessions line, or a session file path.",
+    "For find and sessions: the session to search or list: self (default), the task ID of an Agent or Script call of this session, a session key as shown before the colon of a hit address or at the start of a sessions line, or a session file path.",
   scope:
     "How far to reach: session (one session; default for find), tree (it and the child sessions beneath it; default for sessions), project (this main session and the other sessions of its project), project-trees (those and all their child sessions). sessions takes tree or project only.",
   branches: "For find: true also searches the entries of abandoned branches. Default false.",
