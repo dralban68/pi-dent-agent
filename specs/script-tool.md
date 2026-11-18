@@ -189,13 +189,17 @@ Path rules, applied by every `dent` function that takes a `path`:
   `\nFull return value: <outputPath>` when the return json section applies (Section 6, below), then
   `\n--- exited <exitReason> in <durationMs>ms ---`, then
   `\n--- killed by the user from the task browser ---` when the run ended as a browser kill
-  ([task-registry.md](task-registry.md), Section 2), then `\n--- return metadata ---\n<json>` when
-  `exitReason` is `ok`. `<rendered>` is the return value
+  ([task-registry.md](task-registry.md), Section 2), then
+  `\n--- tool calls: <n>; log: <toolLogPath>; Search it with session <taskId> ---` when the run
+  made one or more nested calls (Section 10.4), then `\n--- return metadata ---\n<json>` when
+  `exitReason` is `ok`. `<n>` is the number of nested calls the run made. `<rendered>` is the return value
   rendered per the rendering rules below; `<json>` is `details.returnValueRender` serialized as
   single-line JSON.
 - `details` carries `{ stdout, stderr, returnValue?, returnValueRender?, exitReason, truncated:
-  { stdout, stderr }, durationMs, taskId?, outputPath, background? }`. `outputPath` is present
-  for every call that starts a run (Section 7).
+  { stdout, stderr }, durationMs, taskId?, outputPath, toolCalls, toolLogPath?, background? }`.
+  `outputPath` is present for every call that starts a run (Section 7). `toolCalls` is the number
+  of nested calls the run made, `0` when it made none or did not start; `toolLogPath` is present
+  exactly when the tool log was created (Section 10.4).
   `returnValue` and `returnValueRender` are present exactly when `exitReason` is `ok`. The run
   starts when the sandbox is created and ends at settlement; `durationMs` is the whole
   milliseconds between them, rounded down, and `0` when no run started.
@@ -275,15 +279,16 @@ Path rules, applied by every `dent` function that takes a `path`:
   background call MUST ignore the tool-call signal, before and after the call has returned: a
   background call never aborts, and a tool-call signal already aborted MUST NOT prevent the run.
 - `background: true` returns immediately (`isError` unset) with the text
-  `Script started in background (taskId <taskId>).` and `details` `{ taskId, outputPath,
-  background: true, exitReason: "running", stdout: "", stderr: "", truncated: { stdout: false,
-  stderr: false }, durationMs: 0 }`. In both deliveries, the row settles with the Section 6 body as its result text and `outputPath` as
+  `Script started in background (taskId <taskId>).\nTool calls, if the script makes any: <toolLogPath>`
+  and `details` `{ taskId, outputPath, background: true, exitReason: "running", stdout: "",
+  stderr: "", truncated: { stdout: false, stderr: false }, durationMs: 0, toolCalls: 0 }`.
+  `<toolLogPath>` is the path of Section 10.4, named whether or not the log is ever created. In both deliveries, the row settles with the Section 6 body as its result text and `outputPath` as
   its `resultPath`.
 - In both foreground and background delivery, captured output is appended to `outputPath` as it
   arrives, stdout and stderr chunks interleaved in arrival order without labels. On settlement, the
   `\n--- return ---` block, the `\n--- return json ---` section when Section 6 adds it, and the
-  `\n--- exited`, `\n--- killed by the user from the task browser ---` and `\n--- return metadata ---`
-  blocks of Section 6 are appended to `outputPath`, in that order. The `Full return value` line is not
+  `\n--- exited`, `\n--- killed by the user from the task browser ---`, `\n--- tool calls` and
+  `\n--- return metadata ---` blocks of Section 6 are appended to `outputPath`, in that order. The `Full return value` line is not
   appended.
 - The output file, `outputPath`, is `<dir>/output/<safeTaskId>.log`, where `<dir>` is the agent directory of the session that
   invoked the task ([agent-tool.md](agent-tool.md), Section 4.2) and `<safeTaskId>` is the safe
@@ -472,19 +477,18 @@ type-check a script against them, and a script that misuses a tool function fail
 - `tools` is a frozen object whose own enumerable properties are the bound
   tools' names, in the order of the tool declarations, each a tool function. A tool function
   takes one argument, `args`, and returns a promise.
-- A tool function settles by the first of these steps that applies:
-  1. In a background call, it rejects with an `Error` whose message is
-     `tools.<name> is not available in a background run`.
-  2. When `args` is not a plain object that is JSON-compatible (Section 6), it rejects with an
+- A tool function settles by the first of these steps that applies, in foreground and
+  background delivery alike:
+  1. When `args` is not a plain object that is JSON-compatible (Section 6), it rejects with an
      `Error` whose message is `tools.<name> args must be a JSON-compatible object`.
-  3. It starts a nested call of the tool with `args`. When the nested call's `isError` is true,
+  2. It starts a nested call of the tool with `args`. When the nested call's `isError` is true,
      it rejects with an `Error` whose `name` is `ToolError` and whose message is the result's
      text, or `tool <name> failed` when that text is empty.
-  4. When the tool has an `outputSchema`, and the result has no `structuredContent`, or one that
+  3. When the tool has an `outputSchema`, and the result has no `structuredContent`, or one that
      does not validate against the `outputSchema`, or the `outputSchema` is one the validator
      cannot evaluate, it rejects with an `Error` whose message is
      `tool <name> returned structured content that does not match its output schema`.
-  5. It resolves to a frozen object of the `ToolResult` shape (Section 10.2).
+  4. It resolves to a frozen object of the `ToolResult` shape (Section 10.2).
 - The result's text is the `text` of the text parts of `content`, joined by `\n`. The resolved
   object has:
   - `text`: the result's text;
@@ -501,12 +505,61 @@ type-check a script against them, and a script that misuses a tool function fail
   the signal it gave every nested call still running, MUST NOT wait for them, and MUST drop their
   outcomes.
 - A nested call of a tool that has left the callable tools since they were read fails as the host
-  reports it, by step 3.
+  reports it, by step 2.
+- The host attaches a record of the nested calls to the `Script` call's result only for calls
+  made before that result is returned; the nested calls of a background run, made after its
+  call has returned, are in the tool log (Section 10.4) and in no record of the host's.
 
-> Note (non-normative): step 1 is deliberate. A background run outlives the tool call it belongs
-> to, and whether the host accepts a nested call after that call has returned is unknown.
+### 10.4 Tool log
 
-## 11. Specification gaps
+The tool log of a run is a session file that records the run's source and every nested call,
+so that `Search` reads it like the session file of an `Agent` dispatch.
+
+- Its path, `<toolLogPath>`, is `<dir>/script-<safeTaskId>.jsonl`, `<dir>` and `<safeTaskId>`
+  being those of the output file (Section 7). It lies in the agent directory of the invoking
+  session, so it is a member of that session's session tree
+  ([session-transcript.md](session-transcript.md), Section 4).
+- The tool MUST create the tool log when the run starts its first nested call, before the call
+  is started, creating `<dir>` when absent; a run that makes no nested call creates none. The
+  log is deleted only with `<dir>`, by the retention sweep ([agent-tool.md](agent-tool.md),
+  Section 10).
+- Each line is one JSON object followed by a line feed, written in this order:
+  1. The session header: `type` `"session"`, `id` the task ID, `timestamp` the run's start,
+     and `cwd` the run's resolved `cwd`.
+  2. One `message` entry whose `message` is `{ role: "user", content: <source> }`, `<source>`
+     being the row's `code` ([task-registry.md](task-registry.md), Section 2).
+  3. Per nested call, when the tool starts it, one `message` entry whose `message` has `role`
+     `"assistant"` and `content` `[{ type: "toolCall", id: <callId>, name: <name>, arguments:
+     <args> }]`, `<name>` being the tool's name and `<args>` the arguments the script passed.
+  4. Per nested call, when it settles, one `message` entry whose `message` has `role`
+     `"toolResult"`, `toolCallId` `<callId>`, `toolName` `<name>`, the result's `content` and
+     `details` as the host returned them, and `isError` the outcome's `isError`. A nested call
+     still running when the run settles is logged as settled at that moment, with `content`
+     `[{ type: "text", text: "aborted: the script run settled" }]` and `isError` `true`.
+- `<callId>` is `call-<k>`, `<k>` counting the run's nested calls from `1` in the order they
+  start. Entries of several nested calls interleave in the order of these events.
+- Every entry other than the header carries `type`, an `id` unique in the file and usable
+  ([session-transcript.md](session-transcript.md), Section 1), a `parentId` equal to the `id` of
+  the entry on the line before it (`null` for the first entry after the header), and a
+  `timestamp` of the moment it is written, as an [RFC 3339] date-time in UTC.
+- A nested call counts toward `toolCalls` and the `--- tool calls` block of Section 6 when it
+  starts, whether or not the log could be written.
+- A failure to create or write the tool log MUST NOT fail the run or the call. The first such
+  failure of a run appends the line `pi-dent: tool log write failed: <message>` to the run's
+  `stderr`, `<message>` being the error's message, and the tool writes no further line to that
+  log. When the failure was the creation, `details.toolLogPath` is absent.
+
+## 11. Normative references
+
+- [RFC 3339]: Date and Time on the Internet: Timestamps, Section 5.6, for the `timestamp` of a
+  tool log entry.
+
+## 12. Specification gaps
+
+- The size of a tool log is unbounded: results, image data included, are written as the host
+  returned them.
+- Whether the host can open a tool log as a session of its own, beyond what `Search` reads
+  ([session-transcript.md](session-transcript.md)), is unspecified.
 
 - The dialect of JSON Schema the host's tools use, and so the meaning of a keyword whose meaning
   differs between dialects, is unspecified; Section 10.2 reads the keywords it names and no

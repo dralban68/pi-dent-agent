@@ -127,7 +127,7 @@ Each property of the parameter schema carries this `description`:
 | `isError`       | `For find: true matches only tool results that are errors, false only those that are not.`                                                                                                                                                                                                  |
 | `since`         | `Lower time bound, inclusive: an RFC 3339 date-time with a time-zone offset, or an age such as 90s, 15m, 2h, or 7d. For sessions it bounds when the session was last written.`                                                                                                              |
 | `until`         | `Upper time bound, exclusive: an RFC 3339 date-time with a time-zone offset, or an age such as 90s, 15m, 2h, or 7d. For sessions it bounds when the session was last written.`                                                                                                              |
-| `session`       | `For find and sessions: the session to search or list: self (default), the task ID of an Agent call of this session, a session key as shown before the colon of a hit address or at the start of a sessions line, or a session file path.`                                                  |
+| `session`       | `For find and sessions: the session to search or list: self (default), the task ID of an Agent or Script call of this session, a session key as shown before the colon of a hit address or at the start of a sessions line, or a session file path.`                                        |
 | `scope`         | `How far to reach: session (one session; default for find), tree (it and the child sessions beneath it; default for sessions), project (this main session and the other sessions of its project), project-trees (those and all their child sessions). sessions takes tree or project only.` |
 | `branches`      | `For find: true also searches the entries of abandoned branches. Default false.`                                                                                                                                                                                                            |
 | `order`         | `For find: newest (default) or oldest hits first.`                                                                                                                                                                                                                                          |
@@ -184,7 +184,8 @@ A `session` value resolves, after trimming, by the first rule that applies:
    session file.
 5. Any other value: the member of the invoking session's session tree whose key's last `<stem>`
    equals the value or ends with `-` followed by the value. A task ID so names the session an
-   `Agent` dispatch created.
+   `Agent` dispatch created, or the tool log of a `Script` run
+   ([script-tool.md](script-tool.md), Section 10.4).
 
 A value that resolves to no session MUST be rejected as a tool error with the text
 `unknown session "<value>"`; a value that rule 2 or rule 5 matches to more than one session, with
