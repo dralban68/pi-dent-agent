@@ -535,7 +535,10 @@ so that `Search` reads it like the session file of an `Agent` dispatch.
      `"toolResult"`, `toolCallId` `<callId>`, `toolName` `<name>`, the result's `content` and
      `details` as the host returned them, and `isError` the outcome's `isError`. A nested call
      still running when the run settles is logged as settled at that moment, with `content`
-     `[{ type: "text", text: "aborted: the script run settled" }]` and `isError` `true`.
+     `[{ type: "text", text: "aborted: the script run settled" }]` and `isError` `true`. A
+     nested call the host fails to run, rejecting instead of resolving to an outcome, is logged
+     with `content` `[{ type: "text", text: <message> }]`, `<message>` being the rejection's
+     message, and `isError` `true`.
 - `<callId>` is `call-<k>`, `<k>` counting the run's nested calls from `1` in the order they
   start. Entries of several nested calls interleave in the order of these events.
 - Every entry other than the header carries `type`, an `id` unique in the file and usable
@@ -547,7 +550,8 @@ so that `Search` reads it like the session file of an `Agent` dispatch.
 - A failure to create or write the tool log MUST NOT fail the run or the call. The first such
   failure of a run appends the line `pi-dent: tool log write failed: <message>` to the run's
   `stderr`, `<message>` being the error's message, and the tool writes no further line to that
-  log. When the failure was the creation, `details.toolLogPath` is absent.
+  log. When the failure was the creation, `details.toolLogPath` is absent, and the
+  `--- tool calls` block of Section 6 still names `<toolLogPath>`.
 
 ## 11. Normative references
 
