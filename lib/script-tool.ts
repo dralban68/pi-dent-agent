@@ -9,8 +9,9 @@ import { bundledAliases } from "./bundled.ts";
 import { resolveCwdParam } from "./cwd-param.ts";
 import { ensureOutputDir, outputPathsFor } from "./output-file.ts";
 import { resolvePluginScriptPath } from "./plugins.ts";
-import { runScript, type ScriptRunResult } from "./script-runner.ts";
+import { runScript, type ScriptRunHandle, type ScriptRunResult } from "./script-runner.ts";
 import { callBoundTool } from "./script-tool-calls.ts";
+import { ScriptToolLog } from "./script-tool-log.ts";
 import { DEFAULT_TOOLS_ALLOW, selectTools, toolDeclarations } from "./script-tool-types.ts";
 import { type ReturnValueRender } from "./script-render.ts";
 import { renderCardCall } from "./tool-card.ts";
@@ -209,6 +210,8 @@ function buildBody(opts: {
   returnJson?: string | undefined;
   /** The output file path, when the body names the full return value (Section 5). */
   fullValuePath?: string | undefined;
+  /** The `--- tool calls` block's line, when the run made nested calls (Section 6). */
+  toolCallsLine?: string | undefined;
 }): string {
   let text = opts.stdout;
   if (opts.stderr !== "") text += `\n--- stderr ---\n${opts.stderr}`;
@@ -218,6 +221,7 @@ function buildBody(opts: {
   text += `\n--- exited ${opts.exitReason}${opts.exitCode === undefined ? "" : ` code=${opts.exitCode}`} in ${opts.durationMs}ms ---`;
   // A browser kill names its author in the body the model reads (Section 5).
   if (opts.browserKill === true) text += "\n--- killed by the user from the task browser ---";
+  if (opts.toolCallsLine !== undefined) text += `\n${opts.toolCallsLine}`;
   if (opts.renderJson !== undefined) text += `\n--- return metadata ---\n${opts.renderJson}`;
   return text;
 }
@@ -253,6 +257,7 @@ function thrownText(error: { name: string; message: string; stack: string } | un
 function formatResult(
   result: ScriptRunResult,
   outputPath: string,
+  toolCalls: { count: number; logPath: string; createdLogPath: string | undefined; taskId: string },
   browserKill = false,
 ): {
   text: string;
@@ -288,6 +293,10 @@ function formatResult(
   const clipped =
     render !== undefined && (render.stringsOverLimit > 0 || render.aggregateTruncated);
   const returnJson = clipped ? result.json : undefined;
+  const toolCallsLine =
+    toolCalls.count === 0
+      ? undefined
+      : `--- tool calls: ${toolCalls.count}; log: ${toolCalls.logPath}; Search it with session ${toolCalls.taskId} ---`;
   const text = buildBody({
     stdout: result.stdout,
     stderr,
@@ -298,6 +307,7 @@ function formatResult(
     renderJson,
     browserKill,
     fullValuePath: returnJson === undefined ? undefined : outputPath,
+    toolCallsLine,
   });
   const details: Record<string, unknown> = {
     stdout: result.stdout,
@@ -305,7 +315,9 @@ function formatResult(
     exitReason: result.exitReason,
     truncated: result.truncated,
     durationMs: result.durationMs,
+    toolCalls: toolCalls.count,
   };
+  if (toolCalls.createdLogPath !== undefined) details.toolLogPath = toolCalls.createdLogPath;
   if (returnValue !== undefined) details.returnValue = returnValue;
   if (render !== undefined) details.returnValueRender = render;
   if (result.exitCode !== undefined) details.exitCode = result.exitCode;
@@ -319,6 +331,7 @@ function formatResult(
     renderJson,
     browserKill,
     returnJson,
+    toolCallsLine,
   });
   return { text, details, isError: isErrorExit(result.exitReason), suffix, thrown };
 }
@@ -328,7 +341,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
     name: "Script",
     label: "Script",
     description:
-      "Run one JavaScript or TypeScript program in a fresh worker thread with the caller's privileges and full Node capabilities: ESM, TypeScript syntax, top-level await, no build step, no state kept between calls. Source: inline `code`, or a plugin script (`plugin` + `path`). Imports: node:* builtins and the bundled cheerio, csv-parse, csv-stringify, fast-xml-parser, file-type, glob, gray-matter, ini, js-yaml, jsonc-parser, jszip, semver, smol-toml; any other package resolves from `cwd`, or for a plugin script from its own location. fetch and the other web globals are available; console output is captured. Child processes: use async `spawn`, `exec`, or `execFile` with `await`; `spawnSync`, `execSync`, and `execFileSync` throw. Every settled run terminates every process it spawned, so start a process that must outlive the run with `Bash` `background: true`. `tools.<Name>(args)` calls another tool of the session, MCP tools included, and resolves to `{ text, content, details, structured }` or rejects with the tool's error; `dent.toolTypes()` returns their TypeScript declarations. Tool functions reject in a background run. `background: true` returns a task ID at once, with a completion notification.",
+      "Run one JavaScript or TypeScript program in a fresh worker thread with the caller's privileges and full Node capabilities: ESM, TypeScript syntax, top-level await, no build step, no state kept between calls. Source: inline `code`, or a plugin script (`plugin` + `path`). Imports: node:* builtins and the bundled cheerio, csv-parse, csv-stringify, fast-xml-parser, file-type, glob, gray-matter, ini, js-yaml, jsonc-parser, jszip, semver, smol-toml; any other package resolves from `cwd`, or for a plugin script from its own location. fetch and the other web globals are available; console output is captured. Child processes: use async `spawn`, `exec`, or `execFile` with `await`; `spawnSync`, `execSync`, and `execFileSync` throw. Every settled run terminates every process it spawned, so start a process that must outlive the run with `Bash` `background: true`. `tools.<Name>(args)` calls another tool of the session, MCP tools included, and resolves to `{ text, content, details, structured }` or rejects with the tool's error; `dent.toolTypes()` returns their TypeScript declarations. Tool calls are logged to a session file that `Search` reads by the run's task ID. `background: true` returns a task ID at once, with a completion notification.",
     promptSnippet: "Run an in-process JavaScript or TypeScript program",
     parameters: scriptParameterSchema,
     // Section 10.1: a call can reach every callable tool.
@@ -412,6 +425,25 @@ export function makeScriptTool(deps: ScriptToolDeps) {
       const failRun = (error: unknown): ToolResult =>
         reject(`Script error: ${errorMessage(error)}`);
 
+      // Section 10.4: the tool log, created at the run's first nested call.
+      let runHandle: ScriptRunHandle | undefined;
+      const toolLog = new ScriptToolLog({
+        agentDir,
+        taskId: row.taskId,
+        cwd,
+        source: source.code,
+        runStart: () => runHandle?.startedAt() ?? Date.now(),
+        // Writes happen only while a nested call is open, and every open call is logged
+        // when the run settles, before its result is built: the line always lands.
+        reportFailure: (line) => void runHandle?.stderrLine(line),
+      });
+      const toolCallsOf = () => ({
+        count: toolLog.calls,
+        logPath: toolLog.path,
+        createdLogPath: toolLog.createdPath,
+        taskId: row.taskId,
+      });
+
       try {
         ensureOutputDir(agentDir);
         const request: Parameters<typeof runScript>[0] = {
@@ -428,17 +460,40 @@ export function makeScriptTool(deps: ScriptToolDeps) {
         request.tools = {
           names: selection.bound.map((tool) => tool.name),
           declarations: toolDeclarations(selection),
-          background,
           call: async (name, args, callSignal) => {
             const tool = selection.bound.find((candidate) => candidate.name === name);
             if (tool === undefined || ctx === undefined)
               throw new Error(`tool ${name} is not bound`);
-            return callBoundTool(
-              tool,
-              args,
-              (toolName, toolArgs, options) => ctx.executeTool(toolName, toolArgs, options),
-              callSignal,
-            );
+            const callId = toolLog.start(name, args);
+            // The run's settlement aborts the call: it is logged as aborted at that moment.
+            const onAbort = (): void => toolLog.abort(callId);
+            callSignal.addEventListener("abort", onAbort, { once: true });
+            try {
+              return await callBoundTool(
+                tool,
+                args,
+                async (toolName, toolArgs, options) => {
+                  try {
+                    const outcome = await ctx.executeTool(toolName, toolArgs, options);
+                    toolLog.settle(callId, {
+                      content: outcome.result.content,
+                      details: outcome.result.details,
+                      isError: outcome.isError,
+                    });
+                    return outcome;
+                  } catch (error) {
+                    toolLog.settle(callId, {
+                      content: [{ type: "text", text: errorMessage(error) }],
+                      isError: true,
+                    });
+                    throw error;
+                  }
+                },
+                callSignal,
+              );
+            } finally {
+              callSignal.removeEventListener("abort", onAbort);
+            }
           },
         };
         const extra = deps.extraEnv?.();
@@ -471,9 +526,15 @@ export function makeScriptTool(deps: ScriptToolDeps) {
           if (thrown !== "") request.onOutput?.("stderr", thrown);
           flushProgress();
         };
-        const handle = killedBeforeRun
-          ? { promise: Promise.resolve(notRun), cancel: (): void => {} }
+        const handle: ScriptRunHandle = killedBeforeRun
+          ? {
+              promise: Promise.resolve(notRun),
+              cancel: (): void => {},
+              startedAt: (): undefined => {},
+              stderrLine: () => false,
+            }
           : runScript(request);
+        runHandle = handle;
 
         // Task-based cancellation (Section 6) applies to foreground rows too:
         // hard-terminating the worker settles the run with exitReason "killed".
@@ -481,7 +542,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
 
         if (!background) {
           const result = await handle.promise;
-          const formatted = formatResult(result, outputPath, row.browserKill);
+          const formatted = formatResult(result, outputPath, toolCallsOf(), row.browserKill);
           emitThrown(formatted.thrown);
           appendOutput(formatted.suffix);
           registry.settle(row, {
@@ -498,7 +559,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
 
         void handle.promise
           .then((result) => {
-            const formatted = formatResult(result, outputPath, row.browserKill);
+            const formatted = formatResult(result, outputPath, toolCallsOf(), row.browserKill);
             emitThrown(formatted.thrown);
             appendOutput(formatted.suffix);
             registry.settle(row, {
@@ -512,7 +573,12 @@ export function makeScriptTool(deps: ScriptToolDeps) {
             settleBackgroundFailure(registry, row, "Script", error);
           });
         return {
-          content: [{ type: "text", text: `Script started in background (taskId ${row.taskId}).` }],
+          content: [
+            {
+              type: "text",
+              text: `Script started in background (taskId ${row.taskId}).\nTool calls, if the script makes any: ${toolLog.path}`,
+            },
+          ],
           details: {
             taskId: row.taskId,
             outputPath,
@@ -522,6 +588,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
             stderr: "",
             truncated: { stdout: false, stderr: false },
             durationMs: 0,
+            toolCalls: 0,
           },
         };
       } catch (error) {

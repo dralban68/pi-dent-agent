@@ -30,7 +30,6 @@ interface ScriptWorkerData {
   toolNames: string[];
   /** The tool declarations (Section 10.2). */
   toolTypes: string;
-  background: boolean;
 }
 
 const port = parentPort;
@@ -188,9 +187,6 @@ const onToolResult = (message: unknown): void => {
 const toolFunction =
   (name: string) =>
   (args: unknown): Promise<unknown> => {
-    if (data.background) {
-      return Promise.reject(new Error(`tools.${name} is not available in a background run`));
-    }
     const plain =
       isRecord(args) &&
       !Array.isArray(args) &&

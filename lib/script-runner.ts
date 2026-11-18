@@ -100,8 +100,6 @@ export interface ScriptRunTools {
   names: string[];
   /** The tool declarations (Section 10.2), returned by `dent.toolTypes()`. */
   declarations: string;
-  /** A background run's tool functions reject without a nested call (step 1). */
-  background: boolean;
   /** Runs one nested call; the signal aborts at settlement. */
   call: (name: string, args: unknown, signal: AbortSignal) => Promise<ToolCallReply>;
 }
@@ -126,6 +124,13 @@ export interface ScriptRunResult {
 export interface ScriptRunHandle {
   promise: Promise<ScriptRunResult>;
   cancel: (reason: "killed" | "aborted") => void;
+  /** When the run started (Section 6), in ms since the epoch; absent when none started. */
+  startedAt: () => number | undefined;
+  /**
+   * Append one line of the host's own to the run's stderr, until the result is built
+   * (the tool log's write failure, Section 10.4). Returns `false` when it is too late.
+   */
+  stderrLine: (line: string) => boolean;
 }
 
 /** Signal one spawned child by its process ID (Windows: its tree with taskkill /T /F). */
@@ -156,9 +161,12 @@ function groupIsEmpty(pid: number): boolean {
 
 export function runScript(req: ScriptRunRequest): ScriptRunHandle {
   let cancel: (reason: "killed" | "aborted") => void = () => {};
+  /** The run's start; absent until the run is created. */
+  let started: number | undefined;
+  let stderrLine: (line: string) => boolean = () => false;
   const promise = new Promise<ScriptRunResult>((resolve) => {
-    /** When the run is created (Section 5); absent while no run started. */
-    let started: number | undefined;
+    /** Whether the result was built: nothing reaches the capture after it. */
+    let finished = false;
     /** When the run settled: its end (Section 5), before the termination drain. */
     let ended: number | undefined;
     const capture: StreamCapture = {
@@ -180,6 +188,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
     const nestedCalls = new Set<AbortController>();
 
     const finish = (partial: Partial<ScriptRunResult>) => {
+      finished = true;
       void worker?.terminate();
       resolve({
         stdout: capture.text.stdout,
@@ -264,6 +273,13 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
     }
 
     cancel = (reason) => settle({ exitReason: reason });
+    stderrLine = (line) => {
+      if (finished) return false;
+      const text = capture.text.stderr;
+      const lead = text !== "" && !text.endsWith("\n") ? "\n" : "";
+      appendStream(capture, "stderr", `${lead}${line}\n`, req.onOutput);
+      return true;
+    };
 
     // The worker's process.env: the host's, the caller's extra env merged over it, then the
     // session tmp folder (bash-tool.md, Section 3).
@@ -280,7 +296,6 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         aliases: req.aliases,
         toolNames: req.tools?.names ?? [],
         toolTypes: req.tools?.declarations ?? toolDeclarations({ bound: [], unbound: [] }),
-        background: req.tools?.background ?? false,
       },
       env: workerEnv,
     });
@@ -347,7 +362,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
       }
     });
 
-    /** Section 10.3, step 3 onward: run the nested call and post its reply unless the run settled. */
+    /** Section 10.3, step 2 onward: run the nested call and post its reply unless the run settled. */
     function startNestedCall(id: unknown, name: string, args: unknown): void {
       const controller = new AbortController();
       nestedCalls.add(controller);
@@ -399,5 +414,5 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
       }
     });
   });
-  return { promise, cancel };
+  return { promise, cancel, startedAt: () => started, stderrLine: (line) => stderrLine(line) };
 }

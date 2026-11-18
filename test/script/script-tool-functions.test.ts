@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
@@ -10,6 +10,13 @@ import { TaskRegistry } from "../../lib/registry.ts";
 import { makeScriptTool } from "../../lib/script-tool.ts";
 import { selectTools, toolDeclarations } from "../../lib/script-tool-types.ts";
 import { at } from "../support/must.ts";
+import {
+  cleanupRoots,
+  fixture as searchFixture,
+  harness,
+  hitAddresses,
+  testClock,
+} from "../search-tool/support.ts";
 
 /**
  * Script tool functions (specs/script-tool.md Section 10.3) through `execute`, against a real
@@ -38,6 +45,8 @@ interface Fixture {
   run: (params: Record<string, unknown>) => Promise<ToolResult>;
   calls: NestedCall[];
   registry: TaskRegistry;
+  /** The invoking session's agent directory. */
+  agentDir: string;
   cleanup: () => void;
 }
 
@@ -90,6 +99,7 @@ function makeFixture(
     run: (params) => tool.execute("call-1", params as never, undefined, undefined, ctx),
     calls,
     registry,
+    agentDir: join(root, "agent"),
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 }
@@ -100,6 +110,19 @@ const ok = (text: string, extra: Partial<Outcome["result"]> = {}): Promise<Outco
 function returnValue(result: ToolResult): unknown {
   assert.equal(result.isError, undefined, JSON.stringify(result.content));
   return (result.details as { returnValue: unknown }).returnValue;
+}
+
+function textOf(result: ToolResult): string {
+  const part = at(result.content, 0);
+  return part.type === "text" ? part.text : "";
+}
+
+/** The JSON objects of a tool log's lines. */
+function logLines(path: string): Record<string, unknown>[] {
+  return readFileSync(path, "utf8")
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
 function stderrOf(result: ToolResult): string {
@@ -229,22 +252,151 @@ test("tool functions: args that are not a JSON-compatible object reject with no 
   }
 });
 
-test("tool functions: a background run rejects with no nested call", async () => {
-  const f = makeFixture([objectTool("echo")], () => ok(""));
+test("tool functions: a background run makes nested calls and names its tool log", async () => {
+  const f = makeFixture([objectTool("echo")], () => ok("pong"));
   try {
     const started = await f.run({
       background: true,
-      code: `try { await tools.echo({}); } catch (e) { console.log(e.message); }`,
+      code: `console.log((await tools.echo({ q: "ping" })).text);`,
     });
     assert.equal(started.isError, undefined);
+    const details = started.details as Record<string, unknown>;
+    const taskId = String(details.taskId);
+    const logPath = join(f.agentDir, `script-${taskId}.jsonl`);
+    assert.equal(
+      textOf(started),
+      `Script started in background (taskId ${taskId}).\nTool calls, if the script makes any: ${logPath}`,
+    );
+    assert.equal(details.toolCalls, 0);
     const row = at(f.registry.list(), 0);
     const deadline = Date.now() + 10000;
     while (row.status === "running" && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     assert.equal(row.status, "completed");
-    assert.match(String(row.result), /^tools\.echo is not available in a background run\n/);
-    assert.equal(f.calls.length, 0);
+    const block = `--- tool calls: 1; log: ${logPath}; Search it with session ${taskId} ---`;
+    assert.match(String(row.result), /^pong\n/);
+    assert.ok(String(row.result).includes(`ms ---\n${block}\n--- return metadata ---\n`));
+    assert.ok(readFileSync(String(details.outputPath), "utf8").includes(`\n${block}\n`));
+    assert.equal(f.calls.length, 1);
+    assert.equal(logLines(logPath).length, 4);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("tool log: the source and every nested call, readable by Search through the task ID", async () => {
+  const f = makeFixture([objectTool("echo"), objectTool("fail")], (call) =>
+    call.name === "fail"
+      ? Promise.resolve({ result: { content: [{ type: "text", text: "boom" }] }, isError: true })
+      : ok("pong", { details: { n: 1 } }),
+  );
+  try {
+    const code = `await tools.echo({ q: "needle" });\ntry { await tools.fail({}); } catch {}\nexport default 1;`;
+    const result = await f.run({ code });
+    assert.equal(returnValue(result), 1);
+    const details = result.details as Record<string, unknown>;
+    const taskId = String(details.taskId);
+    const logPath = join(f.agentDir, `script-${taskId}.jsonl`);
+    assert.equal(details.toolCalls, 2);
+    assert.equal(details.toolLogPath, logPath);
+    assert.ok(
+      textOf(result).includes(
+        `ms ---\n--- tool calls: 2; log: ${logPath}; Search it with session ${taskId} ---\n--- return metadata ---\n`,
+      ),
+    );
+
+    const [header, ...entries] = logLines(logPath);
+    assert.equal(header?.type, "session");
+    assert.equal(header?.id, taskId);
+    assert.equal(typeof header?.cwd, "string");
+    assert.ok(!Number.isNaN(Date.parse(String(header?.timestamp))));
+    assert.deepEqual(
+      entries.map((entry) => entry.message),
+      [
+        { role: "user", content: code },
+        {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "call-1", name: "echo", arguments: { q: "needle" } }],
+        },
+        {
+          role: "toolResult",
+          toolCallId: "call-1",
+          toolName: "echo",
+          content: [{ type: "text", text: "pong" }],
+          details: { n: 1 },
+          isError: false,
+        },
+        {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "call-2", name: "fail", arguments: {} }],
+        },
+        {
+          role: "toolResult",
+          toolCallId: "call-2",
+          toolName: "fail",
+          content: [{ type: "text", text: "boom" }],
+          isError: true,
+        },
+      ],
+    );
+    entries.forEach((entry, index) => {
+      assert.equal(entry.type, "message");
+      assert.equal(entry.parentId, index === 0 ? null : at(entries, index - 1).id);
+      assert.match(String(entry.timestamp), /^\d{4}-\d\d-\d\dT[\d:.]+Z$/);
+    });
+
+    // The log is a member of the invoking session's tree, named by the task ID.
+    const made = searchFixture("script-tool-log-");
+    const h = harness({ db: made.db, clock: testClock(Date.now()) });
+    const host = { sessionFile: undefined, agentDirectory: f.agentDir, main: true };
+    const found = await h.call(host, { action: "find", session: taskId, query: "needle" });
+    assert.equal(found.isError, false, found.text);
+    const addresses = hitAddresses(found);
+    assert.ok(addresses.length >= 2, found.text);
+    for (const address of addresses) assert.ok(address.startsWith(`script-${taskId}:`), address);
+    const results = await h.call(host, {
+      action: "find",
+      session: taskId,
+      kinds: ["tool_result"],
+      isError: true,
+    });
+    assert.equal(hitAddresses(results).length, 1, results.text);
+    assert.ok(results.text.includes("boom"), results.text);
+  } finally {
+    cleanupRoots();
+    f.cleanup();
+  }
+});
+
+test("tool log: a run with no nested call creates none", async () => {
+  const f = makeFixture([objectTool("echo")], () => ok(""));
+  try {
+    const result = await f.run({ code: "export default 1;" });
+    const details = result.details as Record<string, unknown>;
+    assert.equal(details.toolCalls, 0);
+    assert.equal("toolLogPath" in details, false);
+    assert.equal(textOf(result).includes("--- tool calls"), false);
+    assert.equal(existsSync(join(f.agentDir, `script-${String(details.taskId)}.jsonl`)), false);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("tool log: a failure to create it is reported once on stderr and fails nothing", async () => {
+  const f = makeFixture([objectTool("echo")], () => ok("pong"));
+  try {
+    // The agent directory is a file: the log cannot be created.
+    writeFileSync(f.agentDir, "");
+    const result = await f.run({
+      code: `const a = await tools.echo({}); const b = await tools.echo({}); export default a.text + b.text;`,
+    });
+    assert.equal(returnValue(result), "pongpong");
+    const details = result.details as Record<string, unknown>;
+    assert.equal(details.toolCalls, 2);
+    assert.equal("toolLogPath" in details, false);
+    assert.match(stderrOf(result), /^pi-dent: tool log write failed: [^\n]+\n$/);
+    assert.ok(textOf(result).includes("\n--- tool calls: 2; log: "));
   } finally {
     f.cleanup();
   }
@@ -300,6 +452,19 @@ test("tool functions: settlement aborts a nested call still running and drops it
     const ended = await f.run({ code: `void tools.slow({}); export default "done";` });
     assert.equal(returnValue(ended), "done");
     assert.equal(at(f.calls, 1).signal?.aborted, true);
+
+    // Each run logs the call it left running as aborted at settlement.
+    for (const result of [timedOut, ended]) {
+      const details = result.details as Record<string, unknown>;
+      const last = logLines(String(details.toolLogPath)).at(-1);
+      assert.deepEqual(last?.message, {
+        role: "toolResult",
+        toolCallId: "call-1",
+        toolName: "slow",
+        content: [{ type: "text", text: "aborted: the script run settled" }],
+        isError: true,
+      });
+    }
   } finally {
     f.cleanup();
   }

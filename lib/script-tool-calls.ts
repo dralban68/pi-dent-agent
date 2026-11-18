@@ -2,8 +2,8 @@ import Schema from "typebox/schema";
 import type { CallableTool } from "./script-tool-types.ts";
 
 /**
- * A nested call of a tool function, host side (specs/script-tool.md Section 10.3, steps 3 to 5).
- * Steps 1 and 2 run in the script worker.
+ * A nested call of a tool function, host side (specs/script-tool.md Section 10.3, steps 2 to 4).
+ * Step 1 runs in the script worker.
  */
 
 /** A `ToolContent` part (Section 10.2). */
@@ -71,12 +71,12 @@ function validates(schema: unknown, value: unknown): boolean {
   try {
     return Schema.Check(schema, value);
   } catch {
-    // The mismatch rejection reports it to the script (Section 10.3, step 4).
+    // The mismatch rejection reports it to the script (Section 10.3, step 3).
     return false;
   }
 }
 
-/** Run one nested call and settle it per Section 10.3, steps 3 to 5. */
+/** Run one nested call and settle it per Section 10.3, steps 2 to 4. */
 export async function callBoundTool(
   tool: CallableTool,
   args: unknown,
