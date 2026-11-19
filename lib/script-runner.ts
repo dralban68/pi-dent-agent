@@ -4,7 +4,7 @@ import type { ToolCallReply } from "./script-tool-calls.ts";
 import { toolDeclarations } from "./script-tool-types.ts";
 import { applySessionTmp } from "./session-tmp.ts";
 import { killTreeWindows, prefixBytes, signalGroup } from "./tool-common.ts";
-import { errorCode, errorMessage } from "./util.ts";
+import { errorCode, errorMessage, isPlainObject } from "./util.ts";
 import { typeStrippingOptions } from "./worker-options.ts";
 
 /**
@@ -92,7 +92,14 @@ export interface ScriptRunRequest {
   extraEnv?: Record<string, string>;
   /** The tool functions (Section 10); absent binds none. */
   tools?: ScriptRunTools;
+  /** Whether this run is a plugin UI call (specs/plugin-ui.md). */
+  uiCall?: boolean;
+  /** Fired with each validated UI message JSON payload before settlement. */
+  onUiMessage?: (json: string) => void;
 }
+
+/** Pre-validated return outcome of a plugin UI call (specs/plugin-ui.md Section 5). */
+export type UiReturnOutcome = { ok: true; json: string } | { ok: false; error: string };
 
 /** The tool functions of a run (Section 10.3). */
 export interface ScriptRunTools {
@@ -119,6 +126,8 @@ export interface ScriptRunResult {
   exitCode?: number;
   durationMs: number;
   error?: { name: string; message: string; stack: string };
+  /** Pre-validated return outcome of a plugin UI call (specs/plugin-ui.md Section 5). */
+  uiReturn?: UiReturnOutcome;
 }
 
 export interface ScriptRunHandle {
@@ -131,6 +140,18 @@ export interface ScriptRunHandle {
    * (the tool log's write failure, Section 10.4). Returns `false` when it is too late.
    */
   stderrLine: (line: string) => boolean;
+}
+
+/** Parse a worker's `uiReturn` payload without type assertions. */
+function parseUiReturn(value: unknown): UiReturnOutcome | undefined {
+  if (!isPlainObject(value)) return undefined;
+  if (value.ok === true && typeof value.json === "string") {
+    return { ok: true, json: value.json };
+  }
+  if (value.ok === false && typeof value.error === "string") {
+    return { ok: false, error: value.error };
+  }
+  return undefined;
 }
 
 /** Signal one spawned child by its process ID (Windows: its tree with taskkill /T /F). */
@@ -296,6 +317,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         aliases: req.aliases,
         toolNames: req.tools?.names ?? [],
         toolTypes: req.tools?.declarations ?? toolDeclarations({ bound: [], unbound: [] }),
+        uiCall: req.uiCall === true,
       },
       env: workerEnv,
     });
@@ -335,6 +357,9 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         case "tool-call":
           if (!settled) startNestedCall(msg.id, String(msg.name), msg.args);
           break;
+        case "ui-message":
+          if (!settled && typeof msg.json === "string") req.onUiMessage?.(msg.json);
+          break;
         case "exit-called":
           settle({ exitReason: "exit-called", exitCode: msg.code ?? 0 });
           break;
@@ -350,15 +375,18 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
             },
           });
           break;
-        case "result":
+        case "result": {
+          const uiReturn = parseUiReturn(msg.uiReturn);
           settle({
             exitReason: "ok",
             returnValue: msg.returnValue,
             rendered: msg.rendered,
             render: msg.render,
             json: msg.json,
+            ...(uiReturn === undefined ? {} : { uiReturn }),
           });
           break;
+        }
       }
     });
 

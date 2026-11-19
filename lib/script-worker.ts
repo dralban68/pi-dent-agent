@@ -30,6 +30,8 @@ interface ScriptWorkerData {
   toolNames: string[];
   /** The tool declarations (Section 10.2). */
   toolTypes: string;
+  /** Whether this run is a plugin UI call (specs/plugin-ui.md). */
+  uiCall?: boolean;
 }
 
 const port = parentPort;
@@ -209,7 +211,41 @@ const toolFunction =
 const scriptTools: Record<string, unknown> = Object.freeze(
   Object.fromEntries(data.toolNames.map((name) => [name, toolFunction(name)])),
 );
-const scriptDent = Object.freeze({ toolTypes: (): string => data.toolTypes });
+const UI_PAYLOAD_CAP_BYTES = 262_144;
+const serializeUiJson = (value: unknown, label: string): string => {
+  if (!isJsonCompatible(value)) {
+    throw new Error(`${label} must be a JSON value`);
+  }
+  let json: string | undefined;
+  try {
+    json = JSON.stringify(value);
+  } catch {
+    throw new Error(`${label} must be a JSON value`);
+  }
+  if (typeof json !== "string") {
+    throw new Error(`${label} must be a JSON value`);
+  }
+  if (Buffer.byteLength(json, "utf8") > UI_PAYLOAD_CAP_BYTES) {
+    throw new Error(`${label} exceeds ${UI_PAYLOAD_CAP_BYTES} bytes`);
+  }
+  return json;
+};
+const sendUiMessage = (payload: unknown): void => {
+  const json = serializeUiJson(payload, "UI message data");
+  if (exitCalled) return;
+  try {
+    port.postMessage({ type: "ui-message", json });
+  } catch {
+    // Port closed.
+  }
+};
+const scriptDent =
+  data.uiCall === true
+    ? Object.freeze({
+        toolTypes: (): string => data.toolTypes,
+        ui: Object.freeze({ send: sendUiMessage }),
+      })
+    : Object.freeze({ toolTypes: (): string => data.toolTypes });
 Object.defineProperty(globalThis, "tools", {
   value: scriptTools,
   writable: true,
@@ -1057,6 +1093,31 @@ void (async () => {
   // A script that caught the exit's error reaches its own end; its run already
   // settled as exit-called, so there is no result to report.
   if (exitCalled) return;
+  // Plugin UI calls classify the raw return value before structured cloning,
+  // so non-cloneable values (functions, symbols) are never turned into strings
+  // and `undefined` maps to `null` (specs/plugin-ui.md Section 5).
+  if (data.uiCall === true) {
+    const rawExported: unknown = mod?.default;
+    let uiReturn: { ok: true; json: string } | { ok: false; error: string };
+    if (rawExported === undefined) {
+      uiReturn = { ok: true, json: "null" };
+    } else {
+      try {
+        uiReturn = { ok: true, json: serializeUiJson(rawExported, "Return value") };
+      } catch (err) {
+        uiReturn = {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    }
+    try {
+      port.postMessage({ type: "result", uiReturn });
+    } catch {
+      // Port closed.
+    }
+    return;
+  }
   // Section 4: a return value that cannot be structured-cloned degrades, without
   // failing the run, to the `<non-cloneable: <error>>` marker string. The check
   // happens here, where the original value still exists. A value that clones

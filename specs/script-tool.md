@@ -142,6 +142,7 @@ text; a guest `try`/`catch` sees it like any error.
 - `dent.tmpDir()` returns the session temporary folder
   ([bash-tool.md](bash-tool.md), Section 3), or `undefined` when the session has none.
 - `dent.toolTypes()` returns the tool declarations of the call (Section 10.2), as a string.
+- `dent.ui` is `undefined` outside a plugin UI call ([plugin-ui.md](plugin-ui.md), Section 4).
 - `fetch(url, init)` fetches a URL. `url` is a string. `init`, when present, is an object whose
   `method`, `headers`, and `body` are honored: `method` a string defaulting to `"GET"`,
   `headers` an object of string names and values, `body` a string. It resolves to a frozen

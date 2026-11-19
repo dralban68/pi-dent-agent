@@ -23,6 +23,7 @@ import { runFleetCommand } from "./lib/fleet-command.ts";
 import { recapRuntime } from "./lib/recap.ts";
 import { renderRecapEntry } from "./lib/recap-render.ts";
 import { appendPluginContext, renderPluginCommand } from "./lib/plugins.ts";
+import { PluginUiController } from "./lib/plugin-ui.ts";
 import { type Diagnostic, errorMessage, isPlainObject } from "./lib/util.ts";
 import { rebuildInterruptedTasks } from "./lib/task-rebuild.ts";
 import {
@@ -282,6 +283,7 @@ export default function (pi: ExtensionAPI) {
   // Section 2).
   const questions = askUserRuntime();
   const recap = recapRuntime(boot.config, (data) => pi.appendEntry("pi-dent-recap", data));
+  const pluginUi = new PluginUiController(boot.pluginIndex);
   let taskWidget: TaskWidgetHandle | undefined;
   // Feeds for an RPC client (task.md Section 4.1, fleet-tool.md Section 6).
   let taskFeed: FeedHandle | undefined;
@@ -688,6 +690,11 @@ export default function (pi: ExtensionAPI) {
     }
     shutdownStep("ending owned tasks", () => engine.registry.end(), reportShutdown);
     shutdownStep("cancelling owned task runs", () => engine.cancelAll(), reportShutdown);
+    shutdownStep(
+      "cancelling plugin UI calls",
+      () => pluginUi.cancelAll("Session ended"),
+      reportShutdown,
+    );
     // The Search tool's continuations of catch-up end with the boot window
     // (search-tool.md Section 2.2).
     shutdownStep("stopping Search", () => search.stop(), reportShutdown);
@@ -898,6 +905,17 @@ export default function (pi: ExtensionAPI) {
       });
     }
   }
+
+  pi.registerCommand("dent-ui", {
+    description: "Run and cancel plugin UI script calls",
+    handler: async (args, ctx) => {
+      if (ctx.mode !== "rpc") return;
+      pluginUi.handleCommand(args, {
+        cwd: ctx.cwd ?? currentHost?.cwd() ?? process.cwd(),
+        setWidget: (key, lines) => ctx.ui.setWidget(key, lines),
+      });
+    },
+  });
 
   pi.registerCommand("dent", {
     description: "Confirm the pi-dent extension is loaded",
