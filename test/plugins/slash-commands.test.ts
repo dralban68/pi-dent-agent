@@ -212,6 +212,7 @@ test("registers one command per commands/*.md, named <namespace>:<command>, non-
       "alpha:greet",
       "alpha:plain",
       "dent",
+      "dent-ui",
       "fleet",
       "recap",
       "tasks",
