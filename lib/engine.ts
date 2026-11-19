@@ -82,6 +82,7 @@ import {
   CohortTracker,
 } from "./tools.ts";
 import { makeScriptTool } from "./script-tool.ts";
+import { DEFAULT_TOOLS_ALLOW } from "./script-tool-types.ts";
 import { registerReadErrorHint } from "./output-file.ts";
 import { makeBashTool, type BashSettings } from "./bash-tool.ts";
 import { makeSearchTool, searchRuntime } from "./search-tool.ts";
@@ -2224,6 +2225,7 @@ export class DispatchEngine {
           cohortFor: (toolCallId) => childCohorts.cohortFor(toolCallId),
           agentDir: () => childDir,
           extraEnv: () => ({ PI_DENT_SESSION_DIR: childDir }),
+          toolsAllow: () => parseScript(this.boot.config).toolsAllow ?? DEFAULT_TOOLS_ALLOW,
         }),
         // A child session binds `Search` when the tool cap includes it
         // (agent-tool.md Section 3.1); its own session file is the invoking one.

@@ -196,13 +196,13 @@ const toolFunction =
     }
     return new Promise((resolveCall, rejectCall) => {
       const id = nextCallId++;
+      port.postMessage({ type: "tool-call", id, name, args });
       pendingCalls.set(id, { resolve: resolveCall, reject: rejectCall });
       if (!listening) {
         listening = true;
         port.on("message", onToolResult);
       }
       port.ref();
-      port.postMessage({ type: "tool-call", id, name, args });
     });
   };
 

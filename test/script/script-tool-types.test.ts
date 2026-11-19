@@ -45,6 +45,19 @@ const cases: [string, unknown, string][] = [
     "{} & (1 | 2)",
   ],
   ["empty allOf", { allOf: [] }, "Json"],
+  [
+    "allOf with a single union member keeps its type text unchanged",
+    { allOf: [{ anyOf: [{ type: "string" }, { type: "number" }] }] },
+    "string | number",
+  ],
+  [
+    "array of a single-member intersection allOf preserves intersection precedence",
+    {
+      type: "array",
+      items: { allOf: [{ allOf: [{ type: "string" }, { const: "a" }] }] },
+    },
+    '(string & "a")[]',
+  ],
   ["type array", { type: ["string", "null"] }, "string | null"],
   ["type array with duplicates", { type: ["integer", "number"] }, "number"],
   ["array without items", { type: "array" }, "Json[]"],
@@ -85,6 +98,11 @@ const cases: [string, unknown, string][] = [
     "object with properties and open additionalProperties",
     { type: "object", properties: { a: { type: "string" } }, additionalProperties: true },
     "{ a?: string } /* unsupported: additionalProperties */",
+  ],
+  [
+    "object with non-object properties treats properties as absent",
+    { type: "object", properties: [], additionalProperties: true },
+    "{ [key: string]: Json }",
   ],
   [
     "unsupported keywords in order, additionalProperties last",

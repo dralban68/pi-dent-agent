@@ -481,6 +481,113 @@ test("tool functions: a script awaiting a never-settling promise still ends unex
   }
 });
 
+test("tool functions: a host rejection is logged as an error and rejects the call", async () => {
+  const f = makeFixture([objectTool("boom")], () => Promise.reject(new Error("host exploded")));
+  try {
+    const result = await f.run({
+      code: `
+        let out;
+        try { await tools.boom({ q: "x" }); } catch (e) { out = [e.name, e.message]; }
+        export default out;`,
+    });
+    assert.deepEqual(returnValue(result), ["Error", "host exploded"]);
+    const details = result.details as Record<string, unknown>;
+    const last = logLines(String(details.toolLogPath)).at(-1);
+    assert.deepEqual(last?.message, {
+      role: "toolResult",
+      toolCallId: "call-1",
+      toolName: "boom",
+      content: [{ type: "text", text: "host exploded" }],
+      isError: true,
+    });
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("tool functions: non-serializable details become undefined", async () => {
+  const cyclic: Record<string, unknown> = { a: 1 };
+  cyclic.self = cyclic;
+  const f = makeFixture([objectTool("cyc")], () => ok("ok", { details: cyclic }));
+  try {
+    const result = await f.run({
+      code: `const r = await tools.cyc({}); export default r.details === undefined;`,
+    });
+    assert.equal(returnValue(result), true);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("tool functions: non-cloneable structured content rejects cleanly without crashing the host", async () => {
+  const outputSchema = {
+    type: "object",
+    properties: { a: { type: "number" } },
+    required: ["a"],
+  };
+  const f = makeFixture([objectTool("weird", { outputSchema })], () =>
+    ok("t", { structuredContent: { a: 1, fn: () => {} } }),
+  );
+  try {
+    const result = await f.run({
+      code: `
+        let message = "";
+        try { await tools.weird({}); } catch (e) { message = e.message; }
+        export default message;`,
+    });
+    const msg = String(returnValue(result));
+    assert.ok(msg.length > 0, msg);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("tool log: concurrent nested calls interleave in start and settlement order", async () => {
+  const pending = new Map<string, (outcome: Outcome) => void>();
+  const f = makeFixture(
+    [objectTool("slow"), objectTool("fast")],
+    (call) =>
+      new Promise<Outcome>((resolve) => {
+        pending.set(call.name, resolve);
+        if (pending.size === 2) {
+          queueMicrotask(() => {
+            pending.get("fast")?.({
+              result: { content: [{ type: "text", text: "f" }] },
+              isError: false,
+            });
+            queueMicrotask(() => {
+              pending.get("slow")?.({
+                result: { content: [{ type: "text", text: "s" }] },
+                isError: false,
+              });
+            });
+          });
+        }
+      }),
+  );
+  try {
+    const result = await f.run({
+      code: `const [s, f] = await Promise.all([tools.slow({}), tools.fast({})]); export default [s.text, f.text];`,
+    });
+    assert.deepEqual(returnValue(result), ["s", "f"]);
+    const details = result.details as Record<string, unknown>;
+    const [, ...entries] = logLines(String(details.toolLogPath));
+    assert.deepEqual(
+      entries.slice(1).map((entry) => {
+        const msg = entry.message as Record<string, unknown>;
+        if (msg.role === "assistant") {
+          const part = (msg.content as Record<string, unknown>[])[0];
+          return `start:${String(part?.id)}:${String(part?.name)}`;
+        }
+        return `settle:${String(msg.toolCallId)}:${String(msg.toolName)}`;
+      }),
+      ["start:call-1:slow", "start:call-2:fast", "settle:call-2:fast", "settle:call-1:slow"],
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
 test("tool functions: the Script tool reaches every tool", () => {
   const tool = makeScriptTool({
     boot: { pluginIndex: new Map() } as unknown as BootSnapshot,

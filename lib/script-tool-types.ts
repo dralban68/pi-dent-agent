@@ -106,7 +106,7 @@ function union(members: readonly Typed[]): Typed {
 function unsupportedSuffix(schema: Record<string, unknown>): string {
   const found = UNSUPPORTED_KEYWORDS.filter((key) => Object.hasOwn(schema, key));
   if (
-    Object.hasOwn(schema, "properties") &&
+    isObject(schema.properties) &&
     Object.hasOwn(schema, "additionalProperties") &&
     schema.additionalProperties !== false
   ) {
@@ -161,11 +161,11 @@ function baseType(schema: Record<string, unknown>, ctx: TypingContext): Typed {
   }
   if (Object.hasOwn(schema, "allOf")) {
     const members = (arrayOf(schema, "allOf") ?? []).map((member) => typeOf(member, ctx));
-    if (members.length === 0) return atom("Json");
+    const [only] = members;
+    if (only === undefined) return atom("Json");
+    if (members.length === 1) return only;
     const texts = members.map((m) => (m.kind === "union" ? `(${m.text})` : m.text));
-    return texts.length === 1
-      ? atom(texts.join(""))
-      : { text: texts.join(" & "), kind: "intersection" };
+    return { text: texts.join(" & "), kind: "intersection" };
   }
   const type = schema.type;
   if (Array.isArray(type)) {

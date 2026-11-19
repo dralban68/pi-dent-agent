@@ -382,7 +382,19 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         .then((reply) => {
           nestedCalls.delete(controller);
           if (settled) return;
-          worker?.postMessage({ type: "tool-result", id, reply });
+          try {
+            worker?.postMessage({ type: "tool-result", id, reply });
+          } catch (error) {
+            try {
+              worker?.postMessage({
+                type: "tool-result",
+                id,
+                reply: { ok: false, error: { name: "Error", message: errorMessage(error) } },
+              });
+            } catch {
+              // Port closed.
+            }
+          }
         });
     }
 
