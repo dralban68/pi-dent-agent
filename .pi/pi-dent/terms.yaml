@@ -787,7 +787,7 @@ terms:
     meaning: A machine-scope fleet listing set as one JSON widget line for an RPC client that announces PI_DENT_FEEDS
     owner: specs/fleet-tool.md
     group: Tasks
-    key: local
+    key: shared
     status: active
     history:
       - date: 2026-11-14
@@ -800,6 +800,8 @@ terms:
         op: update
         status: deprecated
       - date: 2026-11-15
+        op: update
+      - date: 2026-11-19
         op: update
   - id: foreground-delivery
     label: foreground delivery

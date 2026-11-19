@@ -56,7 +56,7 @@ script execution and termination by [script-tool.md](script-tool.md).
   spawned process tree).
 - The command answers nothing directly. An unknown `id`, or a malformed `<json>`, changes nothing.
 
-## 4. Script binding
+## 4. The `dent.ui` binding
 
 A JSON value is `null`, a boolean, a finite number, a string, an array of JSON values without
 holes, or a plain object whose own enumerable values are JSON values, with no cycles. Its size is
