@@ -129,6 +129,36 @@ test("read of a script row cuts a long line that begins like a marker", async ()
   }
 });
 
+test("read of a script row keeps its own tool-calls line whole and cuts another row's", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "task-tool-log-line-"));
+  try {
+    const resultPath = join(dir, "output", "x.log");
+    const registry = reg();
+    const row = registry.register({ kind: "script", cohort: "c", label: "s", background: true });
+    const own = `--- tool calls: 2; log: ${join(dir, "a".repeat(150), "script-x.jsonl")}; Search it with session ${row.taskId} ---`;
+    const other = `--- tool calls: 2; log: ${join(dir, "a".repeat(150), "script-y.jsonl")}; Search it with session zzzz0000 ---`;
+    registry.settle(row, {
+      status: "completed",
+      result: ["--- exited ok in 5ms ---", own, other].join("\n"),
+      resultPath,
+    });
+    const tool = makeTaskTool({ registry: () => registry });
+    const read = await tool.execute(
+      "tc",
+      { action: "read", taskId: row.taskId } as never,
+      undefined,
+      undefined,
+      undefined as never,
+    );
+    const lines = textOf(read).split("\n");
+    assert.equal(lines[1], own, textOf(read));
+    assert.equal(lines[2], other.slice(0, 120), textOf(read));
+    assert.equal(lines.at(-1), `Full output: ${resultPath}`, textOf(read));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("read of a settled row returns the header line whole, with no Full output line repeating it", async () => {
   const dir = mkdtempSync(join(tmpdir(), "task-tool-header-"));
   try {

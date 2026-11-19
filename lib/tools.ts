@@ -382,15 +382,23 @@ function isOwnHeaderLine(line: string, resultPath: string): boolean {
   return HEADER_FORMS.some((form) => form.test(head));
 }
 
+/** Whether `line` is exactly a `--- tool calls` line of a `script` row for `taskId` (script-tool.md Section 6). */
+function isOwnToolCallsLine(line: string, taskId: string): boolean {
+  const tail = `; Search it with session ${taskId} ---`;
+  return /^--- tool calls: \d+; log: ./.test(line) && line.endsWith(tail);
+}
+
 /**
  * The preview of a settled result that spilled (task-tool.md Section 2.1): each line cut
- * to 120 characters, but a `bash` row's own header line kept whole, and no `Full output:`
- * line when the preview already carries that header line.
+ * to 120 characters, but a `bash` row's own header line and a `script` row's own tool-calls
+ * line kept whole, and no `Full output:` line when the preview already carries that header line.
  */
-function previewSpill(text: string, kind: TaskKind, resultPath: string): string {
+function previewSpill(text: string, kind: TaskKind, resultPath: string, taskId: string): string {
   const header = (line: string) => kind === "bash" && isOwnHeaderLine(line, resultPath);
+  const whole = (line: string) =>
+    header(line) || (kind === "script" && isOwnToolCallsLine(line, taskId));
   const truncate = (line: string) =>
-    line.length > 120 && !header(line) ? line.slice(0, 120) : line;
+    line.length > 120 && !whole(line) ? line.slice(0, 120) : line;
   const lines = text.split("\n");
   const shown =
     lines.length <= 20
@@ -435,7 +443,7 @@ function taskRead(registry: TaskRegistry, row: TaskRow): ToolResult {
     if ("error" in spill) {
       return textError(`cannot read the result file ${row.resultPath}: ${spill.error}`);
     }
-    text = previewSpill(spill.text, row.kind, row.resultPath);
+    text = previewSpill(spill.text, row.kind, row.resultPath, row.taskId);
   } else {
     // A rebuilt settled row keeps no result (task-record.md Section 3).
     text = row.result ?? `(result not retained; resume with Agent resume=${row.taskId})`;
