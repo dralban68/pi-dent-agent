@@ -150,7 +150,7 @@ lies in the agent directory of a session of the tree.
   the root: `self` for the root, and the stem path for any other member. The last `<stem>` of a
   key ends, for a session file an `Agent` dispatch created, with `-` and the dispatch's task ID
   ([agent-tool.md](agent-tool.md), Section 4.2), and for the tool log of a `Script` run, with `-`
-  and the run's task ID ([script-tool.md](script-tool.md), Section 10.4).
+  and the run's task ID ([script-tool.md](script-tool.md), Section 8.4).
 - A root that has no session file is a member with no session entries; its agent directory is
   still read for children.
 

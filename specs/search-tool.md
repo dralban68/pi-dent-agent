@@ -185,7 +185,7 @@ A `session` value resolves, after trimming, by the first rule that applies:
 5. Any other value: the member of the invoking session's session tree whose key's last `<stem>`
    equals the value or ends with `-` followed by the value. A task ID so names the session an
    `Agent` dispatch created, or the tool log of a `Script` run
-   ([script-tool.md](script-tool.md), Section 10.4).
+   ([script-tool.md](script-tool.md), Section 8.4).
 
 A value that resolves to no session MUST be rejected as a tool error with the text
 `unknown session "<value>"`; a value that rule 2 or rule 5 matches to more than one session, with

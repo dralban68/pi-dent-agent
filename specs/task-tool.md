@@ -63,7 +63,7 @@ Returns a point-in-time snapshot of `taskId`:
   most 20), each line cut to its first 120 characters (no marker), except on a `bash` row a line
   that is exactly one of the header forms of [bash-tool.md](bash-tool.md), Section 4, with this
   row's `<resultPath>`, which is returned whole, and on a `script` row a line that is exactly a
-  `--- tool calls` line of [script-tool.md](script-tool.md), Section 6, with this row's task ID,
+  `--- tool calls` line of [script-tool.md](script-tool.md), Section 5, with this row's task ID,
   which is returned whole; one `[... <n> lines omitted ...]` line between
   the groups; and a final `Full output: <resultPath>` line, present exactly when no line of the
   preview is such a header line. A read of a rebuilt row previews its `resultPath` file text

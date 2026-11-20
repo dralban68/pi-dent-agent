@@ -7,8 +7,9 @@ script execution by [script-tool.md](script-tool.md).
 
 ## 1. Scopes, paths, and layout
 
-A plugin state store belongs to one plugin namespace (valid per [plugin.md](plugin.md), Section 2)
-and one scope: `workspace` or `user`.
+A plugin state store belongs to one plugin namespace — valid per [plugin.md](plugin.md), Section 2,
+and additionally neither `.` nor `..` and containing no `\` or U+0000 — and one scope: `workspace`
+or `user`.
 
 | Scope       | Store directory                                 | Store file                                                 | Data directory                                       |
 | ----------- | ----------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
@@ -16,13 +17,14 @@ and one scope: `workspace` or `user`.
 | `user`      | `<userStateRoot>/state/<namespace>`             | `<userStateRoot>/state/<namespace>/state.json`             | `<userStateRoot>/state/<namespace>/data`             |
 
 - `<workspaceRoot>` MUST be an absolute path.
-- `<userStateRoot>` is the `userStateRoot` option when provided, else `PI_DENT_STATE_DIR` when
-  set and non-empty, else `~/.pi/pi-dent`.
+- `<userStateRoot>` is the `userStateRoot` option when provided and non-empty, else
+  `PI_DENT_STATE_DIR` when set and non-empty, else `~/.pi/pi-dent`; a relative value resolves
+  against the calling process's working directory.
 - When creating `<workspaceRoot>/.pi/pi-dent/state` (for a write or data directory creation),
   if `<workspaceRoot>/.pi/pi-dent/state/.gitignore` does not exist, the implementation MUST write
   `*\n` to it. An existing `.gitignore` MUST NOT be overwritten.
-- Reads (`get`, `keys`) and `delete` on a missing store file or missing `.pi/` directory MUST NOT
-  create any directory or file.
+- Reads (`get`, `readPluginStateEntry`, `keys`) and `delete` on a missing store file or missing
+  `.pi/` directory MUST NOT create any directory or file.
 - Writes (`set`) and data directory access (`dir` / `ensurePluginStateDataDir`) MUST create
   missing parent directories lazily and MUST reject or throw the operating system error when the
   target cannot be created (for example on a read-only workspace).
@@ -46,8 +48,7 @@ and one scope: `workspace` or `user`.
 
 ## 3. Limits and validation
 
-A JSON value is `null`, a boolean, a finite number, a string, a dense array of JSON values, or a
-plain object whose own enumerable values are JSON values, with no cycles.
+A JSON value is a JSON-compatible value per [script-tool.md](script-tool.md), Section 5.
 
 - **Key**: a non-empty string of 1 to 256 UTF-16 code units containing no U+0000 (`\0`).
 - **Value**: a JSON value whose `JSON.stringify` text is at most 262,144 bytes in UTF-8.
@@ -113,20 +114,24 @@ these exact `code` and `message` values (`<store>` is `<scope>/<namespace>`):
 | Corrupt store file           | `STORE_CORRUPT`          | `Plugin state store is corrupt (<store>): <reason>`     |
 | Lock timeout                 | `LOCK_TIMEOUT`           | `Timed out waiting for plugin state lock (<store>)`     |
 
+Operating system failures during write or directory creation (such as `EACCES` or `EROFS`) reject
+or throw the host operating system `Error` with its native `code` rather than `PluginStateError`.
+
 ## 6. The `dent.state` binding
 
 - In every execution of a plugin script — both `Script` tool calls with `plugin` and `path`
   ([script-tool.md](script-tool.md), Section 2) and plugin UI calls
   ([plugin-ui.md](plugin-ui.md), Section 2) — `dent.state` MUST be a frozen object for the
-  plugin's `workspace` scope (using the script's session `cwd` as `workspaceRoot`) with a frozen
-  `dent.state.user` property for the plugin's `user` scope.
+  plugin's `workspace` scope (using the invoking session's working directory as `workspaceRoot`,
+  ignoring any `Script` `cwd` parameter or `process.chdir`) with a frozen `dent.state.user`
+  property for the plugin's `user` scope.
 - Outside a plugin script (inline `Script` calls with `code`), `dent.state` MUST be `undefined`.
 - Both `dent.state` and `dent.state.user` MUST expose:
   - `get(key, defaultValue?)` -> `Promise<unknown>`
   - `set(key, value)` -> `Promise<void>`
   - `delete(key)` -> `Promise<void>`
   - `keys()` -> `Promise<string[]>` (ascending UTF-16 code-unit order)
-  - `onChange(listener)` -> `() => void` (synchronous; throws `TypeError("onChange listener must be a function")` when `listener` is not a function)
+  - `onChange(listener)` -> `() => void` (synchronous; throws `TypeError("onChange listener must be a function")` when `listener` is not a function; takes no error callback, so watch-read errors on a corrupt store are unreported while the store remains unreadable)
   - `dir` (getter returning the absolute path of the scope's `data` directory, creating it lazily
     on first access).
 - Active `onChange` watchers in a script MUST be closed automatically when the script settles and
@@ -137,3 +142,6 @@ these exact `code` and `message` values (`<store>` is `<scope>/<namespace>`):
 - Rapid cross-process writes faster than file-system watch delivery may coalesce intermediate
   values into the latest state on disk.
 - No encryption or secret storage is provided; `state.json` is plain JSON on disk.
+- `dent.state.onChange` provides no error callback for corrupt or unreadable store files met
+  during watching; callers needing watch errors use `watchPluginState` (Section 5) or surface
+  corruption on `get`/`set`/`delete`/`keys`.

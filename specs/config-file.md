@@ -47,7 +47,7 @@ the diagnostic also names the file and the supported set.
 | `taskBrowser`   | [task-browser.md](task-browser.md), Section 1.1   |
 | `footer`        | [footer.md](footer.md), Section 1.1               |
 | `recapModel`    | This section                                      |
-| `script`        | [script-tool.md](script-tool.md), Section 8       |
+| `script`        | [script-tool.md](script-tool.md), Section 7       |
 | `terms`         | pi-dent-terms `specs/terms-tool.md`, Section 4.2  |
 
 The root key `terms` is owned by the sibling package `pi-dent-terms`. pi-dent MUST accept `terms` as a
