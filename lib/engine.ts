@@ -509,7 +509,7 @@ export function defaultBuiltinExtensions(): InlineExtension[] {
 }
 
 /** The longest the child's extension shutdown may take (agent-tool.md Section 3.1). */
-const EXTENSION_SHUTDOWN_TIMEOUT_MS = 1000;
+export const EXTENSION_SHUTDOWN_TIMEOUT_MS = 1000;
 
 /** How the child's session-shutdown lifecycle ended (agent-tool.md Section 3.1). */
 type ExtensionShutdownOutcome = "done" | "timeout" | { readonly error: unknown };
@@ -519,7 +519,7 @@ type ExtensionShutdownOutcome = "done" | "timeout" | { readonly error: unknown }
  * (agent-tool.md Section 3.1). A failure after the deadline is reported to
  * stderr, never left unhandled.
  */
-function extensionShutdown(
+export function extensionShutdown(
   session: AgentSession,
   deadlineMs: number,
 ): Promise<ExtensionShutdownOutcome> {

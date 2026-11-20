@@ -23,6 +23,7 @@ import {
   toolDeclarations,
 } from "./script-tool-types.ts";
 import { errorCode, errorMessage, isPlainObject } from "./util.ts";
+import type { PluginUiToolProxy } from "./plugin-ui-proxy.ts";
 
 /**
  * Plugin UI protocol controller (specs/plugin-ui.md): handles `/dent-ui run`
@@ -155,13 +156,24 @@ export function makeUiToolContext(ctx: ExtensionContext): ExtensionToolContext {
   };
 }
 
+/** Minimal shape of a tool from `pi.getAllTools()` needed for proxy binding. */
+export interface SessionToolInfo extends CallableTool {
+  exposure?: string | undefined;
+}
+
 export interface PluginUiToolDeps {
-  /** pi-dent's own registered tools eligible for UI calls. */
+  /** pi-dent's own registered tools eligible for direct execution in UI calls. */
   ownedTools: () => readonly UiCallableTool[];
-  /** Names of all tools configured in the session (from `pi.getAllTools()`). */
+  /** All tools configured in the session (from `pi.getAllTools()`). */
+  allTools?: () => readonly SessionToolInfo[];
+  /** Active tool names in the session (from `pi.getActiveTools()`). */
+  activeToolNames?: () => readonly string[];
+  /** Fallback list of session tool names when `allTools` is omitted (used by unit tests). */
   allToolNames?: () => readonly string[];
   /** `script.tools.allow` (specs/script-tool.md Section 8); absent gives the default. */
   toolsAllow?: () => readonly string[];
+  /** Lazily creates the parent session's long-lived tool proxy on the first proxied call. */
+  createProxy?: () => PluginUiToolProxy | undefined;
 }
 
 export interface PluginUiCommandContext {
@@ -187,6 +199,7 @@ export class PluginUiController {
   private readonly pluginIndex: ReadonlyMap<string, PluginEntry>;
   private readonly toolDeps: PluginUiToolDeps | undefined;
   private readonly active = new Map<string, ActiveUiCall>();
+  private proxy: PluginUiToolProxy | undefined;
 
   constructor(pluginIndex: ReadonlyMap<string, PluginEntry>, toolDeps?: PluginUiToolDeps) {
     this.pluginIndex = pluginIndex;
@@ -220,53 +233,124 @@ export class PluginUiController {
     }
   }
 
+  /** Dispose the parent session's tool proxy, if one was created (specs/plugin-ui.md Section 4.3). */
+  async disposeProxy(): Promise<void> {
+    const current = this.proxy;
+    this.proxy = undefined;
+    if (current) await current.dispose();
+  }
+
+  private getOrCreateProxy(): PluginUiToolProxy | undefined {
+    if (this.proxy) return this.proxy;
+    const created = this.toolDeps?.createProxy?.();
+    if (created) this.proxy = created;
+    return this.proxy;
+  }
+
   private buildRunTools(id: string, ctx: PluginUiCommandContext): ScriptRunTools | undefined {
     if (!this.toolDeps) return undefined;
-    const eligible = this.toolDeps
-      .ownedTools()
-      .filter((tool) => !PLUGIN_UI_EXCLUDED_TOOLS.has(tool.name));
     const allow = this.toolDeps.toolsAllow?.() ?? DEFAULT_TOOLS_ALLOW;
-    const selection = selectTools(eligible, allow);
-    const boundNames = selection.bound.map((tool) => tool.name);
+    const ownedList = this.toolDeps.ownedTools();
+    const directCandidates = ownedList.filter((tool) => !PLUGIN_UI_EXCLUDED_TOOLS.has(tool.name));
+    const directSelection = selectTools(directCandidates, allow);
+    const directMap = new Map<string, UiCallableTool>();
+    for (const tool of directSelection.bound) directMap.set(tool.name, tool);
+
+    const allSessionTools = this.toolDeps.allTools?.() ?? [];
+    const proxiedMap = new Map<string, CallableTool>();
+    if (this.toolDeps.createProxy && allSessionTools.length > 0) {
+      const activeNames = this.toolDeps.activeToolNames?.();
+      const activeSet = activeNames ? new Set(activeNames) : undefined;
+      const proxiedCandidates = allSessionTools.filter((tool) => {
+        if (directMap.has(tool.name) || PLUGIN_UI_EXCLUDED_TOOLS.has(tool.name)) return false;
+        const exposure = tool.exposure ?? "direct";
+        if (exposure === "codemode" || exposure === "deferred") return true;
+        if (exposure === "direct") return activeSet === undefined || activeSet.has(tool.name);
+        return false;
+      });
+      const proxiedSelection = selectTools(proxiedCandidates, allow);
+      for (const tool of proxiedSelection.bound) proxiedMap.set(tool.name, tool);
+    }
+
+    const combined: CallableTool[] = [...directSelection.bound, ...proxiedMap.values()].toSorted(
+      (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    );
+    const boundNames = combined.map((tool) => tool.name);
     const boundSet = new Set(boundNames);
-    const sessionNames = this.toolDeps.allToolNames?.() ?? [];
+
     const unavailableSet = new Set<string>();
-    for (const name of sessionNames) {
+    for (const tool of allSessionTools) {
+      if (!boundSet.has(tool.name)) unavailableSet.add(tool.name);
+    }
+    for (const name of this.toolDeps.allToolNames?.() ?? []) {
       if (!boundSet.has(name)) unavailableSet.add(name);
     }
-    for (const tool of this.toolDeps.ownedTools()) {
+    for (const tool of ownedList) {
       if (!boundSet.has(tool.name)) unavailableSet.add(tool.name);
     }
     const unavailableNames = [...unavailableSet].toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
     let callSeq = 0;
     return {
       names: boundNames,
       unavailableNames,
-      declarations: toolDeclarations({ bound: selection.bound, unbound: [] }),
+      declarations: toolDeclarations({ bound: combined, unbound: [] }),
       call: async (name, args, callSignal) => {
-        const tool = selection.bound.find((candidate) => candidate.name === name);
-        if (tool === undefined) {
-          return {
-            ok: false,
-            error: { name: "Error", message: `tool ${name} is unavailable in a plugin UI call` },
-          };
+        const directTool = directMap.get(name);
+        if (directTool !== undefined) {
+          const toolCallId = `ui:${id}/${++callSeq}`;
+          return callBoundTool(
+            directTool,
+            args,
+            async (_toolName, toolArgs, options) => {
+              try {
+                return await directTool.execute(
+                  toolCallId,
+                  toolArgs,
+                  options.signal,
+                  ctx.toolContext,
+                );
+              } catch (error) {
+                return {
+                  result: { content: [{ type: "text", text: errorMessage(error) }] },
+                  isError: true,
+                };
+              }
+            },
+            callSignal,
+          );
         }
-        const toolCallId = `ui:${id}/${++callSeq}`;
-        return callBoundTool(
-          tool,
-          args,
-          async (_toolName, toolArgs, options) => {
-            try {
-              return await tool.execute(toolCallId, toolArgs, options.signal, ctx.toolContext);
-            } catch (error) {
-              return {
-                result: { content: [{ type: "text", text: errorMessage(error) }] },
-                isError: true,
-              };
-            }
-          },
-          callSignal,
-        );
+
+        const proxiedTool = proxiedMap.get(name);
+        if (proxiedTool !== undefined) {
+          const proxy = this.getOrCreateProxy();
+          if (proxy === undefined) {
+            return {
+              ok: false,
+              error: { name: "Error", message: "No live host session for proxied tool call" },
+            };
+          }
+          return callBoundTool(
+            proxiedTool,
+            args,
+            async (_toolName, toolArgs, options) => {
+              try {
+                return await proxy.call(name, toolArgs, options.signal);
+              } catch (error) {
+                return {
+                  result: { content: [{ type: "text", text: errorMessage(error) }] },
+                  isError: true,
+                };
+              }
+            },
+            callSignal,
+          );
+        }
+
+        return {
+          ok: false,
+          error: { name: "Error", message: `tool ${name} is unavailable in a plugin UI call` },
+        };
       },
     };
   }

@@ -73,27 +73,51 @@ the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,144 b
 
 ### 4.2 Tool functions
 
-- A UI call MUST bind the tools pi-dent registers itself — `Agent`, `Bash`, `Fleet`, `Markdown`,
-  `Plugin`, `Schedule`, `Search`, `Session`, `Skill` (when the boot snapshot holds at least one
-  skill), and `Task` — filtered by `script.tools.allow` ([script-tool.md](script-tool.md),
-  Section 8) and the object-schema check ([script-tool.md](script-tool.md), Section 10.1).
-  `Script` and `AskUserQuestion` MUST NOT be bound as callable tools.
+- A UI call MUST bind two sets of callable tools, each filtered by `script.tools.allow`
+  ([script-tool.md](script-tool.md), Section 8) and the object-schema check
+  ([script-tool.md](script-tool.md), Section 10.1), with `Script` and `AskUserQuestion` excluded:
+  1. **Direct tools** — the tools pi-dent registers itself (`Agent`, `Bash`, `Fleet`, `Markdown`,
+     `Plugin`, `Schedule`, `Search`, `Session`, `Skill` when the boot snapshot holds at least one
+     skill, and `Task`), executed directly in-process and concurrently.
+  2. **Proxied tools** — every other callable tool of the session (active `direct` tools and
+     registered `codemode` or `deferred` tools reported by the host's `getAllTools()` and
+     `getActiveTools()`, including pi's built-in host tools, MCP tools, and other extensions'
+     tools), executed through the tool proxy (Section 4.3).
 - Calling a bound tool `tools.<Name>(args)` MUST validate `args` against the tool's parameter
   schema and execute the tool with the same resolve and reject behaviour as a `Script` tool call
   ([script-tool.md](script-tool.md), Section 10.3).
-- `dent.toolTypes()` MUST declare exactly the bound tools ([script-tool.md](script-tool.md),
-  Section 10.2).
-- Every tool listed by the host's `getAllTools()` that is not bound — including built-in host
-  tools, MCP tools, other extensions' tools, `Script`, `AskUserQuestion`, and tools excluded by
-  `script.tools.allow` — MUST be bound on `tools` as a function that rejects with an `Error`
-  whose message is `tool <Name> is unavailable in a plugin UI call`, and MUST NOT appear in
-  `dent.toolTypes()`.
+- `dent.toolTypes()` MUST declare exactly the bound tools (direct and proxied,
+  [script-tool.md](script-tool.md), Section 10.2).
+- Every tool listed by the host's `getAllTools()` that is neither direct nor proxied — including
+  `Script`, `AskUserQuestion`, inactive `direct` tools such as built-in `bash`, tools excluded by
+  `script.tools.allow`, and tools without an object parameter schema — MUST be bound on `tools` as
+  a function that rejects with an `Error` whose message is
+  `tool <Name> is unavailable in a plugin UI call`, and MUST NOT appear in `dent.toolTypes()`.
 - Tool calls made by a UI call write no tool log. Tasks dispatched through `Agent` or `Bash`
   register in the session's task registry as usual.
 - On settlement (normal completion, `/dent-ui cancel`, or `session_shutdown`), every in-flight
   tool call's abort signal MUST be aborted ([script-tool.md](script-tool.md), Section 10.3). A
   foreground `Agent` or `Bash` call aborts with that signal; a task dispatched with
   `background: true` survives `/dent-ui cancel` and is ended by `session_shutdown`.
+
+### 4.3 Tool proxy
+
+- Proxied tools execute in one lazily created, long-lived in-memory proxy session per parent
+  session, started on the first proxied tool call. The proxy uses an in-memory session manager and
+  registers no task row, so it writes no session file and never appears in the session list,
+  session index, task feed, task detail feed, or task browser.
+- The proxy inherits the parent session's non-pi-dent extension sources (including MCP adapters)
+  and project trust, and drives each proxied tool call through a scripted `streamSimple` provider
+  with no LLM requests, clearing its in-memory message history between calls.
+- Proxied calls serialize on a FIFO queue. When a call's abort signal fires while queued, it MUST
+  be removed from the queue and rejected without entering the proxy session; when it fires while
+  the call is in flight, the proxy MUST abort the active proxy turn.
+- If the proxy session fails to start, or the extension supplying a tool fails to load in the
+  proxy, the proxied call MUST reject naming the cause; direct tools MUST remain unaffected.
+- The proxy runs without an interactive UI, so an MCP server requiring interactive sign-in cannot
+  prompt and fails with the adapter's authentication error rather than hanging.
+- On `session_shutdown`, the proxy MUST reject queued calls, abort any in-flight call, and dispose
+  its proxy session so inherited extensions (including MCP server connections) shut down cleanly.
 
 ## 5. UI feed
 
@@ -131,6 +155,6 @@ session shutdown.
 
 - Exact wording of `reply` `error` strings is not specified beyond naming the cause and
   distinguishing non-JSON from over-cap return values.
-- Built-in host tools, MCP tools, and other extensions' tools cannot be executed because the host
-  extension API exposes tool execution only during a model tool call.
+- Interactive OAuth sign-in for an MCP server cannot prompt inside the headless tool proxy; the
+  user must sign in through the host session first.
 - Rate limiting of UI messages is not specified.

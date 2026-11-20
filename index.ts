@@ -13,6 +13,7 @@ import {
   type BootSnapshot,
   DispatchEngine,
   hostFromContext,
+  inheritedExtensions,
   readBootSnapshot,
   agentsDirFor,
   agentDirForHost,
@@ -35,6 +36,7 @@ import {
   PluginUiController,
   type UiCallableTool,
 } from "./lib/plugin-ui.ts";
+import { PluginUiToolProxy } from "./lib/plugin-ui-proxy.ts";
 import { type Diagnostic, errorMessage, isPlainObject } from "./lib/util.ts";
 import { rebuildInterruptedTasks } from "./lib/task-rebuild.ts";
 import {
@@ -304,11 +306,24 @@ export default function (pi: ExtensionAPI) {
   const questions = askUserRuntime();
   const recap = recapRuntime(boot.config, (data) => pi.appendEntry("pi-dent-recap", data));
   const scriptToolsAllow = parseScript(boot.config).toolsAllow ?? DEFAULT_TOOLS_ALLOW;
+  let currentProjectTrusted = false;
   const pluginUi = new PluginUiController(boot.pluginIndex, {
     ownedTools: () => [...ownedUiTools.values()],
-    allToolNames: () =>
-      typeof pi.getAllTools === "function" ? pi.getAllTools().map((t) => t.name) : [],
+    allTools: () => (typeof pi.getAllTools === "function" ? pi.getAllTools() : []),
+    activeToolNames: () => (typeof pi.getActiveTools === "function" ? pi.getActiveTools() : []),
     toolsAllow: () => scriptToolsAllow,
+    createProxy: () => {
+      const host = currentHost;
+      if (!host) return;
+      const active = typeof pi.getActiveTools === "function" ? pi.getActiveTools() : [];
+      const excludeTools = active.includes("bash") ? [] : ["bash"];
+      return new PluginUiToolProxy({
+        cwd: host.cwd(),
+        isProjectTrusted: currentProjectTrusted,
+        extensions: inheritedExtensions(host),
+        excludeTools,
+      });
+    },
   });
   let taskWidget: TaskWidgetHandle | undefined;
   // Feeds for an RPC client (task.md Section 4.1, fleet-tool.md Section 6).
@@ -502,6 +517,8 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (event, ctx) => {
     recap.abort();
+    await pluginUi.disposeProxy();
+    currentProjectTrusted = ctx.isProjectTrusted();
     // billing.md Section 4.5: the diagnostics held with no open session go out first.
     sessionUi = ctx.ui;
     for (const diagnostic of heldDiagnostics.splice(0)) showDiagnostic(diagnostic);
@@ -721,6 +738,11 @@ export default function (pi: ExtensionAPI) {
       () => pluginUi.cancelAll("Session ended"),
       reportShutdown,
     );
+    try {
+      await pluginUi.disposeProxy();
+    } catch (error) {
+      reportShutdown(`pi-dent: disposing plugin UI tool proxy failed: ${errorMessage(error)}`);
+    }
     // The Search tool's continuations of catch-up end with the boot window
     // (search-tool.md Section 2.2).
     shutdownStep("stopping Search", () => search.stop(), reportShutdown);
