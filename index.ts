@@ -518,7 +518,8 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (event, ctx) => {
     recap.abort();
     await pluginUi.disposeProxy();
-    currentProjectTrusted = ctx.isProjectTrusted();
+    currentProjectTrusted =
+      typeof ctx.isProjectTrusted === "function" ? ctx.isProjectTrusted() : false;
     // billing.md Section 4.5: the diagnostics held with no open session go out first.
     sessionUi = ctx.ui;
     for (const diagnostic of heldDiagnostics.splice(0)) showDiagnostic(diagnostic);
