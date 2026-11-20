@@ -445,6 +445,8 @@ export class PluginUiController {
         input: { ui: data },
         aliases: bundledAliases(),
         uiCall: true,
+        pluginNamespace: plugin.name,
+        stateWorkspaceRoot: ctx.cwd,
         ...(tools === undefined ? {} : { tools }),
         ...(ctx.extraEnv && Object.keys(ctx.extraEnv).length > 0 ? { extraEnv: ctx.extraEnv } : {}),
         onUiMessage: (dataJson) => {

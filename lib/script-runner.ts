@@ -96,6 +96,10 @@ export interface ScriptRunRequest {
   uiCall?: boolean;
   /** Fired with each validated UI message JSON payload before settlement. */
   onUiMessage?: (json: string) => void;
+  /** Plugin namespace when running a plugin script (specs/plugin-state.md Section 6). */
+  pluginNamespace?: string;
+  /** Workspace root for `dent.state` (defaults to `cwd`). */
+  stateWorkspaceRoot?: string;
 }
 
 /** Pre-validated return outcome of a plugin UI call (specs/plugin-ui.md Section 5). */
@@ -321,6 +325,10 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         unavailableToolNames: req.tools?.unavailableNames ?? [],
         toolTypes: req.tools?.declarations ?? toolDeclarations({ bound: [], unbound: [] }),
         uiCall: req.uiCall === true,
+        ...(req.pluginNamespace === undefined ? {} : { pluginNamespace: req.pluginNamespace }),
+        ...(req.stateWorkspaceRoot === undefined
+          ? {}
+          : { stateWorkspaceRoot: req.stateWorkspaceRoot }),
       },
       env: workerEnv,
     });

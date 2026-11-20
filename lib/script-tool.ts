@@ -452,6 +452,9 @@ export function makeScriptTool(deps: ScriptToolDeps) {
           cwd,
           input: params.input,
           aliases: bundledAliases(),
+          ...(shape.kind === "plugin"
+            ? { pluginNamespace: shape.plugin, stateWorkspaceRoot: host.cwd() }
+            : {}),
         };
         if (timeoutMs !== undefined) request.timeoutMs = timeoutMs;
         if (!background && signal !== undefined) request.signal = signal;

@@ -6,6 +6,18 @@ import { ChildProcess } from "node:child_process";
 import * as vm from "node:vm";
 import { Writable } from "node:stream";
 import { isJsonCompatible, renderReturn } from "./script-render.ts";
+import {
+  deletePluginState,
+  ensurePluginStateDataDir,
+  getPluginState,
+  listPluginStateKeys,
+  setPluginState,
+  watchPluginState,
+  type PluginStateChangeListener,
+  type PluginStateScope,
+  type PluginStateTarget,
+  type PluginStateWatcher,
+} from "./plugin-state.ts";
 import { TEMP_VARIABLES } from "./session-tmp.ts";
 import { parentPort, workerData } from "node:worker_threads";
 import { createJiti } from "jiti";
@@ -34,6 +46,10 @@ interface ScriptWorkerData {
   toolTypes: string;
   /** Whether this run is a plugin UI call (specs/plugin-ui.md). */
   uiCall?: boolean;
+  /** Plugin namespace when running a plugin script (specs/plugin-state.md Section 6). */
+  pluginNamespace?: string;
+  /** Workspace root for `dent.state` (defaults to `cwd`). */
+  stateWorkspaceRoot?: string;
 }
 
 const port = parentPort;
@@ -55,9 +71,22 @@ class ScriptExit extends Error {}
 
 const isScriptExit = (value: unknown): boolean => value instanceof ScriptExit;
 
+const activeStateWatchers = new Set<PluginStateWatcher>();
+const closeStateWatchers = (): void => {
+  for (const watcher of activeStateWatchers) {
+    try {
+      watcher.close();
+    } catch {
+      // Best effort.
+    }
+  }
+  activeStateWatchers.clear();
+};
+
 /** Settle `exit-called` and end the script's flow (Section 3). */
 const postExit = (code?: number): never => {
   exitCalled = true;
+  closeStateWatchers();
   try {
     port.postMessage({ type: "exit-called", code: code ?? 0 });
   } catch {
@@ -250,13 +279,53 @@ const sendUiMessage = (payload: unknown): void => {
     // Port closed.
   }
 };
-const scriptDent =
-  data.uiCall === true
-    ? Object.freeze({
-        toolTypes: (): string => data.toolTypes,
-        ui: Object.freeze({ send: sendUiMessage }),
-      })
-    : Object.freeze({ toolTypes: (): string => data.toolTypes });
+const makeStateScopeBinding = (namespace: string, scope: PluginStateScope) => {
+  const target: PluginStateTarget =
+    scope === "workspace"
+      ? { namespace, scope, workspaceRoot: data.stateWorkspaceRoot ?? data.cwd }
+      : { namespace, scope };
+  const binding = {
+    get: (key: string, defaultValue?: unknown): Promise<unknown> =>
+      getPluginState(target, key, defaultValue),
+    set: (key: string, value: unknown): Promise<void> => setPluginState(target, key, value),
+    delete: (key: string): Promise<void> => deletePluginState(target, key),
+    keys: (): Promise<string[]> => listPluginStateKeys(target),
+    onChange: (listener: PluginStateChangeListener): (() => void) => {
+      if (typeof listener !== "function") {
+        throw new TypeError("onChange listener must be a function");
+      }
+      const watcher = watchPluginState(target, (key, value) => {
+        if (exitCalled) return;
+        listener(key, value);
+      });
+      activeStateWatchers.add(watcher);
+      return () => {
+        watcher.close();
+        activeStateWatchers.delete(watcher);
+      };
+    },
+    get dir(): string {
+      return ensurePluginStateDataDir(target);
+    },
+  };
+  return binding;
+};
+
+const scriptState =
+  typeof data.pluginNamespace === "string" && data.pluginNamespace !== ""
+    ? (() => {
+        const ws = makeStateScopeBinding(data.pluginNamespace, "workspace");
+        const user = Object.freeze(makeStateScopeBinding(data.pluginNamespace, "user"));
+        Object.defineProperty(ws, "user", { value: user, enumerable: true });
+        return Object.freeze(ws);
+      })()
+    : undefined;
+
+const scriptDent = Object.freeze({
+  toolTypes: (): string => data.toolTypes,
+  ...(data.uiCall === true ? { ui: Object.freeze({ send: sendUiMessage }) } : {}),
+  ...(scriptState === undefined ? {} : { state: scriptState }),
+});
 Object.defineProperty(globalThis, "tools", {
   value: scriptTools,
   writable: true,
@@ -1094,6 +1163,7 @@ void (async () => {
       mod = { default: completion };
     }
   } catch (err) {
+    closeStateWatchers();
     // The exit already settled the run (Section 3); the worker stays up for the
     // runner's termination and the reaping of the tree it kills (Section 6).
     if (exitCalled || isScriptExit(err)) return;
@@ -1101,6 +1171,7 @@ void (async () => {
     reportError(e);
     return;
   }
+  closeStateWatchers();
   // A script that caught the exit's error reaches its own end; its run already
   // settled as exit-called, so there is no result to report.
   if (exitCalled) return;

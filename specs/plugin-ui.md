@@ -65,6 +65,8 @@ the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,144 b
 
 - In a UI call, and in no other script execution, `dent.ui` MUST be a frozen object with one
   method `send(data)`. Outside a UI call `dent.ui` MUST be `undefined`.
+- `dent.state` and `dent.state.user` are bound for the plugin per
+  [plugin-state.md](plugin-state.md), Section 6.
 - `dent.ui.send(data)` MUST throw an `Error`, sending nothing, when `data` is not a JSON value or
   when its size exceeds the payload cap.
 - Otherwise, unless the call has already settled (including after `process.exit`), it MUST emit
