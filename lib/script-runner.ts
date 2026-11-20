@@ -105,6 +105,8 @@ export type UiReturnOutcome = { ok: true; json: string } | { ok: false; error: s
 export interface ScriptRunTools {
   /** Bound tool names, in declaration order. */
   names: string[];
+  /** Session tool names bound as rejecting stubs (specs/plugin-ui.md Section 4.2). */
+  unavailableNames?: string[];
   /** The tool declarations (Section 10.2), returned by `dent.toolTypes()`. */
   declarations: string;
   /** Runs one nested call; the signal aborts at settlement. */
@@ -316,6 +318,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         input: req.input,
         aliases: req.aliases,
         toolNames: req.tools?.names ?? [],
+        unavailableToolNames: req.tools?.unavailableNames ?? [],
         toolTypes: req.tools?.declarations ?? toolDeclarations({ bound: [], unbound: [] }),
         uiCall: req.uiCall === true,
       },

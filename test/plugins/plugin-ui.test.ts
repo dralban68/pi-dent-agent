@@ -3,12 +3,17 @@ import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { Type } from "typebox";
+import { defineTool, type ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import {
+  asUiCallableTool,
   PLUGIN_UI_PAYLOAD_CAP_BYTES,
   PLUGIN_UI_PROTOCOL,
   PLUGIN_UI_WIDGET_KEY,
   PluginUiController,
 } from "../../lib/plugin-ui.ts";
+import { makeAgentTool } from "../../lib/tools.ts";
+import type { BootSnapshot } from "../../lib/engine.ts";
 import type { PluginEntry } from "../../lib/plugins.ts";
 import { runScript } from "../../lib/script-runner.ts";
 import piDentExtension from "../../index.ts";
@@ -444,4 +449,246 @@ test("extension registers dent-ui command and gates execution to RPC mode", asyn
   const reply = await rpcFeed.waitForReply("r1");
   assert.equal(reply.ok, false);
   assert.match(reply.error ?? "", /Unknown plugin/);
+});
+
+test("binds pi-dent-agent tools, validates args, declares only bound tools, and rejects unavailable session tools", async () => {
+  const fx = makePluginFixture();
+  try {
+    const bootStub = {
+      agents: [],
+      agentIndex: new Map(),
+      skills: [],
+      plugins: [],
+      pluginIndex: fx.pluginIndex,
+      diagnostics: [],
+      config: {},
+      sessionTtlDays: 7,
+    } as unknown as BootSnapshot;
+
+    const dispatched: Array<{ toolCallId: string; task: string; prompt?: string }> = [];
+    const agentTool = makeAgentTool({
+      boot: bootStub,
+      modelCatalog: "",
+      hostProvider: () => undefined,
+      cohortFor: (id) => `cohort:${id}`,
+      dispatch: async (call) => {
+        dispatched.push({
+          toolCallId: call.toolCallId,
+          task: call.params.task,
+          ...(call.params.prompt === undefined ? {} : { prompt: call.params.prompt }),
+        });
+        if (call.params.task === "fail-me") {
+          return {
+            content: [{ type: "text", text: "agent failed on request" }],
+            details: { reason: "requested" },
+            isError: true,
+          };
+        }
+        return {
+          content: [{ type: "text", text: `done: ${call.params.task}` }],
+          details: { taskId: "a1", cohort: call.cohortId },
+        };
+      },
+    });
+
+    const echoTool = defineTool({
+      name: "Echo",
+      label: "Echo",
+      description: "Echo text",
+      parameters: Type.Object({ text: Type.String({ minLength: 1 }) }),
+      async execute(_id, params) {
+        return {
+          content: [{ type: "text", text: params.text }],
+          details: { echoed: params.text },
+        };
+      },
+    });
+
+    const fakeToolCtx = {} as ExtensionToolContext;
+    const ctrl = new PluginUiController(fx.pluginIndex, {
+      ownedTools: () => [asUiCallableTool(agentTool), asUiCallableTool(echoTool)],
+      allToolNames: () => ["Agent", "Echo", "Script", "AskUserQuestion", "read", "mcp"],
+    });
+
+    fx.writeScript(
+      "scripts/call-tools.ts",
+      `
+      const types = dent.toolTypes();
+      const agentRes = await tools.Agent({ prompt: "be brief", task: "hello" });
+      dent.ui.send({ phase: "agent-done", text: agentRes.text });
+
+      let validationErr = "";
+      try {
+        await tools.Echo({ text: "" });
+      } catch (err) {
+        validationErr = err instanceof Error ? err.name + ": " + err.message : String(err);
+      }
+
+      let toolErr = "";
+      try {
+        await tools.Agent({ prompt: "be brief", task: "fail-me" });
+      } catch (err) {
+        toolErr = err instanceof Error ? err.name + ": " + err.message : String(err);
+      }
+
+      const unavailable: Record<string, string> = {};
+      for (const name of ["read", "mcp", "Script", "AskUserQuestion"]) {
+        try {
+          await tools[name]({});
+        } catch (err) {
+          unavailable[name] = err instanceof Error ? err.message : String(err);
+        }
+      }
+
+      export default {
+        types,
+        agentText: agentRes.text,
+        agentDetails: agentRes.details,
+        validationErr,
+        toolErr,
+        unavailable,
+      };
+      `,
+    );
+
+    const feed = makeFeedCollector();
+    ctrl.handleCommand(
+      `run ${JSON.stringify({ id: "r-tools", namespace: "demo", root: fx.pluginRoot, path: "scripts/call-tools.ts", data: null })}`,
+      { cwd: fx.dir, setWidget: feed.setWidget, toolContext: fakeToolCtx },
+    );
+
+    const reply = await feed.waitForReply("r-tools");
+    assert.equal(reply.ok, true);
+    const val = reply.value as {
+      types: string;
+      agentText: string;
+      agentDetails: { taskId: string; cohort: string };
+      validationErr: string;
+      toolErr: string;
+      unavailable: Record<string, string>;
+    };
+
+    assert.equal(val.agentText, "done: hello");
+    assert.equal(val.agentDetails.taskId, "a1");
+    assert.match(val.agentDetails.cohort, /^cohort:ui:r-tools\//);
+    assert.equal(dispatched.length, 2);
+    assert.equal(dispatched[0]?.prompt, "be brief");
+
+    // dent.toolTypes() declares bound tools only, not unavailable ones.
+    assert.match(val.types, /\breadonly Agent:/);
+    assert.match(val.types, /\breadonly Echo:/);
+    assert.doesNotMatch(val.types, /\breadonly read:/);
+    assert.doesNotMatch(val.types, /\breadonly mcp:/);
+    assert.doesNotMatch(val.types, /\breadonly Script:/);
+    assert.doesNotMatch(val.types, /\breadonly AskUserQuestion:/);
+
+    // Schema validation error and tool isError both reject as ToolError.
+    assert.match(val.validationErr, /^ToolError: Validation failed for tool "Echo"/);
+    assert.equal(val.toolErr, "ToolError: agent failed on request");
+
+    // Unavailable session tools reject with the exact unavailable message.
+    assert.equal(val.unavailable.read, "tool read is unavailable in a plugin UI call");
+    assert.equal(val.unavailable.mcp, "tool mcp is unavailable in a plugin UI call");
+    assert.equal(val.unavailable.Script, "tool Script is unavailable in a plugin UI call");
+    assert.equal(
+      val.unavailable.AskUserQuestion,
+      "tool AskUserQuestion is unavailable in a plugin UI call",
+    );
+
+    // UI message arrived before reply.
+    const msgs = feed.records.filter((r) => r.id === "r-tools" && r.type === "message");
+    assert.deepEqual(msgs[0]?.data, { phase: "agent-done", text: "done: hello" });
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test("cancel aborts an in-flight foreground tools.Agent call while background dispatches survive cancel", async () => {
+  const fx = makePluginFixture();
+  try {
+    const bootStub = {
+      agents: [],
+      agentIndex: new Map(),
+      skills: [],
+      plugins: [],
+      pluginIndex: fx.pluginIndex,
+      diagnostics: [],
+      config: {},
+      sessionTtlDays: 7,
+    } as unknown as BootSnapshot;
+
+    let fgAborted = false;
+    let bgAborted = false;
+    let fgStartedResolve: (() => void) | undefined;
+    const fgStarted = new Promise<void>((resolve) => {
+      fgStartedResolve = resolve;
+    });
+
+    const agentTool = makeAgentTool({
+      boot: bootStub,
+      modelCatalog: "",
+      hostProvider: () => undefined,
+      cohortFor: (id) => `cohort:${id}`,
+      dispatch: async (call) => {
+        if (call.params.background === true) {
+          call.signal?.addEventListener("abort", () => {
+            bgAborted = true;
+          });
+          return {
+            content: [{ type: "text", text: "Dispatched background agent (taskId bg1)" }],
+            details: { taskId: "bg1" },
+          };
+        }
+        fgStartedResolve?.();
+        return await new Promise((resolve) => {
+          call.signal?.addEventListener(
+            "abort",
+            () => {
+              fgAborted = true;
+              resolve({
+                content: [{ type: "text", text: "aborted" }],
+                details: {},
+                isError: true,
+              });
+            },
+            { once: true },
+          );
+        });
+      },
+    });
+
+    const ctrl = new PluginUiController(fx.pluginIndex, {
+      ownedTools: () => [asUiCallableTool(agentTool)],
+      allToolNames: () => ["Agent"],
+    });
+
+    fx.writeScript(
+      "scripts/bg-then-fg.ts",
+      `
+      const bg = await tools.Agent({ prompt: "bg", task: "stay alive", background: true });
+      dent.ui.send({ bg: bg.text });
+      await tools.Agent({ prompt: "fg", task: "wait forever" });
+      `,
+    );
+
+    const feed = makeFeedCollector();
+    const ctx = {
+      cwd: fx.dir,
+      setWidget: feed.setWidget,
+      toolContext: {} as ExtensionToolContext,
+    };
+    ctrl.handleCommand(
+      `run ${JSON.stringify({ id: "r-abort", namespace: "demo", root: fx.pluginRoot, path: "scripts/bg-then-fg.ts", data: null })}`,
+      ctx,
+    );
+
+    await fgStarted;
+    ctrl.handleCommand('cancel {"ids":["r-abort"]}', ctx);
+    const reply = await feed.waitForReply("r-abort");
+    assert.equal(reply.ok, false);
+    assert.equal(fgAborted, true);
+    assert.equal(bgAborted, false);
+  } finally {
+    fx.cleanup();
+  }
 });

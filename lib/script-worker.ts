@@ -28,6 +28,8 @@ interface ScriptWorkerData {
   aliases: Record<string, string>;
   /** Bound tool names, in declaration order (Section 10.3). */
   toolNames: string[];
+  /** Session tool names unavailable in a plugin UI call (specs/plugin-ui.md Section 4.2). */
+  unavailableToolNames?: string[];
   /** The tool declarations (Section 10.2). */
   toolTypes: string;
   /** Whether this run is a plugin UI call (specs/plugin-ui.md). */
@@ -208,8 +210,17 @@ const toolFunction =
     });
   };
 
+const unavailableToolFunction = (name: string) => (): Promise<never> =>
+  Promise.reject(new Error(`tool ${name} is unavailable in a plugin UI call`));
+
+const boundToolNameSet = new Set(data.toolNames);
 const scriptTools: Record<string, unknown> = Object.freeze(
-  Object.fromEntries(data.toolNames.map((name) => [name, toolFunction(name)])),
+  Object.fromEntries([
+    ...data.toolNames.map((name) => [name, toolFunction(name)]),
+    ...(data.unavailableToolNames ?? [])
+      .filter((name) => !boundToolNameSet.has(name))
+      .map((name) => [name, unavailableToolFunction(name)]),
+  ]),
 );
 const UI_PAYLOAD_CAP_BYTES = 262_144;
 const serializeUiJson = (value: unknown, label: string): string => {

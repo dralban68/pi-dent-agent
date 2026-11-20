@@ -2,7 +2,12 @@
  * pi-dent - a generic coding agent, built as a pi extension.
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
+import type { TSchema } from "typebox";
 import { highlightCode as hostHighlightCode } from "@earendil-works/pi-coding-agent";
 import {
   type BootSnapshot,
@@ -23,7 +28,13 @@ import { runFleetCommand } from "./lib/fleet-command.ts";
 import { recapRuntime } from "./lib/recap.ts";
 import { renderRecapEntry } from "./lib/recap-render.ts";
 import { appendPluginContext, renderPluginCommand } from "./lib/plugins.ts";
-import { PluginUiController } from "./lib/plugin-ui.ts";
+import {
+  asUiCallableTool,
+  makeUiToolContext,
+  PLUGIN_UI_EXCLUDED_TOOLS,
+  PluginUiController,
+  type UiCallableTool,
+} from "./lib/plugin-ui.ts";
 import { type Diagnostic, errorMessage, isPlainObject } from "./lib/util.ts";
 import { rebuildInterruptedTasks } from "./lib/task-rebuild.ts";
 import {
@@ -259,6 +270,15 @@ export default function (pi: ExtensionAPI) {
     },
   );
   const cohorts = new CohortTracker();
+  const ownedUiTools = new Map<string, UiCallableTool>();
+  const registerOwnedTool = <TParams extends TSchema, TDetails = unknown>(
+    tool: ToolDefinition<TParams, TDetails>,
+  ): void => {
+    pi.registerTool(tool);
+    if (!PLUGIN_UI_EXCLUDED_TOOLS.has(tool.name)) {
+      ownedUiTools.set(tool.name, asUiCallableTool(tool));
+    }
+  };
   // The Agent tool is registered at load with an empty model catalog; session_start refreshes it.
   const agentTool = new AgentToolRegistry(
     {
@@ -270,7 +290,7 @@ export default function (pi: ExtensionAPI) {
       hostProvider: () => currentHost,
       cohortFor: (toolCallId) => cohorts.cohortFor(toolCallId),
     },
-    (tool) => pi.registerTool(tool),
+    (tool) => registerOwnedTool(tool),
   );
   agentTool.refresh("");
   // Schedules live in the process, keyed by session ID, and survive a reload
@@ -283,7 +303,13 @@ export default function (pi: ExtensionAPI) {
   // Section 2).
   const questions = askUserRuntime();
   const recap = recapRuntime(boot.config, (data) => pi.appendEntry("pi-dent-recap", data));
-  const pluginUi = new PluginUiController(boot.pluginIndex);
+  const scriptToolsAllow = parseScript(boot.config).toolsAllow ?? DEFAULT_TOOLS_ALLOW;
+  const pluginUi = new PluginUiController(boot.pluginIndex, {
+    ownedTools: () => [...ownedUiTools.values()],
+    allToolNames: () =>
+      typeof pi.getAllTools === "function" ? pi.getAllTools().map((t) => t.name) : [],
+    toolsAllow: () => scriptToolsAllow,
+  });
   let taskWidget: TaskWidgetHandle | undefined;
   // Feeds for an RPC client (task.md Section 4.1, fleet-tool.md Section 6).
   let taskFeed: FeedHandle | undefined;
@@ -732,7 +758,6 @@ export default function (pi: ExtensionAPI) {
 
   // Task browser (task-browser.md): the shortcut opens the overlay; the overlay closes itself on it.
   const taskBrowserShortcut = parseTaskBrowser(boot.config).shortcut;
-  const scriptToolsAllow = parseScript(boot.config).toolsAllow ?? DEFAULT_TOOLS_ALLOW;
   const toggleTaskBrowser = async (ctx: ExtensionContext): Promise<void> => {
     if (closeTaskBrowser) {
       closeTaskBrowser();
@@ -816,16 +841,16 @@ export default function (pi: ExtensionAPI) {
       });
     },
   });
-  pi.registerTool(makeTaskTool({ registry: () => engine.registry }));
-  pi.registerTool(makePluginTool(boot));
-  pi.registerTool(makeFleetTool({ fleet, hostProvider: () => currentHost }));
-  pi.registerTool(
+  registerOwnedTool(makeTaskTool({ registry: () => engine.registry }));
+  registerOwnedTool(makePluginTool(boot));
+  registerOwnedTool(makeFleetTool({ fleet, hostProvider: () => currentHost }));
+  registerOwnedTool(
     makeSessionTool({ boot, hostProvider: () => currentHost, billing: guidanceCtl.billing }),
   );
   // The main session binds `Skill` and carries the skill catalog like any
   // child whose tool cap includes it (skill-tool.md Section 1). Plugin context
   // blocks follow the skill catalog on every turn (plugin.md Section 10).
-  if (boot.skills.length > 0) pi.registerTool(makeSkillTool(boot));
+  if (boot.skills.length > 0) registerOwnedTool(makeSkillTool(boot));
   if (boot.skills.length > 0 || boot.plugins.some((plugin) => plugin.context !== undefined)) {
     pi.on("before_agent_start", async (event) => {
       const withSkills =
@@ -847,7 +872,7 @@ export default function (pi: ExtensionAPI) {
       toolsAllow: () => scriptToolsAllow,
     }),
   );
-  pi.registerTool(
+  registerOwnedTool(
     makeBashTool({
       registry: () => engine.registry,
       hostProvider: () => currentHost,
@@ -860,13 +885,13 @@ export default function (pi: ExtensionAPI) {
   );
   // The main session schedules into itself; a child never binds Schedule
   // (agent-tool.md Section 3.1).
-  pi.registerTool(makeScheduleTool(schedules));
+  registerOwnedTool(makeScheduleTool(schedules));
   // The main session asks the user; a child never binds AskUserQuestion
   // (agent-tool.md Section 3.1).
   pi.registerTool(makeAskUserQuestionTool(questions));
   // `Search` is registered for the main session, which reaches its own session
   // tree and, on request, its project (search-tool.md Section 1).
-  pi.registerTool(
+  registerOwnedTool(
     makeSearchTool({
       runtime: search,
       host: (ctx) => {
@@ -879,7 +904,7 @@ export default function (pi: ExtensionAPI) {
   // `Markdown` reads and restructures one Markdown file by its headings
   // (pi-dent-markdown specs/markdown-tool.md Section 1); a child session binds it under the tool cap
   // (agent-tool.md Section 3.1).
-  pi.registerTool(makeMarkdownTool(markdownRuntime()));
+  registerOwnedTool(makeMarkdownTool(markdownRuntime()));
 
   // Plugin slash commands (specs/plugin.md Section 5): one command per
   // commands/*.md resource of the first-admitted plugin per namespace,
@@ -913,6 +938,7 @@ export default function (pi: ExtensionAPI) {
       pluginUi.handleCommand(args, {
         cwd: ctx.cwd ?? currentHost?.cwd() ?? process.cwd(),
         setWidget: (key, lines) => ctx.ui.setWidget(key, lines),
+        toolContext: makeUiToolContext(ctx),
       });
     },
   });

@@ -1,14 +1,33 @@
 import { readFileSync } from "node:fs";
+import type { Static, TSchema } from "typebox";
+import { type JsonObject, type JsonValue, validateToolArguments } from "@earendil-works/pi-ai";
+import type {
+  ExtensionContext,
+  ExtensionToolContext,
+  ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
 import { bundledAliases } from "./bundled.ts";
 import type { PluginEntry } from "./plugins.ts";
 import { resolvePluginScriptPath } from "./plugins.ts";
-import { runScript, type ScriptRunHandle, type ScriptRunResult } from "./script-runner.ts";
+import {
+  runScript,
+  type ScriptRunHandle,
+  type ScriptRunResult,
+  type ScriptRunTools,
+} from "./script-runner.ts";
+import { callBoundTool, type NestedCallOutcome } from "./script-tool-calls.ts";
+import {
+  type CallableTool,
+  DEFAULT_TOOLS_ALLOW,
+  selectTools,
+  toolDeclarations,
+} from "./script-tool-types.ts";
 import { errorCode, errorMessage, isPlainObject } from "./util.ts";
 
 /**
  * Plugin UI protocol controller (specs/plugin-ui.md): handles `/dent-ui run`
- * and `/dent-ui cancel`, executes plugin scripts with `dent.ui.send` and no
- * time limit or tool functions, and emits `message` and `reply` records on the
+ * and `/dent-ui cancel`, executes plugin scripts with `dent.ui.send`, pi-dent's
+ * own tools, and no time limit, and emits `message` and `reply` records on the
  * `pi-dent-ui` widget feed.
  */
 
@@ -16,9 +35,139 @@ export const PLUGIN_UI_WIDGET_KEY = "pi-dent-ui";
 export const PLUGIN_UI_PROTOCOL = "ui/1";
 export const PLUGIN_UI_PAYLOAD_CAP_BYTES = 262_144;
 
+/** Tools pi-dent registers that are never callable from a plugin UI call (Section 4.2). */
+export const PLUGIN_UI_EXCLUDED_TOOLS: ReadonlySet<string> = new Set(["Script", "AskUserQuestion"]);
+
+/** One pi-dent tool adapted for execution from a plugin UI call (Section 4.2). */
+export interface UiCallableTool extends CallableTool {
+  execute(
+    toolCallId: string,
+    params: unknown,
+    signal: AbortSignal | undefined,
+    ctx: ExtensionToolContext | undefined,
+  ): Promise<NestedCallOutcome>;
+}
+
+function toJsonValue(value: unknown): JsonValue | undefined {
+  if (value === null || typeof value === "boolean" || typeof value === "string") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (Array.isArray(value)) {
+    const out: JsonValue[] = [];
+    for (const item of value) {
+      const converted = toJsonValue(item);
+      if (converted === undefined) return undefined;
+      out.push(converted);
+    }
+    return out;
+  }
+  if (isPlainObject(value)) {
+    const out: JsonObject = {};
+    for (const [k, v] of Object.entries(value)) {
+      const converted = toJsonValue(v);
+      if (converted === undefined) return undefined;
+      out[k] = converted;
+    }
+    return out;
+  }
+  return undefined;
+}
+
+function toJsonObject(value: unknown): JsonObject {
+  if (!isPlainObject(value)) return {};
+  const converted = toJsonValue(value);
+  return converted !== undefined && isPlainObject(converted) ? converted : {};
+}
+
+/**
+ * Adapt a pi `ToolDefinition` for direct execution from a plugin UI call:
+ * validates arguments with pi's `validateToolArguments` and normalises the
+ * returned `AgentToolResult` into a `NestedCallOutcome`.
+ */
+export function asUiCallableTool<TParams extends TSchema, TDetails = unknown>(
+  tool: ToolDefinition<TParams, TDetails>,
+): UiCallableTool {
+  return {
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
+    ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
+    async execute(toolCallId, params, signal, ctx) {
+      const raw = isPlainObject(params) ? params : {};
+      const prepared = tool.prepareArguments ? tool.prepareArguments(raw) : raw;
+      const validated: Static<TParams> = validateToolArguments(
+        { name: tool.name, description: tool.description, parameters: tool.parameters },
+        { type: "toolCall", id: toolCallId, name: tool.name, arguments: toJsonObject(prepared) },
+      );
+      if (ctx === undefined) {
+        return {
+          result: {
+            content: [{ type: "text", text: "No host context available for tool call" }],
+          },
+          isError: true,
+        };
+      }
+      const result = await tool.execute(toolCallId, validated, signal, undefined, ctx);
+      const structured = "structuredContent" in result ? result.structuredContent : undefined;
+      return {
+        result: {
+          content: result.content,
+          details: result.details,
+          ...(structured === undefined ? {} : { structuredContent: structured }),
+        },
+        isError: "isError" in result && result.isError === true,
+      };
+    },
+  };
+}
+
+/** Build an `ExtensionToolContext` from a command/session `ExtensionContext`. */
+export function makeUiToolContext(ctx: ExtensionContext): ExtensionToolContext {
+  return {
+    ui: ctx.ui,
+    mode: ctx.mode,
+    hasUI: ctx.hasUI,
+    cwd: ctx.cwd,
+    sessionManager: ctx.sessionManager,
+    modelRegistry: ctx.modelRegistry,
+    model: ctx.model,
+    scopedModels: ctx.scopedModels,
+    ...(ctx.thinkingLevel === undefined ? {} : { thinkingLevel: ctx.thinkingLevel }),
+    isIdle: () => ctx.isIdle(),
+    isProjectTrusted: () => ctx.isProjectTrusted(),
+    signal: ctx.signal,
+    abort: () => ctx.abort(),
+    hasPendingMessages: () => ctx.hasPendingMessages(),
+    shutdown: () => ctx.shutdown(),
+    getContextUsage: () => ctx.getContextUsage(),
+    compact: (options) => ctx.compact(options),
+    getSystemPrompt: () => ctx.getSystemPrompt(),
+    tools: [],
+    executeTool: async (name) => ({
+      toolCall: { type: "toolCall", id: "ui:unsupported", name, arguments: {} },
+      result: {
+        content: [
+          { type: "text", text: "Nested tool calls are not available in a plugin UI call" },
+        ],
+        details: {},
+      },
+      isError: true,
+    }),
+  };
+}
+
+export interface PluginUiToolDeps {
+  /** pi-dent's own registered tools eligible for UI calls. */
+  ownedTools: () => readonly UiCallableTool[];
+  /** Names of all tools configured in the session (from `pi.getAllTools()`). */
+  allToolNames?: () => readonly string[];
+  /** `script.tools.allow` (specs/script-tool.md Section 8); absent gives the default. */
+  toolsAllow?: () => readonly string[];
+}
+
 export interface PluginUiCommandContext {
   cwd: string;
   setWidget(key: string, lines: string[] | undefined): void;
+  toolContext?: ExtensionToolContext;
   extraEnv?: Record<string, string>;
 }
 
@@ -36,10 +185,12 @@ function formatThrownError(
 
 export class PluginUiController {
   private readonly pluginIndex: ReadonlyMap<string, PluginEntry>;
+  private readonly toolDeps: PluginUiToolDeps | undefined;
   private readonly active = new Map<string, ActiveUiCall>();
 
-  constructor(pluginIndex: ReadonlyMap<string, PluginEntry>) {
+  constructor(pluginIndex: ReadonlyMap<string, PluginEntry>, toolDeps?: PluginUiToolDeps) {
     this.pluginIndex = pluginIndex;
+    this.toolDeps = toolDeps;
   }
 
   /** Number of UI calls currently executing. */
@@ -67,6 +218,57 @@ export class PluginUiController {
       entry.cancelReason = reason;
       entry.handle.cancel("killed");
     }
+  }
+
+  private buildRunTools(id: string, ctx: PluginUiCommandContext): ScriptRunTools | undefined {
+    if (!this.toolDeps) return undefined;
+    const eligible = this.toolDeps
+      .ownedTools()
+      .filter((tool) => !PLUGIN_UI_EXCLUDED_TOOLS.has(tool.name));
+    const allow = this.toolDeps.toolsAllow?.() ?? DEFAULT_TOOLS_ALLOW;
+    const selection = selectTools(eligible, allow);
+    const boundNames = selection.bound.map((tool) => tool.name);
+    const boundSet = new Set(boundNames);
+    const sessionNames = this.toolDeps.allToolNames?.() ?? [];
+    const unavailableSet = new Set<string>();
+    for (const name of sessionNames) {
+      if (!boundSet.has(name)) unavailableSet.add(name);
+    }
+    for (const tool of this.toolDeps.ownedTools()) {
+      if (!boundSet.has(tool.name)) unavailableSet.add(tool.name);
+    }
+    const unavailableNames = [...unavailableSet].toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    let callSeq = 0;
+    return {
+      names: boundNames,
+      unavailableNames,
+      declarations: toolDeclarations({ bound: selection.bound, unbound: [] }),
+      call: async (name, args, callSignal) => {
+        const tool = selection.bound.find((candidate) => candidate.name === name);
+        if (tool === undefined) {
+          return {
+            ok: false,
+            error: { name: "Error", message: `tool ${name} is unavailable in a plugin UI call` },
+          };
+        }
+        const toolCallId = `ui:${id}/${++callSeq}`;
+        return callBoundTool(
+          tool,
+          args,
+          async (_toolName, toolArgs, options) => {
+            try {
+              return await tool.execute(toolCallId, toolArgs, options.signal, ctx.toolContext);
+            } catch (error) {
+              return {
+                result: { content: [{ type: "text", text: errorMessage(error) }] },
+                isError: true,
+              };
+            }
+          },
+          callSignal,
+        );
+      },
+    };
   }
 
   private handleRun(rawJson: string, ctx: PluginUiCommandContext): void {
@@ -149,6 +351,7 @@ export class PluginUiController {
     }
 
     const data = parsed.data === undefined ? null : parsed.data;
+    const tools = this.buildRunTools(id, ctx);
     let handle: ScriptRunHandle;
     try {
       handle = runScript({
@@ -158,6 +361,7 @@ export class PluginUiController {
         input: { ui: data },
         aliases: bundledAliases(),
         uiCall: true,
+        ...(tools === undefined ? {} : { tools }),
         ...(ctx.extraEnv && Object.keys(ctx.extraEnv).length > 0 ? { extraEnv: ctx.extraEnv } : {}),
         onUiMessage: (dataJson) => {
           emitMessageJson(dataJson);

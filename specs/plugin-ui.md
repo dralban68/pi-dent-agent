@@ -40,8 +40,7 @@ script execution and termination by [script-tool.md](script-tool.md).
   - `input` `{ "ui": <data> }`, with absent or `undefined` `data` taken as `null`,
   - the bundled packages available,
   - no time limit,
-  - no tool functions bound (`tools` is an empty frozen object and `dent.toolTypes()` returns the
-    empty tool declarations),
+  - tool functions per Section 4.2,
   - no task row in the task registry, task feed, task detail feed, or task browser, and no output
     file or tool log.
 - Standard output and standard error of a UI call MUST NOT be sent on the UI feed.
@@ -56,7 +55,9 @@ script execution and termination by [script-tool.md](script-tool.md).
   spawned process tree).
 - The command answers nothing directly. An unknown `id`, or a malformed `<json>`, changes nothing.
 
-## 4. The `dent.ui` binding
+## 4. Bindings
+
+### 4.1 The `dent.ui` binding
 
 A JSON value is `null`, a boolean, a finite number, a string, an array of JSON values without
 holes, or a plain object whose own enumerable values are JSON values, with no cycles. Its size is
@@ -69,6 +70,30 @@ the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,144 b
 - Otherwise, unless the call has already settled (including after `process.exit`), it MUST emit
   one `message` record on the UI feed (Section 5), in the order `send` was called, before the
   call's `reply`.
+
+### 4.2 Tool functions
+
+- A UI call MUST bind the tools pi-dent registers itself — `Agent`, `Bash`, `Fleet`, `Markdown`,
+  `Plugin`, `Schedule`, `Search`, `Session`, `Skill` (when the boot snapshot holds at least one
+  skill), and `Task` — filtered by `script.tools.allow` ([script-tool.md](script-tool.md),
+  Section 8) and the object-schema check ([script-tool.md](script-tool.md), Section 10.1).
+  `Script` and `AskUserQuestion` MUST NOT be bound as callable tools.
+- Calling a bound tool `tools.<Name>(args)` MUST validate `args` against the tool's parameter
+  schema and execute the tool with the same resolve and reject behaviour as a `Script` tool call
+  ([script-tool.md](script-tool.md), Section 10.3).
+- `dent.toolTypes()` MUST declare exactly the bound tools ([script-tool.md](script-tool.md),
+  Section 10.2).
+- Every tool listed by the host's `getAllTools()` that is not bound — including built-in host
+  tools, MCP tools, other extensions' tools, `Script`, `AskUserQuestion`, and tools excluded by
+  `script.tools.allow` — MUST be bound on `tools` as a function that rejects with an `Error`
+  whose message is `tool <Name> is unavailable in a plugin UI call`, and MUST NOT appear in
+  `dent.toolTypes()`.
+- Tool calls made by a UI call write no tool log. Tasks dispatched through `Agent` or `Bash`
+  register in the session's task registry as usual.
+- On settlement (normal completion, `/dent-ui cancel`, or `session_shutdown`), every in-flight
+  tool call's abort signal MUST be aborted ([script-tool.md](script-tool.md), Section 10.3). A
+  foreground `Agent` or `Bash` call aborts with that signal; a task dispatched with
+  `background: true` survives `/dent-ui cancel` and is ended by `session_shutdown`.
 
 ## 5. UI feed
 
@@ -106,6 +131,6 @@ session shutdown.
 
 - Exact wording of `reply` `error` strings is not specified beyond naming the cause and
   distinguishing non-JSON from over-cap return values.
-- Whether a UI call will bind session tools if the host later exposes tool execution to extension
-  commands is not decided.
+- Built-in host tools, MCP tools, and other extensions' tools cannot be executed because the host
+  extension API exposes tool execution only during a model tool call.
 - Rate limiting of UI messages is not specified.
