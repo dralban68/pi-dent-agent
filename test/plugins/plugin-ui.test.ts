@@ -64,7 +64,8 @@ function makePluginFixture(): {
 function makeFeedCollector() {
   const events: WidgetEvent[] = [];
   const records: ParsedUiRecord[] = [];
-  const waiters = new Map<string, Array<(record: ParsedUiRecord) => void>>();
+  const replyWaiters = new Map<string, Array<(record: ParsedUiRecord) => void>>();
+  const msgWaiters = new Map<string, Array<(record: ParsedUiRecord) => void>>();
 
   const setWidget = (key: string, lines: string[] | undefined): void => {
     events.push({ key, lines });
@@ -73,12 +74,11 @@ function makeFeedCollector() {
     }
     const parsed = JSON.parse(lines[0]) as ParsedUiRecord;
     records.push(parsed);
-    if (parsed.type === "reply") {
-      const pending = waiters.get(parsed.id);
-      if (pending) {
-        waiters.delete(parsed.id);
-        for (const resolve of pending) resolve(parsed);
-      }
+    const map = parsed.type === "reply" ? replyWaiters : msgWaiters;
+    const pending = map.get(parsed.id);
+    if (pending) {
+      map.delete(parsed.id);
+      for (const resolve of pending) resolve(parsed);
     }
   };
 
@@ -86,13 +86,30 @@ function makeFeedCollector() {
     const existing = records.find((r) => r.type === "reply" && r.id === id);
     if (existing) return Promise.resolve(existing);
     return new Promise((resolve) => {
-      const list = waiters.get(id) ?? [];
+      const list = replyWaiters.get(id) ?? [];
       list.push(resolve);
-      waiters.set(id, list);
+      replyWaiters.set(id, list);
     });
   };
 
-  return { events, records, setWidget, waitForReply };
+  const waitForNextReply = (id: string): Promise<ParsedUiRecord> =>
+    new Promise((resolve) => {
+      const list = replyWaiters.get(id) ?? [];
+      list.push(resolve);
+      replyWaiters.set(id, list);
+    });
+
+  const waitForMessage = (id: string): Promise<ParsedUiRecord> => {
+    const existing = records.find((r) => r.type === "message" && r.id === id);
+    if (existing) return Promise.resolve(existing);
+    return new Promise((resolve) => {
+      const list = msgWaiters.get(id) ?? [];
+      list.push(resolve);
+      msgWaiters.set(id, list);
+    });
+  };
+
+  return { events, records, setWidget, waitForReply, waitForNextReply, waitForMessage };
 }
 
 test("validates run payloads, namespace, root, path, missing file, and duplicate active id", async () => {
@@ -168,12 +185,11 @@ test("validates run payloads, namespace, root, path, missing file, and duplicate
     assert.match(dupReply.error ?? "", /already running/i);
     assert.equal(ctrl.activeCount(), 1);
 
-    // Clean up the active run
+    // Clean up the active run and wait for its cancellation reply via signal
+    const cancelReply = feed.waitForNextReply("r6");
     ctrl.handleCommand(`cancel ${JSON.stringify({ ids: ["r6"] })}`, ctx);
-    // Wait until activeCount reaches 0
-    while (ctrl.activeCount() > 0) {
-      await new Promise((r) => setTimeout(r, 10));
-    }
+    await cancelReply;
+    assert.equal(ctrl.activeCount(), 0);
   } finally {
     fx.cleanup();
   }
@@ -358,10 +374,7 @@ test("cancel and cancelAll terminate executing UI calls and ignore unknown ids",
       `run ${JSON.stringify({ id: "r-cancel", namespace: "demo", root: fx.pluginRoot, path: "scripts/wait.ts", data: null })}`,
       ctx,
     );
-    // Wait for "started" message so the worker is definitely running
-    while (!feed.records.some((r) => r.id === "r-cancel" && r.type === "message")) {
-      await new Promise((r) => setTimeout(r, 10));
-    }
+    await feed.waitForMessage("r-cancel");
 
     // Unknown id and malformed cancel do nothing
     ctrl.handleCommand('cancel {"ids":["unknown"]}', ctx);
@@ -379,9 +392,7 @@ test("cancel and cancelAll terminate executing UI calls and ignore unknown ids",
       `run ${JSON.stringify({ id: "r-shutdown", namespace: "demo", root: fx.pluginRoot, path: "scripts/wait.ts", data: null })}`,
       ctx,
     );
-    while (!feed.records.some((r) => r.id === "r-shutdown" && r.type === "message")) {
-      await new Promise((r) => setTimeout(r, 10));
-    }
+    await feed.waitForMessage("r-shutdown");
     ctrl.cancelAll("Session ended");
     const shutdownReply = await feed.waitForReply("r-shutdown");
     assert.equal(shutdownReply.ok, false);
@@ -688,6 +699,65 @@ test("cancel aborts an in-flight foreground tools.Agent call while background di
     assert.equal(reply.ok, false);
     assert.equal(fgAborted, true);
     assert.equal(bgAborted, false);
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test("deactivated direct tools are filtered out by activeToolNames and bound as unavailable", async () => {
+  const fx = makePluginFixture();
+  try {
+    const activeTool = defineTool({
+      name: "ActiveTool",
+      label: "ActiveTool",
+      description: "Active direct tool",
+      parameters: Type.Object({}),
+      async execute() {
+        return { content: [{ type: "text", text: "active-ok" }], details: {} };
+      },
+    });
+    const inactiveTool = defineTool({
+      name: "InactiveTool",
+      label: "InactiveTool",
+      description: "Deactivated direct tool",
+      parameters: Type.Object({}),
+      async execute() {
+        return { content: [{ type: "text", text: "should-not-run" }], details: {} };
+      },
+    });
+
+    const ctrl = new PluginUiController(fx.pluginIndex, {
+      ownedTools: () => [asUiCallableTool(activeTool), asUiCallableTool(inactiveTool)],
+      activeToolNames: () => ["ActiveTool"],
+    });
+
+    fx.writeScript(
+      "scripts/active-filter.ts",
+      `
+      const types = dent.toolTypes();
+      const active = await tools.ActiveTool({});
+      let inactiveErr = "";
+      try {
+        await tools.InactiveTool({});
+      } catch (err) {
+        inactiveErr = err instanceof Error ? err.message : String(err);
+      }
+      export default { types, active: active.text, inactiveErr };
+      `,
+    );
+
+    const feed = makeFeedCollector();
+    ctrl.handleCommand(
+      `run ${JSON.stringify({ id: "r-act", namespace: "demo", root: fx.pluginRoot, path: "scripts/active-filter.ts", data: null })}`,
+      { cwd: fx.dir, setWidget: feed.setWidget, toolContext: {} as ExtensionToolContext },
+    );
+    const reply = await feed.waitForReply("r-act");
+    assert.equal(reply.ok, true);
+    const val = reply.value as { types: string; active: string; inactiveErr: string };
+    assert.equal(val.active, "active-ok");
+    assert.match(val.types, /\breadonly ActiveTool:/);
+    assert.doesNotMatch(val.types, /\breadonly InactiveTool:/);
+    assert.equal(val.inactiveErr, "tool InactiveTool is unavailable in a plugin UI call");
   } finally {
     fx.cleanup();
   }

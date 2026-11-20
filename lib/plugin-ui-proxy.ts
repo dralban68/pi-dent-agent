@@ -160,6 +160,7 @@ export class PluginUiToolProxy {
 
   /** Shared per-turn handoff between `runOne` and the scripted `streamSimple` provider. */
   private pendingCall: PendingProxyCall | undefined;
+  private activeCallId: string | undefined;
   private capturedOutcome: NestedCallOutcome | undefined;
 
   constructor(options: PluginUiToolProxyOptions) {
@@ -209,23 +210,33 @@ export class PluginUiToolProxy {
       item.signal.removeEventListener("abort", item.onQueuedAbort);
       item.reject(new Error("Plugin UI proxy session ended"));
     }
+    const pendingStart = this.startPromise;
     const session = this.session;
     this.session = undefined;
     if (session) {
-      try {
-        await session.abort();
-      } catch {
-        // Best effort.
-      }
+      await this.shutdownSession(session, true);
+    } else if (pendingStart) {
+      // Wait for an in-flight startSession() to observe `this.disposed` and shut down cleanly.
+      await pendingStart.catch(() => {});
+    }
+  }
+
+  private async shutdownSession(session: AgentSession, extensionsBound: boolean): Promise<void> {
+    try {
+      await session.abort();
+    } catch {
+      // Best effort.
+    }
+    if (extensionsBound) {
       await extensionShutdown(
         session,
         this.options.shutdownTimeoutMs ?? EXTENSION_SHUTDOWN_TIMEOUT_MS,
       );
-      try {
-        session.dispose();
-      } catch {
-        // Best effort.
-      }
+    }
+    try {
+      session.dispose();
+    } catch {
+      // Best effort.
     }
   }
 
@@ -339,34 +350,36 @@ export class PluginUiToolProxy {
     });
     const session = created.session;
     if (this.disposed) {
-      session.dispose();
+      await this.shutdownSession(session, false);
       throw new Error("Plugin UI proxy session ended");
     }
 
-    await session.bindExtensions({});
-    const proxyModel = session.modelRuntime
-      .getModels()
-      .find((m) => m.provider === PROXY_PROVIDER && m.id === PROXY_MODEL_ID);
-    if (!proxyModel) {
-      session.dispose();
-      throw new Error("Proxy provider model was not registered");
-    }
-    await session.setModel(proxyModel);
-
-    // Subscribe to tool_execution_end to capture full result including structuredContent.
-    session.subscribe((event) => {
-      if (event.type === "tool_execution_end") {
-        this.capturedOutcome = extractOutcomeFromResult(event.result, event.isError);
+    let extensionsBound = false;
+    try {
+      await session.bindExtensions({});
+      extensionsBound = true;
+      const proxyModel = session.modelRuntime
+        .getModels()
+        .find((m) => m.provider === PROXY_PROVIDER && m.id === PROXY_MODEL_ID);
+      if (!proxyModel) {
+        throw new Error("Proxy provider model was not registered");
       }
-    });
+      await session.setModel(proxyModel);
 
-    if (this.disposed) {
-      await extensionShutdown(
-        session,
-        this.options.shutdownTimeoutMs ?? EXTENSION_SHUTDOWN_TIMEOUT_MS,
-      );
-      session.dispose();
-      throw new Error("Plugin UI proxy session ended");
+      // Subscribe to tool_execution_end to capture full result including structuredContent,
+      // filtered strictly to the active proxied toolCallId.
+      session.subscribe((event) => {
+        if (event.type === "tool_execution_end" && event.toolCallId === this.activeCallId) {
+          this.capturedOutcome = extractOutcomeFromResult(event.result, event.isError);
+        }
+      });
+
+      if (this.disposed) {
+        throw new Error("Plugin UI proxy session ended");
+      }
+    } catch (error) {
+      await this.shutdownSession(session, extensionsBound);
+      throw error;
     }
 
     this.session = session;
@@ -459,6 +472,7 @@ export class PluginUiToolProxy {
 
     const callId = `ui-proxy-${++this.callSeq}`;
     this.pendingCall = { id: callId, name: item.name, args: toJsonObject(item.args) };
+    this.activeCallId = callId;
     this.capturedOutcome = undefined;
 
     const onAbort = (): void => {
@@ -474,6 +488,7 @@ export class PluginUiToolProxy {
     } finally {
       item.signal.removeEventListener("abort", onAbort);
       this.pendingCall = undefined;
+      this.activeCallId = undefined;
       try {
         session.agent.state.messages = [];
       } catch {

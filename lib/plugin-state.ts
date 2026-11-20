@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { access, mkdir, open, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, resolve as resolvePath } from "node:path";
 import { isJsonCompatible } from "./script-render.ts";
 import { errorCode, errorMessage, isPlainObject } from "./util.ts";
 
@@ -53,6 +53,8 @@ export interface PluginStateTarget {
   workspaceRoot?: string;
   /** Optional override for user-scope base directory (defaults to PI_DENT_STATE_DIR or ~/.pi/pi-dent). */
   userStateRoot?: string;
+  /** Optional override for lock acquisition timeout in ms (default 5000). */
+  lockTimeoutMs?: number;
 }
 
 export interface PluginStatePaths {
@@ -63,6 +65,8 @@ export interface PluginStatePaths {
 }
 
 export interface PluginStateWatcher {
+  /** Resolves once the watcher has taken its initial snapshot. */
+  readonly ready: Promise<void>;
   close(): void;
 }
 
@@ -70,8 +74,13 @@ export type PluginStateChangeListener = (key: string, value: unknown) => void;
 
 export type PluginStateEntryResult = { found: true; value: unknown } | { found: false };
 
+interface ActiveWatcherEntry {
+  ready: Promise<void>;
+  refresh: () => Promise<void>;
+}
+
 /** Active in-process watchers keyed by `storeFile` so own-process writes notify immediately. */
-const inProcessWatchers = new Map<string, Set<() => Promise<void>>>();
+const inProcessWatchers = new Map<string, Set<ActiveWatcherEntry>>();
 
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -155,9 +164,9 @@ function validateValueJson(value: unknown): string {
 }
 
 function resolveUserStateRoot(override?: string): string {
-  if (typeof override === "string" && override.length > 0) return override;
+  if (typeof override === "string" && override.length > 0) return resolvePath(override);
   const envDir = process.env.PI_DENT_STATE_DIR;
-  if (typeof envDir === "string" && envDir.length > 0) return envDir;
+  if (typeof envDir === "string" && envDir.length > 0) return resolvePath(envDir);
   return join(homedir(), ".pi", "pi-dent");
 }
 
@@ -165,7 +174,7 @@ function resolveUserStateRoot(override?: string): string {
 export function pluginStatePaths(target: PluginStateTarget): PluginStatePaths {
   validateTarget(target);
   if (target.scope === "workspace") {
-    const stateRoot = join(target.workspaceRoot ?? "", ".pi", "pi-dent", "state");
+    const stateRoot = join(resolvePath(target.workspaceRoot ?? ""), ".pi", "pi-dent", "state");
     const storeDir = join(stateRoot, target.namespace);
     return {
       storeDir,
@@ -282,11 +291,12 @@ function sleep(ms: number): Promise<void> {
 async function withStoreLock<T>(
   paths: PluginStatePaths,
   label: string,
+  lockTimeoutMs: number,
   fn: () => Promise<T>,
 ): Promise<T> {
   await ensureStoreParentAndGitignore(paths);
   const lockPath = join(paths.storeDir, "state.lock");
-  const deadline = Date.now() + LOCK_TIMEOUT_MS;
+  const deadline = Date.now() + lockTimeoutMs;
   let acquired = false;
 
   while (!acquired) {
@@ -310,9 +320,12 @@ async function withStoreLock<T>(
           }
           continue;
         }
-      } catch {
-        // Lock disappeared between open and stat; retry immediately.
-        continue;
+      } catch (statError) {
+        if (errorCode(statError) === "ENOENT") {
+          // Lock disappeared between open and stat; retry immediately.
+          continue;
+        }
+        throw statError;
       }
       if (Date.now() >= deadline) {
         throw new PluginStateError(
@@ -361,10 +374,16 @@ async function writeStoreAtomic(
   }
 }
 
+async function waitForInProcessWatchersReady(storeFile: string): Promise<void> {
+  const watchers = inProcessWatchers.get(storeFile);
+  if (!watchers) return;
+  await Promise.all([...watchers].map((entry) => entry.ready));
+}
+
 async function notifyInProcessWatchers(storeFile: string): Promise<void> {
   const watchers = inProcessWatchers.get(storeFile);
   if (!watchers) return;
-  await Promise.all([...watchers].map((refresh) => refresh()));
+  await Promise.all([...watchers].map((entry) => entry.refresh()));
 }
 
 /** Read one entry, distinguishing absent keys from stored values (specs/plugin-state.md Section 5). */
@@ -399,7 +418,9 @@ export async function setPluginState(
   const label = storeLabel(target);
   const validKey = validateKey(key);
   const valueJson = validateValueJson(value);
-  await withStoreLock(paths, label, async () => {
+  await waitForInProcessWatchersReady(paths.storeFile);
+  const timeoutMs = target.lockTimeoutMs ?? LOCK_TIMEOUT_MS;
+  await withStoreLock(paths, label, timeoutMs, async () => {
     const { entries } = await readStoreEntries(paths.storeFile, label);
     entries[validKey] = JSON.parse(valueJson);
     await writeStoreAtomic(paths, entries);
@@ -418,8 +439,10 @@ export async function deletePluginState(target: PluginStateTarget, key: string):
   } catch (error) {
     if (errorCode(error) === "ENOENT") return;
   }
+  await waitForInProcessWatchersReady(paths.storeFile);
+  const timeoutMs = target.lockTimeoutMs ?? LOCK_TIMEOUT_MS;
   let changed = false;
-  await withStoreLock(paths, label, async () => {
+  await withStoreLock(paths, label, timeoutMs, async () => {
     const { exists, entries } = await readStoreEntries(paths.storeFile, label);
     if (!exists || !Object.hasOwn(entries, validKey)) return;
     delete entries[validKey];
@@ -548,23 +571,25 @@ export function watchPluginState(
   };
 
   // Take the initial snapshot asynchronously so watch start never blocks the event loop.
-  triggerRefresh();
+  const ready = triggerRefresh();
   attachFsWatch();
   const poll = setInterval(() => {
     if (closed) return;
     attachFsWatch();
-    triggerRefresh();
+    void triggerRefresh();
   }, WATCH_POLL_MS);
   poll.unref();
 
+  const entry: ActiveWatcherEntry = { ready, refresh: triggerRefresh };
   let bucket = inProcessWatchers.get(paths.storeFile);
   if (!bucket) {
     bucket = new Set();
     inProcessWatchers.set(paths.storeFile, bucket);
   }
-  bucket.add(triggerRefresh);
+  bucket.add(entry);
 
   return {
+    ready,
     close(): void {
       if (closed) return;
       closed = true;
@@ -579,7 +604,7 @@ export function watchPluginState(
       }
       const set = inProcessWatchers.get(paths.storeFile);
       if (set) {
-        set.delete(triggerRefresh);
+        set.delete(entry);
         if (set.size === 0) inProcessWatchers.delete(paths.storeFile);
       }
     },

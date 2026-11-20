@@ -78,9 +78,10 @@ is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,14
 - A plugin UI call MUST bind two sets of callable tools, each filtered by `script.tools.allow`
   ([script-tool.md](script-tool.md), Section 7) and the object-schema check
   ([script-tool.md](script-tool.md), Section 8.1), with `Script` and `AskUserQuestion` excluded:
-  1. **Direct tools** — the tools pi-dent registers itself (`Agent`, `Bash`, `Fleet`, `Markdown`,
-     `Plugin`, `Schedule`, `Search`, `Session`, `Skill` when the boot snapshot holds at least one
-     skill, and `Task`), executed directly in-process and concurrently.
+  1. **Direct tools** — the active tools pi-dent registers itself (`Agent`, `Bash`, `Fleet`,
+     `Markdown`, `Plugin`, `Schedule`, `Search`, `Session`, `Skill` when the boot snapshot holds at
+     least one skill, and `Task`), filtered by the host's `getActiveTools()` when reported,
+     executed directly in-process and concurrently.
   2. **Proxied tools** — every other callable tool of the session (active `direct` tools and
      registered `codemode` or `deferred` tools reported by the host's `getAllTools()` and
      `getActiveTools()`, including pi's built-in host tools, MCP tools, and other extensions'
@@ -153,9 +154,10 @@ one host `setWidget("pi-dent-ui", [line])` call, where `line` is the JSON text o
 
 ## 6. Lifecycle
 
-On `session_shutdown` (session switch, reload, or quit), every executing plugin UI call MUST be
-cancelled as in Section 3, and any active tool proxy MUST be disposed as in Section 4.3. Each
-cancelled plugin UI call settles with `ok: false` and an `error` naming the session shutdown.
+On `session_start` (when a prior session's calls or proxy remain) and on `session_shutdown`
+(session switch, reload, or quit), every executing plugin UI call MUST be cancelled as in
+Section 3, and any active tool proxy MUST be disposed as in Section 4.3. Each cancelled plugin UI
+call settles with `ok: false` and an `error` naming the session shutdown.
 
 ## 7. Specification gaps
 
@@ -163,4 +165,6 @@ cancelled plugin UI call settles with `ok: false` and an `error` naming the sess
   distinguishing non-JSON from over-cap return values.
 - Interactive OAuth sign-in for an MCP server cannot prompt inside the headless tool proxy; the
   user must sign in through the host session first.
+- Proxied tools do not declare or validate `outputSchema` / `structured` content because the host's
+  `getAllTools()` metadata does not expose `outputSchema`.
 - Rate limiting of UI messages is not specified.

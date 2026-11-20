@@ -64,9 +64,12 @@ A JSON value is a JSON-compatible value per [script-tool.md](script-tool.md), Se
   MUST throw `TypeError("onChange listener must be a function")` synchronously, creating no
   watcher and invoking `onError` for neither.
 - Keys already present in the store when `watchPluginState` starts MUST NOT be reported: the
-  watcher snapshots the initial state and reports only subsequent changes. If the store is corrupt
-  or unreadable at watch start, the initial read MUST report the `PluginStateError` to
-  `onError(error)` and keep an empty snapshot so a later repair reports the entries.
+  watcher snapshots the initial state asynchronously (resolving `watcher.ready` once the initial
+  snapshot has been taken) and reports only subsequent changes. In-process writes wait for active
+  watchers in the same module instance to finish their initial snapshot before writing, so an
+  immediate write after `watchPluginState` is never absorbed into the initial snapshot. If the
+  store is corrupt or unreadable at watch start, the initial read MUST report the `PluginStateError`
+  to `onError(error)` and keep an empty snapshot so a later repair reports the entries.
 - The watcher MUST report actual value changes made by its own process and by other processes.
   Own-process writes notify active watchers in the same module instance without duplicating on
   the subsequent file system event; de-duplication is per watcher via its own snapshot, so writes

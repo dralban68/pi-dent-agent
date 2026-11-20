@@ -143,6 +143,7 @@ const scriptConsole = new Console({
 // The runner settles `threw` from this message and the tool renders it
 // (Section 3), so the text is never duplicated onto the captured stderr.
 const reportError = (err: { name: unknown; message: unknown; stack?: unknown }) => {
+  closeStateWatchers();
   try {
     // name/message/stack are user-controllable (a thrown Error may carry a
     // non-string stack); coerce so the tool always renders text (Section 5).

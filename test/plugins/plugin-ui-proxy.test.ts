@@ -222,6 +222,10 @@ test("proxy serializes calls in FIFO order, aborts queued calls without running 
   try {
     const order: string[] = [];
     let releaseFirst: (() => void) | undefined;
+    let signalFirstEntered: (() => void) | undefined;
+    let firstEntered = new Promise<void>((resolve) => {
+      signalFirstEntered = resolve;
+    });
     let firstAborted = false;
 
     proxy = new PluginUiToolProxy({
@@ -241,6 +245,7 @@ test("proxy serializes calls in FIFO order, aborts queued calls without running 
               if (params.tag === "first") {
                 await new Promise<void>((resolve) => {
                   releaseFirst = resolve;
+                  signalFirstEntered?.();
                   signal?.addEventListener(
                     "abort",
                     () => {
@@ -267,17 +272,14 @@ test("proxy serializes calls in FIFO order, aborts queued calls without running 
     const p2 = proxy.call("slow_tool", { tag: "second-aborted" }, ac2.signal);
     const p3 = proxy.call("slow_tool", { tag: "third" }, ac3.signal);
 
-    // Wait for first to enter execute
-    while (!releaseFirst) {
-      await new Promise((r) => setTimeout(r, 10));
-    }
+    await firstEntered;
 
     // Abort queued second call before first finishes
     ac2.abort();
     await assert.rejects(p2, /Tool call aborted/);
 
     // Release first, third should run next
-    releaseFirst();
+    releaseFirst?.();
     const [res1, res3] = await Promise.all([p1, p3]);
     assert.equal(res1.isError, false);
     assert.equal(res3.isError, false);
@@ -286,14 +288,32 @@ test("proxy serializes calls in FIFO order, aborts queued calls without running 
 
     // Now test aborting an in-flight call
     releaseFirst = undefined;
+    firstEntered = new Promise<void>((resolve) => {
+      signalFirstEntered = resolve;
+    });
     const acInFlight = new AbortController();
     const pInFlight = proxy.call("slow_tool", { tag: "first" }, acInFlight.signal);
-    while (!releaseFirst) {
-      await new Promise((r) => setTimeout(r, 10));
-    }
+    await firstEntered;
     acInFlight.abort();
     await assert.rejects(pInFlight, /Tool call aborted/);
     assert.equal(firstAborted, true);
+
+    // Test dispose() rejecting queued calls and aborting in-flight call cleanly
+    releaseFirst = undefined;
+    firstEntered = new Promise<void>((resolve) => {
+      signalFirstEntered = resolve;
+    });
+    const pActive = proxy.call("slow_tool", { tag: "first" }, new AbortController().signal);
+    const pQueued = proxy.call(
+      "slow_tool",
+      { tag: "queued-at-dispose" },
+      new AbortController().signal,
+    );
+    await firstEntered;
+    const disposePromise = proxy.dispose();
+    await assert.rejects(pQueued, /Plugin UI proxy session ended/);
+    await disposePromise;
+    await pActive.catch(() => {});
   } finally {
     await proxy?.dispose();
     fx.cleanup();

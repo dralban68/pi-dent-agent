@@ -517,6 +517,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (event, ctx) => {
     recap.abort();
+    pluginUi.cancelAll("Session ended");
     await pluginUi.disposeProxy();
     currentProjectTrusted =
       typeof ctx.isProjectTrusted === "function" ? ctx.isProjectTrusted() : false;

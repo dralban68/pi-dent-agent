@@ -7,11 +7,17 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { test } from "node:test";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
+import type { BootSnapshot } from "../../lib/engine.ts";
+import type { HostSession } from "../../lib/host.ts";
+import { TaskRegistry } from "../../lib/registry.ts";
+import { makeScriptTool } from "../../lib/script-tool.ts";
 import {
   deletePluginState,
   ensurePluginStateDataDir,
@@ -509,6 +515,127 @@ test("dent.state is bound for plugin scripts and UI calls, absent for inline scr
     // Both concurrent writes survived (no lost update).
     assert.equal(await getPluginState(wsTarget, "from-ui"), 42);
     assert.equal(await getPluginState(wsTarget, "from-host"), "concurrent");
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test("resolves relative userStateRoot to absolute paths, recovers stale locks, enforces LOCK_TIMEOUT, and isolates Script tool cwd", async () => {
+  const fx = makeTempWorkspace();
+  try {
+    // H5: relative userStateRoot resolves to an absolute path and matches in-process watchers.
+    const relRoot = relative(process.cwd(), fx.userRoot);
+    const relTarget: PluginStateTarget = {
+      namespace: "demo",
+      scope: "user",
+      userStateRoot: relRoot,
+    };
+    const absTarget: PluginStateTarget = {
+      namespace: "demo",
+      scope: "user",
+      userStateRoot: fx.userRoot,
+    };
+    const relPaths = pluginStatePaths(relTarget);
+    assert.equal(isAbsolute(relPaths.dataDir), true);
+    assert.equal(relPaths.storeFile, pluginStatePaths(absTarget).storeFile);
+
+    // H3: immediate write after watchPluginState via different relative/absolute target is never swallowed.
+    const seen: Array<{ key: string; value: unknown }> = [];
+    const watcher = watchPluginState(absTarget, (key, value) => seen.push({ key, value }));
+    try {
+      await setPluginState(relTarget, "immediate", 123);
+      assert.deepEqual(seen, [{ key: "immediate", value: 123 }]);
+    } finally {
+      watcher.close();
+    }
+
+    // H4 / M4: LOCK_TIMEOUT on fresh lock, and stale-lock recovery on >30s old lock.
+    const lockTarget: PluginStateTarget = {
+      namespace: "lock-test",
+      scope: "workspace",
+      workspaceRoot: fx.dir,
+      lockTimeoutMs: 60,
+    };
+    const lockPaths = pluginStatePaths(lockTarget);
+    mkdirSync(lockPaths.storeDir, { recursive: true });
+    const lockFile = join(lockPaths.storeDir, "state.lock");
+    writeFileSync(lockFile, "99999\n", "utf8");
+    await assert.rejects(
+      () => setPluginState(lockTarget, "a", 1),
+      (err: unknown) =>
+        err instanceof PluginStateError &&
+        err.code === "LOCK_TIMEOUT" &&
+        err.message === "Timed out waiting for plugin state lock (workspace/lock-test)",
+    );
+
+    // Make the lock 60 seconds old -> stale-lock recovery succeeds.
+    const past = new Date(Date.now() - 60_000);
+    utimesSync(lockFile, past, past);
+    await setPluginState(lockTarget, "recovered", true);
+    assert.equal(await getPluginState(lockTarget, "recovered"), true);
+
+    // M4: Script tool binds dent.state to host.cwd() even when params.cwd overrides to a subdir and script calls process.chdir().
+    const subDir = join(fx.dir, "sub");
+    mkdirSync(subDir, { recursive: true });
+    const pluginRoot = join(fx.dir, "p-root");
+    mkdirSync(join(pluginRoot, "scripts"), { recursive: true });
+    writeFileSync(join(pluginRoot, "plugin.json"), JSON.stringify({ name: "cwd-test" }));
+    writeFileSync(
+      join(pluginRoot, "scripts", "check.ts"),
+      `
+      process.chdir("..");
+      await dent.state.set("where", "session-root");
+      export default dent.state.dir;
+      `,
+      "utf8",
+    );
+    const pluginIndex = new Map<string, PluginEntry>([
+      ["cwd-test", { name: "cwd-test", root: pluginRoot, commands: [] }],
+    ]);
+    const bootStub = {
+      agents: [],
+      agentIndex: new Map(),
+      skills: [],
+      plugins: [],
+      pluginIndex,
+      diagnostics: [],
+      config: {},
+      sessionTtlDays: 7,
+    } as unknown as BootSnapshot;
+    const hostStub = {
+      cwd: () => fx.dir,
+      sessionId: () => "s1",
+      sessionFile: () => undefined,
+    } as unknown as HostSession;
+    const registry = new TaskRegistry(() => hostStub);
+    const scriptTool = makeScriptTool({
+      boot: bootStub,
+      registry: () => registry,
+      hostProvider: () => hostStub,
+      cohortFor: () => "c1",
+      agentDir: () => join(fx.dir, "agent-dir"),
+    });
+    const res = await scriptTool.execute(
+      "tc1",
+      { plugin: "cwd-test", path: "scripts/check.ts", cwd: subDir },
+      undefined,
+      undefined,
+      {} as ExtensionToolContext,
+    );
+    assert.notEqual(res.isError, true);
+    const expectedPaths = pluginStatePaths({
+      namespace: "cwd-test",
+      scope: "workspace",
+      workspaceRoot: fx.dir,
+    });
+    assert.equal(
+      await getPluginState(
+        { namespace: "cwd-test", scope: "workspace", workspaceRoot: fx.dir },
+        "where",
+      ),
+      "session-root",
+    );
+    assert.equal((res.details as { returnValue?: unknown }).returnValue, expectedPaths.dataDir);
   } finally {
     fx.cleanup();
   }

@@ -250,8 +250,14 @@ export class PluginUiController {
   private buildRunTools(id: string, ctx: PluginUiCommandContext): ScriptRunTools | undefined {
     if (!this.toolDeps) return undefined;
     const allow = this.toolDeps.toolsAllow?.() ?? DEFAULT_TOOLS_ALLOW;
+    const activeNames = this.toolDeps.activeToolNames?.();
+    const activeSet = activeNames ? new Set(activeNames) : undefined;
     const ownedList = this.toolDeps.ownedTools();
-    const directCandidates = ownedList.filter((tool) => !PLUGIN_UI_EXCLUDED_TOOLS.has(tool.name));
+    const directCandidates = ownedList.filter(
+      (tool) =>
+        !PLUGIN_UI_EXCLUDED_TOOLS.has(tool.name) &&
+        (activeSet === undefined || activeSet.has(tool.name)),
+    );
     const directSelection = selectTools(directCandidates, allow);
     const directMap = new Map<string, UiCallableTool>();
     for (const tool of directSelection.bound) directMap.set(tool.name, tool);
@@ -259,8 +265,6 @@ export class PluginUiController {
     const allSessionTools = this.toolDeps.allTools?.() ?? [];
     const proxiedMap = new Map<string, CallableTool>();
     if (this.toolDeps.createProxy && allSessionTools.length > 0) {
-      const activeNames = this.toolDeps.activeToolNames?.();
-      const activeSet = activeNames ? new Set(activeNames) : undefined;
       const proxiedCandidates = allSessionTools.filter((tool) => {
         if (directMap.has(tool.name) || PLUGIN_UI_EXCLUDED_TOOLS.has(tool.name)) return false;
         const exposure = tool.exposure ?? "direct";
