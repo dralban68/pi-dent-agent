@@ -1,17 +1,6 @@
 import { randomBytes } from "node:crypto";
-import {
-  closeSync,
-  existsSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  statSync,
-  unlinkSync,
-  watch,
-  writeFileSync,
-  type FSWatcher,
-} from "node:fs";
+import { existsSync, mkdirSync, watch, writeFileSync, type FSWatcher } from "node:fs";
+import { access, mkdir, open, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { isJsonCompatible } from "./script-render.ts";
@@ -21,7 +10,7 @@ import { errorCode, errorMessage, isPlainObject } from "./util.ts";
  * Durable per-plugin key-value state store (specs/plugin-state.md): shared by
  * pi-dent's `dent.state` script binding and external callers such as Alpha's
  * `alpha.state` host bridge. Plain JSON on disk, atomic per-key writes via
- * lockfile + rename, cross-process change watching.
+ * async lockfile + rename, cross-process change watching.
  */
 
 export const PLUGIN_STATE_VERSION = 1;
@@ -34,6 +23,28 @@ const STALE_LOCK_MS = 30_000;
 const WATCH_POLL_MS = 200;
 
 export type PluginStateScope = "workspace" | "user";
+
+export type PluginStateErrorCode =
+  | "INVALID_NAMESPACE"
+  | "INVALID_SCOPE"
+  | "INVALID_WORKSPACE_ROOT"
+  | "INVALID_KEY"
+  | "INVALID_VALUE"
+  | "VALUE_TOO_LARGE"
+  | "STORE_TOO_LARGE"
+  | "STORE_UNREADABLE"
+  | "STORE_CORRUPT"
+  | "LOCK_TIMEOUT";
+
+export class PluginStateError extends Error {
+  readonly code: PluginStateErrorCode;
+
+  constructor(code: PluginStateErrorCode, message: string) {
+    super(message);
+    this.name = "PluginStateError";
+    this.code = code;
+  }
+}
 
 export interface PluginStateTarget {
   namespace: string;
@@ -57,11 +68,17 @@ export interface PluginStateWatcher {
 
 export type PluginStateChangeListener = (key: string, value: unknown) => void;
 
+export type PluginStateEntryResult = { found: true; value: unknown } | { found: false };
+
 /** Active in-process watchers keyed by `storeFile` so own-process writes notify immediately. */
-const inProcessWatchers = new Map<string, Set<() => void>>();
+const inProcessWatchers = new Map<string, Set<() => Promise<void>>>();
 
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function storeLabel(target: PluginStateTarget): string {
+  return `${target.scope}/${target.namespace}`;
 }
 
 function isValidNamespace(name: unknown): name is string {
@@ -80,49 +97,59 @@ function isValidNamespace(name: unknown): name is string {
 
 function validateTarget(target: PluginStateTarget): void {
   if (!isPlainObject(target) || !isValidNamespace(target.namespace)) {
-    throw new Error(
+    throw new PluginStateError(
+      "INVALID_NAMESPACE",
       `Invalid plugin namespace: ${JSON.stringify(isPlainObject(target) ? target.namespace : undefined)}`,
     );
   }
   if (target.scope !== "workspace" && target.scope !== "user") {
-    throw new Error(`Invalid plugin state scope: ${JSON.stringify(target.scope)}`);
+    throw new PluginStateError(
+      "INVALID_SCOPE",
+      `Invalid plugin state scope: ${JSON.stringify(target.scope)}`,
+    );
   }
   if (
     target.scope === "workspace" &&
     (typeof target.workspaceRoot !== "string" || !isAbsolute(target.workspaceRoot))
   ) {
-    throw new Error("Workspace root must be an absolute path");
+    throw new PluginStateError("INVALID_WORKSPACE_ROOT", "Workspace root must be an absolute path");
   }
 }
 
 function validateKey(key: unknown): string {
   if (typeof key !== "string" || key.length === 0) {
-    throw new Error("State key must be a non-empty string");
+    throw new PluginStateError("INVALID_KEY", "State key must be a non-empty string");
   }
   if (key.length > PLUGIN_STATE_KEY_MAX_LENGTH) {
-    throw new Error(`State key exceeds ${PLUGIN_STATE_KEY_MAX_LENGTH} characters`);
+    throw new PluginStateError(
+      "INVALID_KEY",
+      `State key exceeds ${PLUGIN_STATE_KEY_MAX_LENGTH} characters`,
+    );
   }
   if (key.includes("\0")) {
-    throw new Error("State key must not contain null characters");
+    throw new PluginStateError("INVALID_KEY", "State key must not contain null characters");
   }
   return key;
 }
 
 function validateValueJson(value: unknown): string {
   if (!isJsonCompatible(value)) {
-    throw new Error("State value must be a JSON value");
+    throw new PluginStateError("INVALID_VALUE", "State value must be a JSON value");
   }
   let json: string | undefined;
   try {
     json = JSON.stringify(value);
   } catch {
-    throw new Error("State value must be a JSON value");
+    throw new PluginStateError("INVALID_VALUE", "State value must be a JSON value");
   }
   if (typeof json !== "string") {
-    throw new Error("State value must be a JSON value");
+    throw new PluginStateError("INVALID_VALUE", "State value must be a JSON value");
   }
   if (Buffer.byteLength(json, "utf8") > PLUGIN_STATE_VALUE_CAP_BYTES) {
-    throw new Error(`State value exceeds ${PLUGIN_STATE_VALUE_CAP_BYTES} bytes`);
+    throw new PluginStateError(
+      "VALUE_TOO_LARGE",
+      `State value exceeds ${PLUGIN_STATE_VALUE_CAP_BYTES} bytes`,
+    );
   }
   return json;
 }
@@ -157,7 +184,7 @@ export function pluginStatePaths(target: PluginStateTarget): PluginStatePaths {
   };
 }
 
-function ensureStoreParentAndGitignore(paths: PluginStatePaths): void {
+function ensureStoreParentAndGitignoreSync(paths: PluginStatePaths): void {
   mkdirSync(paths.storeDir, { recursive: true });
   if (paths.gitignoreFile !== undefined) {
     try {
@@ -168,10 +195,21 @@ function ensureStoreParentAndGitignore(paths: PluginStatePaths): void {
   }
 }
 
-/** Ensure the per-plugin `data/` directory exists and return its absolute path. */
+async function ensureStoreParentAndGitignore(paths: PluginStatePaths): Promise<void> {
+  await mkdir(paths.storeDir, { recursive: true });
+  if (paths.gitignoreFile !== undefined) {
+    try {
+      await writeFile(paths.gitignoreFile, "*\n", { flag: "wx", encoding: "utf8" });
+    } catch (error) {
+      if (errorCode(error) !== "EEXIST") throw error;
+    }
+  }
+}
+
+/** Ensure the per-plugin `data/` directory exists and return its absolute path (scripts only). */
 export function ensurePluginStateDataDir(target: PluginStateTarget): string {
   const paths = pluginStatePaths(target);
-  ensureStoreParentAndGitignore(paths);
+  ensureStoreParentAndGitignoreSync(paths);
   mkdirSync(paths.dataDir, { recursive: true });
   return paths.dataDir;
 }
@@ -181,22 +219,25 @@ interface ParsedStore {
   entries: Record<string, unknown>;
 }
 
-function readStoreFileRaw(storeFile: string): string | undefined {
+async function readStoreFileRaw(storeFile: string, label: string): Promise<string | undefined> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      return readFileSync(storeFile, "utf8");
+      return await readFile(storeFile, "utf8");
     } catch (error) {
       const code = errorCode(error);
       if (code === "ENOENT") return undefined;
       if (attempt === 0 && (code === "EPERM" || code === "EBUSY")) continue;
-      throw new Error(`Plugin state store unreadable (${storeFile}): ${errorMessage(error)}`);
+      throw new PluginStateError(
+        "STORE_UNREADABLE",
+        `Plugin state store unreadable (${label}): ${code ?? errorMessage(error)}`,
+      );
     }
   }
   return undefined;
 }
 
-function readStoreEntries(storeFile: string): ParsedStore {
-  const raw = readStoreFileRaw(storeFile);
+async function readStoreEntries(storeFile: string, label: string): Promise<ParsedStore> {
+  const raw = await readStoreFileRaw(storeFile, label);
   if (raw === undefined) {
     return { exists: false, entries: {} };
   }
@@ -204,21 +245,29 @@ function readStoreEntries(storeFile: string): ParsedStore {
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`Plugin state store is corrupt (${storeFile}): ${errorMessage(error)}`);
+    throw new PluginStateError(
+      "STORE_CORRUPT",
+      `Plugin state store is corrupt (${label}): ${errorMessage(error)}`,
+    );
   }
   if (!isPlainObject(parsed) || parsed.version !== PLUGIN_STATE_VERSION) {
-    throw new Error(
-      `Plugin state store is corrupt (${storeFile}): expected version ${PLUGIN_STATE_VERSION} object`,
+    throw new PluginStateError(
+      "STORE_CORRUPT",
+      `Plugin state store is corrupt (${label}): expected version ${PLUGIN_STATE_VERSION} object`,
     );
   }
   if (!isPlainObject(parsed.entries)) {
-    throw new Error(`Plugin state store is corrupt (${storeFile}): entries must be a plain object`);
+    throw new PluginStateError(
+      "STORE_CORRUPT",
+      `Plugin state store is corrupt (${label}): entries must be a plain object`,
+    );
   }
   const entries: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(parsed.entries)) {
     if (!isJsonCompatible(v)) {
-      throw new Error(
-        `Plugin state store is corrupt (${storeFile}): entry ${JSON.stringify(k)} is not a JSON value`,
+      throw new PluginStateError(
+        "STORE_CORRUPT",
+        `Plugin state store is corrupt (${label}): entry ${JSON.stringify(k)} is not a JSON value`,
       );
     }
     entries[k] = v;
@@ -230,28 +279,32 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function withStoreLock<T>(paths: PluginStatePaths, fn: () => T): Promise<T> {
-  ensureStoreParentAndGitignore(paths);
+async function withStoreLock<T>(
+  paths: PluginStatePaths,
+  label: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  await ensureStoreParentAndGitignore(paths);
   const lockPath = join(paths.storeDir, "state.lock");
   const deadline = Date.now() + LOCK_TIMEOUT_MS;
   let acquired = false;
 
   while (!acquired) {
     try {
-      const fd = openSync(lockPath, "wx");
+      const handle = await open(lockPath, "wx");
       try {
-        writeFileSync(fd, `${process.pid}\n`, "utf8");
+        await handle.writeFile(`${process.pid}\n`, "utf8");
       } finally {
-        closeSync(fd);
+        await handle.close();
       }
       acquired = true;
     } catch (error) {
       if (errorCode(error) !== "EEXIST") throw error;
       try {
-        const st = statSync(lockPath);
+        const st = await stat(lockPath);
         if (Date.now() - st.mtimeMs > STALE_LOCK_MS) {
           try {
-            unlinkSync(lockPath);
+            await unlink(lockPath);
           } catch {
             // Another process removed it first.
           }
@@ -262,36 +315,45 @@ async function withStoreLock<T>(paths: PluginStatePaths, fn: () => T): Promise<T
         continue;
       }
       if (Date.now() >= deadline) {
-        throw new Error(`Timed out waiting for plugin state lock (${paths.storeFile})`);
+        throw new PluginStateError(
+          "LOCK_TIMEOUT",
+          `Timed out waiting for plugin state lock (${label})`,
+        );
       }
       await sleep(5 + Math.floor(Math.random() * 15));
     }
   }
 
   try {
-    return fn();
+    return await fn();
   } finally {
     try {
-      unlinkSync(lockPath);
+      await unlink(lockPath);
     } catch {
       // Best effort.
     }
   }
 }
 
-function writeStoreAtomic(paths: PluginStatePaths, entries: Record<string, unknown>): void {
+async function writeStoreAtomic(
+  paths: PluginStatePaths,
+  entries: Record<string, unknown>,
+): Promise<void> {
   const serialized = JSON.stringify({ version: PLUGIN_STATE_VERSION, entries });
   if (Buffer.byteLength(serialized, "utf8") > PLUGIN_STATE_SCOPE_CAP_BYTES) {
-    throw new Error(`State store exceeds ${PLUGIN_STATE_SCOPE_CAP_BYTES} bytes`);
+    throw new PluginStateError(
+      "STORE_TOO_LARGE",
+      `State store exceeds ${PLUGIN_STATE_SCOPE_CAP_BYTES} bytes`,
+    );
   }
   const tmpName = `.state.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
   const tmpPath = join(paths.storeDir, tmpName);
   try {
-    writeFileSync(tmpPath, serialized, "utf8");
-    renameSync(tmpPath, paths.storeFile);
+    await writeFile(tmpPath, serialized, "utf8");
+    await rename(tmpPath, paths.storeFile);
   } catch (error) {
     try {
-      unlinkSync(tmpPath);
+      await unlink(tmpPath);
     } catch {
       // Best effort.
     }
@@ -299,25 +361,32 @@ function writeStoreAtomic(paths: PluginStatePaths, entries: Record<string, unkno
   }
 }
 
-function notifyInProcessWatchers(storeFile: string): void {
+async function notifyInProcessWatchers(storeFile: string): Promise<void> {
   const watchers = inProcessWatchers.get(storeFile);
   if (!watchers) return;
-  for (const refresh of watchers) {
-    refresh();
-  }
+  await Promise.all([...watchers].map((refresh) => refresh()));
 }
 
-/** Read one key from a plugin state store (specs/plugin-state.md Sections 1-3). */
+/** Read one entry, distinguishing absent keys from stored values (specs/plugin-state.md Section 5). */
+export async function readPluginStateEntry(
+  target: PluginStateTarget,
+  key: string,
+): Promise<PluginStateEntryResult> {
+  const paths = pluginStatePaths(target);
+  const validKey = validateKey(key);
+  const { entries } = await readStoreEntries(paths.storeFile, storeLabel(target));
+  if (!Object.hasOwn(entries, validKey)) return { found: false };
+  return { found: true, value: entries[validKey] };
+}
+
+/** Read one key from a plugin state store; returns `defaultValue` by identity when absent. */
 export async function getPluginState(
   target: PluginStateTarget,
   key: string,
   defaultValue?: unknown,
 ): Promise<unknown> {
-  const paths = pluginStatePaths(target);
-  const validKey = validateKey(key);
-  const { entries } = readStoreEntries(paths.storeFile);
-  if (!Object.hasOwn(entries, validKey)) return defaultValue;
-  return entries[validKey];
+  const entry = await readPluginStateEntry(target, key);
+  return entry.found ? entry.value : defaultValue;
 }
 
 /** Set one key atomically in a plugin state store (specs/plugin-state.md Sections 2-3). */
@@ -327,37 +396,43 @@ export async function setPluginState(
   value: unknown,
 ): Promise<void> {
   const paths = pluginStatePaths(target);
+  const label = storeLabel(target);
   const validKey = validateKey(key);
   const valueJson = validateValueJson(value);
-  await withStoreLock(paths, () => {
-    const { entries } = readStoreEntries(paths.storeFile);
+  await withStoreLock(paths, label, async () => {
+    const { entries } = await readStoreEntries(paths.storeFile, label);
     entries[validKey] = JSON.parse(valueJson);
-    writeStoreAtomic(paths, entries);
+    await writeStoreAtomic(paths, entries);
   });
-  notifyInProcessWatchers(paths.storeFile);
+  await notifyInProcessWatchers(paths.storeFile);
 }
 
 /** Delete one key atomically from a plugin state store (specs/plugin-state.md Sections 1-2). */
 export async function deletePluginState(target: PluginStateTarget, key: string): Promise<void> {
   const paths = pluginStatePaths(target);
+  const label = storeLabel(target);
   const validKey = validateKey(key);
   // Missing store file creates nothing (Section 1).
-  if (!existsSync(paths.storeFile)) return;
+  try {
+    await access(paths.storeFile);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return;
+  }
   let changed = false;
-  await withStoreLock(paths, () => {
-    const { exists, entries } = readStoreEntries(paths.storeFile);
+  await withStoreLock(paths, label, async () => {
+    const { exists, entries } = await readStoreEntries(paths.storeFile, label);
     if (!exists || !Object.hasOwn(entries, validKey)) return;
     delete entries[validKey];
-    writeStoreAtomic(paths, entries);
+    await writeStoreAtomic(paths, entries);
     changed = true;
   });
-  if (changed) notifyInProcessWatchers(paths.storeFile);
+  if (changed) await notifyInProcessWatchers(paths.storeFile);
 }
 
 /** List all keys in ascending UTF-16 code-unit order (specs/plugin-state.md Section 6). */
 export async function listPluginStateKeys(target: PluginStateTarget): Promise<string[]> {
   const paths = pluginStatePaths(target);
-  const { entries } = readStoreEntries(paths.storeFile);
+  const { entries } = await readStoreEntries(paths.storeFile, storeLabel(target));
   return Object.keys(entries).toSorted(byCodeUnit);
 }
 
@@ -371,35 +446,42 @@ function snapshotOf(entries: Record<string, unknown>): Map<string, string> {
 
 /**
  * Watch a plugin state store across processes (specs/plugin-state.md Section 4).
- * Reports actual value changes from both own-process and cross-process writes in
- * ascending UTF-16 code-unit order of key.
+ * Invalid targets and non-function listeners throw synchronously. Existing keys
+ * at watch start are snapshotted and not emitted; subsequent changes from both
+ * own-process and cross-process writes emit in ascending UTF-16 code-unit order.
  */
 export function watchPluginState(
   target: PluginStateTarget,
   listener: PluginStateChangeListener,
   onError?: (error: Error) => void,
 ): PluginStateWatcher {
+  const paths = pluginStatePaths(target);
   if (typeof listener !== "function") {
     throw new TypeError("onChange listener must be a function");
   }
-  const paths = pluginStatePaths(target);
-  let snapshot = new Map<string, string>();
-  try {
-    snapshot = snapshotOf(readStoreEntries(paths.storeFile).entries);
-  } catch (error) {
-    onError?.(error instanceof Error ? error : new Error(errorMessage(error)));
-  }
+  const label = storeLabel(target);
 
+  let snapshot = new Map<string, string>();
+  let initialized = false;
   let closed = false;
   let fsWatcher: FSWatcher | undefined;
+  let runningPromise: Promise<void> | undefined;
+  let pendingRefresh = false;
 
-  const refresh = (): void => {
+  const runRefresh = async (): Promise<void> => {
     if (closed) return;
     let next: Map<string, string>;
     try {
-      next = snapshotOf(readStoreEntries(paths.storeFile).entries);
+      next = snapshotOf((await readStoreEntries(paths.storeFile, label)).entries);
     } catch (error) {
+      initialized = true;
       onError?.(error instanceof Error ? error : new Error(errorMessage(error)));
+      return;
+    }
+    if (closed) return;
+    if (!initialized) {
+      initialized = true;
+      snapshot = next;
       return;
     }
     const allKeys = [...new Set([...snapshot.keys(), ...next.keys()])].toSorted(byCodeUnit);
@@ -425,12 +507,31 @@ export function watchPluginState(
     }
   };
 
+  const triggerRefresh = (): Promise<void> => {
+    if (closed) return Promise.resolve();
+    if (runningPromise) {
+      pendingRefresh = true;
+      return runningPromise;
+    }
+    runningPromise = (async () => {
+      try {
+        do {
+          pendingRefresh = false;
+          await runRefresh();
+        } while (pendingRefresh && !closed);
+      } finally {
+        runningPromise = undefined;
+      }
+    })();
+    return runningPromise;
+  };
+
   const attachFsWatch = (): void => {
     if (closed || fsWatcher !== undefined) return;
     if (!existsSync(paths.storeDir)) return;
     try {
       const watcher = watch(paths.storeDir, { persistent: false }, () => {
-        refresh();
+        triggerRefresh();
       });
       watcher.on("error", () => {
         try {
@@ -446,11 +547,13 @@ export function watchPluginState(
     }
   };
 
+  // Take the initial snapshot asynchronously so watch start never blocks the event loop.
+  triggerRefresh();
   attachFsWatch();
   const poll = setInterval(() => {
     if (closed) return;
     attachFsWatch();
-    refresh();
+    triggerRefresh();
   }, WATCH_POLL_MS);
   poll.unref();
 
@@ -459,7 +562,7 @@ export function watchPluginState(
     bucket = new Set();
     inProcessWatchers.set(paths.storeFile, bucket);
   }
-  bucket.add(refresh);
+  bucket.add(triggerRefresh);
 
   return {
     close(): void {
@@ -476,7 +579,7 @@ export function watchPluginState(
       }
       const set = inProcessWatchers.get(paths.storeFile);
       if (set) {
-        set.delete(refresh);
+        set.delete(triggerRefresh);
         if (set.size === 0) inProcessWatchers.delete(paths.storeFile);
       }
     },

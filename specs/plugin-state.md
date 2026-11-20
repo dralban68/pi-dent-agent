@@ -34,14 +34,15 @@ and one scope: `workspace` or `user`.
 - A missing `state.json` (`ENOENT`) counts as empty (`entries: {}`).
 - A `state.json` that cannot be read, fails to parse as JSON, is not a plain object with
   `version === 1` and plain-object `entries`, or contains a non-JSON value MUST NOT be silently
-  reset or overwritten; every read, list, write, or delete MUST reject with an error naming the
-  file path and cause (Section 5).
+  reset or overwritten; every read, list, write, or delete MUST reject with a `PluginStateError`
+  identifying the store by `<scope>/<namespace>` and cause (Section 5), never an absolute path.
 - Per-key writes (`set` and `delete`) MUST serialize across processes using an exclusive lockfile
-  `state.lock` in the store directory (with retry up to 5,000 ms and stale-lock recovery after
-  30,000 ms), re-read `state.json` under the lock, apply the single-key change, write a unique
-  sibling temporary file, and atomically rename it onto `state.json`. Two concurrent writers
-  updating different keys MUST NOT lose each other's write; two concurrent writers updating the
-  same key MUST leave one whole value.
+  `state.lock` in the store directory (with asynchronous retry up to 5,000 ms and stale-lock
+  recovery after 30,000 ms), re-read `state.json` under the lock, apply the single-key change,
+  write a unique sibling temporary file, and atomically rename it onto `state.json`. All file I/O
+  of the async store functions and watcher reads MUST be asynchronous so the host event loop is
+  not blocked. Two concurrent writers updating different keys MUST NOT lose each other's write;
+  two concurrent writers updating the same key MUST leave one whole value.
 
 ## 3. Limits and validation
 
@@ -58,9 +59,18 @@ plain object whose own enumerable values are JSON values, with no cycles.
 
 - `watchPluginState(target, listener, onError?)` watches a plugin state store across processes,
   including before `<workspaceRoot>/.pi` exists.
+- An invalid `target` MUST throw `PluginStateError` synchronously, and a non-function `listener`
+  MUST throw `TypeError("onChange listener must be a function")` synchronously, creating no
+  watcher and invoking `onError` for neither.
+- Keys already present in the store when `watchPluginState` starts MUST NOT be reported: the
+  watcher snapshots the initial state and reports only subsequent changes. If the store is corrupt
+  or unreadable at watch start, the initial read MUST report the `PluginStateError` to
+  `onError(error)` and keep an empty snapshot so a later repair reports the entries.
 - The watcher MUST report actual value changes made by its own process and by other processes.
-  Own-process writes notify active in-process watchers without duplicating on the subsequent file
-  system event. Writing a value whose JSON text equals the stored value MUST NOT emit a change.
+  Own-process writes notify active watchers in the same module instance without duplicating on
+  the subsequent file system event; de-duplication is per watcher via its own snapshot, so writes
+  from another module instance, thread, or process always reach every watcher. Writing a value
+  whose JSON text equals the stored value MUST NOT emit a change.
 - Each change invokes `listener(key, value)`, where `value` is `undefined` for a deletion and the
   stored JSON value for an addition or update.
 - Changes observed in one diff MUST be delivered in ascending UTF-16 code-unit order of `key`.
@@ -74,31 +84,34 @@ plain object whose own enumerable values are JSON values, with no cycles.
 
 - Constants: `PLUGIN_STATE_VERSION` (`1`), `PLUGIN_STATE_KEY_MAX_LENGTH` (`256`),
   `PLUGIN_STATE_VALUE_CAP_BYTES` (`262144`), `PLUGIN_STATE_SCOPE_CAP_BYTES` (`5242880`).
+- Class: `PluginStateError extends Error` with `readonly code: PluginStateErrorCode`.
 - Functions:
   - `pluginStatePaths(target)`
   - `ensurePluginStateDataDir(target)`
-  - `getPluginState(target, key, defaultValue?)`
+  - `readPluginStateEntry(target, key)` -> `Promise<{ found: true; value: unknown } | { found: false }>`
+  - `getPluginState(target, key, defaultValue?)` (returns `defaultValue` by identity when absent)
   - `setPluginState(target, key, value)`
   - `deletePluginState(target, key)`
   - `listPluginStateKeys(target)`
   - `watchPluginState(target, listener, onError?)`
 
-Validation and runtime errors MUST use these verbatim texts:
+Validation, cap, store, and lock errors MUST throw or reject with `PluginStateError` carrying
+these exact `code` and `message` values (`<store>` is `<scope>/<namespace>`):
 
-| Condition                    | Error message                                           |
-| ---------------------------- | ------------------------------------------------------- |
-| Invalid namespace            | `Invalid plugin namespace: <JSON.stringify(namespace)>` |
-| Invalid scope                | `Invalid plugin state scope: <JSON.stringify(scope)>`   |
-| Missing/relative workspace   | `Workspace root must be an absolute path`               |
-| Key not a non-empty string   | `State key must be a non-empty string`                  |
-| Key length > 256             | `State key exceeds 256 characters`                      |
-| Key contains `\0`            | `State key must not contain null characters`            |
-| Value not a JSON value       | `State value must be a JSON value`                      |
-| Value size > 262,144 bytes   | `State value exceeds 262144 bytes`                      |
-| Store size > 5,242,880 bytes | `State store exceeds 5242880 bytes`                     |
-| Unreadable store file        | `Plugin state store unreadable (<path>): <cause>`       |
-| Corrupt store file           | `Plugin state store is corrupt (<path>): <reason>`      |
-| Lock timeout                 | `Timed out waiting for plugin state lock (<path>)`      |
+| Condition                    | `code`                   | Error message                                           |
+| ---------------------------- | ------------------------ | ------------------------------------------------------- |
+| Invalid namespace            | `INVALID_NAMESPACE`      | `Invalid plugin namespace: <JSON.stringify(namespace)>` |
+| Invalid scope                | `INVALID_SCOPE`          | `Invalid plugin state scope: <JSON.stringify(scope)>`   |
+| Missing/relative workspace   | `INVALID_WORKSPACE_ROOT` | `Workspace root must be an absolute path`               |
+| Key not a non-empty string   | `INVALID_KEY`            | `State key must be a non-empty string`                  |
+| Key length > 256             | `INVALID_KEY`            | `State key exceeds 256 characters`                      |
+| Key contains `\0`            | `INVALID_KEY`            | `State key must not contain null characters`            |
+| Value not a JSON value       | `INVALID_VALUE`          | `State value must be a JSON value`                      |
+| Value size > 262,144 bytes   | `VALUE_TOO_LARGE`        | `State value exceeds 262144 bytes`                      |
+| Store size > 5,242,880 bytes | `STORE_TOO_LARGE`        | `State store exceeds 5242880 bytes`                     |
+| Unreadable store file        | `STORE_UNREADABLE`       | `Plugin state store unreadable (<store>): <cause>`      |
+| Corrupt store file           | `STORE_CORRUPT`          | `Plugin state store is corrupt (<store>): <reason>`     |
+| Lock timeout                 | `LOCK_TIMEOUT`           | `Timed out waiting for plugin state lock (<store>)`     |
 
 ## 6. The `dent.state` binding
 
