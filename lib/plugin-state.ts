@@ -14,7 +14,6 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
-import { isValidName } from "./catalogs.ts";
 import { isJsonCompatible } from "./script-render.ts";
 import { errorCode, errorMessage, isPlainObject } from "./util.ts";
 
@@ -65,8 +64,22 @@ function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+function isValidNamespace(name: unknown): name is string {
+  return (
+    typeof name === "string" &&
+    name !== "" &&
+    name !== "." &&
+    name !== ".." &&
+    !/\s/.test(name) &&
+    !name.includes(":") &&
+    !name.includes("/") &&
+    !name.includes("\\") &&
+    !name.includes("\0")
+  );
+}
+
 function validateTarget(target: PluginStateTarget): void {
-  if (!isPlainObject(target) || !isValidName(target.namespace)) {
+  if (!isPlainObject(target) || !isValidNamespace(target.namespace)) {
     throw new Error(
       `Invalid plugin namespace: ${JSON.stringify(isPlainObject(target) ? target.namespace : undefined)}`,
     );
