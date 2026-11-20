@@ -1545,6 +1545,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: plugin-ui-call
+    label: plugin UI call
+    meaning: An execution of a plugin script started by the dent-ui extension command for a plugin UI
+    owner: specs/plugin-ui.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-20
+        op: add
   - id: pre-start-rejection
     label: pre-start rejection
     meaning: "A failure of a tool's own checks or of plan resolution that ends an invocation before anything runs"
