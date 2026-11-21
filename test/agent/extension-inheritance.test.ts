@@ -839,6 +839,86 @@ test("a tool of the effective tool cap that the child did not register is warned
   assert.equal(missing.length, 1, `expected one warning for Ghost, got: ${warnings.join(" | ")}`);
 });
 
+/**
+ * A file extension registering `Lazy`, which it deactivates at `phase`, as an on-demand
+ * tool loader does; at the run start it also drops `Lazy` from the run's selected tools.
+ */
+function deactivatingExtension(
+  marker: string,
+  phase: "session_start" | "before_agent_start",
+): string {
+  return `import { appendFileSync } from "node:fs";
+export default function (pi) {
+  pi.registerTool({
+    name: "Lazy",
+    label: "Lazy",
+    description: "lazy probe",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+    async execute() {
+      appendFileSync(${JSON.stringify(marker)}, "Lazy\\n");
+      return { content: [{ type: "text", text: "Lazy ran" }], details: {} };
+    },
+  });
+  pi.on(${JSON.stringify(phase)}, (event) => {
+    pi.setActiveTools(pi.getActiveTools().filter((name) => name !== "Lazy"));
+    if (event.systemPromptOptions) {
+      event.systemPromptOptions.selectedTools = event.systemPromptOptions.selectedTools.filter(
+        (name) => name !== "Lazy",
+      );
+    }
+  });
+}
+`;
+}
+
+/** The tool names a request declares: its transcript's tool additions less its removals. */
+function declaredTools(messages: readonly unknown[]): string[] {
+  const names = new Set<string>();
+  const namesOf = (tools: unknown): string[] =>
+    Array.isArray(tools)
+      ? tools.flatMap((tool: { name?: unknown }) =>
+          typeof tool.name === "string" ? [tool.name] : [],
+        )
+      : [];
+  for (const message of messages as { toolsAdded?: unknown; toolsRemoved?: unknown }[]) {
+    for (const name of namesOf(message.toolsRemoved)) names.delete(name);
+    for (const name of namesOf(message.toolsAdded)) names.add(name);
+  }
+  return [...names].toSorted();
+}
+
+for (const phase of ["session_start", "before_agent_start"] as const) {
+  test(`a cap tool an extension deactivates at ${phase} is active at the child's first request, without a warning`, async () => {
+    const root = newRoot();
+    const marker = join(root, "ran.log");
+    const extension = writeExtension(root, "lazy.mjs", deactivatingExtension(marker, phase));
+    const warnings: string[] = [];
+    const declared: string[][] = [];
+    faux.setResponses([
+      (context) => {
+        declared.push(declaredTools(context.messages));
+        return fauxAssistantMessage([fauxToolCall("Lazy", {})], { stopReason: "toolUse" });
+      },
+      () => fauxAssistantMessage("done"),
+    ]);
+    const result = await dispatchWith(root, {
+      allTools: [{ name: "Lazy", sourceInfo: { path: extension } }],
+      activeTools: ["Agent", "Lazy"],
+      warn: (message) => warnings.push(message),
+    });
+    assert.equal(result.isError, undefined, textOf(result));
+    assert.equal(textOf(result), "done");
+    assert.deepEqual(
+      declared[0],
+      ["Agent", "Lazy"],
+      "the first request declares the cap's tools, nothing else",
+    );
+    assert.deepEqual(toolResults(result), [["Lazy", false]]);
+    assert.equal(readFileSync(marker, "utf8"), "Lazy\n");
+    assert.deepEqual(warnings, []);
+  });
+}
+
 test("a conflict between loaded extension sources is warned as a conflict, not a load failure", async () => {
   const root = newRoot();
   const first = writeExtension(root, "dup-a.mjs", toolExtension(join(root, "a.log"), ["Dup"]));

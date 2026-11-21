@@ -369,6 +369,22 @@ export function effectiveToolCap(
   );
 }
 
+/**
+ * The child's active tools: each registered tool of the effective tool cap whose
+ * exposure declares it to the model, over an extension's own selection (Section 3.1).
+ */
+function capActiveTools(
+  cap: readonly string[],
+  registered: readonly { name: string; exposure: string }[],
+): string[] {
+  const declarable = new Set(
+    registered
+      .filter((tool) => tool.exposure === "direct" || tool.exposure === "model-only")
+      .map((tool) => tool.name),
+  );
+  return cap.filter((name) => declarable.has(name));
+}
+
 /** Prefix of a built-in extension path, `builtin:<name>` (pi's source-info module). */
 const BUILTIN_PATH_PREFIX = "builtin:";
 
@@ -2188,6 +2204,8 @@ export class DispatchEngine {
         childGuidanceText,
         this.boot.plugins,
       );
+      // Set once the effective tool cap is known, before the child's first run.
+      let childCap: readonly string[] | undefined;
       const loader = new DefaultResourceLoader({
         cwd: plan.cwd,
         agentDir: getAgentDir(),
@@ -2202,6 +2220,19 @@ export class DispatchEngine {
           ...(this.deps.builtinExtensions ?? defaultBuiltinExtensions()),
           // The read hint searches the child's own agent directory (Section 6).
           (pi) => registerReadErrorHint(pi, () => childDir),
+          // Inline extensions load after the inherited ones, so this runs after their own
+          // start-of-run handlers and replaces their selection for the first run (Section 3.1).
+          (pi) => {
+            let firstRun = true;
+            pi.on("before_agent_start", (event) => {
+              if (!firstRun) return;
+              firstRun = false;
+              if (childCap === undefined) throw new Error("effective tool cap not resolved");
+              const tools = capActiveTools(childCap, pi.getAllTools());
+              pi.setActiveTools(tools);
+              event.systemPromptOptions.selectedTools = tools;
+            });
+          },
           (pi) => {
             pi.on("after_provider_response", (event, ctx) => {
               const headers: Record<string, string> = {};
@@ -2320,6 +2351,7 @@ export class DispatchEngine {
         childTools,
         availableInheritedTools(snapshot.extensions, loadOutcome.unavailable),
       );
+      childCap = cap;
       // The SDK keeps an MCP tool callable without the allowlist naming it, so the
       // ones outside the cap are excluded explicitly: every resource tool, and every
       // proxy when the cap names none (Section 3.1).
@@ -2355,11 +2387,14 @@ export class DispatchEngine {
           );
         },
       });
-      // A tool of the cap that no child extension registered is named to the dispatching
-      // session; one an extension registers later is allowed (Section 3.1).
-      const boundTools = new Set(session.getActiveToolNames());
+      // The cap's tools are active even when an extension deactivated its own at session
+      // start; one the child never registered is named to the dispatching session, and one
+      // an extension registers later is allowed (Section 3.1).
+      const registeredTools = session.getAllTools();
+      session.setActiveToolsByName(capActiveTools(cap, registeredTools));
+      const registeredNames = new Set(registeredTools.map((tool) => tool.name));
       for (const name of cap) {
-        if (!boundTools.has(name))
+        if (!registeredNames.has(name))
           notifyWarning(`tool ${name} of the effective tool cap is not registered`);
       }
       // No virtual model is copied; only an inherited extension can register one in the
