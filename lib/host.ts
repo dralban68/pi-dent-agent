@@ -1,6 +1,39 @@
 import type { Api } from "@earendil-works/pi-ai";
 import type { Model } from "@earendil-works/pi-ai/compat";
+import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { ThinkingLevel } from "./model-string.ts";
+
+/** A provider configuration as a model runtime registers it. */
+export type ProviderConfigInput = Parameters<ModelRuntime["registerProvider"]>[1];
+/** A provider object as a model runtime registers it. */
+export type NativeProvider = Parameters<ModelRuntime["registerNativeProvider"]>[0];
+
+/** One extension provider of a session's model runtime (agent-tool.md Section 4.2). */
+export type HostExtensionProvider =
+  | { readonly id: string; readonly kind: "config"; readonly config: ProviderConfigInput }
+  | { readonly id: string; readonly kind: "native"; readonly provider: NativeProvider };
+
+/** The provider reads a model registry and a model runtime both offer. */
+export interface ExtensionProviderSource {
+  getRegisteredProviderIds(): readonly string[];
+  getRegisteredProviderConfig(id: string): ProviderConfigInput | undefined;
+  getRegisteredNativeProvider(id: string): NativeProvider | undefined;
+}
+
+/** The extension providers `source` holds, in the order it lists their IDs. */
+export function extensionProvidersOf(source: ExtensionProviderSource): HostExtensionProvider[] {
+  const providers: HostExtensionProvider[] = [];
+  for (const id of source.getRegisteredProviderIds()) {
+    const provider = source.getRegisteredNativeProvider(id);
+    if (provider !== undefined) {
+      providers.push({ id, kind: "native", provider });
+      continue;
+    }
+    const config = source.getRegisteredProviderConfig(id);
+    if (config !== undefined) providers.push({ id, kind: "config", config });
+  }
+  return providers;
+}
 
 /** Compaction settings shape used for child inheritance (pi `CompactionSettings` subset). */
 export interface CompactionSettings {
@@ -37,6 +70,11 @@ export interface HostSession {
    * order (agent-tool.md Section 3.1); absent when the host exposes none.
    */
   allTools?(): readonly HostToolInfo[];
+  /**
+   * The providers extensions registered in the session's model runtime, as it holds
+   * them now (agent-tool.md Section 4.2); absent when the host exposes none.
+   */
+  extensionProviders?(): readonly HostExtensionProvider[];
   /** The host pi runtime's registered model list. */
   inventory(): readonly Model<Api>[];
   /**

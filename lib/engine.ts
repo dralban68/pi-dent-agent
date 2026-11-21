@@ -45,7 +45,12 @@ import {
 import { resolveCwdParam } from "./cwd-param.ts";
 import { type PluginEntry, appendPluginContext, discoverPlugins } from "./plugins.ts";
 import { type BootConfig, parseScript, parseTaskBrowser, readConfig } from "./config.ts";
-import type { CompactionSettings, HostSession } from "./host.ts";
+import {
+  type CompactionSettings,
+  type HostExtensionProvider,
+  type HostSession,
+  extensionProvidersOf,
+} from "./host.ts";
 import type { BillingService } from "./billing.ts";
 import {
   childGuidance,
@@ -116,7 +121,7 @@ export type PlanFailureCode =
   | "unsupported-thinking"
   | "unguided-model"
   | "invalid-plan";
-export type StartupFailureCode = "missing-runtime";
+export type StartupFailureCode = "missing-runtime" | "missing-model";
 export type ExecutionFailureCode = "invalid-turn" | "timeout" | "aborted" | "execution-error";
 export type FailureCode = PlanFailureCode | StartupFailureCode | ExecutionFailureCode;
 
@@ -914,6 +919,7 @@ export function hostFromContext(
     thinking: () => ctx.thinkingLevel,
     activeTools: () => pi.getActiveTools(),
     allTools: () => pi.getAllTools?.() ?? [],
+    extensionProviders: () => extensionProvidersOf(ctx.modelRegistry),
     inventory: () => ctx.modelRegistry.getAll(),
     configuredModels: () => ctx.modelRegistry.getAvailable() ?? [],
     contextWindow: () => ctx.model?.contextWindow,
@@ -971,6 +977,10 @@ export function hostFromSessionBox(
     thinking: () => session()?.thinkingLevel,
     activeTools: () => session()?.getActiveToolNames() ?? [],
     allTools: () => session()?.getAllTools() ?? [],
+    extensionProviders: () => {
+      const current = session();
+      return current ? extensionProvidersOf(current.modelRuntime) : [];
+    },
     inventory: () => session()?.modelRuntime.getModels() ?? [],
     configuredModels: () => session()?.modelRuntime.getAvailableSnapshot() ?? [],
     contextWindow: () => session()?.model?.contextWindow,
@@ -1024,6 +1034,60 @@ function sharedModelRuntime(): Promise<ModelRuntime> {
   }
   return modelRuntimePromise;
 }
+
+/**
+ * The extension providers dispatches copied into the shared runtime, by provider ID:
+ * the dispatching session's value and what the runtime stored for it.
+ */
+const copiedProviders = new Map<string, { source: unknown; installed: unknown }>();
+
+/** What `runtime` holds for provider `id` as an extension provider. */
+function installedProvider(runtime: ModelRuntime, id: string): unknown {
+  return runtime.getRegisteredNativeProvider(id) ?? runtime.getRegisteredProviderConfig(id);
+}
+
+/**
+ * Make the child's runtime hold the dispatching session's extension providers as
+ * it holds them now, and drop the copies it no longer holds (agent-tool.md Section 4.2).
+ */
+export function syncExtensionProviders(
+  runtime: ModelRuntime,
+  providers: readonly HostExtensionProvider[],
+  warn: (message: string) => void,
+): void {
+  const current = new Set<string>();
+  for (const provider of providers) {
+    const { id } = provider;
+    current.add(id);
+    const source = provider.kind === "native" ? provider.provider : provider.config;
+    const installed = installedProvider(runtime, id);
+    // A nested dispatch reads the shared runtime itself.
+    if (installed === source) continue;
+    const copied = copiedProviders.get(id);
+    if (copied?.source === source && copied.installed === installed) continue;
+    try {
+      if (provider.kind === "native") runtime.registerNativeProvider(provider.provider);
+      else {
+        // A registration merges over the previous one; the copy replaces it whole.
+        if (runtime.getRegisteredProviderConfig(id) !== undefined) runtime.unregisterProvider(id);
+        runtime.registerProvider(id, provider.config);
+      }
+      copiedProviders.set(id, { source, installed: installedProvider(runtime, id) });
+    } catch (error) {
+      copiedProviders.delete(id);
+      warn(`provider ${id} could not be registered for the child: ${errorMessage(error)}`);
+    }
+  }
+  for (const [id, copied] of copiedProviders) {
+    if (current.has(id)) continue;
+    copiedProviders.delete(id);
+    // An inherited extension that registered the provider since keeps it.
+    if (installedProvider(runtime, id) === copied.installed) runtime.unregisterProvider(id);
+  }
+}
+
+/** API id of pi's virtual models (pi's virtual-models module, not exported). */
+const VIRTUAL_MODEL_API = "pi-virtual";
 
 /** The compaction defaults of agent-tool.md Section 3.4 (pi's own defaults). */
 const COMPACTION_DEFAULTS: Required<CompactionSettings> = {
@@ -2033,6 +2097,10 @@ export class DispatchEngine {
           agentsDir,
         );
       }
+      // The child runs a model of an extension provider with the dispatching session's
+      // credentials even when no inherited source registers it (Section 4.2).
+      const providers = host.extensionProviders?.();
+      if (providers !== undefined) syncExtensionProviders(runtime, providers, notifyWarning);
 
       const manager =
         plan.sessionPolicy.kind === "persistent"
@@ -2293,6 +2361,30 @@ export class DispatchEngine {
       for (const name of cap) {
         if (!boundTools.has(name))
           notifyWarning(`tool ${name} of the effective tool cap is not registered`);
+      }
+      // No virtual model is copied; only an inherited extension can register one in the
+      // child (Section 4.2).
+      const planModel = plan.model;
+      if (
+        planModel.api === VIRTUAL_MODEL_API &&
+        !runtime
+          .getModels()
+          .some(
+            (candidate) =>
+              candidate.provider === planModel.provider &&
+              candidate.id === planModel.id &&
+              candidate.api === VIRTUAL_MODEL_API,
+          )
+      ) {
+        return this.failureResult(
+          registry,
+          registryRow,
+          plan,
+          "missing-model",
+          "startup",
+          `virtual model ${planModel.provider}/${planModel.id} is not available to the child: virtual models are not inherited`,
+          agentsDir,
+        );
       }
       if (this.fleet && !opts.fleetQuery) {
         const currentChild = (): AgentSession => {
