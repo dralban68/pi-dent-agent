@@ -84,7 +84,8 @@ dispatch (one `Agent` call of the dispatching session, itself a main session or 
 - The tool cap is the dispatching session's; the child binds the effective tool cap, a subset.
   Child extensions come from file and built-in extension sources in the parent's configured tool
   inventory; pi-dent itself stays in-process rather than loading its entry extension again
-  (agent-tool.md, Section 3.1).
+  (agent-tool.md, Section 3.1). The child's model runtime gets the dispatching session's extension
+  providers as copies, not by loading their extensions (agent-tool.md, Section 4.2).
 - Recovery re-prompts inside one dispatch. `resume` is a new dispatch that continues a retained
   session file, named by path or by task ID.
 - Every session has an agent directory. It holds the session files of the session's children,
