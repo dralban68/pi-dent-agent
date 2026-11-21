@@ -258,6 +258,24 @@ The child MUST run in-process on the pi SDK:
   absence MUST fail the dispatch (`failurePhase: "startup"`, `failureCode: "missing-runtime"`)
   before a child starts. `missing-runtime` is not a pre-start rejection; under background delivery
   it settles the task row.
+- Before it creates the child session, the engine MUST make the child's model runtime hold every
+  extension provider of the dispatching session, as the dispatching session's model runtime holds
+  it at that moment: its configuration (including its authentication and stream handlers) or its
+  provider object. An extension provider is a provider an extension registered, by provider ID. A
+  model of such a provider then runs in the child with the stored credentials of the dispatching
+  session, even when no inherited extension source (Section 3.1) registers the provider in the
+  child. An extension provider that an earlier dispatch added and the dispatching session no longer
+  holds MUST be removed from the child's model runtime, unless an inherited extension has
+  registered that provider there since. A provider that cannot be added MUST produce the warning
+  `pi-dent: provider <id> could not be registered for the child: <error>` through the warning
+  channel of Section 3.1, `<id>` being the provider ID and `<error>` the error's message, and the
+  dispatch MUST continue. This applies to every dispatch, a `Fleet` query dispatch included.
+- A virtual model is an inventory model that routes each request to another model. The host exposes no
+  definition of a virtual model, so none is copied to the child. When the plan's model is a virtual
+  model that the child's model runtime does not list once the child's extensions are bound, the
+  dispatch MUST fail before the first prompt with `failurePhase: "startup"`,
+  `failureCode: "missing-model"`, and the error text
+  `virtual model <provider>/<modelId> is not available to the child: virtual models are not inherited`.
 - Each dispatch MUST run one in-process SDK child session created with explicit boundaries:
   the plan's resolved model and thinking, the effective tool cap, the skill binding and
   injection of Section 3.2, and the resolved cwd. The system prompt is the agent `prompt`, then
@@ -464,7 +482,7 @@ one record with no attempt (`status: "failed"`, `stopReason: "error"`, empty usa
 | `failurePhase`      | `failureCode` values                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `"plan-resolution"` | `missing-tool-authority`, `missing-model`, `missing-model-class`, `ambiguous-model`, `unsupported-thinking`, `unguided-model`, `invalid-plan` |
-| `"startup"`         | `missing-runtime`                                                                                                                             |
+| `"startup"`         | `missing-runtime`, `missing-model`                                                                                                            |
 | `"execution"`       | `invalid-turn`, `timeout`, `aborted`, `execution-error`                                                                                       |
 
 Malformed `modelClasses` definitions follow [model-string.md](model-string.md), Section 3.
@@ -716,7 +734,8 @@ Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
 
 ## 15. Specification gaps
 
-- Inheritance of extensions that register only hooks, flags, or commands; inline `-e` factories;
+- Inheritance of extensions that register only hooks, flags, commands, or providers (Section 4.2
+  copies the providers, not the extension); inline `-e` factories;
   and tools without an absolute file or `builtin:<name>` extension source path. The host's public
   tool inventory does not expose reloadable extension sources for these cases.
 - Deadlines and cancellation behavior while an inherited extension factory or session-start
