@@ -243,7 +243,8 @@ test("a copied provider the dispatching session no longer holds is gone from the
     }),
   );
   assert.equal(second.isError, true, textOf(second));
-  assert.match(textOf(second), /Unknown provider: parent-only/);
+  // pi names the missing provider or its missing credential, depending on which it looks up first.
+  assert.match(textOf(second), /Unknown provider: parent-only|No API key found for parent-only/);
   assert.deepEqual(seenKeys, [], "no request reached the removed provider");
 });
 
