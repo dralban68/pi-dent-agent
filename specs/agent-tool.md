@@ -119,6 +119,15 @@ Plan resolution failures are typed errors carrying `failurePhase: "plan-resoluti
   A tool outside the tool cap or named `Schedule`, `AskUserQuestion`, or `bash` MUST NOT be bound.
   The tool-cap name `bash` is dropped, not read as `Bash`: a child's shell tool is `Bash`
   ([bash-tool.md](bash-tool.md), Section 7), bound only when the tool cap names `Bash`.
+- The child's active tools are the tools its model requests declare; an extension can change them.
+  Once the child's extensions are bound, and again once every extension has handled the start of
+  the child's first run, the child MUST set its active tools to the registered tools of the
+  effective tool cap whose pi tool exposure is `direct` or `model-only`, replacing any selection an
+  extension made before. A change an extension makes later is kept.
+
+  > Note (non-normative): an extension that loads its tools on demand deactivates them at session
+  > start; without the override the child would lack tools the dispatching session had active.
+
 - Once the child's extensions are bound and before its first prompt, each tool of the effective
   tool cap that the child session has not registered MUST produce a warning to the dispatching
   session naming the tool, and the dispatch MUST continue. A tool an extension registers after that
