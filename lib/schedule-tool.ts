@@ -43,24 +43,26 @@ export const scheduleParameterSchema = Type.Object(
     ),
     delaySeconds: Type.Optional(
       Type.Union([Type.Number(), Type.Null()], {
-        description: "First due time as a delay from the call, in seconds: a positive integer.",
+        description:
+          "For create only (exclusive with at; create requires at least one of delaySeconds, at, or everySeconds). First due time as a delay from the call, in seconds: a positive integer.",
       }),
     ),
     at: Type.Optional(
       Type.Union([Type.String(), Type.Null()], {
-        description: "First due time as an RFC 3339 date-time with a time-zone offset.",
+        description:
+          "For create only (exclusive with delaySeconds; create requires at least one of delaySeconds, at, or everySeconds). First due time as an RFC 3339 date-time with a time-zone offset.",
       }),
     ),
     everySeconds: Type.Optional(
       Type.Union([Type.Number(), Type.Null()], {
         description:
-          "Makes the schedule repeating: the interval between due times, in seconds: a positive integer.",
+          "For create only (create requires at least one of delaySeconds, at, or everySeconds). Makes the schedule repeating: the interval between due times, in seconds: a positive integer.",
       }),
     ),
     count: Type.Optional(
       Type.Union([Type.Number(), Type.Null()], {
         description:
-          "With everySeconds only: the number of occurrences after which the schedule ends: a positive integer.",
+          "For create with everySeconds only: the number of occurrences after which the schedule ends: a positive integer.",
       }),
     ),
     scheduleId: Type.Optional(

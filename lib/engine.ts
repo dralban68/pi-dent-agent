@@ -1673,7 +1673,15 @@ export class DispatchEngine {
   private validateParamValues(params: AgentToolParams): string | undefined {
     const hasAgent = params.agent !== undefined;
     const hasPrompt = params.prompt !== undefined;
-    if (hasAgent === hasPrompt) return "exactly one of agent or prompt must be provided";
+    if (hasAgent && hasPrompt) {
+      return "both agent and prompt were provided; pass exactly one of agent or prompt";
+    }
+    if (!hasAgent && !hasPrompt) {
+      const available = this.boot.agents.map((agent) => agent.name);
+      return available.length > 0
+        ? `neither agent nor prompt was provided; pass either agent (available: ${available.join(", ")}) or prompt (inline system prompt)`
+        : "neither agent nor prompt was provided; no named agents are configured, so pass prompt (inline system prompt)";
+    }
     if (params.agent !== undefined && !this.boot.agentIndex.has(params.agent)) {
       const available = this.boot.agents.map((agent) => agent.name);
       return `unknown agent "${params.agent}". Available agents: ${

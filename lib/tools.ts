@@ -41,11 +41,11 @@ import {
  */
 
 export const AGENT_PROMPT_SNIPPET =
-  "Dispatch an Agent in an isolated session using a named agent definition or inline prompt";
+  "Dispatch an isolated child Agent (requires task plus exactly one of agent or prompt)";
 
-const AGENT_BASE_DESCRIPTION = `Dispatch one agent: an isolated child session with its own context window and session file. The child sees only its system prompt and \`task\`, nothing of this conversation, and returns its final answer.
+const AGENT_BASE_DESCRIPTION = `Dispatch one agent: an isolated child session with its own context window and session file. Required: \`task\`, plus exactly one of \`agent\` (a named definition from Available agents) or \`prompt\` (an inline system prompt) — never both, never neither, and required with \`resume\` too.
 
-Give exactly one of \`agent\` (a named agent definition) or \`prompt\` (an inline system prompt), with \`resume\` too. A foreground call blocks until the child finishes. \`background: true\` returns a task ID at once; a completion notification follows when every background task launched by the same message has settled. \`resume\` continues a retained session file in place, by its file path or by task ID.
+The child sees only its system prompt and \`task\`, nothing of this conversation, and returns its final answer. A foreground call blocks until the child finishes. \`background: true\` returns a task ID at once; a completion notification follows when every background task launched by the same message has settled. \`resume\` continues a retained session file in place, by its file path or by task ID.
 
 Children that share a working directory share its files and Git state.`;
 
@@ -69,19 +69,19 @@ export const agentParameterSchema = Type.Object(
       Type.String({
         pattern: "\\S",
         description:
-          "The name of an agent definition in the agent catalog (static dispatch). Non-blank.",
+          "Required unless `prompt` is set; exclusive with `prompt`. Name of an agent definition listed under Available agents (if none are listed, omit `agent` and pass `prompt`). Non-blank.",
       }),
     ),
     prompt: Type.Optional(
       Type.String({
         pattern: "\\S",
         description:
-          "Inline system prompt defining the agent at call time (dynamic dispatch); exclusive with agent. Non-blank.",
+          "Required unless `agent` is set; exclusive with `agent`. Inline system prompt defining the agent's role and instructions at call time. Non-blank.",
       }),
     ),
     task: Type.String({
       minLength: 1,
-      description: "Task instructions; becomes the child's user message. Non-empty.",
+      description: "Required. Task instructions; becomes the child's user message. Non-empty.",
     }),
     model: Type.Optional(
       Type.String({
@@ -94,7 +94,7 @@ export const agentParameterSchema = Type.Object(
       Type.String({
         pattern: "\\S",
         description:
-          "Absolute path to a retained Agent session .jsonl, or a task ID; `task` continues that session. Non-blank.",
+          "Absolute path to a retained Agent session .jsonl, or a task ID; `task` continues that session. Still requires exactly one of `agent` or `prompt`. Non-blank.",
       }),
     ),
     cwd: Type.Optional(
@@ -175,13 +175,13 @@ export const fleetParameterSchema = Type.Object(
     scope: Type.Optional(
       StringEnum(["children", "repo", "machine"] as const, {
         description:
-          "For list: machine (default; fleet sessions on this machine), repo (fleet sessions of the current Git repository, worktrees shared), or children (the live agents this session spawned).",
+          "For list only: machine (default; fleet sessions on this machine), repo (fleet sessions of the current Git repository, worktrees shared), or children (the live agents this session spawned).",
       }),
     ),
     format: Type.Optional(
       StringEnum(["compact", "full", "json"] as const, {
         description:
-          "For list: compact (default; one line per session), full (detailed activity), or json (machine-readable).",
+          "For list only: compact (default; one line per session), full (detailed activity), or json (machine-readable).",
       }),
     ),
     subject: Type.Optional(
@@ -197,31 +197,32 @@ export const fleetParameterSchema = Type.Object(
     ),
     target: Type.Optional(
       Type.String({
-        description: "For send and query: one recipient session ID or unique session-ID prefix.",
+        description:
+          "Required for query; for send, pass exactly one of target, targets, or broadcast. One recipient session ID or unique session-ID prefix.",
       }),
     ),
     targets: Type.Optional(
       Type.Array(Type.String(), {
         minItems: 1,
         description:
-          "For send: several recipient session IDs or unique session-ID prefixes; resolved recipients are deduplicated.",
+          "For send only (exclusive with target and broadcast): several recipient session IDs or unique session-ID prefixes; resolved recipients are deduplicated.",
       }),
     ),
     broadcast: Type.Optional(
       StringEnum(["repo", "machine"] as const, {
         description:
-          "For send: fan-out scope across the current repo or every session on this machine.",
+          "For send only (exclusive with target and targets): fan-out scope across the current repo or every session on this machine.",
       }),
     ),
     deliver: Type.Optional(
       StringEnum(["steer", "followUp"] as const, {
-        description: "For send: steer or followUp (default followUp).",
+        description: "For send only: steer or followUp (default followUp).",
       }),
     ),
     abort: Type.Optional(
       Type.Boolean({
         description:
-          "For send: abort the target's active turn before injecting; true is valid only with deliver: steer, false (default) is a no-op with any delivery mode.",
+          "For send only: abort the target's active turn before injecting; true is valid only with deliver: steer, false (default) is a no-op with any delivery mode.",
       }),
     ),
     messageId: Type.Optional(

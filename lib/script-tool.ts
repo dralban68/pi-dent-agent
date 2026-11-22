@@ -37,19 +37,19 @@ export const scriptParameterSchema = Type.Object(
     code: Type.Optional(
       Type.String({
         description:
-          "Inline JavaScript or TypeScript source; the run's return value is the top-level default export (export default <expr>), or without one the final top-level expression's value — with top-level await use export default. Blank values are treated as absent.",
+          "Required unless plugin + path are given; exclusive with plugin and path. Inline JavaScript or TypeScript source; the run's return value is the top-level default export (export default <expr>), or without one the final top-level expression's value — with top-level await use export default. Blank values are treated as absent.",
       }),
     ),
     plugin: Type.Optional(
       Type.String({
         description:
-          "Namespace of the plugin owning the script. Blank values are treated as absent.",
+          "Required with path for a plugin script; exclusive with code. Namespace of the plugin owning the script. Blank values are treated as absent.",
       }),
     ),
     path: Type.Optional(
       Type.String({
         description:
-          "Plugin-relative path matching scripts/**/*.{js,ts,mjs,mts,cjs,cts}. Blank values are treated as absent.",
+          "Required with plugin for a plugin script; exclusive with code. Plugin-relative path matching scripts/**/*.{js,ts,mjs,mts,cjs,cts}. Blank values are treated as absent.",
       }),
     ),
     input: Type.Optional(
