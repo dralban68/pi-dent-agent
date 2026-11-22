@@ -22,7 +22,10 @@ body loads only on demand.
   space. This is appended on every main-session turn and in a child session per
   [agent-tool.md](agent-tool.md), Section 4.2. A session without `Skill` MUST carry no injection.
   Main-session plugin context blocks follow it ([plugin.md](plugin.md), Section 10).
-- A child session MUST NOT consult the host's own skill store.
+- A session MUST NOT expose the host's own skill store in its system prompt: on every
+  main-session turn, whether or not the skill catalog is empty, pi-dent MUST clear the host's
+  skill list from the turn's prompt options before the system prompt is rendered; a child session
+  MUST NOT consult the host's own skill store.
 - When the skill catalog is empty, a session MUST carry no `<available_skills>` injection and
   `Skill` MUST NOT be bound.
 

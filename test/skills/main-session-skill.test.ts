@@ -168,24 +168,59 @@ test("plugin context with an empty skill catalog: no Skill, context still append
   }
 });
 
-test("an empty skill catalog registers no Skill and no injection", async () => {
+test("an empty skill catalog registers no Skill, injects no catalog, and clears host skills", async () => {
   const restore = makeProject({});
   const stub = makeStubPi();
   try {
     await factory(stub.pi);
     assert.equal(stub.tools.includes("Skill"), false);
-    // No before_agent_start handler is registered when the skill catalog is empty.
     const handlers = stub.handlers.get("before_agent_start") ?? [];
+    assert.ok(handlers.length > 0, "a before_agent_start handler clears host skills");
     stub.active = ["read", "Skill"];
+    const systemPromptOptions = {
+      skills: [{ name: "host-skill", description: "from host", filePath: "/host/SKILL.md" }],
+    };
+    const event = {
+      systemPromptOptions,
+      get systemPrompt() {
+        return systemPromptOptions.skills.length > 0 ? "Base\n\n<skills>host</skills>" : "Base";
+      },
+    };
     for (const handler of handlers) {
-      const result = await handler(
-        { systemPrompt: "Base" },
-        {
-          sessionManager: { getBranch: () => [] },
-        },
-      );
+      const result = await handler(event, {
+        sessionManager: { getBranch: () => [] },
+      });
       assert.equal(result, undefined);
     }
+    assert.deepEqual(systemPromptOptions.skills, [], "host skills are cleared");
+  } finally {
+    clearBootWindow(stub);
+    restore();
+  }
+});
+
+test("host skills are cleared before rendering the main-session prompt when the catalog is non-empty", async () => {
+  const restore = makeProject({ alpha: "first skill" });
+  const stub = makeStubPi();
+  try {
+    await factory(stub.pi);
+    const [inject] = stub.handlers.get("before_agent_start") ?? [];
+    assert.ok(inject, "a before_agent_start handler is registered");
+    stub.active = ["read", "Skill"];
+    const systemPromptOptions = {
+      skills: [{ name: "host-skill", description: "from host", filePath: "/host/SKILL.md" }],
+    };
+    const event = {
+      systemPromptOptions,
+      get systemPrompt() {
+        return systemPromptOptions.skills.length > 0 ? "Base\n\n<skills>host</skills>" : "Base";
+      },
+    };
+    const result = await inject(event);
+    assert.deepEqual(systemPromptOptions.skills, [], "host skills are cleared");
+    assert.deepEqual(result, {
+      systemPrompt: "Base\n\n<available_skills>\nalpha — first skill\n</available_skills>",
+    });
   } finally {
     clearBootWindow(stub);
     restore();

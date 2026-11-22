@@ -872,19 +872,20 @@ export default function (pi: ExtensionAPI) {
     makeSessionTool({ boot, hostProvider: () => currentHost, billing: guidanceCtl.billing }),
   );
   // The main session binds `Skill` and carries the skill catalog like any
-  // child whose tool cap includes it (skill-tool.md Section 1). Plugin context
-  // blocks follow the skill catalog on every turn (plugin.md Section 10).
+  // child whose tool cap includes it, clearing the host's own skill list on
+  // every turn (skill-tool.md Section 1). Plugin context blocks follow the
+  // skill catalog on every turn (plugin.md Section 10).
   if (boot.skills.length > 0) registerOwnedTool(makeSkillTool(boot));
-  if (boot.skills.length > 0 || boot.plugins.some((plugin) => plugin.context !== undefined)) {
-    pi.on("before_agent_start", async (event) => {
-      const withSkills =
-        boot.skills.length > 0 && pi.getActiveTools().includes("Skill")
-          ? appendSkillCatalog(event.systemPrompt, boot.skills)
-          : event.systemPrompt;
-      const systemPrompt = appendPluginContext(withSkills, boot.plugins);
-      return systemPrompt === event.systemPrompt ? undefined : { systemPrompt };
-    });
-  }
+  pi.on("before_agent_start", async (event) => {
+    if (event.systemPromptOptions?.skills) event.systemPromptOptions.skills.length = 0;
+    const basePrompt = event.systemPrompt;
+    const withSkills =
+      boot.skills.length > 0 && pi.getActiveTools().includes("Skill")
+        ? appendSkillCatalog(basePrompt, boot.skills)
+        : basePrompt;
+    const systemPrompt = appendPluginContext(withSkills, boot.plugins);
+    return systemPrompt === basePrompt ? undefined : { systemPrompt };
+  });
   pi.registerTool(
     makeScriptTool({
       boot,
