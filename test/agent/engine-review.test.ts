@@ -746,14 +746,12 @@ test("omitting both agent and prompt over a populated catalog lists available ag
     description: "first",
     prompt: "alpha prompt",
     source: "project",
-    filePath: join(root, "alpha.md"),
   };
   const beta: AgentDefinition = {
     name: "beta",
     description: "second",
     prompt: "beta prompt",
     source: "project",
-    filePath: join(root, "beta.md"),
   };
   const engine = new DispatchEngine(
     bootWith([alpha, beta]),
@@ -786,7 +784,6 @@ test("providing both agent and prompt reports that both were provided", async ()
     description: "first",
     prompt: "alpha prompt",
     source: "project",
-    filePath: join(root, "alpha.md"),
   };
   const engine = new DispatchEngine(
     bootWith([alpha]),
