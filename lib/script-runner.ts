@@ -100,6 +100,7 @@ export interface ScriptRunRequest {
   pluginNamespace?: string;
   /** Workspace root for `dent.state` (defaults to `cwd`). */
   stateWorkspaceRoot?: string;
+  stateUserRoot?: string;
 }
 
 /** Pre-validated return outcome of a plugin UI call (specs/plugin-ui.md Section 5). */
@@ -329,6 +330,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         ...(req.stateWorkspaceRoot === undefined
           ? {}
           : { stateWorkspaceRoot: req.stateWorkspaceRoot }),
+        ...(req.stateUserRoot === undefined ? {} : { stateUserRoot: req.stateUserRoot }),
       },
       env: workerEnv,
     });

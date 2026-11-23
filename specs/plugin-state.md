@@ -139,6 +139,13 @@ or throw the host operating system `Error` with its native `code` rather than `P
     on first access).
 - Active `onChange` watchers in a script MUST be closed automatically when the script settles and
   MUST NOT keep a finished script's worker alive.
+- In a plugin UI call that carries the `check` of a check whose backend is not `live`
+  ([plugin-ui-tool.md](plugin-ui-tool.md), Section 5), `<state>` being the check's scratch state
+  directory, `dent.state` MUST use `<state>/workspace` as `workspaceRoot` and `dent.state.user`
+  MUST use `<state>/user` as `userStateRoot`, in the place of the session's working directory and
+  of the user's state root. The host application serves the page's `alpha.state` from the same
+  two stores through the module API of Section 5, so a page and a script of one check share one
+  state, and the plugin's own stores are not touched.
 
 ## 7. Specification gaps
 

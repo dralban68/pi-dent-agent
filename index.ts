@@ -38,6 +38,11 @@ import {
   type UiCallableTool,
 } from "./lib/plugin-ui.ts";
 import { PluginUiToolProxy } from "./lib/plugin-ui-proxy.ts";
+import {
+  makePluginUiTool,
+  PluginUiInspectController,
+  pluginUiInspectEnabled,
+} from "./lib/plugin-ui-inspect.ts";
 import { type Diagnostic, errorMessage, isPlainObject } from "./lib/util.ts";
 import { rebuildInterruptedTasks } from "./lib/task-rebuild.ts";
 import {
@@ -326,6 +331,12 @@ export default function (pi: ExtensionAPI) {
       });
     },
   });
+  const pluginUiInspect = new PluginUiInspectController({
+    pluginIndex: boot.pluginIndex,
+    cancelCheckCalls: (checkId, reason) => pluginUi.cancelForCheck(checkId, reason),
+  });
+  pluginUi.setInspectBridge(pluginUiInspect);
+  let pluginUiToolRegistered = false;
   let taskWidget: TaskWidgetHandle | undefined;
   // Feeds for an RPC client (task.md Section 4.1, fleet-tool.md Section 6).
   let taskFeed: FeedHandle | undefined;
@@ -520,8 +531,24 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (event, ctx) => {
     recap.abort();
+    pluginUiInspect.cancelAll();
     pluginUi.cancelAll("Session ended");
     await pluginUi.disposeProxy();
+    if (!pluginUiToolRegistered && pluginUiInspectEnabled(process.env, ctx.mode)) {
+      pluginUiToolRegistered = true;
+      pi.registerTool(
+        makePluginUiTool(pluginUiInspect, (toolCtx, signal) => {
+          const host = currentHost;
+          const agentDir = host ? agentDirForHost(host) : agentsDirFor(undefined, "");
+          return {
+            cwd: toolCtx.cwd ?? host?.cwd() ?? process.cwd(),
+            agentDir,
+            setWidget: (key, lines) => toolCtx.ui.setWidget(key, lines),
+            signal,
+          };
+        }),
+      );
+    }
     currentProjectTrusted =
       typeof ctx.isProjectTrusted === "function" ? ctx.isProjectTrusted() : false;
     // billing.md Section 4.5: the diagnostics held with no open session go out first.
@@ -693,6 +720,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async (event, ctx) => {
     recap.abort();
+    pluginUiInspect.cancelAll();
     await pluginMcp.dispose();
     // Every open question ends with the shutdown result (ask-user-question-tool.md
     // Section 5), whatever fails later in this handler.
@@ -963,7 +991,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.registerCommand("dent-ui", {
-    description: "Run and cancel plugin UI script calls",
+    description: "Run and cancel plugin UI script calls, and take UI inspection results",
     handler: async (args, ctx) => {
       if (ctx.mode !== "rpc") return;
       pluginUi.handleCommand(args, {

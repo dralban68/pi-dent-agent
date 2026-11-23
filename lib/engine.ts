@@ -336,7 +336,12 @@ const PI_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
  * (agent-tool.md Section 3.1): the tool-cap name `bash`, and `Schedule` and
  * `AskUserQuestion`, which an extension registering them does not make bindable.
  */
-const UNBINDABLE_TOOL_NAMES: ReadonlySet<string> = new Set(["bash", "Schedule", "AskUserQuestion"]);
+const UNBINDABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "bash",
+  "Schedule",
+  "AskUserQuestion",
+  "PluginUI",
+]);
 
 /**
  * The MCP resource tool names pi treats as MCP tools (`isMcpToolName` in

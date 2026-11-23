@@ -50,6 +50,7 @@ interface ScriptWorkerData {
   pluginNamespace?: string;
   /** Workspace root for `dent.state` (defaults to `cwd`). */
   stateWorkspaceRoot?: string;
+  stateUserRoot?: string;
 }
 
 const port = parentPort;
@@ -284,7 +285,11 @@ const makeStateScopeBinding = (namespace: string, scope: PluginStateScope) => {
   const target: PluginStateTarget =
     scope === "workspace"
       ? { namespace, scope, workspaceRoot: data.stateWorkspaceRoot ?? data.cwd }
-      : { namespace, scope };
+      : {
+          namespace,
+          scope,
+          ...(data.stateUserRoot === undefined ? {} : { userStateRoot: data.stateUserRoot }),
+        };
   const binding = {
     get: (key: string, defaultValue?: unknown): Promise<unknown> =>
       getPluginState(target, key, defaultValue),

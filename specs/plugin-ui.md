@@ -8,14 +8,14 @@ script execution and termination by [script-tool.md](script-tool.md).
 ## 1. Registration and gating
 
 - The extension MUST register the extension command `dent-ui` ([slash-commands.md](slash-commands.md),
-  Section 1) with description `Run and cancel plugin UI script calls`. The host lists it in
-  `get_commands` with `name` `dent-ui` and `source` `extension`.
+  Section 1) with description `Run and cancel plugin UI script calls, and take UI inspection results`.
+  The host lists it in `get_commands` with `name` `dent-ui` and `source` `extension`.
 - Outside RPC mode (`mode !== "rpc"`), `/dent-ui` MUST be a no-op: it starts no script and sets
   no widget. Unlike the task and fleet feeds ([task.md](task.md), Section 4.1), it does not
   require `PI_DENT_FEEDS`.
 - The argument string ([slash-commands.md](slash-commands.md), Section 1) splits at its first
   whitespace character (ECMAScript `\s`) into `<subcommand>` and `<json>` (trimmed). Any
-  subcommand other than `run` or `cancel` MUST be a no-op.
+  subcommand other than `run`, `cancel` or `result` MUST be a no-op.
 
 ## 2. `run`
 
@@ -29,9 +29,12 @@ script execution and termination by [script-tool.md](script-tool.md).
   2. `namespace` is not a string, or is not in the boot snapshot's plugin catalog
      ([plugin.md](plugin.md), Section 8).
   3. `root` is not a string, or does not equal the admitted plugin's plugin root.
-  4. `path` is not a non-blank string, or fails the plugin script path check
+  4. `check` is present and is not a string, or names no check in progress in this session
+     ([plugin-ui-tool.md](plugin-ui-tool.md), Section 3); the reply's `error` is
+     `Unknown UI check "<check>"`, or `Invalid UI check` when it is not a string.
+  5. `path` is not a non-blank string, or fails the plugin script path check
      ([plugin.md](plugin.md), Section 7; [script-tool.md](script-tool.md), Section 2).
-  5. The resolved script file cannot be read as UTF-8.
+  6. The resolved script file cannot be read as UTF-8.
 - Otherwise the command MUST start one plugin UI call without blocking the command handler, and
   execute the plugin script as the `Script` tool executes a foreground call
   ([script-tool.md](script-tool.md), Sections 3 and 6) with:
@@ -42,6 +45,9 @@ script execution and termination by [script-tool.md](script-tool.md).
   - the bundled packages available,
   - no time limit,
   - tool functions per Section 4.2,
+  - when `check` names a check in progress: tool functions per the check backend of that check
+    ([plugin-ui-tool.md](plugin-ui-tool.md), Section 5) instead of Section 4.2, and `dent.state`
+    per [plugin-state.md](plugin-state.md), Section 6,
   - no task row in the task registry, task feed, task detail feed, or task browser, and no output
     file or tool log.
 - Standard output and standard error of a plugin UI call MUST NOT be sent on the UI feed.
@@ -75,9 +81,13 @@ is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,14
 
 ### 4.2 Tool functions
 
+- This section binds the tools of a plugin UI call that carries no `check`, and of one whose
+  check has the backend `live`. The other backends are owned by
+  [plugin-ui-tool.md](plugin-ui-tool.md), Section 5.
 - A plugin UI call MUST bind two sets of callable tools, each filtered by `script.tools.allow`
   ([script-tool.md](script-tool.md), Section 7) and the object-schema check
-  ([script-tool.md](script-tool.md), Section 8.1), with `Script` and `AskUserQuestion` excluded:
+  ([script-tool.md](script-tool.md), Section 8.1), with `Script`, `AskUserQuestion`, and
+  `PluginUI` excluded:
   1. **Direct tools** — the active tools pi-dent registers itself (`Agent`, `Bash`, `Fleet`,
      `Markdown`, `Plugin`, `Schedule`, `Search`, `Session`, `Skill` when the boot snapshot holds at
      least one skill, and `Task`), filtered by the host's `getActiveTools()` when reported,
@@ -92,9 +102,9 @@ is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,14
 - `dent.toolTypes()` MUST declare exactly the bound tools (direct and proxied,
   [script-tool.md](script-tool.md), Section 8.2).
 - Every tool listed by the host's `getAllTools()` that is neither direct nor proxied — including
-  `Script`, `AskUserQuestion`, inactive `direct` tools such as built-in `bash`, tools excluded by
-  `script.tools.allow`, and tools without an object parameter schema — MUST be bound on `tools` as
-  a function that rejects with an `Error` whose message is
+  `Script`, `AskUserQuestion`, `PluginUI`, inactive `direct` tools such as built-in `bash`, tools
+  excluded by `script.tools.allow`, and tools without an object parameter schema — MUST be bound
+  on `tools` as a function that rejects with an `Error` whose message is
   `tool <Name> is unavailable in a plugin UI call`, and MUST NOT appear in `dent.toolTypes()`.
 - Tool calls made by a plugin UI call write no tool log. Tasks dispatched through `Agent` or
   `Bash` register in the session's task registry as usual.
@@ -157,9 +167,44 @@ one host `setWidget("pi-dent-ui", [line])` call, where `line` is the JSON text o
 On `session_start` (when a prior session's calls or proxy remain) and on `session_shutdown`
 (session switch, reload, or quit), every executing plugin UI call MUST be cancelled as in
 Section 3, and any active tool proxy MUST be disposed as in Section 4.3. Each cancelled plugin UI
-call settles with `ok: false` and an `error` naming the session shutdown.
+call settles with `ok: false` and an `error` naming the session shutdown. Every UI inspection in
+progress settles too: its tool call fails with `Session ended`, and a `cancel` record is emitted
+for it.
 
-## 7. Specification gaps
+## 7. Inspection feed
+
+The inspection feed uses the widget key `pi-dent-ui-inspect`. Each record MUST be emitted as one
+host `setWidget("pi-dent-ui-inspect", [line])` call, where `line` is the JSON text of one of:
+
+| `piDent`      | `type`   | Other fields                                                                                    |
+| ------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `"inspect/1"` | `shot`   | `id`, `namespace`, `root`, `out`.                                                               |
+| `"inspect/1"` | `check`  | `id`, `namespace`, `root`, `out`, `steps`, `timeout`, and `state` unless the backend is `live`. |
+| `"inspect/1"` | `cancel` | `id`.                                                                                           |
+
+- `id` is the inspection id; `namespace` and `root` the admitted plugin's namespace and plugin
+  root; `out` the absolute path of the output directory; `state` the absolute path of the
+  scratch state directory; `steps` and `timeout` the call's, defaults applied
+  ([plugin-ui-tool.md](plugin-ui-tool.md), Sections 2 and 3).
+- A record carries no field beside these: in particular neither the backend nor the fixtures
+  module's path.
+- Records MUST NOT be coalesced or dropped. A `cancel` MUST be emitted at most once per `id`, and
+  never after that inspection's result was taken.
+- A failed `setWidget` call of a `shot` or `check` record fails the tool call with
+  `UI inspection request not sent: <reason>`; this is no case of the nothing-silent exemption for
+  widget updates, since the record carries the call.
+
+## 8. `result`
+
+`/dent-ui result <json>` is the host's answer to one `shot` or `check` record.
+
+- When `<json>` parses as a plain object whose `id` is the id of an inspection that waits for its
+  result and whose `ok` is `true`, or whose `ok` is `false` with a string `error`, the command
+  MUST settle that inspection with it ([plugin-ui-tool.md](plugin-ui-tool.md), Section 3).
+- Any other `<json>`, an unknown `id` and a second result for one `id` included, changes nothing.
+  The command answers nothing directly.
+
+## 9. Specification gaps
 
 - Exact wording of `reply` `error` strings is not specified beyond naming the cause and
   distinguishing non-JSON from over-cap return values.

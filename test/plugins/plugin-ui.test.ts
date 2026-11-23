@@ -432,7 +432,10 @@ test("extension registers dent-ui command and gates execution to RPC mode", asyn
 
   const cmd = commands.get("dent-ui");
   assert.ok(cmd, "dent-ui command must be registered");
-  assert.equal(cmd.description, "Run and cancel plugin UI script calls");
+  assert.equal(
+    cmd.description,
+    "Run and cancel plugin UI script calls, and take UI inspection results",
+  );
 
   // Outside RPC mode: no-op
   const tuiWidgets: WidgetEvent[] = [];

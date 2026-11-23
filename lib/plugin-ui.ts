@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Static, TSchema } from "typebox";
 import { type JsonObject, type JsonValue, validateToolArguments } from "@earendil-works/pi-ai";
 import type {
@@ -24,6 +25,7 @@ import {
 } from "./script-tool-types.ts";
 import { errorCode, errorMessage, isPlainObject } from "./util.ts";
 import type { PluginUiToolProxy } from "./plugin-ui-proxy.ts";
+import { buildCheckRunTools, type ActiveUiCheck } from "./plugin-ui-inspect.ts";
 
 /**
  * Plugin UI protocol controller (specs/plugin-ui.md): handles `/dent-ui run`
@@ -37,7 +39,11 @@ export const PLUGIN_UI_PROTOCOL = "ui/1";
 export const PLUGIN_UI_PAYLOAD_CAP_BYTES = 262_144;
 
 /** Tools pi-dent registers that are never callable from a plugin UI call (Section 4.2). */
-export const PLUGIN_UI_EXCLUDED_TOOLS: ReadonlySet<string> = new Set(["Script", "AskUserQuestion"]);
+export const PLUGIN_UI_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
+  "Script",
+  "AskUserQuestion",
+  "PluginUI",
+]);
 
 /** One pi-dent tool adapted for execution from a plugin UI call (Section 4.2). */
 export interface UiCallableTool extends CallableTool {
@@ -185,7 +191,13 @@ export interface PluginUiCommandContext {
 
 interface ActiveUiCall {
   handle: ScriptRunHandle;
+  checkId?: string;
   cancelReason?: string;
+}
+
+export interface PluginUiInspectBridge {
+  getActiveCheck(id: string): ActiveUiCheck | undefined;
+  handleResult(rawJson: string): void;
 }
 
 function formatThrownError(
@@ -200,10 +212,16 @@ export class PluginUiController {
   private readonly toolDeps: PluginUiToolDeps | undefined;
   private readonly active = new Map<string, ActiveUiCall>();
   private proxy: PluginUiToolProxy | undefined;
+  private inspectBridge: PluginUiInspectBridge | undefined;
 
   constructor(pluginIndex: ReadonlyMap<string, PluginEntry>, toolDeps?: PluginUiToolDeps) {
     this.pluginIndex = pluginIndex;
     this.toolDeps = toolDeps;
+  }
+
+  /** Attach the UI inspection bridge for `check` runs and `/dent-ui result`. */
+  setInspectBridge(bridge: PluginUiInspectBridge): void {
+    this.inspectBridge = bridge;
   }
 
   /** Number of UI calls currently executing. */
@@ -211,7 +229,7 @@ export class PluginUiController {
     return this.active.size;
   }
 
-  /** Handle one `/dent-ui <args>` command (specs/plugin-ui.md Sections 1-3). */
+  /** Handle one `/dent-ui <args>` command (specs/plugin-ui.md Sections 1-3, 8). */
   handleCommand(args: string, ctx: PluginUiCommandContext): void {
     const trimmed = args.trim();
     if (trimmed === "") return;
@@ -222,6 +240,17 @@ export class PluginUiController {
       this.handleRun(payload, ctx);
     } else if (subcommand === "cancel") {
       this.handleCancel(payload);
+    } else if (subcommand === "result") {
+      this.inspectBridge?.handleResult(payload);
+    }
+  }
+
+  /** Cancel every executing UI call belonging to one check (specs/plugin-ui-tool.md Section 3). */
+  cancelForCheck(checkId: string, reason = "UI call was cancelled"): void {
+    for (const entry of this.active.values()) {
+      if (entry.checkId !== checkId) continue;
+      entry.cancelReason = reason;
+      entry.handle.cancel("killed");
     }
   }
 
@@ -416,6 +445,18 @@ export class PluginUiController {
       emitReplyError(`Plugin "${parsed.namespace}" root mismatch`);
       return;
     }
+    let activeCheck: ActiveUiCheck | undefined;
+    if ("check" in parsed && parsed.check !== undefined) {
+      if (typeof parsed.check !== "string") {
+        emitReplyError("Invalid UI check");
+        return;
+      }
+      activeCheck = this.inspectBridge?.getActiveCheck(parsed.check);
+      if (activeCheck === undefined) {
+        emitReplyError(`Unknown UI check "${parsed.check}"`);
+        return;
+      }
+    }
     if (typeof parsed.path !== "string" || parsed.path.trim() === "") {
       emitReplyError("Invalid script path");
       return;
@@ -439,7 +480,16 @@ export class PluginUiController {
     }
 
     const data = parsed.data === undefined ? null : parsed.data;
-    const tools = this.buildRunTools(id, ctx);
+    const useNonLiveCheck = activeCheck !== undefined && activeCheck.backend !== "live";
+    const tools = useNonLiveCheck ? buildCheckRunTools(activeCheck) : this.buildRunTools(id, ctx);
+    const stateWorkspaceRoot =
+      useNonLiveCheck && activeCheck.stateDir !== undefined
+        ? join(activeCheck.stateDir, "workspace")
+        : ctx.cwd;
+    const stateUserRoot =
+      useNonLiveCheck && activeCheck.stateDir !== undefined
+        ? join(activeCheck.stateDir, "user")
+        : undefined;
     let handle: ScriptRunHandle;
     try {
       handle = runScript({
@@ -450,7 +500,8 @@ export class PluginUiController {
         aliases: bundledAliases(),
         uiCall: true,
         pluginNamespace: plugin.name,
-        stateWorkspaceRoot: ctx.cwd,
+        stateWorkspaceRoot,
+        ...(stateUserRoot === undefined ? {} : { stateUserRoot }),
         ...(tools === undefined ? {} : { tools }),
         ...(ctx.extraEnv && Object.keys(ctx.extraEnv).length > 0 ? { extraEnv: ctx.extraEnv } : {}),
         onUiMessage: (dataJson) => {
@@ -462,7 +513,10 @@ export class PluginUiController {
       return;
     }
 
-    const entry: ActiveUiCall = { handle };
+    const entry: ActiveUiCall = {
+      handle,
+      ...(activeCheck === undefined ? {} : { checkId: activeCheck.id }),
+    };
     this.active.set(id, entry);
 
     void handle.promise
