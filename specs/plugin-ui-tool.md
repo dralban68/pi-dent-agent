@@ -54,7 +54,7 @@ tool error with the text given:
   `check` without `live: true`, the scratch state directory `<dir>/output/ui-<id>-state`.
   Both are created empty, before the record is emitted; a failure to create one fails the call
   as a tool error naming it.
-- An inspection, and for a `check` its check, is in progress from the moment its record is
+- A UI inspection, and for a `check` its check, is in progress from the moment its record is
   emitted until it settles, below.
 - The inspection id is `i<n>-<suffix>`, `<n>` counting the process's inspections from 1 and
   `<suffix>` 8 lowercase hexadecimal digits chosen at random.
@@ -101,7 +101,7 @@ NOT exceed 262,144 bytes in UTF-8; a call whose record would is rejected with
 
 ## 5. Backend of a check
 
-A check has one of three backends, which decides what `tools.<Name>(args)` does in every plugin
+A check has one of three check backends, which decides what `tools.<Name>(args)` does in every plugin
 UI call that carries the check's id ([plugin-ui.md](plugin-ui.md), Section 4.2):
 
 | Backend    | Chosen by    | Tool functions                                                                                      |

@@ -192,7 +192,7 @@ export interface PluginUiInspectContext {
   readonly cwd: string;
   readonly agentDir: string;
   readonly setWidget: (key: string, lines: string[] | undefined) => void;
-  readonly signal?: AbortSignal;
+  readonly signal?: AbortSignal | undefined;
 }
 
 interface PluginUiResultDetails {
@@ -342,10 +342,15 @@ export class PluginUiInspectController {
       return errorResult("another PluginUI call is running");
     }
 
+    const action =
+      params.action === "check" ? "check" : params.action === "shot" ? "shot" : undefined;
+    if (action === undefined) {
+      return errorResult(`unknown action "${String(params.action)}"`);
+    }
+
     // 2. Action-specific field check, in arguments' property order.
-    if (params.action === "shot") {
-      for (const key of Object.keys(params)) {
-        const val = isPlainObject(params) ? params[key] : undefined;
+    if (action === "shot") {
+      for (const [key, val] of Object.entries(params)) {
         if (val !== undefined && CHECK_ONLY_FIELDS.has(key)) {
           return errorResult(`field "${key}" is not valid for action "shot"`);
         }
@@ -368,7 +373,7 @@ export class PluginUiInspectController {
     const timeout = params.timeout ?? PLUGIN_UI_CHECK_DEFAULT_TIMEOUT_MS;
 
     // 5 & 6. Steps and screenshot count validation.
-    if (params.action === "check") {
+    if (action === "check") {
       const stepError = validateSteps(steps);
       if (stepError !== undefined) return errorResult(stepError);
     }
@@ -376,7 +381,7 @@ export class PluginUiInspectController {
     const id = `i${++this.seq}-${randomBytes(4).toString("hex")}`;
     const outputDir = join(ctx.agentDir, "output", `ui-${id}`);
     const backend: CheckBackend | undefined =
-      params.action === "check"
+      action === "check"
         ? params.tools === undefined
           ? params.live === true
             ? "live"
@@ -384,12 +389,12 @@ export class PluginUiInspectController {
           : "fixtures"
         : undefined;
     const stateDir =
-      params.action === "check" && backend !== "live"
+      action === "check" && backend !== "live"
         ? join(ctx.agentDir, "output", `ui-${id}-state`)
         : undefined;
 
     const record =
-      params.action === "shot"
+      action === "shot"
         ? {
             piDent: PLUGIN_UI_INSPECT_PROTOCOL,
             type: "shot",
@@ -413,7 +418,7 @@ export class PluginUiInspectController {
 
     // 6b. Record byte-size cap (Section 4).
     if (
-      params.action === "check" &&
+      action === "check" &&
       Buffer.byteLength(recordLine, "utf8") > PLUGIN_UI_INSPECT_RECORD_CAP_BYTES
     ) {
       return errorResult(`steps exceed ${PLUGIN_UI_INSPECT_RECORD_CAP_BYTES} bytes`);
@@ -421,7 +426,7 @@ export class PluginUiInspectController {
 
     // 7 & 8. Fixtures module readability and load.
     let fixtures: FixturesWorkerHandle | undefined;
-    if (params.action === "check" && params.tools !== undefined) {
+    if (action === "check" && params.tools !== undefined) {
       const resolvedPath = resolve(ctx.cwd, params.tools);
       try {
         const st = statSync(resolvedPath);
@@ -476,7 +481,7 @@ export class PluginUiInspectController {
 
     const entry: PendingInspection = {
       id,
-      action: params.action,
+      action,
       backend,
       outputDir,
       stateDir,
@@ -503,7 +508,7 @@ export class PluginUiInspectController {
     }
 
     const waitMs =
-      params.action === "shot"
+      action === "shot"
         ? (this.deps.shotWaitMs ?? PLUGIN_UI_SHOT_WAIT_MS)
         : timeout + (this.deps.checkWaitGraceMs ?? PLUGIN_UI_CHECK_WAIT_GRACE_MS);
 
@@ -546,13 +551,13 @@ export class PluginUiInspectController {
       return errorResult("Aborted");
     }
     if (outcome.kind === "timeout") {
-      return errorResult(`Alpha did not answer the UI ${params.action} within ${outcome.ms} ms`);
+      return errorResult(`Alpha did not answer the UI ${action} within ${outcome.ms} ms`);
     }
     if (!outcome.ok) {
       return errorResult(outcome.error);
     }
 
-    return this.buildSuccessResult(params.action, plugin.name, outputDir, backend);
+    return this.buildSuccessResult(action, plugin.name, outputDir, backend);
   }
 
   private async cleanupCheck(entry: PendingInspection, reason: string): Promise<void> {

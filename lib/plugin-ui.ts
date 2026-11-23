@@ -480,16 +480,14 @@ export class PluginUiController {
     }
 
     const data = parsed.data === undefined ? null : parsed.data;
-    const useNonLiveCheck = activeCheck !== undefined && activeCheck.backend !== "live";
-    const tools = useNonLiveCheck ? buildCheckRunTools(activeCheck) : this.buildRunTools(id, ctx);
+    const nonLiveCheck =
+      activeCheck !== undefined && activeCheck.backend !== "live" ? activeCheck : undefined;
+    const tools =
+      nonLiveCheck === undefined ? this.buildRunTools(id, ctx) : buildCheckRunTools(nonLiveCheck);
     const stateWorkspaceRoot =
-      useNonLiveCheck && activeCheck.stateDir !== undefined
-        ? join(activeCheck.stateDir, "workspace")
-        : ctx.cwd;
+      nonLiveCheck?.stateDir === undefined ? ctx.cwd : join(nonLiveCheck.stateDir, "workspace");
     const stateUserRoot =
-      useNonLiveCheck && activeCheck.stateDir !== undefined
-        ? join(activeCheck.stateDir, "user")
-        : undefined;
+      nonLiveCheck?.stateDir === undefined ? undefined : join(nonLiveCheck.stateDir, "user");
     let handle: ScriptRunHandle;
     try {
       handle = runScript({
