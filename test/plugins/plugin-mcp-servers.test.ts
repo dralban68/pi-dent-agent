@@ -67,7 +67,7 @@ test("Section 2 & 11.1: valid mcpServers are parsed in UTF-16 order and inventor
     writeProjectConf(cwd, { acme: { path: dir } });
 
     const diagnostics: Diagnostic[] = [];
-    const catalog = discoverPlugins(readConfig(cwd, diagnostics), diagnostics);
+    const catalog = discoverPlugins(readConfig(cwd), diagnostics);
     assert.deepEqual(diagnostics, []);
     assert.equal(catalog.plugins.length, 1);
     assert.deepEqual(catalog.plugins[0]?.mcpServers, [
