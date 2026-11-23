@@ -165,6 +165,7 @@ test("inventory: an admitted plugin lists every manifest field, context flag, an
         { name: "scripts/deep/nested.ts", description: null, file: "scripts/deep/nested.ts" },
         { name: "scripts/run.js", description: null, file: "scripts/run.js" },
       ],
+      mcpServers: [],
     });
     const bareCandidate = candidateOf(inventory, "z-bare");
     assert.equal(bareCandidate.root, bare);
@@ -178,6 +179,7 @@ test("inventory: an admitted plugin lists every manifest field, context flag, an
       agents: [],
       skills: [],
       scripts: [],
+      mcpServers: [],
     });
   });
 });
@@ -202,6 +204,7 @@ test("inventory: manifest author shapes; non-string description and version are 
       agents: [],
       skills: [],
       scripts: [],
+      mcpServers: [],
     });
     writeFileSync(
       join(dir, "plugin.json"),
