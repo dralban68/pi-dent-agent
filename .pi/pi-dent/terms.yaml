@@ -348,6 +348,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: check-backend
+    label: check backend
+    meaning: The mode that decides how tool calls and plugin state are served during a UI check.
+    owner: specs/plugin-ui-tool.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-24
+        op: add
   - id: child-guidance
     label: child guidance
     meaning: "The billing text appended to a child session's system prompt"
@@ -754,6 +764,18 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: fixtures-module
+    label: fixtures module
+    meaning: A JS or TS module whose default export provides stub tool functions for a UI check.
+    owner: specs/plugin-ui-tool.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-24
+        op: add
+      - date: 2026-11-24
+        op: update
   - id: fleet
     label: Fleet
     meaning: The tool that carries messages and queries between sibling sessions
@@ -951,6 +973,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: inspection-feed
+    label: inspection feed
+    meaning: "The RPC widget feed carrying shot, check, and cancel records from pi-dent to the host application."
+    owner: specs/plugin-ui.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-24
+        op: add
   - id: interactive-terminal-ui
     label: interactive terminal UI
     meaning: "A session's user interface in terminal mode, as opposed to a session without one"
@@ -1851,6 +1883,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: scratch-state-directory
+    label: scratch state directory
+    meaning: An isolated temporary directory holding workspace and user plugin state for a non-live UI check.
+    owner: specs/plugin-ui-tool.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-24
+        op: add
   - id: script
     label: Script
     meaning: The tool that runs a TypeScript source or a plugin script in-process
@@ -2512,6 +2554,16 @@ terms:
       - date: 2026-11-15
         op: update
         meaning: "A session's record of its current or last turn, with command, goal, files and start time, kept in the local session store"
+  - id: ui-inspection
+    label: UI inspection
+    meaning: A single PluginUI tool call that captures a screenshot or runs a scripted check of a plugin UI in Alpha.
+    owner: specs/plugin-ui-tool.md
+    group: Plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-24
+        op: add
   - id: unknown-key-rule
     label: unknown-key rule
     meaning: The handling of an unknown key in a defined configuration object
