@@ -35,6 +35,7 @@ which are not plugin resources.
 | `description` | Optional, string; a non-string value is ignored.                                       |
 | `version`     | Optional, string; a non-string value is ignored.                                       |
 | `author`      | Optional, string or `{ "name"?: string, "email"?: string }`; other values are ignored. |
+| `mcpServers`  | Optional, JSON object mapping a server name to an HTTPS MCP server declaration.        |
 
 - `plugin.json` is parsed as JSON ([RFC 8259]); a comment is a parse failure.
 - A plugin manifest that fails to parse, or lacks a valid `name`, MUST cause the plugin to
@@ -43,7 +44,25 @@ which are not plugin resources.
   ([config-file.md](config-file.md), Section 2).
 - An unknown key inside an `author` object follows the unknown-key rule
   ([config-file.md](config-file.md), Section 2) as well; its diagnostic names the plugin manifest.
-- A plugin manifest declares no capabilities: a plugin contributes only the Section 1 resources.
+- `mcpServers`, when present and not a plain JSON object, MUST be ignored with one warning
+  diagnostic naming the plugin manifest. When it is a plain JSON object, its entries are checked
+  in ascending UTF-16 code-unit order of their key `<name>`:
+  - `<name>` MUST be non-empty with no whitespace, `:`, or `/`, and its value MUST be a plain
+    JSON object; otherwise the entry MUST be skipped with one warning diagnostic naming the
+    plugin manifest and `<name>`.
+  - Unknown keys inside a server entry follow the unknown-key rule
+    ([config-file.md](config-file.md), Section 2); their diagnostic names the plugin manifest.
+  - `url` (required string) MUST contain no whitespace and MUST parse as an `https:` URL with a
+    non-empty host (`http:`, `file:`, local commands, and sockets are forbidden); otherwise the
+    entry MUST be skipped with one warning diagnostic.
+  - `headers` (optional object), when present, MUST be a plain JSON object mapping non-empty
+    header names to string values, and any value starting with `!` MUST be rejected (no local
+    command execution); otherwise the entry MUST be skipped with one warning diagnostic.
+  - `auth` (optional string), when present, MUST be `"oauth"`; any other value MUST cause the
+    entry to be skipped with one warning diagnostic.
+  - `description` (optional string): a non-string value is ignored.
+- A plugin manifest declares no other capabilities: a plugin contributes only the Section 1
+  resources and Section 12 MCP servers.
 
 ## 3. Identity and namespace
 
@@ -277,6 +296,7 @@ An admitted plugin is an object:
 | `agents`      | array of resources       | The plugin's entries of the agent catalog (Section 9), in catalog order. `name` is the definition's `name` without the namespace, `file` is `agents/<file name>`.                                                |
 | `skills`      | array of resources       | The plugin's entries of the skill catalog (Section 9), in catalog order. `name` is the skill's `name` without the namespace, `file` is `skills/<name>/SKILL.md`.                                                 |
 | `scripts`     | array of resources       | The plugin scripts Section 11.2 lists. `name` equals `file`; `description` is `null`.                                                                                                                            |
+| `mcpServers`  | array of MCP servers     | The valid `mcpServers` entries of Section 2, in ascending UTF-16 code-unit order of `name`.                                                                                                                      |
 
 A resource is an object:
 
@@ -285,6 +305,16 @@ A resource is an object:
 | `name`        | string           | Per the table above.                                                                                                                             |
 | `description` | string or `null` | The description the command is registered with, or the catalog entry's description, verbatim; `null` when there is none.                         |
 | `file`        | string           | The path relative to the plugin root of the file the resource was found at in its folder, its segments joined by `/`, no symbolic link resolved. |
+
+An MCP server is an object:
+
+| Field         | Type                | Value                                                                                                              |
+| ------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `name`        | string              | The server's key in `mcpServers`.                                                                                  |
+| `url`         | string              | The server's `url` verbatim.                                                                                       |
+| `headerNames` | array of strings    | The keys of `headers` in ascending UTF-16 code-unit order (empty when absent); header values MUST NOT be included. |
+| `auth`        | `"oauth"` or `null` | `"oauth"` when `auth` is `"oauth"`, else `null`.                                                                   |
+| `description` | string or `null`    | The server's `description` when it is a string, else `null`.                                                       |
 
 - A diagnostic belongs to a candidate when Sections 2–5, 9 or 10 produce it about that
   candidate's `plugins` entry, its directory, its plugin manifest, its `commands/`, `agents/` or
@@ -334,12 +364,33 @@ only it does.
 > Note (non-normative): the two exclusions keep the walk bounded and free of cycles. A script
 > under them still runs through `Script`; it is only not listed, and the diagnostic says so.
 
-## 12. Normative references
+## 12. Plugin MCP servers
+
+An admitted plugin's valid `mcpServers` entries (Section 2) are registered with `pi-mcp-adapter` as
+runtime MCP servers when the main session starts.
+
+- The qualified server name is `<namespace>:<name>`, where `<namespace>` is the plugin's
+  namespace (Section 3) and `<name>` is the server's key in `mcpServers`.
+- Registration runs in plugin admission order (Section 4), and within each plugin in ascending
+  UTF-16 code-unit order of `<name>`.
+- At `session_start`, once `pi-mcp-adapter` is loaded, the extension MUST register each server
+  through the adapter's runtime registration event (`pi-mcp-adapter:runtime-register:v1`,
+  version `1`) with `{ url, headers?, auth?, description? }` (omitting absent optional fields).
+- If `pi-mcp-adapter` already holds a configured or previously registered server of the same
+  qualified name (a workspace `{ disabled: true }` entry included), the extension MUST skip
+  registration without replacing that server and emit one warning diagnostic naming the qualified
+  server name.
+- If `pi-mcp-adapter` is not loaded (the registration event receives no result), the extension
+  MUST skip registration and emit one warning diagnostic.
+- Ending the main session (`session_shutdown`) MUST dispose every active plugin MCP registration
+  so a subsequent session registers cleanly.
+
+## 13. Normative references
 
 - [RFC 8259] The JavaScript Object Notation (JSON) Data Interchange Format (STD 90),
   T. Bray, Ed., 2017: the `plugin.json` syntax of Sections 1 and 2.
 
-## 13. Specification gaps
+## 14. Specification gaps
 
 - A plugin command whose frontmatter fails to parse is registered without a description and
   without a diagnostic (Section 5), so the plugin inventory cannot tell it from a command that

@@ -29,6 +29,7 @@ import { runFleetCommand } from "./lib/fleet-command.ts";
 import { recapRuntime } from "./lib/recap.ts";
 import { renderRecapEntry } from "./lib/recap-render.ts";
 import { appendPluginContext, renderPluginCommand } from "./lib/plugins.ts";
+import { createPluginMcpRegistrar } from "./lib/plugin-mcp.ts";
 import {
   asUiCallableTool,
   makeUiToolContext,
@@ -465,6 +466,8 @@ export default function (pi: ExtensionAPI) {
     return true;
   };
 
+  const pluginMcp = createPluginMcpRegistrar(pi.events, boot.plugins, reportDiagnostic);
+
   pi.on("message_start", async (event, ctx) => {
     const scheduleSessionId = ctx?.sessionManager?.getSessionId?.() ?? currentHost?.sessionId();
     if (scheduleSessionId) {
@@ -524,6 +527,8 @@ export default function (pi: ExtensionAPI) {
     // billing.md Section 4.5: the diagnostics held with no open session go out first.
     sessionUi = ctx.ui;
     for (const diagnostic of heldDiagnostics.splice(0)) showDiagnostic(diagnostic);
+    // plugin.md Section 12: register admitted plugins' HTTPS MCP servers with pi-mcp-adapter.
+    pluginMcp.register();
     // Section 7: removed before the handler returns, whatever fails later.
     deactivateBuiltinBash(pi, ctx);
     // ask-user-question-tool.md Section 1.4: hidden in print and JSON mode before
@@ -688,6 +693,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async (event, ctx) => {
     recap.abort();
+    await pluginMcp.dispose();
     // Every open question ends with the shutdown result (ask-user-question-tool.md
     // Section 5), whatever fails later in this handler.
     const questionSessionId = ctx?.sessionManager?.getSessionId?.() ?? currentHost?.sessionId();

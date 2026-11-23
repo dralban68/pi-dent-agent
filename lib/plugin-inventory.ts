@@ -36,6 +36,15 @@ export interface InventoryPluginAuthor {
   email: string | null;
 }
 
+/** One valid plugin-declared HTTPS MCP server in the inventory (plugin.md Section 11.1). */
+export interface InventoryMcpServer {
+  name: string;
+  url: string;
+  headerNames: string[];
+  auth: "oauth" | null;
+  description: string | null;
+}
+
 /** An admitted plugin, per plugin.md Section 11.1. */
 export interface InventoryPlugin {
   namespace: string;
@@ -48,6 +57,7 @@ export interface InventoryPlugin {
   agents: InventoryResource[];
   skills: InventoryResource[];
   scripts: InventoryResource[];
+  mcpServers: InventoryMcpServer[];
 }
 
 /** One plugin candidate, per plugin.md Section 11.1. */
@@ -270,6 +280,14 @@ export function readPluginInventory(cwd: string): PluginInventory {
           file: skill.file,
         })),
         scripts,
+        mcpServers: (plugin.mcpServers ?? []).map((server) => ({
+          name: server.name,
+          url: server.url,
+          headerNames:
+            server.headers === undefined ? [] : Object.keys(server.headers).toSorted(byCodeUnit),
+          auth: server.auth ?? null,
+          description: server.description ?? null,
+        })),
       },
       diagnostics: candidate.diagnostics.map((diagnostic) => diagnostic.message),
     };

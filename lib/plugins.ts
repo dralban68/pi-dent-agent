@@ -27,6 +27,19 @@ export interface PluginCommand {
   file: string;
 }
 
+export interface PluginMcpServer {
+  /** Server key in `mcpServers` (plugin.md Section 2). */
+  name: string;
+  /** Validated `https:` URL verbatim. */
+  url: string;
+  /** Validated headers when declared (non-empty names, string values not starting with `!`). */
+  headers?: Record<string, string>;
+  /** Optional `"oauth"` auth mode. */
+  auth?: "oauth";
+  /** Optional string description. */
+  description?: string;
+}
+
 export interface PluginEntry {
   /** The manifest `name`: the plugin identity and `Plugin` tool namespace (plugin.md Section 3). */
   name: string;
@@ -35,6 +48,8 @@ export interface PluginEntry {
   commands: PluginCommand[];
   /** The normalized root `context.md` text (plugin.md Section 10); undefined when there is none. */
   context?: string | undefined;
+  /** Valid `mcpServers` declarations from `plugin.json` in UTF-16 key order (plugin.md Section 2). */
+  mcpServers?: PluginMcpServer[] | undefined;
 }
 
 export interface PluginCatalog {
@@ -48,7 +63,125 @@ function skip(diagnostics: Diagnostic[], dir: string, reason: string): void {
   diagnostics.push({ level: "warning", message: `plugins: ${dir}: skipped (${reason})` });
 }
 
-const MANIFEST_KEYS = ["name", "description", "version", "author"];
+const MANIFEST_KEYS = ["name", "description", "version", "author", "mcpServers"];
+const MCP_SERVER_KEYS = ["url", "headers", "auth", "description"];
+
+function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function isValidHttpsUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || /\s/.test(value)) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" && parsed.hostname !== "";
+  } catch {
+    return false;
+  }
+}
+
+function parseMcpServers(
+  raw: unknown,
+  manifestPath: string,
+  diagnostics: Diagnostic[],
+): PluginMcpServer[] {
+  if (raw === undefined) return [];
+  if (!isPlainObject(raw)) {
+    diagnostics.push({
+      level: "warning",
+      message: `plugins: ${manifestPath}: mcpServers must be an object; ignored`,
+    });
+    return [];
+  }
+  const servers: PluginMcpServer[] = [];
+  for (const name of Object.keys(raw).toSorted(byCodeUnit)) {
+    const value = raw[name];
+    if (!isValidName(name)) {
+      diagnostics.push({
+        level: "warning",
+        message: `plugins: ${manifestPath}: mcpServers.${name}: invalid server name; skipped`,
+      });
+      continue;
+    }
+    if (!isPlainObject(value)) {
+      diagnostics.push({
+        level: "warning",
+        message: `plugins: ${manifestPath}: mcpServers.${name}: entry must be an object; skipped`,
+      });
+      continue;
+    }
+    const unknown = Object.keys(value).filter((key) => !MCP_SERVER_KEYS.includes(key));
+    if (unknown.length > 0) {
+      diagnostics.push({
+        level: "warning",
+        message: `plugins: ${manifestPath}: mcpServers.${name}: unknown keys ${unknown.join(", ")} ignored`,
+      });
+    }
+    if (!isValidHttpsUrl(value.url)) {
+      diagnostics.push({
+        level: "warning",
+        message: `plugins: ${manifestPath}: mcpServers.${name}: url must be a valid https URL with non-empty host and no whitespace; skipped`,
+      });
+      continue;
+    }
+    let headers: Record<string, string> | undefined;
+    if (value.headers !== undefined) {
+      if (!isPlainObject(value.headers)) {
+        diagnostics.push({
+          level: "warning",
+          message: `plugins: ${manifestPath}: mcpServers.${name}: headers must be an object; skipped`,
+        });
+        continue;
+      }
+      const parsedHeaders: Record<string, string> = {};
+      let headerError: string | undefined;
+      for (const headerName of Object.keys(value.headers).toSorted(byCodeUnit)) {
+        const headerVal = value.headers[headerName];
+        if (headerName.trim() === "") {
+          headerError = "header name must be non-empty";
+          break;
+        }
+        if (typeof headerVal !== "string") {
+          headerError = `header "${headerName}" value must be a string`;
+          break;
+        }
+        if (headerVal.startsWith("!")) {
+          headerError = `header "${headerName}" value starting with "!" is forbidden`;
+          break;
+        }
+        parsedHeaders[headerName] = headerVal;
+      }
+      if (headerError !== undefined) {
+        diagnostics.push({
+          level: "warning",
+          message: `plugins: ${manifestPath}: mcpServers.${name}: ${headerError}; skipped`,
+        });
+        continue;
+      }
+      headers = parsedHeaders;
+    }
+    let auth: "oauth" | undefined;
+    if (value.auth !== undefined) {
+      if (value.auth !== "oauth") {
+        diagnostics.push({
+          level: "warning",
+          message: `plugins: ${manifestPath}: mcpServers.${name}: auth must be "oauth"; skipped`,
+        });
+        continue;
+      }
+      auth = "oauth";
+    }
+    const description = typeof value.description === "string" ? value.description : undefined;
+    servers.push({
+      name,
+      url: value.url,
+      ...(headers === undefined ? {} : { headers }),
+      ...(auth === undefined ? {} : { auth }),
+      ...(description === undefined ? {} : { description }),
+    });
+  }
+  return servers;
+}
 
 /** The plugin manifest fields of an admitted plugin (plugin.md Section 2), raw: the inventory shapes them. */
 export interface PluginManifest {
@@ -57,6 +190,8 @@ export interface PluginManifest {
   description?: unknown;
   version?: unknown;
   author?: unknown;
+  /** Validated `mcpServers` entries in UTF-16 key order. */
+  mcpServers: PluginMcpServer[];
 }
 
 function readManifest(dir: string, diagnostics: Diagnostic[]): PluginManifest | undefined {
@@ -101,11 +236,13 @@ function readManifest(dir: string, diagnostics: Diagnostic[]): PluginManifest | 
     skip(diagnostics, dir, "plugin.json lacks a valid name");
     return undefined;
   }
+  const mcpServers = parseMcpServers(parsed.mcpServers, join(dir, "plugin.json"), diagnostics);
   return {
     name: parsed.name,
     description: parsed.description,
     version: parsed.version,
     author: parsed.author,
+    mcpServers,
   };
 }
 
@@ -363,6 +500,7 @@ export function discoverPluginCandidates(config: BootConfig): PluginDiscovery {
       root: dir,
       commands: enumerateCommands(dir, candidate.diagnostics),
       context: readPluginContext(dir, candidate.diagnostics),
+      mcpServers: manifest.mcpServers,
     };
     candidate.plugin = entry;
     candidate.manifest = manifest;
