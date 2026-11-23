@@ -231,3 +231,50 @@ test("the label is the one the task tree widget shows: the agent directory as $P
     else process.env.PI_DENT_SESSION_DIR = saved;
   }
 });
+
+test("each task carries its own usage sum once present and omits it when absent", () => {
+  const root = reg();
+  const rec = recorder();
+  const feed = startTaskFeed(root, rec.host);
+
+  const parent = root.register({ kind: "agent", cohort: "c", label: "parent", background: true });
+  const childReg = reg();
+  root.attach(parent, childReg);
+  const child = childReg.register({ kind: "agent", cohort: "c", label: "child", background: true });
+  const bash = root.register({ kind: "bash", cohort: "c", label: "echo", background: false });
+
+  // Before any usage is amended, `usage` is absent on every row.
+  for (const t of lastPayload(rec.calls).tasks) {
+    assert.equal("usage" in t, false);
+  }
+
+  const parentUsage = {
+    input: 1200,
+    output: 340,
+    cacheRead: 500,
+    cacheWrite: 100,
+    cost: 0.0123,
+    turns: 2,
+  };
+  const childUsage = {
+    input: 400,
+    output: 80,
+    cacheRead: 0,
+    cacheWrite: 0,
+    cost: 0.0021,
+    turns: 1,
+  };
+  const callsBeforeAmend = rec.calls.length;
+  root.amend(parent, { usage: parentUsage });
+  childReg.amend(child, { usage: childUsage });
+  assert.equal(rec.calls.length, callsBeforeAmend + 2);
+
+  const payload = lastPayload(rec.calls);
+  assert.equal(payload.piDent, "tasks/2");
+  const byId = new Map(payload.tasks.map((t) => [t.taskId, t]));
+  assert.deepEqual(byId.get(parent.taskId)?.usage, parentUsage);
+  assert.deepEqual(byId.get(child.taskId)?.usage, childUsage);
+  assert.equal("usage" in must(byId.get(bash.taskId)), false);
+
+  feed.stop();
+});

@@ -125,18 +125,19 @@ of `{ "piDent": "tasks/2", "tasks": [<task>…] }`, one `<task>` per member of t
 (Section 3), whatever its `status` and `consumed`, depth-first, siblings in registration order,
 with no limit on their number:
 
-| Field        | Type    | Value                                                                                                    |
-| ------------ | ------- | -------------------------------------------------------------------------------------------------------- |
-| `taskId`     | string  | The task ID.                                                                                             |
-| `depth`      | number  | 0 for a root, else one more than its parent's.                                                           |
-| `kind`       | string  | `agent`, `script`, or `bash`.                                                                            |
-| `background` | boolean | The row's `background`.                                                                                  |
-| `status`     | string  | The row's `status`.                                                                                      |
-| `orphan`     | boolean | `true` for an adopted task row.                                                                          |
-| `startedAt`  | number  | The row's `startedAt`, milliseconds since the Unix epoch.                                                |
-| `settledAt`  | number? | The row's `settledAt`, present once the task has settled.                                                |
-| `detail`     | string  | `<detail>` of Section 4.                                                                                 |
-| `label`      | string  | The display label, with the agent-directory substitution of [agent-tool.md](agent-tool.md), Section 4.2. |
+| Field        | Type    | Value                                                                                                                                                                                    |
+| ------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `taskId`     | string  | The task ID.                                                                                                                                                                             |
+| `depth`      | number  | 0 for a root, else one more than its parent's.                                                                                                                                           |
+| `kind`       | string  | `agent`, `script`, or `bash`.                                                                                                                                                            |
+| `background` | boolean | The row's `background`.                                                                                                                                                                  |
+| `status`     | string  | The row's `status`.                                                                                                                                                                      |
+| `orphan`     | boolean | `true` for an adopted task row.                                                                                                                                                          |
+| `startedAt`  | number  | The row's `startedAt`, milliseconds since the Unix epoch.                                                                                                                                |
+| `settledAt`  | number? | The row's `settledAt`, present once the task has settled.                                                                                                                                |
+| `detail`     | string  | `<detail>` of Section 4.                                                                                                                                                                 |
+| `label`      | string  | The display label, with the agent-directory substitution of [agent-tool.md](agent-tool.md), Section 4.2.                                                                                 |
+| `usage`      | object? | The row's `usage` ([agent-tool.md](agent-tool.md), Section 13) — `{ input, output, cacheRead, cacheWrite, cost, turns }`, own usage only — when present; absent for a row without usage. |
 
 - The client computes elapsed times itself: the feed MUST be set on a registry change
   ([task-registry.md](task-registry.md), Section 7) that changes its text, and MUST NOT be set
@@ -172,6 +173,7 @@ breaks and tabs removed:
 | `startedAt`  | number   | The row's `startedAt`.                                                                                                                                                                                                                                                                                                                                                   |
 | `settledAt`  | number?  | The row's `settledAt`, when present.                                                                                                                                                                                                                                                                                                                                     |
 | `label`      | string   | The `label` field of Section 4.1.                                                                                                                                                                                                                                                                                                                                        |
+| `usage`      | object?  | The `usage` field of Section 4.1, when present.                                                                                                                                                                                                                                                                                                                          |
 | `killable`   | boolean  | Whether the kill key applies to the row ([task-browser.md](task-browser.md), Section 4.4).                                                                                                                                                                                                                                                                               |
 | `fields`     | object[] | One `{ name, value }` per line of the `Agent`, `Script`, or `Bash` section of its details page, in order, other than `delivery`.                                                                                                                                                                                                                                         |
 | `error`      | string?  | The `Error` section's text of an `agent` row, when present.                                                                                                                                                                                                                                                                                                              |

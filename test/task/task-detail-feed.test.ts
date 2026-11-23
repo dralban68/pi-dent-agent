@@ -480,3 +480,29 @@ test("stop with nothing set clears nothing", () => {
   feed.stop();
   assert.equal(rec.calls.length, 0);
 });
+
+test("detail payload carries structured usage when present and omits it otherwise (task.md Section 4.2)", () => {
+  const { root, rec, feed } = setup();
+  const a = agent(root, "worker");
+  feed.watch(a.taskId);
+  assert.equal(lastPayload(rec.calls).piDent, "task/1");
+  assert.equal("usage" in lastPayload(rec.calls), false);
+
+  const usage = {
+    input: 900,
+    output: 150,
+    cacheRead: 200,
+    cacheWrite: 50,
+    cost: 0.0045,
+    turns: 3,
+  };
+  root.amend(a, { usage });
+  const after = lastPayload(rec.calls);
+  assert.deepEqual(after.usage, usage);
+  assert.ok(after.fields?.some((f) => f.name === "usage"));
+
+  const b = root.register({ kind: "bash", cohort: "c", label: "ls", background: false });
+  feed.watch(b.taskId);
+  assert.equal("usage" in lastPayload(rec.calls), false);
+  feed.stop();
+});

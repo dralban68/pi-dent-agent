@@ -12,6 +12,7 @@ import {
 } from "./task-browser.ts";
 import type { FeedWidgetHost } from "./task-feed.ts";
 import { AgentTaskRow, BashTaskRow, feedText, shownLabel, type TaskRow } from "./task-row.ts";
+import type { UsageSum } from "./usage.ts";
 
 /**
  * Task detail feed (specs/task.md Section 4.2): the details page of the watched task as the
@@ -48,6 +49,7 @@ export interface TaskDetailPayload {
   startedAt?: number;
   settledAt?: number;
   label?: string;
+  usage?: UsageSum;
   killable?: boolean;
   fields?: Array<{ name: string; value: string }>;
   error?: string;
@@ -103,6 +105,7 @@ export function taskDetailPayload(source: TaskDetailSource): TaskDetailPayload {
   if (row instanceof AgentTaskRow) {
     return {
       ...head,
+      ...(row.usage === undefined ? {} : { usage: { ...row.usage } }),
       fields: fieldsOf(agentFields(row, identityTheme, source.zone)),
       // The Error section exists for a failed row with a result (task-browser.md Section 4.1).
       ...(row.status === "failed" && row.result !== undefined

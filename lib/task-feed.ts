@@ -1,6 +1,7 @@
 import type { TaskRegistry } from "./registry.ts";
 import { collectAllTasks, flattenTree, TASK_WIDGET_ID } from "./task-widget.ts";
-import { shownLabel } from "./task-row.ts";
+import { AgentTaskRow, shownLabel } from "./task-row.ts";
+import type { UsageSum } from "./usage.ts";
 
 /**
  * Task feed (specs/task.md Section 4.1): the whole task tree, settled rows included, as one
@@ -20,6 +21,7 @@ export interface TaskFeedTask {
   settledAt?: number;
   detail: string;
   label: string;
+  usage?: UsageSum;
 }
 
 /** The task feed's `<task>` objects, one per member of the task tree (task.md Section 4.1). */
@@ -35,6 +37,7 @@ export function taskFeedTasks(registry: TaskRegistry): TaskFeedTask[] {
     ...(row.settledAt === undefined ? {} : { settledAt: row.settledAt }),
     detail: row.displayDetail(),
     label: shownLabel(row.label),
+    ...(row instanceof AgentTaskRow && row.usage !== undefined ? { usage: { ...row.usage } } : {}),
   }));
 }
 
