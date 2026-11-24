@@ -334,18 +334,25 @@ export default function (pi: ExtensionAPI) {
   );
   // plugin-ui.md Section 7: UI-agnostic extension event seam.
   if (typeof pi.events?.on === "function") {
-    pi.events.on(PLUGIN_UI_CANCEL_TAG_EVENT, (raw: unknown) => {
-      if (!isPlainObject(raw) || typeof raw.check !== "string") return;
-      const reason = typeof raw.reason === "string" ? raw.reason : undefined;
-      pluginUi.cancelForCheck(raw.check, reason);
-    });
-    pi.events.on(PLUGIN_CATALOG_EVENT, (raw: unknown) => {
-      if (!isPlainObject(raw)) return;
-      raw.plugins = boot.plugins.map((plugin) => ({
-        namespace: plugin.name,
-        root: plugin.root,
-      }));
-    });
+    try {
+      pi.events.on(PLUGIN_UI_CANCEL_TAG_EVENT, (raw: unknown) => {
+        if (!isPlainObject(raw) || typeof raw.check !== "string") return;
+        const reason = typeof raw.reason === "string" ? raw.reason : undefined;
+        pluginUi.cancelForCheck(raw.check, reason);
+      });
+      pi.events.on(PLUGIN_CATALOG_EVENT, (raw: unknown) => {
+        if (!isPlainObject(raw)) return;
+        raw.plugins = boot.plugins.map((plugin) => ({
+          namespace: plugin.name,
+          root: plugin.root,
+        }));
+      });
+    } catch (error) {
+      reportDiagnostic({
+        level: "warning",
+        message: `plugin-ui: failed to subscribe to extension events: ${errorMessage(error)}`,
+      });
+    }
   }
   let taskWidget: TaskWidgetHandle | undefined;
   // Feeds for an RPC client (task.md Section 4.1, fleet-tool.md Section 6).
