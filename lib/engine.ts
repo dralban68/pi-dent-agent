@@ -92,6 +92,7 @@ import { registerReadErrorHint } from "./output-file.ts";
 import { makeBashTool, type BashSettings } from "./bash-tool.ts";
 import { makeSearchTool, searchRuntime } from "./search-tool.ts";
 import { makeMarkdownTool, markdownRuntime } from "pi-dent-markdown";
+import { makePluginUiTool, type PluginUiInspectController } from "./plugin-ui-inspect.ts";
 import { readLocalZone } from "./billing-text.ts";
 import type { AgentToolParams } from "./tools.ts";
 import {
@@ -336,12 +337,7 @@ const PI_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
  * (agent-tool.md Section 3.1): the tool-cap name `bash`, and `Schedule` and
  * `AskUserQuestion`, which an extension registering them does not make bindable.
  */
-const UNBINDABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "bash",
-  "Schedule",
-  "AskUserQuestion",
-  "PluginUI",
-]);
+const UNBINDABLE_TOOL_NAMES: ReadonlySet<string> = new Set(["bash", "Schedule", "AskUserQuestion"]);
 
 /**
  * The MCP resource tool names pi treats as MCP tools (`isMcpToolName` in
@@ -1295,6 +1291,12 @@ function rowLabel(agent: string, definition: AgentDefinition | undefined, task: 
   return `${agent} — ${summary}`;
 }
 
+/** Main-session `PluginUI` bridge forwarded to child sessions (plugin-ui-tool.md Section 1). */
+export interface ChildPluginUiInspect {
+  readonly controller: PluginUiInspectController;
+  setWidget(key: string, lines: string[] | undefined): void;
+}
+
 /**
  * What the extension instance supplies the engine beyond its boot snapshot (index.ts): the
  * dependencies its child sessions and its task registry need.
@@ -1318,6 +1320,11 @@ export interface EngineDeps {
    * query engine so each assistant message is counted once. A new tally when absent.
    */
   usageTally?: UsageTally | undefined;
+  /**
+   * Main-session `PluginUI` inspection bridge (plugin-ui-tool.md Section 1), shared with
+   * child sessions whenever the tool cap includes `PluginUI`.
+   */
+  pluginUiInspect?: (() => ChildPluginUiInspect | undefined) | undefined;
   /**
    * The child's extension-shutdown deadline in milliseconds (agent-tool.md Section
    * 3.1); a test shortens it so reaching the limit costs no wall time.
@@ -2356,6 +2363,21 @@ export class DispatchEngine {
       if (this.fleet)
         childTools.push(makeFleetTool({ fleet: this.fleet, hostProvider: () => childHost }));
       if (plan.skills.length > 0) childTools.push(makeSkillTool(this.boot));
+      const inspectBridge = this.deps.pluginUiInspect?.();
+      if (inspectBridge) {
+        childTools.push(
+          makePluginUiTool(inspectBridge.controller, (_toolCtx, signal) => ({
+            cwd: plan.cwd,
+            agentDir: childDir,
+            setWidget: (key, lines) => {
+              const live = this.deps.pluginUiInspect?.();
+              if (!live) throw new Error("no active session UI");
+              live.setWidget(key, lines);
+            },
+            signal,
+          })),
+        );
+      }
 
       // The child binds exactly the names of the effective tool cap (Section 3.1);
       // the allowlist also gates customTools in the SDK.
@@ -2861,6 +2883,7 @@ export class DispatchEngine {
             builtinExtensions: this.deps.builtinExtensions,
             // The child's messages count in the main session's tally (Section 13).
             usageTally: this.usageTally,
+            pluginUiInspect: this.deps.pluginUiInspect,
           },
         );
         registry.attach(registryRow, childEngine.registry);

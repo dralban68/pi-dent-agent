@@ -11,8 +11,9 @@ Sections 7 and 8; the plugin catalog by [plugin.md](plugin.md).
   `label` `"PluginUI"`, only when the host runs in RPC mode (`mode === "rpc"`) and the
   environment variable `PI_DENT_UI_INSPECT` equals `1`. Otherwise the tool MUST NOT be
   registered, so no model is offered a tool that nothing answers.
-- The tool is registered for the main session only. A child session
-  ([session-store.md](session-store.md), Section 4) has no `PluginUI`.
+- A child session ([agent-tool.md](agent-tool.md), Section 3.1) binds `PluginUI` whenever the
+  dispatching session's tool cap includes it, sharing the main session's inspection feed and
+  single-inspection concurrency limit, with its own working directory and agent directory.
 - The tool's description MUST say that `live: true` lets the page's writes reach the real
   system, and that a fixtures module replaces tool calls only (Section 5).
 
@@ -161,7 +162,6 @@ UI call that carries the check's id ([plugin-ui.md](plugin-ui.md), Section 4.2):
 
 - What a step does in the page, the layout of the report, and every `error` text of the host are
   the host's.
-- Whether a child session ought to have the tool is not decided.
 - A `cancel` record whose `setWidget` call fails is not sent again: the host then carries its
   inspection on to its own limit.
 - The attachment bound is a first value; no provider limit was measured.

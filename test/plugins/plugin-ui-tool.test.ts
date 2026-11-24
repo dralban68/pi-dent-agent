@@ -3,8 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { effectiveToolCap } from "../../lib/engine.ts";
 import type { PluginEntry } from "../../lib/plugins.ts";
 import {
+  makePluginUiTool,
   PLUGIN_UI_INSPECT_WIDGET_KEY,
   PluginUiInspectController,
   pluginUiInspectEnabled,
@@ -592,6 +594,29 @@ export default { mcpType, mcpErr, bashType, bashErr, toolTypes: dent.toolTypes()
     } finally {
       inspect.cancelAll();
     }
+  } finally {
+    env.cleanup();
+  }
+});
+
+test("Section 1: child sessions bind PluginUI when in the dispatching session tool cap and omit it otherwise", () => {
+  const env = makeFixtureEnv();
+  try {
+    const inspect = new PluginUiInspectController({
+      pluginIndex: env.pluginIndex,
+      cancelCheckCalls: () => {},
+    });
+    const tool = makePluginUiTool(inspect, (ctx, signal) => ({
+      cwd: ctx.cwd,
+      agentDir: env.agentDir,
+      setWidget: (key, lines) => ctx.ui.setWidget(key, lines),
+      signal,
+    }));
+    assert.deepEqual(
+      effectiveToolCap(["PluginUI", "Bash", "Schedule", "AskUserQuestion", "read"], [tool], []),
+      ["PluginUI", "read"],
+    );
+    assert.deepEqual(effectiveToolCap(["Bash", "read"], [tool], []), ["read"]);
   } finally {
     env.cleanup();
   }

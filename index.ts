@@ -275,6 +275,16 @@ export default function (pi: ExtensionAPI) {
       // task-registry.md Section 5: a notification the host did not deliver is shown once.
       reportNotification: (message) => reportDiagnostic({ level: "warning", message }),
       usageTally,
+      pluginUiInspect: () =>
+        sessionUi
+          ? {
+              controller: pluginUiInspect,
+              setWidget: (key, lines) => {
+                if (!sessionUi) throw new Error("no active session UI");
+                sessionUi.setWidget(key, lines);
+              },
+            }
+          : undefined,
     },
   );
   const cohorts = new CohortTracker();
