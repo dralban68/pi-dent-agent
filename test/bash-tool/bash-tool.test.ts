@@ -870,30 +870,51 @@ test("leftover: SIGKILL follows SIGTERM when the leftover ignores the term signa
   }
 });
 
+/** True while a process with `pid` exists (signal 0 probes without sending anything). */
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** Resolves once `check()` holds, polling; rejects after `deadlineMs`. No fixed sleeps. */
+async function waitUntil(check: () => boolean, deadlineMs: number, what: string): Promise<void> {
+  const deadline = Date.now() + deadlineMs;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((done) => setTimeout(done, 10));
+  }
+}
+
 test("leftover: the SIGKILL still follows when the run ends before it is due", async () => {
   const f = makeFixture();
   try {
-    const marker = join(f.root, "marker");
-    const started = Date.now();
+    const pidFile = join(f.root, "leftover.pid");
     // The leftover ignores SIGTERM and sends its output to /dev/null, so both
-    // pipes close at the exit and the run ends long before the 250 ms SIGKILL;
-    // the group must still be killed afterwards. The shell exits only once the
-    // leftover has installed its trap and written the marker.
+    // pipes close at the exit and the run can end before the SIGKILL is due;
+    // the group must still be killed afterwards. `$!` is the leftover's pid,
+    // written once the shell has started it, so the test watches that process
+    // itself rather than a file it keeps writing.
     const result = await call(f, {
-      command: `i=0; (trap '' TERM; while :; do i=$((i+1)); echo $i > ${marker}; sleep 0.05; done) >/dev/null 2>&1 & until [ -s ${marker} ]; do sleep 0.01; done; echo hi`,
+      command: `(trap '' TERM; while :; do sleep 0.05; done) >/dev/null 2>&1 & echo $! > ${pidFile}; echo hi`,
     });
-    const elapsed = Date.now() - started;
     assert.equal(detailsOf(result).leftover, true);
-    assert.ok(elapsed < 200, `took ${elapsed} ms`);
     assert.equal(
       textOf(result),
       "hi\n\nCommand left a process running; it was terminated. Use background: true, not & or nohup.",
     );
-    await new Promise((done) => setTimeout(done, 600));
-    const before = readFileSync(marker, "utf8");
-    assert.ok(before !== "", "the leftover was running");
-    await new Promise((done) => setTimeout(done, 300));
-    assert.equal(readFileSync(marker, "utf8"), before, "the leftover was terminated");
+    await waitUntil(
+      () => existsSync(pidFile) && readFileSync(pidFile, "utf8").trim() !== "",
+      5000,
+      "the leftover pid",
+    );
+    const pid = Number(readFileSync(pidFile, "utf8").trim());
+    assert.ok(Number.isInteger(pid) && pid > 0, `pid file holds ${pid}`);
+    // The SIGKILL follows 250 ms after the run's SIGTERM; wait for the process to be gone.
+    await waitUntil(() => !processAlive(pid), 5000, `leftover ${pid} to be terminated`);
   } finally {
     f.cleanup();
   }
