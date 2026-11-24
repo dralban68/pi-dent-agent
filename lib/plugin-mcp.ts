@@ -11,10 +11,17 @@ import { type Diagnostic, errorMessage } from "./util.ts";
 export const MCP_RUNTIME_REGISTER_EVENT = "pi-mcp-adapter:runtime-register:v1" as const;
 const MCP_RUNTIME_REGISTER_VERSION = 1;
 
+export interface McpRuntimeOAuthConfig {
+  clientId: string;
+  scope?: string;
+  redirectUri?: string;
+}
+
 export interface McpRuntimeServerDefinition {
   url: string;
   headers?: Record<string, string>;
   auth?: "oauth";
+  oauth?: McpRuntimeOAuthConfig;
   description?: string;
 }
 
@@ -56,10 +63,21 @@ export function createPluginMcpRegistrar(
       for (const plugin of plugins) {
         for (const server of plugin.mcpServers ?? []) {
           const qualifiedName = `${plugin.name}:${server.name}`;
+          const oauth: McpRuntimeOAuthConfig | undefined =
+            server.oauth === undefined
+              ? undefined
+              : {
+                  clientId: server.oauth.clientId,
+                  ...(server.oauth.scope === undefined ? {} : { scope: server.oauth.scope }),
+                  ...(server.oauth.callbackUrl === undefined
+                    ? {}
+                    : { redirectUri: server.oauth.callbackUrl }),
+                };
           const definition: McpRuntimeServerDefinition = {
             url: server.url,
             ...(server.headers === undefined ? {} : { headers: { ...server.headers } }),
             ...(server.auth === undefined ? {} : { auth: server.auth }),
+            ...(oauth === undefined ? {} : { oauth }),
             ...(server.description === undefined ? {} : { description: server.description }),
           };
           const request: McpRuntimeRegistrationRequest = {

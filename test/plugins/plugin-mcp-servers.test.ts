@@ -310,3 +310,101 @@ test("Section 12: emits one warning when pi-mcp-adapter is not loaded", () => {
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0]?.message ?? "", /pi-mcp-adapter is not loaded/);
 });
+
+test("Section 2 & 12: oauth object validates clientId/scope/callbackUrl and maps callbackUrl to redirectUri", () => {
+  withIsolatedHome((root, cwd) => {
+    const dir = writePlugin(root, "crm", {
+      name: "crm",
+      mcpServers: {
+        "odoo-oauth": {
+          url: "https://crm.unitai.dev/api/mcp",
+          auth: "oauth",
+          oauth: {
+            clientId: "pi-odoo-mcp",
+            scope: "openid mcp.read mcp.write",
+            callbackUrl: "http://127.0.0.1:3118/callback",
+            extraOAuthKey: 1,
+          },
+        },
+        noAuth: {
+          url: "https://a.example/mcp",
+          oauth: { clientId: "x" },
+        },
+        badOAuthShape: {
+          url: "https://a.example/mcp",
+          auth: "oauth",
+          oauth: "not-an-object",
+        },
+        missingClientId: {
+          url: "https://a.example/mcp",
+          auth: "oauth",
+          oauth: { scope: "openid" },
+        },
+        badScope: {
+          url: "https://a.example/mcp",
+          auth: "oauth",
+          oauth: { clientId: "x", scope: "   " },
+        },
+        badCallback: {
+          url: "https://a.example/mcp",
+          auth: "oauth",
+          oauth: { clientId: "x", callbackUrl: "http://evil.example/cb" },
+        },
+      },
+    });
+    writeProjectConf(cwd, { crm: { path: dir } });
+
+    const diagnostics: Diagnostic[] = [];
+    const catalog = discoverPlugins(readConfig(cwd), diagnostics);
+    assert.equal(catalog.plugins.length, 1);
+    assert.deepEqual(catalog.plugins[0]?.mcpServers, [
+      {
+        name: "odoo-oauth",
+        url: "https://crm.unitai.dev/api/mcp",
+        auth: "oauth",
+        oauth: {
+          clientId: "pi-odoo-mcp",
+          scope: "openid mcp.read mcp.write",
+          callbackUrl: "http://127.0.0.1:3118/callback",
+        },
+      },
+    ]);
+    const msgs = diagnostics.map((d) => d.message);
+    assert.ok(msgs.some((m) => m.includes("odoo-oauth.oauth") && m.includes("extraOAuthKey")));
+    assert.ok(msgs.some((m) => m.includes("mcpServers.noAuth") && m.includes("requires auth")));
+    assert.ok(msgs.some((m) => m.includes("mcpServers.badOAuthShape")));
+    assert.ok(msgs.some((m) => m.includes("mcpServers.missingClientId")));
+    assert.ok(msgs.some((m) => m.includes("mcpServers.badScope")));
+    assert.ok(msgs.some((m) => m.includes("mcpServers.badCallback")));
+
+    const sent: Array<{ name: string; definition: unknown }> = [];
+    const regDiagnostics: Diagnostic[] = [];
+    const registrar = createPluginMcpRegistrar(
+      {
+        emit(_channel, data) {
+          const req = data as McpRuntimeRegistrationRequest;
+          sent.push({ name: req.name, definition: req.definition });
+          req.result = { ok: true, registration: { dispose: async () => {} } };
+        },
+      },
+      catalog.plugins,
+      (d) => regDiagnostics.push(d),
+    );
+    registrar.register();
+    assert.deepEqual(regDiagnostics, []);
+    assert.deepEqual(sent, [
+      {
+        name: "crm:odoo-oauth",
+        definition: {
+          url: "https://crm.unitai.dev/api/mcp",
+          auth: "oauth",
+          oauth: {
+            clientId: "pi-odoo-mcp",
+            scope: "openid mcp.read mcp.write",
+            redirectUri: "http://127.0.0.1:3118/callback",
+          },
+        },
+      },
+    ]);
+  });
+});

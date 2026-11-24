@@ -27,6 +27,15 @@ export interface PluginCommand {
   file: string;
 }
 
+export interface PluginMcpOAuth {
+  /** Pre-registered OAuth client ID. */
+  clientId: string;
+  /** Optional requested OAuth scopes. */
+  scope?: string;
+  /** Optional OAuth callback URL (mapped to `redirectUri` for pi-mcp-adapter). */
+  callbackUrl?: string;
+}
+
 export interface PluginMcpServer {
   /** Server key in `mcpServers` (plugin.md Section 2). */
   name: string;
@@ -36,6 +45,8 @@ export interface PluginMcpServer {
   headers?: Record<string, string>;
   /** Optional `"oauth"` auth mode. */
   auth?: "oauth";
+  /** Optional OAuth client settings when `auth` is `"oauth"`. */
+  oauth?: PluginMcpOAuth;
   /** Optional string description. */
   description?: string;
 }
@@ -64,7 +75,8 @@ function skip(diagnostics: Diagnostic[], dir: string, reason: string): void {
 }
 
 const MANIFEST_KEYS = ["name", "description", "version", "author", "mcpServers"];
-const MCP_SERVER_KEYS = ["url", "headers", "auth", "description"];
+const MCP_SERVER_KEYS = ["url", "headers", "auth", "oauth", "description"];
+const MCP_OAUTH_KEYS = ["clientId", "scope", "callbackUrl"];
 
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -75,6 +87,25 @@ function isValidHttpsUrl(value: unknown): value is string {
   try {
     const parsed = new URL(value);
     return parsed.protocol === "https:" && parsed.hostname !== "";
+  } catch {
+    return false;
+  }
+}
+
+function isValidOAuthCallbackUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || /\s/.test(value)) return false;
+  try {
+    const parsed = new URL(value);
+    if (parsed.username !== "" || parsed.password !== "" || parsed.hash !== "") return false;
+    if (parsed.protocol === "https:") return parsed.hostname !== "";
+    if (parsed.protocol === "http:") {
+      return (
+        parsed.hostname === "localhost" ||
+        parsed.hostname === "127.0.0.1" ||
+        parsed.hostname === "[::1]"
+      );
+    }
+    return false;
   } catch {
     return false;
   }
@@ -171,12 +202,71 @@ function parseMcpServers(
       }
       auth = "oauth";
     }
+    let oauth: PluginMcpOAuth | undefined;
+    if (value.oauth !== undefined) {
+      if (auth !== "oauth") {
+        diagnostics.push({
+          level: "warning",
+          message: `plugins: ${manifestPath}: mcpServers.${name}: oauth requires auth "oauth"; skipped`,
+        });
+        continue;
+      }
+      if (!isPlainObject(value.oauth)) {
+        diagnostics.push({
+          level: "warning",
+          message: `plugins: ${manifestPath}: mcpServers.${name}: oauth must be an object; skipped`,
+        });
+        continue;
+      }
+      const unknownOAuth = Object.keys(value.oauth).filter((key) => !MCP_OAUTH_KEYS.includes(key));
+      if (unknownOAuth.length > 0) {
+        diagnostics.push({
+          level: "warning",
+          message: `plugins: ${manifestPath}: mcpServers.${name}.oauth: unknown keys ${unknownOAuth.join(", ")} ignored`,
+        });
+      }
+      if (typeof value.oauth.clientId !== "string" || value.oauth.clientId.trim() === "") {
+        diagnostics.push({
+          level: "warning",
+          message: `plugins: ${manifestPath}: mcpServers.${name}: oauth.clientId must be a non-empty string; skipped`,
+        });
+        continue;
+      }
+      let scope: string | undefined;
+      if (value.oauth.scope !== undefined) {
+        if (typeof value.oauth.scope !== "string" || value.oauth.scope.trim() === "") {
+          diagnostics.push({
+            level: "warning",
+            message: `plugins: ${manifestPath}: mcpServers.${name}: oauth.scope must be a non-empty string; skipped`,
+          });
+          continue;
+        }
+        scope = value.oauth.scope;
+      }
+      let callbackUrl: string | undefined;
+      if (value.oauth.callbackUrl !== undefined) {
+        if (!isValidOAuthCallbackUrl(value.oauth.callbackUrl)) {
+          diagnostics.push({
+            level: "warning",
+            message: `plugins: ${manifestPath}: mcpServers.${name}: oauth.callbackUrl must be a valid https or loopback http URL; skipped`,
+          });
+          continue;
+        }
+        callbackUrl = value.oauth.callbackUrl;
+      }
+      oauth = {
+        clientId: value.oauth.clientId,
+        ...(scope === undefined ? {} : { scope }),
+        ...(callbackUrl === undefined ? {} : { callbackUrl }),
+      };
+    }
     const description = typeof value.description === "string" ? value.description : undefined;
     servers.push({
       name,
       url: value.url,
       ...(headers === undefined ? {} : { headers }),
       ...(auth === undefined ? {} : { auth }),
+      ...(oauth === undefined ? {} : { oauth }),
       ...(description === undefined ? {} : { description }),
     });
   }

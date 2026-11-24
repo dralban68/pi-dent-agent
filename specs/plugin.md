@@ -60,6 +60,13 @@ which are not plugin resources.
     command execution); otherwise the entry MUST be skipped with one warning diagnostic.
   - `auth` (optional string), when present, MUST be `"oauth"`; any other value MUST cause the
     entry to be skipped with one warning diagnostic.
+  - `oauth` (optional object), when present, is valid only when `auth` is `"oauth"` and MUST be a
+    plain JSON object with `clientId` (required non-blank string), optional `scope` (non-blank
+    string), and optional `callbackUrl` (string parsing as an `https:` URL or an `http:`
+    `localhost`/`127.0.0.1`/`[::1]` URL with no whitespace, credentials, or fragment); unknown
+    keys inside `oauth` follow the unknown-key rule ([config-file.md](config-file.md), Section 2)
+    naming the plugin manifest; any other value or missing `auth: "oauth"` MUST cause the entry
+    to be skipped with one warning diagnostic.
   - `description` (optional string): a non-string value is ignored.
 - A plugin manifest declares no other capabilities: a plugin contributes only the Section 1
   resources and Section 12 MCP servers.
@@ -375,7 +382,8 @@ runtime MCP servers when the main session starts.
   UTF-16 code-unit order of `<name>`.
 - At `session_start`, once `pi-mcp-adapter` is loaded, the extension MUST register each server
   through the adapter's runtime registration event (`pi-mcp-adapter:runtime-register:v1`,
-  version `1`) with `{ url, headers?, auth?, description? }` (omitting absent optional fields).
+  version `1`) with `{ url, headers?, auth?, oauth?, description? }` (omitting absent optional
+  fields; when `oauth` is present, its `callbackUrl` is passed as `oauth.redirectUri`).
 - If `pi-mcp-adapter` already holds a configured or previously registered server of the same
   qualified name (a workspace `{ disabled: true }` entry included), the extension MUST skip
   registration without replacing that server and emit one warning diagnostic naming the qualified
