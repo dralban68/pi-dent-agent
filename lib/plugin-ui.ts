@@ -276,6 +276,15 @@ export class PluginUiController {
     return this.proxy;
   }
 
+  private sessionToolNames(): string[] {
+    if (!this.toolDeps) return [];
+    const names = new Set<string>();
+    for (const tool of this.toolDeps.allTools?.() ?? []) names.add(tool.name);
+    for (const name of this.toolDeps.allToolNames?.() ?? []) names.add(name);
+    for (const tool of this.toolDeps.ownedTools()) names.add(tool.name);
+    return [...names];
+  }
+
   private buildRunTools(id: string, ctx: PluginUiCommandContext): ScriptRunTools | undefined {
     if (!this.toolDeps) return undefined;
     const allow = this.toolDeps.toolsAllow?.() ?? DEFAULT_TOOLS_ALLOW;
@@ -483,7 +492,9 @@ export class PluginUiController {
     const nonLiveCheck =
       activeCheck !== undefined && activeCheck.backend !== "live" ? activeCheck : undefined;
     const tools =
-      nonLiveCheck === undefined ? this.buildRunTools(id, ctx) : buildCheckRunTools(nonLiveCheck);
+      nonLiveCheck === undefined
+        ? this.buildRunTools(id, ctx)
+        : buildCheckRunTools(nonLiveCheck, this.sessionToolNames());
     const stateWorkspaceRoot =
       nonLiveCheck?.stateDir === undefined ? ctx.cwd : join(nonLiveCheck.stateDir, "workspace");
     const stateUserRoot =

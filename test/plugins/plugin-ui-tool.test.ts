@@ -15,6 +15,7 @@ import {
   PLUGIN_UI_WIDGET_KEY,
   PluginUiController,
 } from "../../lib/plugin-ui.ts";
+import { toolDeclarations } from "../../lib/script-tool-types.ts";
 import { must } from "../support/must.ts";
 
 /**
@@ -397,6 +398,200 @@ test("Section 3: timeout emits one cancel record and fails with specified messag
       (r) => r.key === PLUGIN_UI_INSPECT_WIDGET_KEY && r.payload.type === "cancel",
     );
     assert.equal(cancels.length, 1);
+  } finally {
+    env.cleanup();
+  }
+});
+
+test("Finding #1: concurrent shot while check awaits fixtures worker is rejected immediately without losing results", async () => {
+  const env = makeFixtureEnv();
+  try {
+    const fixturesFile = join(env.cwd, "fixtures.mjs");
+    writeFileSync(fixturesFile, "export default { Demo: () => 'ok' };\n", "utf8");
+
+    let releaseWorker: (() => void) | undefined;
+    const workerGate = new Promise<void>((resolve) => {
+      releaseWorker = resolve;
+    });
+
+    const inspect = new PluginUiInspectController({
+      pluginIndex: env.pluginIndex,
+      cancelCheckCalls: () => {},
+      startFixtures: async () => {
+        await workerGate;
+        return {
+          names: ["Demo"],
+          call: async () => ({
+            ok: true,
+            value: {
+              text: "ok",
+              content: [{ type: "text", text: "ok" }],
+              details: undefined,
+              structured: undefined,
+            },
+          }),
+          terminate: async () => {},
+        };
+      },
+    });
+    const ui = new PluginUiController(env.pluginIndex);
+    ui.setInspectBridge(inspect);
+    const rec = makeRecorder();
+    const ctx = { cwd: env.cwd, agentDir: env.agentDir, setWidget: rec.setWidget };
+
+    const pendingCheck = inspect.execute(
+      { action: "check", plugin: "demo", tools: "fixtures.mjs", steps: [{ eval: "1" }] },
+      ctx,
+    );
+
+    // Concurrent shot arrives while check is awaiting startFixtures.
+    const shotResult = await inspect.execute({ action: "shot", plugin: "demo" }, ctx);
+    assert.equal(shotResult.isError, true);
+    assert.equal(
+      shotResult.content[0]?.type === "text" ? shotResult.content[0].text : "",
+      "another PluginUI call is running",
+    );
+
+    releaseWorker?.();
+    const emitted = await rec.waitFor((r) => r.key === PLUGIN_UI_INSPECT_WIDGET_KEY);
+    assert.equal(emitted.payload.type, "check");
+    const inspectRecords = rec.records.filter((r) => r.key === PLUGIN_UI_INSPECT_WIDGET_KEY);
+    assert.equal(inspectRecords.length, 1);
+
+    const checkId = String(emitted.payload.id);
+    const outDir = String(emitted.payload.out);
+    writeFileSync(
+      join(outDir, "report.json"),
+      JSON.stringify({ alpha: "inspect/1", screenshots: [], summary: { ok: true } }),
+      "utf8",
+    );
+    ui.handleCommand(`result ${JSON.stringify({ id: checkId, ok: true })}`, {
+      cwd: env.cwd,
+      setWidget: rec.setWidget,
+    });
+
+    const checkResult = await pendingCheck;
+    assert.equal(checkResult.isError, undefined);
+    assert.equal("ok" in checkResult.details && checkResult.details.ok, true);
+  } finally {
+    env.cleanup();
+  }
+});
+
+test("Finding #2: backend none and unexported names in fixtures expose session tool functions that reject as unavailable", async () => {
+  const env = makeFixtureEnv();
+  try {
+    writeFileSync(
+      join(env.pluginRoot, "scripts", "probe-tools.mjs"),
+      `const mcpType = typeof tools.mcp;
+let mcpErr = null;
+try {
+  await tools.mcp({});
+} catch (e) {
+  mcpErr = e.message;
+}
+const bashType = typeof tools.Bash;
+let bashErr = null;
+try {
+  await tools.Bash({ command: "echo hi" });
+} catch (e) {
+  bashErr = e.message;
+}
+export default { mcpType, mcpErr, bashType, bashErr, toolTypes: dent.toolTypes() };
+`,
+      "utf8",
+    );
+    const fixturesFile = join(env.cwd, "fixtures.mjs");
+    writeFileSync(fixturesFile, "export default { Demo: () => 'ok' };\n", "utf8");
+
+    const ui = new PluginUiController(env.pluginIndex, {
+      ownedTools: () => [],
+      allToolNames: () => ["mcp", "Bash"],
+    });
+    const inspect = new PluginUiInspectController({
+      pluginIndex: env.pluginIndex,
+      cancelCheckCalls: (checkId, reason) => ui.cancelForCheck(checkId, reason),
+    });
+    ui.setInspectBridge(inspect);
+    const rec = makeRecorder();
+    const emptyDecls = toolDeclarations({ bound: [], unbound: [] });
+    try {
+      // 1. Backend `none`
+      const noneCheck = inspect.execute(
+        { action: "check", plugin: "demo", steps: [{ wait: 1 }] },
+        { cwd: env.cwd, agentDir: env.agentDir, setWidget: rec.setWidget },
+      );
+      const noneEmitted = await rec.waitFor((r) => r.key === PLUGIN_UI_INSPECT_WIDGET_KEY);
+      const noneId = String(noneEmitted.payload.id);
+      const noneOut = String(noneEmitted.payload.out);
+
+      ui.handleCommand(
+        `run ${JSON.stringify({ id: "none-probe", namespace: "demo", root: env.pluginRoot, path: "scripts/probe-tools.mjs", check: noneId })}`,
+        { cwd: env.cwd, setWidget: rec.setWidget },
+      );
+      const noneReply = await rec.waitFor(
+        (r) => r.key === PLUGIN_UI_WIDGET_KEY && r.payload.id === "none-probe",
+      );
+      assert.equal(noneReply.payload.ok, true);
+      assert.deepEqual(noneReply.payload.value, {
+        mcpType: "function",
+        mcpErr: "tool mcp is unavailable in a plugin UI call",
+        bashType: "function",
+        bashErr: "tool Bash is unavailable in a plugin UI call",
+        toolTypes: emptyDecls,
+      });
+
+      writeFileSync(
+        join(noneOut, "report.json"),
+        JSON.stringify({ alpha: "inspect/1", screenshots: [], summary: { ok: true } }),
+        "utf8",
+      );
+      ui.handleCommand(`result ${JSON.stringify({ id: noneId, ok: true })}`, {
+        cwd: env.cwd,
+        setWidget: rec.setWidget,
+      });
+      await noneCheck;
+
+      // 2. Backend `fixtures` (unexported session tools also reject as unavailable)
+      const fixturesCheck = inspect.execute(
+        { action: "check", plugin: "demo", tools: "fixtures.mjs", steps: [{ wait: 1 }] },
+        { cwd: env.cwd, agentDir: env.agentDir, setWidget: rec.setWidget },
+      );
+      const fixEmitted = await rec.waitFor(
+        (r) => r.key === PLUGIN_UI_INSPECT_WIDGET_KEY && r.payload.id !== noneId,
+      );
+      const fixId = String(fixEmitted.payload.id);
+      const fixOut = String(fixEmitted.payload.out);
+
+      ui.handleCommand(
+        `run ${JSON.stringify({ id: "fix-probe", namespace: "demo", root: env.pluginRoot, path: "scripts/probe-tools.mjs", check: fixId })}`,
+        { cwd: env.cwd, setWidget: rec.setWidget },
+      );
+      const fixReply = await rec.waitFor(
+        (r) => r.key === PLUGIN_UI_WIDGET_KEY && r.payload.id === "fix-probe",
+      );
+      assert.equal(fixReply.payload.ok, true);
+      assert.deepEqual(fixReply.payload.value, {
+        mcpType: "function",
+        mcpErr: "tool mcp is unavailable in a plugin UI call",
+        bashType: "function",
+        bashErr: "tool Bash is unavailable in a plugin UI call",
+        toolTypes: emptyDecls,
+      });
+
+      writeFileSync(
+        join(fixOut, "report.json"),
+        JSON.stringify({ alpha: "inspect/1", screenshots: [], summary: { ok: true } }),
+        "utf8",
+      );
+      ui.handleCommand(`result ${JSON.stringify({ id: fixId, ok: true })}`, {
+        cwd: env.cwd,
+        setWidget: rec.setWidget,
+      });
+      await fixturesCheck;
+    } finally {
+      inspect.cancelAll();
+    }
   } finally {
     env.cleanup();
   }

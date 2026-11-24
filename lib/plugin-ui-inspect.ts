@@ -186,6 +186,7 @@ export interface PluginUiInspectDeps {
   readonly cancelCheckCalls: (checkId: string, reason: string) => void;
   readonly shotWaitMs?: number;
   readonly checkWaitGraceMs?: number;
+  readonly startFixtures?: (modulePath: string, cwd: string) => Promise<FixturesWorkerHandle>;
 }
 
 export interface PluginUiInspectContext {
@@ -226,12 +227,17 @@ function unavailableReply(name: string) {
 }
 
 /** Build `ScriptRunTools` for a non-live check backend (`fixtures` or `none`). */
-export function buildCheckRunTools(check: ActiveUiCheck): ScriptRunTools {
+export function buildCheckRunTools(
+  check: ActiveUiCheck,
+  sessionToolNames: readonly string[] = [],
+): ScriptRunTools {
   const declarations = toolDeclarations({ bound: [], unbound: [] });
+  const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
   if (check.backend === "none" || !check.fixtures) {
+    const unavailable = new Set<string>([...sessionToolNames, ...PLUGIN_UI_EXCLUDED_TOOLS]);
     return {
       names: [],
-      unavailableNames: [],
+      unavailableNames: [...unavailable].toSorted(byCodeUnit),
       declarations,
       call: async (name) => unavailableReply(name),
     };
@@ -239,10 +245,16 @@ export function buildCheckRunTools(check: ActiveUiCheck): ScriptRunTools {
   const fixtures = check.fixtures;
   const allowed = fixtures.names.filter((name) => !PLUGIN_UI_EXCLUDED_TOOLS.has(name));
   const allowedSet = new Set(allowed);
-  const excluded = fixtures.names.filter((name) => PLUGIN_UI_EXCLUDED_TOOLS.has(name));
+  const unavailable = new Set<string>(PLUGIN_UI_EXCLUDED_TOOLS);
+  for (const name of sessionToolNames) {
+    if (!allowedSet.has(name)) unavailable.add(name);
+  }
+  for (const name of fixtures.names) {
+    if (PLUGIN_UI_EXCLUDED_TOOLS.has(name)) unavailable.add(name);
+  }
   return {
     names: allowed,
-    unavailableNames: excluded,
+    unavailableNames: [...unavailable].toSorted(byCodeUnit),
     declarations,
     call: async (name, args, signal) => {
       if (!allowedSet.has(name)) return unavailableReply(name);
@@ -287,7 +299,8 @@ function rewriteReportScreenshots(report: Record<string, unknown>, outputDir: st
 export class PluginUiInspectController {
   private readonly deps: PluginUiInspectDeps;
   private seq = 0;
-  private pending: PendingInspection | undefined;
+  private busy = false;
+  private readonly pendingById = new Map<string, PendingInspection>();
 
   constructor(deps: PluginUiInspectDeps) {
     this.deps = deps;
@@ -295,41 +308,41 @@ export class PluginUiInspectController {
 
   /** Return the active check if `id` names a `check` inspection in progress. */
   getActiveCheck(id: string): ActiveUiCheck | undefined {
-    if (!this.pending || this.pending.action !== "check" || this.pending.id !== id) {
+    const entry = this.pendingById.get(id);
+    if (!entry || entry.action !== "check" || entry.backend === undefined) {
       return undefined;
     }
-    if (this.pending.backend === undefined) return undefined;
     return {
-      id: this.pending.id,
-      backend: this.pending.backend,
-      stateDir: this.pending.stateDir,
-      fixtures: this.pending.fixtures,
+      id: entry.id,
+      backend: entry.backend,
+      stateDir: entry.stateDir,
+      fixtures: entry.fixtures,
     };
   }
 
   /** Handle `/dent-ui result <json>` (specs/plugin-ui.md Section 8). */
   handleResult(rawJson: string): void {
-    const current = this.pending;
-    if (!current || current.settled) return;
     let parsed: unknown;
     try {
       parsed = JSON.parse(rawJson);
     } catch {
       return;
     }
-    if (!isPlainObject(parsed) || parsed.id !== current.id) return;
+    if (!isPlainObject(parsed) || typeof parsed.id !== "string") return;
+    const entry = this.pendingById.get(parsed.id);
+    if (!entry || entry.settled) return;
     if (parsed.ok === true) {
-      current.resolveResult({ kind: "result", ok: true });
+      entry.resolveResult({ kind: "result", ok: true });
     } else if (parsed.ok === false && typeof parsed.error === "string") {
-      current.resolveResult({ kind: "result", ok: false, error: parsed.error });
+      entry.resolveResult({ kind: "result", ok: false, error: parsed.error });
     }
   }
 
   /** Settle any in-progress inspection on session end/switch (specs/plugin-ui.md Section 6). */
   cancelAll(): void {
-    const current = this.pending;
-    if (!current || current.settled) return;
-    current.resolveResult({ kind: "session-ended" });
+    for (const entry of this.pendingById.values()) {
+      if (!entry.settled) entry.resolveResult({ kind: "session-ended" });
+    }
   }
 
   /** Execute one `PluginUI` tool call (specs/plugin-ui-tool.md Sections 2, 3, 4, 5, 6). */
@@ -337,11 +350,22 @@ export class PluginUiInspectController {
     params: PluginUiToolParams,
     ctx: PluginUiInspectContext,
   ): Promise<PluginUiToolResult> {
-    // 1. Concurrent inspection check.
-    if (this.pending !== undefined) {
+    // 1. Reserve the single inspection slot synchronously before any await.
+    if (this.busy || this.pendingById.size > 0) {
       return errorResult("another PluginUI call is running");
     }
+    this.busy = true;
+    try {
+      return await this.executeReserved(params, ctx);
+    } finally {
+      this.busy = false;
+    }
+  }
 
+  private async executeReserved(
+    params: PluginUiToolParams,
+    ctx: PluginUiInspectContext,
+  ): Promise<PluginUiToolResult> {
     const action =
       params.action === "check" ? "check" : params.action === "shot" ? "shot" : undefined;
     if (action === undefined) {
@@ -438,7 +462,8 @@ export class PluginUiInspectController {
         return errorResult(`fixtures module not readable: ${resolvedPath}: ${errorMessage(error)}`);
       }
       try {
-        fixtures = await startFixturesWorker(resolvedPath, ctx.cwd);
+        const start = this.deps.startFixtures ?? startFixturesWorker;
+        fixtures = await start(resolvedPath, ctx.cwd);
       } catch (error) {
         return errorResult(`fixtures module not loaded: ${errorMessage(error)}`);
       }
@@ -495,13 +520,13 @@ export class PluginUiInspectController {
         resolveOutcome(outcome);
       },
     };
-    this.pending = entry;
+    this.pendingById.set(id, entry);
 
     // Emit the shot/check record.
     try {
       ctx.setWidget(PLUGIN_UI_INSPECT_WIDGET_KEY, [recordLine]);
     } catch (error) {
-      this.pending = undefined;
+      this.pendingById.delete(id);
       entry.settled = true;
       await this.cleanupCheck(entry, "UI inspection request not sent");
       return errorResult(`UI inspection request not sent: ${errorMessage(error)}`);
@@ -528,7 +553,7 @@ export class PluginUiInspectController {
     const outcome = await outcomePromise;
     clearTimeout(timer);
     if (ctx.signal) ctx.signal.removeEventListener("abort", onAbort);
-    if (this.pending === entry) this.pending = undefined;
+    this.pendingById.delete(id);
 
     if (outcome.kind !== "result") {
       emitCancel(entry);
