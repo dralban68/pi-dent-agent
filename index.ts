@@ -33,16 +33,13 @@ import { createPluginMcpRegistrar } from "./lib/plugin-mcp.ts";
 import {
   asUiCallableTool,
   makeUiToolContext,
+  PLUGIN_CATALOG_EVENT,
+  PLUGIN_UI_CANCEL_TAG_EVENT,
   PLUGIN_UI_EXCLUDED_TOOLS,
   PluginUiController,
   type UiCallableTool,
 } from "./lib/plugin-ui.ts";
 import { PluginUiToolProxy } from "./lib/plugin-ui-proxy.ts";
-import {
-  makePluginUiTool,
-  PluginUiInspectController,
-  pluginUiInspectEnabled,
-} from "./lib/plugin-ui-inspect.ts";
 import { type Diagnostic, errorMessage, isPlainObject } from "./lib/util.ts";
 import { rebuildInterruptedTasks } from "./lib/task-rebuild.ts";
 import {
@@ -275,16 +272,6 @@ export default function (pi: ExtensionAPI) {
       // task-registry.md Section 5: a notification the host did not deliver is shown once.
       reportNotification: (message) => reportDiagnostic({ level: "warning", message }),
       usageTally,
-      pluginUiInspect: () =>
-        sessionUi
-          ? {
-              controller: pluginUiInspect,
-              setWidget: (key, lines) => {
-                if (!sessionUi) throw new Error("no active session UI");
-                sessionUi.setWidget(key, lines);
-              },
-            }
-          : undefined,
     },
   );
   const cohorts = new CohortTracker();
@@ -323,30 +310,43 @@ export default function (pi: ExtensionAPI) {
   const recap = recapRuntime(boot.config, (data) => pi.appendEntry("pi-dent-recap", data));
   const scriptToolsAllow = parseScript(boot.config).toolsAllow ?? DEFAULT_TOOLS_ALLOW;
   let currentProjectTrusted = false;
-  const pluginUi = new PluginUiController(boot.pluginIndex, {
-    ownedTools: () => [...ownedUiTools.values()],
-    allTools: () => (typeof pi.getAllTools === "function" ? pi.getAllTools() : []),
-    activeToolNames: () => (typeof pi.getActiveTools === "function" ? pi.getActiveTools() : []),
-    toolsAllow: () => scriptToolsAllow,
-    createProxy: () => {
-      const host = currentHost;
-      if (!host) return;
-      const active = typeof pi.getActiveTools === "function" ? pi.getActiveTools() : [];
-      const excludeTools = active.includes("bash") ? [] : ["bash"];
-      return new PluginUiToolProxy({
-        cwd: host.cwd(),
-        isProjectTrusted: currentProjectTrusted,
-        extensions: inheritedExtensions(host),
-        excludeTools,
-      });
+  const pluginUi = new PluginUiController(
+    boot.pluginIndex,
+    {
+      ownedTools: () => [...ownedUiTools.values()],
+      allTools: () => (typeof pi.getAllTools === "function" ? pi.getAllTools() : []),
+      activeToolNames: () => (typeof pi.getActiveTools === "function" ? pi.getActiveTools() : []),
+      toolsAllow: () => scriptToolsAllow,
+      createProxy: () => {
+        const host = currentHost;
+        if (!host) return;
+        const active = typeof pi.getActiveTools === "function" ? pi.getActiveTools() : [];
+        const excludeTools = active.includes("bash") ? [] : ["bash"];
+        return new PluginUiToolProxy({
+          cwd: host.cwd(),
+          isProjectTrusted: currentProjectTrusted,
+          extensions: inheritedExtensions(host),
+          excludeTools,
+        });
+      },
     },
-  });
-  const pluginUiInspect = new PluginUiInspectController({
-    pluginIndex: boot.pluginIndex,
-    cancelCheckCalls: (checkId, reason) => pluginUi.cancelForCheck(checkId, reason),
-  });
-  pluginUi.setInspectBridge(pluginUiInspect);
-  let pluginUiToolRegistered = false;
+    pi.events,
+  );
+  // plugin-ui.md Section 7: UI-agnostic extension event seam.
+  if (typeof pi.events?.on === "function") {
+    pi.events.on(PLUGIN_UI_CANCEL_TAG_EVENT, (raw: unknown) => {
+      if (!isPlainObject(raw) || typeof raw.check !== "string") return;
+      const reason = typeof raw.reason === "string" ? raw.reason : undefined;
+      pluginUi.cancelForCheck(raw.check, reason);
+    });
+    pi.events.on(PLUGIN_CATALOG_EVENT, (raw: unknown) => {
+      if (!isPlainObject(raw)) return;
+      raw.plugins = boot.plugins.map((plugin) => ({
+        namespace: plugin.name,
+        root: plugin.root,
+      }));
+    });
+  }
   let taskWidget: TaskWidgetHandle | undefined;
   // Feeds for an RPC client (task.md Section 4.1, fleet-tool.md Section 6).
   let taskFeed: FeedHandle | undefined;
@@ -541,24 +541,8 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (event, ctx) => {
     recap.abort();
-    pluginUiInspect.cancelAll();
     pluginUi.cancelAll("Session ended");
     await pluginUi.disposeProxy();
-    if (!pluginUiToolRegistered && pluginUiInspectEnabled(process.env, ctx.mode)) {
-      pluginUiToolRegistered = true;
-      pi.registerTool(
-        makePluginUiTool(pluginUiInspect, (toolCtx, signal) => {
-          const host = currentHost;
-          const agentDir = host ? agentDirForHost(host) : agentsDirFor(undefined, "");
-          return {
-            cwd: toolCtx.cwd ?? host?.cwd() ?? process.cwd(),
-            agentDir,
-            setWidget: (key, lines) => toolCtx.ui.setWidget(key, lines),
-            signal,
-          };
-        }),
-      );
-    }
     currentProjectTrusted =
       typeof ctx.isProjectTrusted === "function" ? ctx.isProjectTrusted() : false;
     // billing.md Section 4.5: the diagnostics held with no open session go out first.
@@ -730,7 +714,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async (event, ctx) => {
     recap.abort();
-    pluginUiInspect.cancelAll();
     await pluginMcp.dispose();
     // Every open question ends with the shutdown result (ask-user-question-tool.md
     // Section 5), whatever fails later in this handler.
@@ -1001,7 +984,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.registerCommand("dent-ui", {
-    description: "Run and cancel plugin UI script calls, and take UI inspection results",
+    description: "Run and cancel plugin UI script calls",
     handler: async (args, ctx) => {
       if (ctx.mode !== "rpc") return;
       pluginUi.handleCommand(args, {

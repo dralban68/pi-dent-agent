@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -7,11 +7,17 @@ import { Type } from "typebox";
 import { defineTool, type ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import {
   asUiCallableTool,
+  PLUGIN_CATALOG_EVENT,
+  PLUGIN_UI_CANCEL_TAG_EVENT,
   PLUGIN_UI_PAYLOAD_CAP_BYTES,
   PLUGIN_UI_PROTOCOL,
+  PLUGIN_UI_RUN_OVERRIDE_EVENT,
   PLUGIN_UI_WIDGET_KEY,
   PluginUiController,
+  type PluginCatalogEventPayload,
+  type PluginUiRunOverrideRequest,
 } from "../../lib/plugin-ui.ts";
+import { toolDeclarations } from "../../lib/script-tool-types.ts";
 import { makeAgentTool } from "../../lib/tools.ts";
 import type { BootSnapshot } from "../../lib/engine.ts";
 import type { PluginEntry } from "../../lib/plugins.ts";
@@ -432,10 +438,7 @@ test("extension registers dent-ui command and gates execution to RPC mode", asyn
 
   const cmd = commands.get("dent-ui");
   assert.ok(cmd, "dent-ui command must be registered");
-  assert.equal(
-    cmd.description,
-    "Run and cancel plugin UI script calls, and take UI inspection results",
-  );
+  assert.equal(cmd.description, "Run and cancel plugin UI script calls");
 
   // Outside RPC mode: no-op
   const tuiWidgets: WidgetEvent[] = [];
@@ -764,4 +767,149 @@ test("deactivated direct tools are filtered out by activeToolNames and bound as 
   } finally {
     fx.cleanup();
   }
+});
+
+test("Section 7: run override event supports custom tools, stateDir, round, errors, and validation", async () => {
+  const fx = makePluginFixture();
+  try {
+    const stateDir = join(fx.dir, "scratch-state");
+    mkdirSync(stateDir, { recursive: true });
+    fx.writeScript(
+      "scripts/override-probe.ts",
+      `
+      await dent.state.set("k", "ws");
+      await dent.state.user.set("u", "usr");
+      const mock = await tools.MockTool({});
+      export default {
+        mock: mock.text,
+        ws: await dent.state.get("k"),
+        usr: await dent.state.user.get("u"),
+      };
+      `,
+    );
+
+    const seen: PluginUiRunOverrideRequest[] = [];
+    const events = {
+      emit(channel: string, data: unknown) {
+        if (channel !== PLUGIN_UI_RUN_OVERRIDE_EVENT) return;
+        const req = data as PluginUiRunOverrideRequest;
+        seen.push({ ...req });
+        if (req.check === "chk-1") {
+          req.result = {
+            ok: true,
+            stateDir,
+            tools: {
+              names: ["MockTool"],
+              unavailableNames: [],
+              declarations: toolDeclarations({ bound: [], unbound: [] }),
+              call: async () => ({
+                ok: true,
+                value: {
+                  text: "mock-ok",
+                  content: [{ type: "text", text: "mock-ok" }],
+                  details: undefined,
+                  structured: undefined,
+                },
+              }),
+            },
+          };
+        } else if (req.check === "chk-bad") {
+          req.result = { ok: false, error: "Rejected by override" };
+        }
+      },
+    };
+
+    const ctrl = new PluginUiController(
+      fx.pluginIndex,
+      { ownedTools: () => [], allToolNames: () => ["mcp", "Bash"] },
+      events,
+    );
+    const feed = makeFeedCollector();
+
+    // 1. Valid override with round + stateDir + custom tools
+    ctrl.handleCommand(
+      `run ${JSON.stringify({ id: "r1", namespace: "demo", root: fx.pluginRoot, path: "scripts/override-probe.ts", check: "chk-1", round: "dark" })}`,
+      { cwd: fx.dir, setWidget: feed.setWidget },
+    );
+    const r1 = await feed.waitForReply("r1");
+    assert.equal(r1.ok, true);
+    assert.deepEqual(r1.value, { mock: "mock-ok", ws: "ws", usr: "usr" });
+    assert.equal(seen[0]?.check, "chk-1");
+    assert.equal(seen[0]?.round, "dark");
+    assert.deepEqual(seen[0]?.sessionToolNames.toSorted(), ["Bash", "mcp"]);
+    assert.equal(existsSync(join(stateDir, "workspace")), true);
+    assert.equal(existsSync(join(stateDir, "user")), true);
+
+    // 2. Override rejects with custom error
+    ctrl.handleCommand(
+      `run ${JSON.stringify({ id: "r2", namespace: "demo", root: fx.pluginRoot, path: "scripts/override-probe.ts", check: "chk-bad" })}`,
+      { cwd: fx.dir, setWidget: feed.setWidget },
+    );
+    const r2 = await feed.waitForReply("r2");
+    assert.equal(r2.ok, false);
+    assert.equal(r2.error, "Rejected by override");
+
+    // 3. Unknown check (no listener sets result)
+    ctrl.handleCommand(
+      `run ${JSON.stringify({ id: "r3", namespace: "demo", root: fx.pluginRoot, path: "scripts/override-probe.ts", check: "chk-missing" })}`,
+      { cwd: fx.dir, setWidget: feed.setWidget },
+    );
+    const r3 = await feed.waitForReply("r3");
+    assert.equal(r3.ok, false);
+    assert.equal(r3.error, 'Unknown UI check "chk-missing"');
+
+    // 4. Non-string check & round without check
+    ctrl.handleCommand(
+      `run ${JSON.stringify({ id: "r4", namespace: "demo", root: fx.pluginRoot, path: "scripts/override-probe.ts", check: 123 })}`,
+      { cwd: fx.dir, setWidget: feed.setWidget },
+    );
+    const r4 = await feed.waitForReply("r4");
+    assert.equal(r4.ok, false);
+    assert.equal(r4.error, "Invalid UI check");
+
+    ctrl.handleCommand(
+      `run ${JSON.stringify({ id: "r5", namespace: "demo", root: fx.pluginRoot, path: "scripts/override-probe.ts", round: "light" })}`,
+      { cwd: fx.dir, setWidget: feed.setWidget },
+    );
+    const r5 = await feed.waitForReply("r5");
+    assert.equal(r5.ok, false);
+    assert.equal(r5.error, "Invalid check round");
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test("Section 7: cancel-tag and plugin-catalog events integrate through pi.events", () => {
+  const listeners = new Map<string, Array<(data: unknown) => void>>();
+  const piStub = {
+    events: {
+      on(channel: string, fn: (data: unknown) => void) {
+        const list = listeners.get(channel) ?? [];
+        list.push(fn);
+        listeners.set(channel, list);
+      },
+      emit(channel: string, data: unknown) {
+        for (const fn of listeners.get(channel) ?? []) fn(data);
+      },
+    },
+    on() {},
+    registerTool() {},
+    registerCommand() {},
+    registerShortcut() {},
+    registerMessageRenderer() {},
+    registerEntryRenderer() {},
+    getActiveTools: () => [],
+    getAllTools: () => [],
+    setActiveTools() {},
+    sendMessage() {},
+    sendUserMessage() {},
+    appendEntry() {},
+  };
+
+  piDentExtension(piStub as never);
+
+  const catalogPayload: PluginCatalogEventPayload = {};
+  piStub.events.emit(PLUGIN_CATALOG_EVENT, catalogPayload);
+  assert.equal(Array.isArray(catalogPayload.plugins), true);
+  assert.ok(listeners.has(PLUGIN_UI_CANCEL_TAG_EVENT));
 });

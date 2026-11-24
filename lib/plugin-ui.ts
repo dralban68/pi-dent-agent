@@ -25,7 +25,6 @@ import {
 } from "./script-tool-types.ts";
 import { errorCode, errorMessage, isPlainObject } from "./util.ts";
 import type { PluginUiToolProxy } from "./plugin-ui-proxy.ts";
-import { buildCheckRunTools, type ActiveUiCheck } from "./plugin-ui-inspect.ts";
 
 /**
  * Plugin UI protocol controller (specs/plugin-ui.md): handles `/dent-ui run`
@@ -37,6 +36,30 @@ import { buildCheckRunTools, type ActiveUiCheck } from "./plugin-ui-inspect.ts";
 export const PLUGIN_UI_WIDGET_KEY = "pi-dent-ui";
 export const PLUGIN_UI_PROTOCOL = "ui/1";
 export const PLUGIN_UI_PAYLOAD_CAP_BYTES = 262_144;
+
+export const PLUGIN_UI_RUN_OVERRIDE_EVENT = "pi-dent:plugin-ui-run-override:v1" as const;
+export const PLUGIN_UI_CANCEL_TAG_EVENT = "pi-dent:plugin-ui-cancel-tag:v1" as const;
+export const PLUGIN_CATALOG_EVENT = "pi-dent:plugin-catalog:v1" as const;
+
+export interface PluginUiRunOverrideRequest {
+  check: string;
+  round?: string;
+  sessionToolNames: string[];
+  result?: { ok: true; tools?: ScriptRunTools; stateDir?: string } | { ok: false; error: string };
+}
+
+export interface PluginUiCancelTagPayload {
+  check: string;
+  reason?: string;
+}
+
+export interface PluginCatalogEventPayload {
+  plugins?: Array<{ namespace: string; root: string }>;
+}
+
+export interface PluginUiEventEmitter {
+  emit(channel: string, data: unknown): void;
+}
 
 /** Tools pi-dent registers that are never callable from a plugin UI call (Section 4.2). */
 export const PLUGIN_UI_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
@@ -195,11 +218,6 @@ interface ActiveUiCall {
   cancelReason?: string;
 }
 
-export interface PluginUiInspectBridge {
-  getActiveCheck(id: string): ActiveUiCheck | undefined;
-  handleResult(rawJson: string): void;
-}
-
 function formatThrownError(
   error: { name: string; message: string; stack: string } | undefined,
 ): string {
@@ -210,18 +228,18 @@ function formatThrownError(
 export class PluginUiController {
   private readonly pluginIndex: ReadonlyMap<string, PluginEntry>;
   private readonly toolDeps: PluginUiToolDeps | undefined;
+  private readonly events: PluginUiEventEmitter | undefined;
   private readonly active = new Map<string, ActiveUiCall>();
   private proxy: PluginUiToolProxy | undefined;
-  private inspectBridge: PluginUiInspectBridge | undefined;
 
-  constructor(pluginIndex: ReadonlyMap<string, PluginEntry>, toolDeps?: PluginUiToolDeps) {
+  constructor(
+    pluginIndex: ReadonlyMap<string, PluginEntry>,
+    toolDeps?: PluginUiToolDeps,
+    events?: PluginUiEventEmitter,
+  ) {
     this.pluginIndex = pluginIndex;
     this.toolDeps = toolDeps;
-  }
-
-  /** Attach the UI inspection bridge for `check` runs and `/dent-ui result`. */
-  setInspectBridge(bridge: PluginUiInspectBridge): void {
-    this.inspectBridge = bridge;
+    this.events = events;
   }
 
   /** Number of UI calls currently executing. */
@@ -229,7 +247,7 @@ export class PluginUiController {
     return this.active.size;
   }
 
-  /** Handle one `/dent-ui <args>` command (specs/plugin-ui.md Sections 1-3, 8). */
+  /** Handle one `/dent-ui <args>` command (specs/plugin-ui.md Sections 1-3). */
   handleCommand(args: string, ctx: PluginUiCommandContext): void {
     const trimmed = args.trim();
     if (trimmed === "") return;
@@ -240,12 +258,10 @@ export class PluginUiController {
       this.handleRun(payload, ctx);
     } else if (subcommand === "cancel") {
       this.handleCancel(payload);
-    } else if (subcommand === "result") {
-      this.inspectBridge?.handleResult(payload);
     }
   }
 
-  /** Cancel every executing UI call belonging to one check (specs/plugin-ui-tool.md Section 3). */
+  /** Cancel every executing UI call tagged with `checkId` (specs/plugin-ui.md Section 7). */
   cancelForCheck(checkId: string, reason = "UI call was cancelled"): void {
     for (const entry of this.active.values()) {
       if (entry.checkId !== checkId) continue;
@@ -454,17 +470,41 @@ export class PluginUiController {
       emitReplyError(`Plugin "${parsed.namespace}" root mismatch`);
       return;
     }
-    let activeCheck: ActiveUiCheck | undefined;
-    if ("check" in parsed && parsed.check !== undefined) {
+    let checkId: string | undefined;
+    let overrideTools: ScriptRunTools | undefined;
+    let overrideStateDir: string | undefined;
+    const hasCheck = "check" in parsed && parsed.check !== undefined;
+    const hasRound = "round" in parsed && parsed.round !== undefined;
+    if (hasCheck) {
       if (typeof parsed.check !== "string") {
         emitReplyError("Invalid UI check");
         return;
       }
-      activeCheck = this.inspectBridge?.getActiveCheck(parsed.check);
-      if (activeCheck === undefined) {
+      if (hasRound && typeof parsed.round !== "string") {
+        emitReplyError("Invalid check round");
+        return;
+      }
+      const round = typeof parsed.round === "string" ? parsed.round : undefined;
+      const req: PluginUiRunOverrideRequest = {
+        check: parsed.check,
+        ...(round === undefined ? {} : { round }),
+        sessionToolNames: this.sessionToolNames(),
+      };
+      this.events?.emit(PLUGIN_UI_RUN_OVERRIDE_EVENT, req);
+      if (req.result === undefined) {
         emitReplyError(`Unknown UI check "${parsed.check}"`);
         return;
       }
+      if (!req.result.ok) {
+        emitReplyError(req.result.error);
+        return;
+      }
+      checkId = parsed.check;
+      overrideTools = req.result.tools;
+      overrideStateDir = req.result.stateDir;
+    } else if (hasRound) {
+      emitReplyError("Invalid check round");
+      return;
     }
     if (typeof parsed.path !== "string" || parsed.path.trim() === "") {
       emitReplyError("Invalid script path");
@@ -489,16 +529,11 @@ export class PluginUiController {
     }
 
     const data = parsed.data === undefined ? null : parsed.data;
-    const nonLiveCheck =
-      activeCheck !== undefined && activeCheck.backend !== "live" ? activeCheck : undefined;
-    const tools =
-      nonLiveCheck === undefined
-        ? this.buildRunTools(id, ctx)
-        : buildCheckRunTools(nonLiveCheck, this.sessionToolNames());
+    const tools = overrideTools ?? this.buildRunTools(id, ctx);
     const stateWorkspaceRoot =
-      nonLiveCheck?.stateDir === undefined ? ctx.cwd : join(nonLiveCheck.stateDir, "workspace");
+      overrideStateDir === undefined ? ctx.cwd : join(overrideStateDir, "workspace");
     const stateUserRoot =
-      nonLiveCheck?.stateDir === undefined ? undefined : join(nonLiveCheck.stateDir, "user");
+      overrideStateDir === undefined ? undefined : join(overrideStateDir, "user");
     let handle: ScriptRunHandle;
     try {
       handle = runScript({
@@ -524,7 +559,7 @@ export class PluginUiController {
 
     const entry: ActiveUiCall = {
       handle,
-      ...(activeCheck === undefined ? {} : { checkId: activeCheck.id }),
+      ...(checkId === undefined ? {} : { checkId }),
     };
     this.active.set(id, entry);
 
