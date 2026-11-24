@@ -354,10 +354,14 @@ terms:
     owner: specs/plugin-ui-tool.md
     group: Plugins
     key: shared
-    status: active
+    status: deprecated
+    reason: out-of-scope
     history:
       - date: 2026-11-24
         op: add
+      - date: 2026-11-24
+        op: deprecate
+        reason: out-of-scope
   - id: child-guidance
     label: child guidance
     meaning: "The billing text appended to a child session's system prompt"
@@ -770,12 +774,16 @@ terms:
     owner: specs/plugin-ui-tool.md
     group: Plugins
     key: shared
-    status: active
+    status: deprecated
+    reason: out-of-scope
     history:
       - date: 2026-11-24
         op: add
       - date: 2026-11-24
         op: update
+      - date: 2026-11-24
+        op: deprecate
+        reason: out-of-scope
   - id: fleet
     label: Fleet
     meaning: The tool that carries messages and queries between sibling sessions
@@ -979,10 +987,14 @@ terms:
     owner: specs/plugin-ui.md
     group: Plugins
     key: shared
-    status: active
+    status: deprecated
+    reason: out-of-scope
     history:
       - date: 2026-11-24
         op: add
+      - date: 2026-11-24
+        op: deprecate
+        reason: out-of-scope
   - id: interactive-terminal-ui
     label: interactive terminal UI
     meaning: "A session's user interface in terminal mode, as opposed to a session without one"
@@ -1889,10 +1901,14 @@ terms:
     owner: specs/plugin-ui-tool.md
     group: Plugins
     key: shared
-    status: active
+    status: deprecated
+    reason: out-of-scope
     history:
       - date: 2026-11-24
         op: add
+      - date: 2026-11-24
+        op: deprecate
+        reason: out-of-scope
   - id: script
     label: Script
     meaning: The tool that runs a TypeScript source or a plugin script in-process
@@ -2560,10 +2576,14 @@ terms:
     owner: specs/plugin-ui-tool.md
     group: Plugins
     key: shared
-    status: active
+    status: deprecated
+    reason: out-of-scope
     history:
       - date: 2026-11-24
         op: add
+      - date: 2026-11-24
+        op: deprecate
+        reason: out-of-scope
   - id: unknown-key-rule
     label: unknown-key rule
     meaning: The handling of an unknown key in a defined configuration object
