@@ -518,7 +518,7 @@ test("a plan-resolution failure on a later attempt settles like an execution fai
   // A row consumed before it settles is never listed by a completion
   // notification (task-registry.md Section 5). This one is listed, so the late
   // plan-resolution failure settles like an execution failure.
-  assert.deepEqual(notified, [`Background tasks settled:\n${taskId} · failed · dynamic — go`]);
+  assert.deepEqual(notified, [`Background tasks settled:\n${taskId} · failed · go`]);
 });
 
 test("a plan-resolution failure during delivery records its own phase and code", async () => {
@@ -577,7 +577,7 @@ test("the initial label falls back to the literal `task` when the first line of 
   });
   assert.equal(result.isError, true, textOf(result));
   const row = must(engine.registry.list()[0]);
-  assert.equal(row.label, "dynamic — task");
+  assert.equal(row.label, "task");
 });
 
 test("the label takes the whole first line of task, never a cut one", async () => {
@@ -601,7 +601,7 @@ test("the label takes the whole first line of task, never a cut one", async () =
   });
   assert.equal(result.isError, undefined, textOf(result));
   const row = must(engine.registry.get(must(detailsOf(result).taskId)));
-  assert.equal(row.label, `dynamic — ${firstLine}`);
+  assert.equal(row.label, firstLine);
   await waitForSettled(engine, row.taskId);
 });
 
@@ -625,7 +625,7 @@ test("the amended label uses the literal `task` when the first line of task is e
   });
   assert.equal(result.isError, undefined, textOf(result));
   const row = must(engine.registry.get(must(detailsOf(result).taskId)));
-  assert.equal(row.label, "dynamic — task");
+  assert.equal(row.label, "task");
   await waitForSettled(engine, row.taskId);
 });
 

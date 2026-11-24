@@ -294,7 +294,7 @@ test("background task: one running record, rewritten with the terminal status at
   }, "running record");
   assert.equal(running.taskId, taskId);
   assert.equal(running.agent, "dynamic");
-  assert.equal(running.label, "dynamic — go");
+  assert.equal(running.label, "go");
   assert.equal(running.model, modelLabel);
   assert.equal(running.cohort, "cohort-1");
   assert.equal(running.sessionPath, sessionPath);

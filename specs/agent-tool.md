@@ -238,14 +238,15 @@ Invocation registration MUST create the task row (`kind: "agent"`) first, before
 validation, per [task.md](task.md): every invocation — foreground, background, resumed, or
 rejected — has exactly one row, except as [task.md](task.md), Section 1 states, and groups into a
 cohort per [task-registry.md](task-registry.md) Section 5. Its initial `label` is
-`<agent> — <summary>`, where `<agent>` is the `agent` parameter, else `dynamic`, and `<summary>`
+`<agent> — <summary>` when the `agent` parameter is present, else `<summary>`, where `<summary>`
 is the named definition's `description` when the agent catalog has that agent and it carries one,
 else the first line of `task` when that line is not empty, else the literal `task`. The row is
 registered with `task` set to the `task` parameter. Once the plan resolves, the row MUST be
 amended with `agent` set to the plan's agent identity, `model` set to the canonical serialization
-of the plan's model, and `label` rebuilt the same way from the plan's agent identity; once an
-attempt's child session file path is fixed, with `sessionPath`. The row settles with the
-`status` of the last result record (Section 7).
+of the plan's model, and `label` rebuilt the same way from the plan's agent identity (omitting
+`<agent> — ` when the plan's agent identity is `dynamic`); once an attempt's child session file
+path is fixed, with `sessionPath`. The row settles with the `status` of the last result record
+(Section 7).
 
 A parameter validation failure (Section 1.1), a concurrent-`resume` rejection (Section 9), a
 dispatch with no live dispatching session, and a plan-resolution failure (Section 3; includes an

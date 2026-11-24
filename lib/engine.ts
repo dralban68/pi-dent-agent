@@ -1280,14 +1280,15 @@ function isTransient(message: string): boolean {
 }
 
 /**
- * The task row label of agent-tool.md Section 4.1: `<agent> — <summary>`, the summary being
- * the definition's `description` when the catalog has the agent and it carries one, else the
- * first line of `task` when that line is not empty, else the literal `task`.
+ * The task row label of agent-tool.md Section 4.1: `<agent> — <summary>` for a named agent, or
+ * `<summary>` alone for a dynamic dispatch, the summary being the definition's `description` when
+ * the catalog has the agent and it carries one, else the first line of `task` when that line is
+ * not empty, else the literal `task`.
  */
 function rowLabel(agent: string, definition: AgentDefinition | undefined, task: string): string {
   const firstTaskLine = task.split("\n", 1)[0] ?? "";
   const summary = definition?.description ?? (firstTaskLine === "" ? "task" : firstTaskLine);
-  return `${agent} — ${summary}`;
+  return agent === "dynamic" ? summary : `${agent} — ${summary}`;
 }
 
 /**
