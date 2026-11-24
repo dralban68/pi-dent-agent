@@ -29,7 +29,7 @@ import { runFleetCommand } from "./lib/fleet-command.ts";
 import { recapRuntime } from "./lib/recap.ts";
 import { renderRecapEntry } from "./lib/recap-render.ts";
 import { appendPluginContext, renderPluginCommand } from "./lib/plugins.ts";
-import { createPluginMcpRegistrar } from "./lib/plugin-mcp.ts";
+import { createPluginMcpRegistrar, pluginMcpExtensionFactory } from "./lib/plugin-mcp.ts";
 import {
   asUiCallableTool,
   makeUiToolContext,
@@ -322,11 +322,19 @@ export default function (pi: ExtensionAPI) {
         if (!host) return;
         const active = typeof pi.getActiveTools === "function" ? pi.getActiveTools() : [];
         const excludeTools = active.includes("bash") ? [] : ["bash"];
+        const hasPluginMcp = boot.plugins.some((p) => (p.mcpServers?.length ?? 0) > 0);
         return new PluginUiToolProxy({
           cwd: host.cwd(),
           isProjectTrusted: currentProjectTrusted,
           extensions: inheritedExtensions(host),
           excludeTools,
+          ...(hasPluginMcp
+            ? {
+                extraExtensionFactories: [
+                  pluginMcpExtensionFactory(boot.plugins, reportDiagnostic),
+                ],
+              }
+            : {}),
         });
       },
     },

@@ -44,6 +44,7 @@ import {
 } from "./catalogs.ts";
 import { resolveCwdParam } from "./cwd-param.ts";
 import { type PluginEntry, appendPluginContext, discoverPlugins } from "./plugins.ts";
+import { pluginMcpExtensionFactory } from "./plugin-mcp.ts";
 import { type BootConfig, parseScript, parseTaskBrowser, readConfig } from "./config.ts";
 import {
   type CompactionSettings,
@@ -2229,6 +2230,14 @@ export class DispatchEngine {
           ...(this.deps.builtinExtensions ?? defaultBuiltinExtensions()),
           // The read hint searches the child's own agent directory (Section 6).
           (pi) => registerReadErrorHint(pi, () => childDir),
+          // Plugin-declared HTTPS MCP servers (plugin.md Section 12).
+          ...(this.boot.plugins.some((p) => (p.mcpServers?.length ?? 0) > 0)
+            ? [
+                pluginMcpExtensionFactory(this.boot.plugins, (d) =>
+                  this.deps.reportWarning?.(d.message),
+                ),
+              ]
+            : []),
           // Inline extensions load after the inherited ones, so this runs after their own
           // start-of-run handlers and replaces their selection for the first run (Section 3.1).
           (pi) => {

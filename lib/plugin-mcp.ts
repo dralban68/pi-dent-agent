@@ -1,3 +1,4 @@
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import type { PluginEntry } from "./plugins.ts";
 import { type Diagnostic, errorMessage } from "./util.ts";
 
@@ -130,5 +131,25 @@ export function createPluginMcpRegistrar(
         }
       }
     },
+  };
+}
+
+/**
+ * Inline extension factory that registers admitted plugins' `mcpServers` into
+ * an isolated `AgentSession` (child session or plugin UI tool proxy) that loads
+ * `pi-mcp-adapter` without loading `pi-dent-agent` itself (plugin.md Section 12).
+ */
+export function pluginMcpExtensionFactory(
+  plugins: readonly PluginEntry[],
+  reportDiagnostic: (diagnostic: Diagnostic) => void,
+): ExtensionFactory {
+  return (pi) => {
+    const registrar = createPluginMcpRegistrar(pi.events, plugins, reportDiagnostic);
+    pi.on("session_start", () => {
+      registrar.register();
+    });
+    pi.on("session_shutdown", async () => {
+      await registrar.dispose();
+    });
   };
 }

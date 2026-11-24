@@ -374,7 +374,9 @@ only it does.
 ## 12. Plugin MCP servers
 
 An admitted plugin's valid `mcpServers` entries (Section 2) are registered with `pi-mcp-adapter` as
-runtime MCP servers when the main session starts.
+runtime MCP servers when the main session starts, and in every child session
+([agent-tool.md](agent-tool.md), Section 3.1) and plugin UI tool proxy session
+([plugin-ui.md](plugin-ui.md), Section 4.3) that inherits extensions.
 
 - The qualified server name is `<namespace>:<name>`, where `<namespace>` is the plugin's
   namespace (Section 3) and `<name>` is the server's key in `mcpServers`.

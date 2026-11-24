@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +9,7 @@ import { defineTool, type ExtensionToolContext } from "@earendil-works/pi-coding
 import { asUiCallableTool, PLUGIN_UI_WIDGET_KEY, PluginUiController } from "../../lib/plugin-ui.ts";
 import { PluginUiToolProxy } from "../../lib/plugin-ui-proxy.ts";
 import type { PluginEntry } from "../../lib/plugins.ts";
+import { pluginMcpExtensionFactory } from "../../lib/plugin-mcp.ts";
 
 interface ParsedUiRecord {
   piDent: string;
@@ -520,6 +522,101 @@ test("proxies a real stdio MCP server through pi-mcp-adapter loaded via DefaultR
       const reply = await feed.waitForReply("r-mcp");
       assert.equal(reply.ok, true, `expected ok reply, got: ${JSON.stringify(reply)}`);
       assert.match(String(reply.value), /pong:from-ui/);
+
+      await ctrl.disposeProxy();
+    } finally {
+      if (prevAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = prevAgentDir;
+    }
+  } finally {
+    await proxy?.dispose();
+    fx.cleanup();
+  }
+});
+
+test("proxy registers plugin-declared mcpServers with pi-mcp-adapter so plugin UI calls see them", async () => {
+  const fx = makeFixture();
+  let proxy: PluginUiToolProxy | undefined;
+  try {
+    const mcpAdapterPath = fileURLToPath(import.meta.resolve("pi-mcp-adapter"));
+    const agentDir = join(fx.dir, "agent-dir");
+    mkdirSync(agentDir, { recursive: true });
+    writeFileSync(join(agentDir, "mcp.json"), JSON.stringify({ mcpServers: {} }), "utf8");
+
+    const plugins: PluginEntry[] = [
+      {
+        name: "crm",
+        root: fx.pluginRoot,
+        commands: [],
+        mcpServers: [
+          {
+            name: "odoo-oauth",
+            url: "https://crm.unitai.dev/api/mcp",
+            auth: "oauth",
+            oauth: {
+              clientId: "pi-odoo-mcp",
+              scope: "openid mcp.read mcp.write",
+              callbackUrl: "http://127.0.0.1:3118/callback",
+            },
+          },
+        ],
+      },
+    ];
+
+    const prevAgentDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = agentDir;
+    try {
+      const diagnostics: string[] = [];
+      const ctrl = new PluginUiController(fx.pluginIndex, {
+        ownedTools: () => [],
+        allTools: () => [
+          {
+            name: "mcp",
+            description: "MCP gateway",
+            parameters: Type.Object({
+              tool: Type.Optional(Type.String()),
+              server: Type.Optional(Type.String()),
+              args: Type.Optional(Type.Object({})),
+            }),
+            exposure: "direct",
+          },
+        ],
+        activeToolNames: () => ["mcp"],
+        createProxy: () => {
+          proxy = new PluginUiToolProxy({
+            cwd: fx.dir,
+            isProjectTrusted: true,
+            extensions: {
+              sources: [mcpAdapterPath],
+              tools: [{ name: "mcp", source: mcpAdapterPath }],
+            },
+            builtinExtensions: [],
+            extraExtensionFactories: [
+              pluginMcpExtensionFactory(plugins, (d) => diagnostics.push(d.message)),
+            ],
+          });
+          return proxy;
+        },
+      });
+
+      fx.writeScript(
+        "scripts/list-mcp.ts",
+        `
+        const res = await tools.mcp({});
+        export default res.text;
+        `,
+      );
+
+      const feed = makeFeedCollector();
+      ctrl.handleCommand(
+        `run ${JSON.stringify({ id: "r-list-mcp", namespace: "demo", root: fx.pluginRoot, path: "scripts/list-mcp.ts", data: null })}`,
+        { cwd: fx.dir, setWidget: feed.setWidget, toolContext: {} as ExtensionToolContext },
+      );
+
+      const reply = await feed.waitForReply("r-list-mcp");
+      assert.equal(reply.ok, true, `expected ok reply, got: ${JSON.stringify(reply)}`);
+      assert.deepEqual(diagnostics, []);
+      assert.match(String(reply.value), /crm:odoo-oauth/);
 
       await ctrl.disposeProxy();
     } finally {
