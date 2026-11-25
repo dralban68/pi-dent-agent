@@ -128,20 +128,20 @@ of `{ "piDent": "tasks/2", "tasks": [<task>…] }`, one `<task>` per member of t
 (Section 3), whatever its `status` and `consumed`, depth-first, siblings in registration order,
 with no limit on their number:
 
-| Field        | Type    | Value                                                                                                                                                                                    |
-| ------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `taskId`     | string  | The task ID.                                                                                                                                                                             |
-| `depth`      | number  | 0 for a root, else one more than its parent's.                                                                                                                                           |
-| `kind`       | string  | `agent`, `script`, or `bash`.                                                                                                                                                            |
-| `background` | boolean | The row's `background`.                                                                                                                                                                  |
-| `status`     | string  | The row's `status`.                                                                                                                                                                      |
-| `orphan`     | boolean | `true` for an adopted task row.                                                                                                                                                          |
-| `startedAt`  | number  | The row's `startedAt`, milliseconds since the Unix epoch.                                                                                                                                |
-| `settledAt`  | number? | The row's `settledAt`, present once the task has settled.                                                                                                                                |
-| `detail`     | string  | `<detail>` of Section 4.                                                                                                                                                                 |
-| `label`      | string  | The display label, with the agent-directory substitution of [agent-tool.md](agent-tool.md), Section 4.2.                                                                                 |
-| `usage`      | object? | The row's `usage` ([agent-tool.md](agent-tool.md), Section 13) — `{ input, output, cacheRead, cacheWrite, cost, turns }`, own usage only — when present; absent for a row without usage. |
-| `toolCalls`  | number? | The row's `toolCalls` ([task-registry.md](task-registry.md), Section 2), own calls only, when present; absent for a `bash` row and for a row without one, never `0` in their place.      |
+| Field        | Type    | Value                                                                                                                                                                                           |
+| ------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `taskId`     | string  | The task ID.                                                                                                                                                                                    |
+| `depth`      | number  | 0 for a root, else one more than its parent's.                                                                                                                                                  |
+| `kind`       | string  | `agent`, `script`, or `bash`.                                                                                                                                                                   |
+| `background` | boolean | The row's `background`.                                                                                                                                                                         |
+| `status`     | string  | The row's `status`.                                                                                                                                                                             |
+| `orphan`     | boolean | `true` for an adopted task row.                                                                                                                                                                 |
+| `startedAt`  | number  | The row's `startedAt`, milliseconds since the Unix epoch.                                                                                                                                       |
+| `settledAt`  | number? | The row's `settledAt`, present once the task has settled.                                                                                                                                       |
+| `detail`     | string  | `<detail>` of Section 4.                                                                                                                                                                        |
+| `label`      | string  | The display label, with the agent-directory substitution of [agent-tool.md](agent-tool.md), Section 4.2.                                                                                        |
+| `usage`      | object? | The row's `usage` ([agent-tool.md](agent-tool.md), Section 13) — `{ input, output, cacheRead, cacheWrite, cost, turns }`, own usage only — when present; absent for a row without usage.        |
+| `toolCalls`  | number? | The row's `toolCalls` ([task-registry.md](task-registry.md), Section 2), own calls only, when present; absent for a `bash` row and for a rebuilt row, which has none, never `0` in their place. |
 
 - The client computes elapsed times itself: the feed MUST be set on a registry change
   ([task-registry.md](task-registry.md), Section 7) that changes its text, and MUST NOT be set

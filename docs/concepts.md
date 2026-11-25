@@ -138,7 +138,7 @@ session (main or child)
   index, and the only one that is a permanent history: one ledger row per task row of every kind,
   linked to its parent row (the dispatch whose child session, or the `Script` run whose nested
   call, registered it), and one ledger session row per main session for the session's own usage.
-  Both kinds of row also count tool calls beside the usage, null where the count is unknown.
+  Both kinds of row also count tool calls beside the usage; a `bash` row has no count.
   Totals are summed from the rows when read. It seeds the usage tally at `session_start`, and
   `Task` `list` and `Session` show its figures. Unlike a task record, it serves neither rebuild
   nor `resume`, and nothing deletes its rows.

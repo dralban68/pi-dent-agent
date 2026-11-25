@@ -133,8 +133,8 @@ notifications use it ([task-registry.md](task-registry.md), Section 5).
     present field only when `ledger` is `"ok"` and the row has a ledger row; a usage sum is the
     object `{ input, output, cacheRead, cacheWrite, cost, turns }`.
   - `toolCalls` is the ledger row's own tool-call count ([task-ledger.md](task-ledger.md),
-    Section 6), present only when `ledger` is `"ok"`, the row has a ledger row, and the count is
-    known; never `0` in place of an unknown count.
+    Section 6), present only when `ledger` is `"ok"`, the row has a ledger row, and that ledger
+    row has one; absent, never `0`, for a `bash` row.
 
 Example: `a1b2c3d4 · completed · 2m05s · 12 turns · $0.042 · total $0.118 · reviewer — Review the diff`.
 
