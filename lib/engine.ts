@@ -695,7 +695,7 @@ const SESSION_NOTE_LINES: readonly (readonly [tools: readonly string[], line: st
   ],
   [
     [],
-    "Your final message is the result returned to the caller: make it complete, and claim only what you verified.",
+    "Your final message (after all background tasks settle) is the result returned to the caller: make it complete, and claim only what you verified.",
   ],
 ];
 
