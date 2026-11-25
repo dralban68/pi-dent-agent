@@ -5,7 +5,7 @@
 
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { agentSegment, formatTokens, type UsageSum } from "./usage.ts";
+import { agentSegment, formatTokens, partialMarker, type UsageSum } from "./usage.ts";
 
 /** A host theme colour the footer uses. */
 export type FooterColor = "accent" | "dim" | "muted" | "warning" | "error";
@@ -92,6 +92,8 @@ export interface FooterContextUsage {
 export interface FooterTally {
   tasks: number;
   sum: UsageSum;
+  /** Whether the tally is partial (agent-tool.md Section 13); absent counts as not. */
+  partial?: boolean | undefined;
 }
 
 /** The footer inputs other than the width, the paint, and the host data provider. */
@@ -193,7 +195,9 @@ function statsLine(
   const withoutAgents = segments.join(" ");
 
   const agents =
-    input.tally.tasks >= 1 ? agentSegment(input.tally.tasks, input.tally.sum, paint) : undefined;
+    input.tally.tasks >= 1
+      ? `${agentSegment(input.tally.tasks, input.tally.sum, paint)}${partialMarker(input.tally.partial === true, paint)}`
+      : undefined;
   let left = fitLeft(
     agents === undefined ? withoutAgents : `${withoutAgents} ${paint("dim", "│")} ${agents}`,
     width,

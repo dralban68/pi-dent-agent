@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { isolateTaskLedger } from "../support/task-ledger-env.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -80,6 +81,7 @@ function makeProject(): { project: string; restore: () => void } {
   const prevTmpdir = process.env.TMPDIR;
   const prevCwd = process.cwd();
   process.env.HOME = home;
+  const restoreLedger = isolateTaskLedger(home);
   process.env.TMPDIR = join(root, "tmp");
   process.chdir(project);
   return {
@@ -88,6 +90,7 @@ function makeProject(): { project: string; restore: () => void } {
       process.chdir(prevCwd);
       if (prevHome === undefined) delete process.env.HOME;
       else process.env.HOME = prevHome;
+      restoreLedger();
       if (prevTmpdir === undefined) delete process.env.TMPDIR;
       else process.env.TMPDIR = prevTmpdir;
       rmSync(root, { recursive: true, force: true });
@@ -120,6 +123,8 @@ function makeCtx(project: string, notified: Notified[]): ExtensionContext {
     },
     sessionManager: {
       getSessionId: () => "bash-main-session",
+      getEntries: () => [],
+      getHeader: () => null,
       getSessionFile: () => join(project, "session.jsonl"),
       getSessionDir: () => project,
       getBranch: () => [],

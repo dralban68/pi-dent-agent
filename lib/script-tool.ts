@@ -1,4 +1,5 @@
 import { appendFileSync, readFileSync } from "node:fs";
+import { ledgerDispatched, ledgerToolLog } from "./task-ledger-wiring.ts";
 import { join } from "node:path";
 import { Type, type Static } from "typebox";
 import { defineTool, type ExtensionToolContext } from "@earendil-works/pi-coding-agent";
@@ -372,6 +373,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
           label: scriptLabel(params, shape),
           background,
           ...(shape.kind === "inline" ? { code: shape.code } : {}),
+          toolCallId,
         });
       } catch (error) {
         return textError(`Script error: ${errorMessage(error)}`);
@@ -403,6 +405,8 @@ export function makeScriptTool(deps: ScriptToolDeps) {
       // task-registry.md Section 2: the row's code is the resolved source, the
       // plugin file's content included (script-tool.md Section 5).
       row.code = source.code;
+      // The checks of Section 2 passed (task-ledger.md Section 2.2).
+      ledgerDispatched(row, cwd);
 
       // Timeout (Section 1): 1..600000; omitted defaults for foreground only.
       const timeoutMs = resolveScriptTimeout(params.timeout, background);
@@ -436,6 +440,8 @@ export function makeScriptTool(deps: ScriptToolDeps) {
         // Writes happen only while a nested call is open, and every open call is logged
         // when the run settles, before its result is built: the line always lands.
         reportFailure: (line) => void runHandle?.stderrLine(line),
+        // The tool log's path is the row's session_path (task-ledger.md Section 2.2).
+        onCreated: (path) => ledgerToolLog(row, path),
       });
       const toolCallsOf = () => ({
         count: toolLog.calls,

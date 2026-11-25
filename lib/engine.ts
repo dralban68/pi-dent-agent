@@ -77,7 +77,9 @@ import { type FleetCoordinator, ownedElsewhereWarning, ownSessionWarning } from 
 import { AgentTaskRow, TaskRegistry, type TaskStatus, SPILL_THRESHOLD } from "./registry.ts";
 import type { SettleStatus } from "./task-row.ts";
 import { rewriteSettledRecord, writeRunningRecord } from "./task-record.ts";
+import type { LedgerResume } from "./task-ledger.ts";
 import { addMessage, UsageTally } from "./usage.ts";
+import { childScope, ledgerDispatched, LedgerTap, type LedgerScope } from "./task-ledger-wiring.ts";
 import {
   makeAgentTool,
   makeFleetTool,
@@ -1316,6 +1318,11 @@ export interface EngineDeps {
    */
   usageTally?: UsageTally | undefined;
   /**
+   * Where the session's task rows go in the task ledger (task-ledger.md Sections 3.1 and 3.2),
+   * shared in spirit with every child and query engine; no ledger row is written without it.
+   */
+  ledger?: LedgerScope | undefined;
+  /**
    * The child's extension-shutdown deadline in milliseconds (agent-tool.md Section
    * 3.1); a test shortens it so reaching the limit costs no wall time.
    */
@@ -1364,7 +1371,7 @@ export class DispatchEngine {
     this.hostProvider = hostProvider;
     this.deps = { ...deps, reportWarning: deps.reportWarning ?? deps.reportNotification };
     this.bashSettings = deps.bashSettings;
-    this.current = new TaskRegistry(hostProvider, undefined, deps.reportNotification);
+    this.current = this.newRegistry();
     this.fleet = fleet;
   }
 
@@ -1373,10 +1380,21 @@ export class DispatchEngine {
     return this.current;
   }
 
+  /** A live registry whose rows the task ledger records (task-ledger.md Section 3.2). */
+  private newRegistry(): TaskRegistry {
+    const scope = this.deps.ledger;
+    return new TaskRegistry(
+      this.hostProvider,
+      undefined,
+      this.deps.reportNotification,
+      scope === undefined ? undefined : new LedgerTap(scope),
+    );
+  }
+
   /** Replace the registry with a new, empty, live one (task-registry.md Section 4). */
   resetRegistry(): void {
     if (this.current.live) this.current.end();
-    this.current = new TaskRegistry(this.hostProvider, undefined, this.deps.reportNotification);
+    this.current = this.newRegistry();
   }
 
   /** Cancel all owned tasks and any in-flight Fleet query child sessions. */
@@ -1416,6 +1434,8 @@ export class DispatchEngine {
         builtinExtensions: this.deps.builtinExtensions,
         // A query counts in the main session's tally, like the dispatch it is (Section 13).
         usageTally: this.usageTally,
+        // Its row is the target session's, under its ledger session ID (task-ledger.md 2.2).
+        ledger: this.deps.ledger,
       },
     );
     this.queryEngines.add(queryEngine);
@@ -1469,6 +1489,8 @@ export class DispatchEngine {
         label: rowLabel(agentIdentity, definition, params.task),
         background: params.background === true,
         task: params.task,
+        toolCallId: call.toolCallId,
+        fleetQuery: call.fleetQuery,
       });
     } catch (error) {
       return {
@@ -1501,6 +1523,8 @@ export class DispatchEngine {
       };
     };
 
+    // task-ledger.md Section 3.2: the row a `resume` continues, by task ID or by path.
+    let ledgerResume: LedgerResume | undefined;
     // A `resume` task ID resolves to the session file of that agent row; every
     // settled `agent` row naming that file, the resolved one included, is
     // consumed, so the two forms consume alike (Section 9). Rows are consumed
@@ -1516,6 +1540,7 @@ export class DispatchEngine {
         );
       }
       resumeSource = resumed.sessionPath;
+      ledgerResume = { by: "task", row: resumed.ledger?.ref };
       // The resolved row is consumed even when it already is: a consumed row's
       // record outlives the completion notification and is deleted here.
       if (resumed.status !== "running") consumeResumed.push(resumed);
@@ -1523,6 +1548,7 @@ export class DispatchEngine {
       params = { ...params, resume: resumeSource };
     } else if (typeof params.resume === "string") {
       resumeSource = params.resume;
+      ledgerResume = { by: "path" };
     }
     if (resumeSource !== undefined) {
       // Real paths are compared, so a symbolic link or a `..` segment does not
@@ -1605,6 +1631,13 @@ export class DispatchEngine {
     // Every pre-start check passed, so this dispatch counts in the usage tally
     // (agent-tool.md Section 13); a recovery attempt of it does not count again.
     this.usageTally.countTask();
+    // The pre-start checks passed (task-ledger.md Section 2.2). A path resume matches the path
+    // the row's session_path takes, set only once the child session opens it.
+    ledgerDispatched(
+      row,
+      plan.cwd,
+      ledgerResume?.by === "path" ? { by: "path", sessionPath: childSessionPath } : ledgerResume,
+    );
 
     registry.amend(row, {
       label: rowLabel(plan.agent, definition, plan.task),
@@ -2104,6 +2137,11 @@ export class DispatchEngine {
       }
     };
     const childCohorts = new CohortTracker();
+    // The child session's rows go under this dispatch's row (task-ledger.md Section 3.1, rule 2).
+    const childLedger =
+      this.deps.ledger === undefined
+        ? undefined
+        : childScope(this.deps.ledger, registryRow, () => plan.cwd);
     const records: AttemptRecord[] = [];
     let sessionPath: string | undefined;
 
@@ -2332,9 +2370,21 @@ export class DispatchEngine {
           hostProvider: () => childHost,
           cohortFor: (toolCallId) => childCohorts.cohortFor(toolCallId),
         }),
-        makeTaskTool({ registry: () => childEngineOrThrow().registry }),
+        makeTaskTool({
+          registry: () => childEngineOrThrow().registry,
+          ledger: () => childLedger?.holder.ledger,
+        }),
         makePluginTool(this.boot),
-        makeSessionTool({ boot: this.boot, hostProvider: () => childHost, billing: this.billing }),
+        makeSessionTool({
+          boot: this.boot,
+          hostProvider: () => childHost,
+          billing: this.billing,
+          // A child session's figures are its dispatch's row's (session-tool.md Section 2).
+          ledger:
+            childLedger === undefined
+              ? undefined
+              : { holder: childLedger.holder, row: registryRow },
+        }),
         makeScriptTool({
           boot: this.boot,
           registry: () => childEngineOrThrow().registry,
@@ -2642,6 +2692,7 @@ export class DispatchEngine {
             break;
           case "tool_execution_start":
             childCohorts.onToolExecutionStart(event.toolCallId, event.toolName);
+            childLedger?.calls.started(event.toolCallId, event.parentToolCallId);
             state.trace.push({
               kind: "tool_call",
               agent: plan.agent,
@@ -2652,6 +2703,7 @@ export class DispatchEngine {
             armIdle();
             break;
           case "tool_execution_end":
+            childLedger?.calls.ended(event.toolCallId);
             state.trace.push({
               kind: "tool_result",
               agent: plan.agent,
@@ -2866,6 +2918,7 @@ export class DispatchEngine {
             builtinExtensions: this.deps.builtinExtensions,
             // The child's messages count in the main session's tally (Section 13).
             usageTally: this.usageTally,
+            ledger: childLedger,
           },
         );
         registry.attach(registryRow, childEngine.registry);

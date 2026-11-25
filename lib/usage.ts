@@ -59,6 +59,18 @@ function usageSegments(sum: UsageSum): [turns: string, tokens: string, cost: str
   ];
 }
 
+/** `a` plus `b`, field by field. */
+export function addUsageSums(a: UsageSum, b: UsageSum): UsageSum {
+  return {
+    input: a.input + b.input,
+    output: a.output + b.output,
+    cacheRead: a.cacheRead + b.cacheRead,
+    cacheWrite: a.cacheWrite + b.cacheWrite,
+    cost: a.cost + b.cost,
+    turns: a.turns + b.turns,
+  };
+}
+
 /** `<usage>`: `<turns> <unit> · ↑<input> ↓<output><cache> · $<cost>`. */
 export function formatUsage(sum: UsageSum): string {
   return usageSegments(sum).join(" · ");
@@ -89,13 +101,22 @@ export function agentSegment(
   )}${dot}${paint("warning", cost)}`;
 }
 
+/** `<partial>`: ` (partial)` while the usage tally is partial, else empty (agent-tool.md Section 13). */
+export function partialMarker(partial: boolean, paint: StatusPaint = plainPaint): string {
+  return partial ? ` ${paint("dim", "(partial)")}` : "";
+}
+
 /**
- * The usage tally of one main session: the dispatches counted and the sum of their usage.
- * A throwing listener affects neither the tally nor the caller.
+ * The usage tally of one main session: the dispatches counted and the sum of their usage,
+ * seeded from the task ledger. A throwing listener affects neither the tally nor the caller.
  */
 export class UsageTally {
   tasks = 0;
   sum: UsageSum = zeroUsageSum();
+  /** True from `reset` until the seed read completes (agent-tool.md Section 13). */
+  partial = false;
+  /** Which `reset` a seed belongs to: a seed of an earlier session start is not applied. */
+  private generation = 0;
   private readonly listeners = new Set<() => void>();
 
   /** Count one dispatch that passed its pre-start checks. */
@@ -110,11 +131,23 @@ export class UsageTally {
     this.changed();
   }
 
-  /** `tasks` 0 and a zero sum, as at `session_start`. */
-  reset(): void {
+  /**
+   * `tasks` 0, a zero sum, and partial, as at `session_start`. Returns the function that
+   * applies the seed read's figures, ending the partial state; a later `reset` voids it.
+   */
+  reset(): (seed: { count: number; usage: UsageSum }) => void {
     this.tasks = 0;
     this.sum = zeroUsageSum();
+    this.partial = true;
+    const generation = ++this.generation;
     this.changed();
+    return (seed) => {
+      if (generation !== this.generation || !this.partial) return;
+      this.tasks += seed.count;
+      this.sum = addUsageSums(this.sum, seed.usage);
+      this.partial = false;
+      this.changed();
+    };
   }
 
   /**
@@ -123,7 +156,7 @@ export class UsageTally {
    */
   statusText(paint: StatusPaint = plainPaint): string | undefined {
     if (this.tasks === 0) return undefined;
-    return `${agentSegment(this.tasks, this.sum, paint)}${paint("dim", " │")}`;
+    return `${agentSegment(this.tasks, this.sum, paint)}${partialMarker(this.partial, paint)}${paint("dim", " │")}`;
   }
 
   subscribe(listener: () => void): () => void {

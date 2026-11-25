@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { TaskRegistry } from "./registry.ts";
+import type { TaskLedger } from "./task-ledger.ts";
 import { AgentTaskRow } from "./task-row.ts";
 import { recordFileName, scanRecords } from "./task-record.ts";
 
@@ -16,13 +17,15 @@ import { recordFileName, scanRecords } from "./task-record.ts";
  * (background true), pass them to `registry.rebuild(rows)`, and return the
  * number of rows inserted (0 when `scanRecords` returns `[]`, without calling
  * `rebuild`). A record whose taskId is already a row of the registry is skipped
- * by `rebuild` and not counted.
+ * by `rebuild` and not counted. With `ledger`, each inserted row is linked to the ledger row
+ * task-ledger.md Section 4.2 finds, which an `interrupted` row makes `interrupted`.
  */
 export function rebuildInterruptedTasks(
   registry: TaskRegistry,
   agentsDir: string,
   now?: number,
   report?: (message: string) => void,
+  ledger?: { ledger: TaskLedger; sessionId: string },
 ): number {
   const records = scanRecords(agentsDir, report);
   if (records.length === 0) return 0;
@@ -48,5 +51,22 @@ export function rebuildInterruptedTasks(
     }
     return row;
   });
-  return registry.rebuild(rows).length;
+  const inserted = registry.rebuild(rows);
+  if (ledger !== undefined) {
+    for (const row of inserted) {
+      const key = { sessionId: ledger.sessionId, taskId: row.taskId, startedAt: row.startedAt };
+      ledger.ledger.rebuildTask({ ...key, status: row.status });
+      row.ledger = {
+        ledger: ledger.ledger,
+        ref: key,
+        written: {
+          label: row.label,
+          agent: row.agent,
+          model: row.model,
+          sessionPath: row.sessionPath,
+        },
+      };
+    }
+  }
+  return inserted.length;
 }

@@ -1,4 +1,5 @@
 import type { TaskRegistry } from "./registry.ts";
+import type { LedgerLink } from "./task-ledger-wiring.ts";
 import type { UsageSum } from "./usage.ts";
 import { shortenSessionDir } from "./util.ts";
 
@@ -120,6 +121,8 @@ export abstract class TaskRow {
   browserKill = false;
   /** Cancellation handler, set by the owning contract; present while running. */
   cancel?: (() => void) | undefined;
+  /** The row's ledger row (task-ledger.md Section 2.2); absent when it has none. */
+  ledger?: LedgerLink | undefined;
 
   constructor(init: TaskRowInit) {
     this.taskId = init.taskId;

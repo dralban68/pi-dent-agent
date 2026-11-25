@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { isolateTaskLedger } from "../support/task-ledger-env.ts";
 import { test } from "node:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -79,6 +80,7 @@ function makeSandbox(prefix = "pi-dent-search-wiring-"): Sandbox {
     cwd: process.cwd(),
   };
   process.env.HOME = home;
+  const restoreLedger = isolateTaskLedger(home);
   process.env.TMPDIR = join(root, "tmp");
   delete process.env.PI_DENT_SEARCH_DB;
   process.chdir(project);
@@ -87,6 +89,7 @@ function makeSandbox(prefix = "pi-dent-search-wiring-"): Sandbox {
     home,
     restore: () => {
       process.chdir(previous.cwd);
+      restoreLedger();
       for (const [name, value] of [
         ["HOME", previous.home],
         ["TMPDIR", previous.tmpdir],
@@ -117,6 +120,8 @@ function makeCtx(project: string, sessionFile: string): ExtensionContext {
     },
     sessionManager: {
       getSessionId: () => "search-main-session",
+      getEntries: () => [],
+      getHeader: () => null,
       getSessionFile: () => sessionFile,
       getSessionDir: () => project,
       getBranch: () => [],

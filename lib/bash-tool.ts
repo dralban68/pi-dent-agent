@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { ledgerDispatched } from "./task-ledger-wiring.ts";
 import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { constants as osConstants, homedir } from "node:os";
 import { delimiter, join, sep } from "node:path";
@@ -873,6 +874,7 @@ export function makeBashTool(deps: BashToolDeps) {
           label: bashLabel(params),
           background,
           command: params.command,
+          toolCallId,
         });
       } catch (error) {
         return textError(`Bash error: ${errorMessage(error)}`);
@@ -893,6 +895,8 @@ export function makeBashTool(deps: BashToolDeps) {
       const settings = deps.settings(sessionCwd);
       const shell = resolveShell(settings);
       if ("error" in shell) return reject(shell.error);
+      // The checks of Section 2 passed (task-ledger.md Section 2.2).
+      ledgerDispatched(row, cwd);
       // Above 2147483647 the call imposes no timeout; an omitted one defaults for foreground only.
       const timeoutMs = resolveBashTimeout(params.timeout, background);
 

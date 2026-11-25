@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { isolateTaskLedger } from "../support/task-ledger-env.ts";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,11 +60,13 @@ function makeProject(modelGuidance: unknown): () => void {
   const prevHome = process.env.HOME;
   const prevCwd = process.cwd();
   process.env.HOME = home;
+  const restoreLedger = isolateTaskLedger(home);
   process.chdir(project);
   return () => {
     process.chdir(prevCwd);
     if (prevHome === undefined) delete process.env.HOME;
     else process.env.HOME = prevHome;
+    restoreLedger();
     rmSync(root, { recursive: true, force: true });
   };
 }
@@ -103,6 +106,8 @@ function liveContext(project: string, notifications: Notification[]): Record<str
     },
     sessionManager: {
       getSessionId: () => "billing-main",
+      getEntries: () => [],
+      getHeader: () => null,
       getSessionFile: () => join(project, "session.jsonl"),
       getSessionDir: () => project,
       getBranch: () => [],

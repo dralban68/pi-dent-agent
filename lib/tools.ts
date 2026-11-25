@@ -8,7 +8,16 @@ import type { HostSession } from "./host.ts";
 import type { BillingService } from "./billing.ts";
 import { type ModelRef, billingReportText } from "./billing-text.ts";
 import { killTask, type TaskKind, type TaskRegistry, type TaskRow } from "./registry.ts";
-import { labelText } from "./task-row.ts";
+import { formatElapsed, labelText } from "./task-row.ts";
+import type { TaskLedger } from "./task-ledger.ts";
+import {
+  figuresText,
+  readSessionUsage,
+  readTaskFigures,
+  sessionUsageLines,
+  type SessionLedgerSource,
+  type SessionUsageReport,
+} from "./task-ledger-wiring.ts";
 import { type SkillEntry, catalogLine } from "./catalogs.ts";
 import { errorCode, errorMessage, firstLine, shortenSessionDir } from "./util.ts";
 import {
@@ -361,6 +370,8 @@ export function makeAgentTool(deps: AgentToolDeps) {
 
 export interface TaskToolView {
   registry: () => TaskRegistry;
+  /** The extension instance's task ledger, for `list` (task-tool.md Section 2.3). */
+  ledger?: (() => TaskLedger | undefined) | undefined;
 }
 
 /** The header forms of a Bash excerpt, up to its path ([bash-tool.md](../specs/bash-tool.md) Section 4). */
@@ -536,23 +547,51 @@ function taskKill(registry: TaskRegistry, row: TaskRow): ToolResult {
   };
 }
 
-function taskList(registry: TaskRegistry): ToolResult {
+/** `list` (task-tool.md Section 2.3): one ledger read for every row, none without rows. */
+async function taskList(
+  registry: TaskRegistry,
+  ledger: TaskLedger | undefined,
+): Promise<ToolResult> {
   const rows = registry.list();
-  const lines = rows.length > 0 ? rows.map((row) => registry.listLine(row)) : ["(no tasks)"];
+  if (rows.length === 0) {
+    return {
+      content: [{ type: "text", text: "(no tasks)" }],
+      details: { action: "list", tasks: [] },
+    };
+  }
+  const read = await readTaskFigures(ledger, rows);
+  const now = Date.now();
+  const lines: string[] = [];
+  const tasks = rows.map((row) => {
+    const durationMs = Math.max(0, row.elapsedMs(now));
+    const { text, figures } = figuresText(row, read);
+    const label = labelText(row.label);
+    lines.push(
+      [
+        row.taskId,
+        row.status,
+        formatElapsed(durationMs),
+        ...(text === "" ? [] : [text]),
+        label,
+      ].join(" · "),
+    );
+    const entry: Record<string, unknown> = {
+      taskId: row.taskId,
+      status: row.status,
+      label,
+    };
+    if (row.resultPath) entry.resultPath = row.resultPath;
+    entry.durationMs = durationMs;
+    if (figures !== undefined) {
+      entry.usage = figures.own;
+      entry.total = figures.total;
+      entry.descendantMs = figures.descendantMs;
+    }
+    return entry;
+  });
   return {
     content: [{ type: "text", text: lines.join("\n") }],
-    details: {
-      action: "list",
-      tasks: rows.map((row) => {
-        const entry: Record<string, unknown> = {
-          taskId: row.taskId,
-          status: row.status,
-          label: labelText(row.label),
-        };
-        if (row.resultPath) entry.resultPath = row.resultPath;
-        return entry;
-      }),
-    },
+    details: { action: "list", ledger: read.status, tasks },
   };
 }
 
@@ -580,7 +619,7 @@ export function makeTaskTool(view: TaskToolView) {
         if (params.timeout !== undefined) {
           return textError(TIMEOUT_ONLY_WITH_WAIT);
         }
-        return taskList(registry);
+        return taskList(registry, view.ledger?.());
       }
       const taskId = params.taskId;
       if (taskId === undefined) {
@@ -650,6 +689,8 @@ export interface SessionToolDeps {
   hostProvider: () => HostSession | undefined;
   /** The main session's billing service; absent while billing is disabled (billing.md Section 1). */
   billing?: BillingService | undefined;
+  /** Where the usage figures are read (session-tool.md Section 2); `ledger` unavailable without. */
+  ledger?: SessionLedgerSource | undefined;
 }
 
 /** The `Session` tool (session-tool.md): a read-only report on the invoking session. */
@@ -673,6 +714,11 @@ export function makeSessionTool(deps: SessionToolDeps) {
       const host = deps.hostProvider();
       const sessionId = ctx?.sessionManager?.getSessionId?.() ?? host?.sessionId();
       if (!sessionId) return textError("no live session identity for Session");
+      // The ledger read is issued once, after the identity check; it is awaited with the rest.
+      const unread: SessionUsageReport = { ledger: "unavailable", usage: null };
+      const usageRead = deps.ledger
+        ? readSessionUsage(deps.ledger, sessionId)
+        : Promise.resolve(unread);
       const sessionFile = (ctx ? ctx.sessionManager.getSessionFile() : host?.sessionFile()) ?? null;
       const cwd = ctx?.cwd ?? host?.cwd() ?? process.cwd();
       const active = ctx ? ctx.model : host?.model();
@@ -710,11 +756,13 @@ export function makeSessionTool(deps: SessionToolDeps) {
         ? guided.map((g) => ({ provider: g.provider, id: g.id }))
         : available.map((entry) => ({ provider: entry.provider, id: entry.id }));
       const billingReport = deps.billing ? await deps.billing.report(refs, signal) : null;
+      const usage = await usageRead;
       const text = [
         `sessionId: ${sessionId}`,
         `sessionFile: ${sessionFile ?? "(none)"}`,
         `cwd: ${cwd}`,
         `model: ${model ?? "(none)"}`,
+        `ledger: ${usage.ledger}`,
         "models:",
         ...models,
         "modelClasses:",
@@ -726,6 +774,7 @@ export function makeSessionTool(deps: SessionToolDeps) {
         ...(billingReport
           ? [`billing (local zone ${billingReport.timeZone}):`, billingReportText(billingReport)]
           : []),
+        ...sessionUsageLines(usage),
       ].join("\n");
       return {
         content: [{ type: "text", text }],
@@ -738,6 +787,8 @@ export function makeSessionTool(deps: SessionToolDeps) {
           modelClasses,
           modelGuidance: report,
           billing: billingReport,
+          ledger: usage.ledger,
+          usage: usage.usage,
         },
       };
     },

@@ -367,6 +367,17 @@ test("the agents segment sits in the stats line while it fits", () => {
   assert.equal(sides(line).left, `${LEFT} │ ${AGENTS}`);
 });
 
+test("a partial tally carries the (partial) marker, in the stats line and on the status line", () => {
+  const partial = { tasks: 1, sum: TALLY, partial: true };
+  const line = statsOf(fitInput({ tally: partial, width: 120 }));
+  assert.equal(sides(line).left, `${LEFT} │ ${AGENTS} (partial)`);
+  const width = visibleWidth(`${AGENTS} (partial)`);
+  const lines = footerLines(fitInput({ tally: partial, width }));
+  assert.equal(at(lines, 2), `${AGENTS} (partial)`, "the moved segment keeps its marker");
+  const ended = statsOf(fitInput({ tally: { ...partial, partial: false }, width: 120 }));
+  assert.equal(sides(ended).left, `${LEFT} │ ${AGENTS}`, "gone once the seed read completed");
+});
+
 // --- the component -----------------------------------------------------------
 
 /** The smallest host the component needs; every part is a test's own. */

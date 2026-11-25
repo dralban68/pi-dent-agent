@@ -58,6 +58,13 @@ import { makeSearchTool, searchRuntime } from "./lib/search-tool.ts";
 import { makeMarkdownTool, markdownRuntime } from "pi-dent-markdown";
 import { pruneSessionIndex } from "./lib/session-index.ts";
 import { USAGE_STATUS_KEY, UsageTally } from "./lib/usage.ts";
+import { openTaskLedger } from "./lib/task-ledger.ts";
+import {
+  hostSessionUsage,
+  LedgerHolder,
+  NestedCalls,
+  type LedgerScope,
+} from "./lib/task-ledger-wiring.ts";
 import {
   SCHEDULE_STATUS_KEY,
   makeScheduleTool,
@@ -261,6 +268,38 @@ export default function (pi: ExtensionAPI) {
   // One per main session: every dispatch, child and Fleet query of it adds to this tally
   // (agent-tool.md Section 13), whose status line follows it while an interactive TUI is open.
   const usageTally = new UsageTally();
+  // task-ledger.md Section 1: one task ledger per extension instance, opened at its main
+  // session's first session_start and shared with every child and query engine.
+  const ledgerHolder = new LedgerHolder();
+  // The main session's identity and nested calls, as its rows are filed (Sections 2.2 and 3.1).
+  let ledgerSessionId: string | undefined;
+  let ledgerCwd: string | undefined;
+  const mainCalls = new NestedCalls();
+  const ledgerScope: LedgerScope = {
+    holder: ledgerHolder,
+    sessionId: () => ledgerSessionId,
+    cwd: () => currentHost?.cwd() ?? ledgerCwd,
+    calls: mainCalls,
+  };
+  /** Section 3.3: the main session's ledger session row, from the host's entries and header. */
+  const writeSessionRow = (ctx: ExtensionContext | undefined): void => {
+    const ledger = ledgerHolder.ledger;
+    if (ledger === undefined || ctx === undefined) return;
+    try {
+      const manager = ctx.sessionManager;
+      ledger.writeSession({
+        sessionId: manager.getSessionId(),
+        sessionFile: manager.getSessionFile() ?? null,
+        cwd: ctx.cwd,
+        usage: hostSessionUsage(manager),
+      });
+    } catch (error) {
+      reportDiagnostic({
+        level: "warning",
+        message: `task ledger session row not written: ${errorMessage(error)}`,
+      });
+    }
+  };
   const engine = new DispatchEngine(
     boot,
     () => currentHost,
@@ -272,6 +311,7 @@ export default function (pi: ExtensionAPI) {
       // task-registry.md Section 5: a notification the host did not deliver is shown once.
       reportNotification: (message) => reportDiagnostic({ level: "warning", message }),
       usageTally,
+      ledger: ledgerScope,
     },
   );
   const cohorts = new CohortTracker();
@@ -464,7 +504,7 @@ export default function (pi: ExtensionAPI) {
             thinkingLevel: pi.getThinkingLevel(),
             subscription: ctx.model !== undefined && ctx.modelRegistry.isUsingOAuth(ctx.model),
             autoCompact,
-            tally: { tasks: usageTally.tasks, sum: usageTally.sum },
+            tally: { tasks: usageTally.tasks, sum: usageTally.sum, partial: usageTally.partial },
           }),
           failed: fail,
           // The host dropped the footer: it is not ours to restore any more.
@@ -519,6 +559,8 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("message_end", async (event, ctx) => {
+    // task-ledger.md Section 3.3: every message end of the main session rewrites its row.
+    writeSessionRow(ctx);
     if (event.message?.role === "assistant") {
       const sid = ctx?.sessionManager?.getSessionId?.() ?? currentHost?.sessionId();
       if (sid) fleet.recordTurnGoal(sid, messageText(event.message.content));
@@ -527,6 +569,12 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("tool_execution_start", async (event) => {
     cohorts.onToolExecutionStart(event.toolCallId, event.toolName);
+    // task-ledger.md Section 3.1, rule 1: the calling tool call of a nested call.
+    mainCalls.started(event.toolCallId, event.parentToolCallId);
+  });
+
+  pi.on("tool_execution_end", async (event) => {
+    mainCalls.ended(event.toolCallId);
   });
 
   registerReadErrorHint(pi, () => process.env.PI_DENT_SESSION_DIR);
@@ -595,8 +643,23 @@ export default function (pi: ExtensionAPI) {
     const interactive = ctx.hasUI && ctx.mode === "tui";
     const drewFooter = interactive && footerSettings.enabled ? installFooter(ctx) : false;
     if (interactive && !drewFooter) stopUsageStatus = followTallyStatus(ctx.ui);
-    usageTally.reset();
     const sessionId = ctx.sessionManager.getSessionId();
+    // task-ledger.md Section 1: opened once per extension instance, before its first read or
+    // write; an unusable ledger is told once through the session's UI.
+    ledgerHolder.ledger ??= openTaskLedger({
+      notify: (message) =>
+        reportDiagnostic({ level: "warning", message: message.replace(/^pi-dent: /, "") }),
+    });
+    const ledger = ledgerHolder.ledger;
+    ledgerSessionId = sessionId;
+    ledgerCwd = ctx.cwd;
+    writeSessionRow(ctx);
+    // agent-tool.md Section 13: the tally restarts partial and is seeded by a read issued now,
+    // applied in the ledger order; a read that is not ok leaves it partial.
+    const seed = usageTally.reset();
+    void ledger.readAgentFigures(sessionId).then((read) => {
+      if (read.status === "ok") seed(read.value);
+    });
     window.activeSessions.add(sessionId);
     fleet.markMainSession(sessionId);
     // schedule-tool.md Sections 4 and 6: wired before any step that may throw,
@@ -645,8 +708,13 @@ export default function (pi: ExtensionAPI) {
     if (registered) {
       // task-record.md Section 3: the rebuild belongs to the boot window that owns
       // the session; a refused registration inserts no row and changes no record.
-      rebuildInterruptedTasks(engine.registry, agentsDir, undefined, (message) =>
-        ctx.ui.notify(message, "warning"),
+      rebuildInterruptedTasks(
+        engine.registry,
+        agentsDir,
+        undefined,
+        (message) => ctx.ui.notify(message, "warning"),
+        // task-ledger.md Section 4.2: each inserted row finds its ledger row.
+        { ledger, sessionId },
       );
     } else {
       ctx.ui.notify(`pi-dent: ${ownedElsewhereWarning(sessionId)}`, "warning");
@@ -720,7 +788,14 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_compact", async (_event, ctx) => {
+    // task-ledger.md Section 3.3: a compaction summary rewrites the ledger session row.
+    writeSessionRow(ctx);
     await guidanceCtl.sessionCompact(ctx);
+  });
+
+  pi.on("session_tree", async (event, ctx) => {
+    // task-ledger.md Section 3.3: so does a branch summary.
+    if (event.summaryEntry !== undefined) writeSessionRow(ctx);
   });
 
   pi.on("model_select", async (event, ctx) => {
@@ -777,6 +852,10 @@ export default function (pi: ExtensionAPI) {
     }
     shutdownStep("ending owned tasks", () => engine.registry.end(), reportShutdown);
     shutdownStep("cancelling owned task runs", () => engine.cancelAll(), reportShutdown);
+    // task-ledger.md Section 3.3, then Section 5: the connection closes once the writes issued so
+    // far are applied; a settlement issued later opens it again.
+    shutdownStep("writing the task ledger session row", () => writeSessionRow(ctx), reportShutdown);
+    shutdownStep("closing the task ledger", () => ledgerHolder.ledger?.close(), reportShutdown);
     shutdownStep(
       "cancelling plugin UI calls",
       () => pluginUi.cancelAll("Session ended"),
@@ -907,11 +986,18 @@ export default function (pi: ExtensionAPI) {
       });
     },
   });
-  registerOwnedTool(makeTaskTool({ registry: () => engine.registry }));
+  registerOwnedTool(
+    makeTaskTool({ registry: () => engine.registry, ledger: () => ledgerHolder.ledger }),
+  );
   registerOwnedTool(makePluginTool(boot));
   registerOwnedTool(makeFleetTool({ fleet, hostProvider: () => currentHost }));
   registerOwnedTool(
-    makeSessionTool({ boot, hostProvider: () => currentHost, billing: guidanceCtl.billing }),
+    makeSessionTool({
+      boot,
+      hostProvider: () => currentHost,
+      billing: guidanceCtl.billing,
+      ledger: { holder: ledgerHolder },
+    }),
   );
   // The main session binds `Skill` and carries the skill catalog like any
   // child whose tool cap includes it, clearing the host's own skill list on

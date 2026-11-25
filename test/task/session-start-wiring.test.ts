@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { isolateTaskLedger } from "../support/task-ledger-env.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -88,6 +89,7 @@ function makeProject(): { project: string; restore: () => void } {
   const prevDb = process.env.PI_DENT_FLEET_DB;
   const prevCwd = process.cwd();
   process.env.HOME = home;
+  const restoreLedger = isolateTaskLedger(home);
   process.env.TMPDIR = join(root, "tmp");
   process.env.PI_DENT_FLEET_DB = join(root, "fleet.sqlite");
   process.chdir(project);
@@ -97,6 +99,7 @@ function makeProject(): { project: string; restore: () => void } {
       process.chdir(prevCwd);
       if (prevHome === undefined) delete process.env.HOME;
       else process.env.HOME = prevHome;
+      restoreLedger();
       if (prevTmpdir === undefined) delete process.env.TMPDIR;
       else process.env.TMPDIR = prevTmpdir;
       if (prevDb === undefined) delete process.env.PI_DENT_FLEET_DB;
@@ -130,6 +133,8 @@ function makeCtx(project: string, notifications: Notification[]): ExtensionConte
     },
     sessionManager: {
       getSessionId: () => SESSION_ID,
+      getEntries: () => [],
+      getHeader: () => null,
       getSessionFile: () => join(project, "session.jsonl"),
       getSessionDir: () => project,
       getBranch: () => [],

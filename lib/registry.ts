@@ -46,7 +46,26 @@ export class RegistryNotLiveError extends Error {
   }
 }
 
-interface RegisterInput<K extends TaskKind> {
+/** What a `register` call tells the task ledger beyond the row (task-ledger.md Sections 2.2 and 3.1). */
+export interface RegisterCall {
+  /** The tool call that registers the row; absent for a `Fleet` query dispatch. */
+  toolCallId?: string | undefined;
+  /** Whether the row is a `Fleet` query dispatch's. */
+  fleetQuery?: boolean | undefined;
+}
+
+/**
+ * Observes `register`, a changing `amend`, and `settle` of the registry's rows, after each is
+ * applied: the task ledger's writes (task-ledger.md Section 3.2). A throwing observer affects
+ * neither the operation nor the task.
+ */
+export interface TaskObserver {
+  registered(row: TaskRow, call: RegisterCall): void;
+  amended(row: TaskRow, fields: object): void;
+  settled(row: TaskRow): void;
+}
+
+interface RegisterInput<K extends TaskKind> extends RegisterCall {
   kind: K;
   cohort: string;
   label: string;
@@ -78,20 +97,34 @@ export class TaskRegistry {
   private readonly nextTaskId: () => string;
   /** Reports a notification the host did not deliver to the boot window's UI (Section 5). */
   private readonly report?: ((message: string) => void) | undefined;
+  private readonly observer?: TaskObserver | undefined;
 
   /**
    * `nextTaskId` supplies the candidates a new row's `taskId` is drawn from: `shortUuid` by
    * default, a fake in a test that needs a collision (Section 2). `report` is the boot window's
-   * diagnostic sink; a registry without one, a child session's, reports nothing.
+   * diagnostic sink; a registry without one, a child session's, reports nothing. `observer`
+   * writes the task ledger.
    */
   constructor(
     hostProvider: () => HostSession | null | undefined,
     nextTaskId: () => string = shortUuid,
     report?: (message: string) => void,
+    observer?: TaskObserver,
   ) {
     this.hostProvider = hostProvider;
     this.nextTaskId = nextTaskId;
     this.report = report;
+    this.observer = observer;
+  }
+
+  /** Tell the observer; its failure never reaches the operation (task-ledger.md Section 3). */
+  private observe(notice: (observer: TaskObserver) => void): void {
+    if (this.observer === undefined) return;
+    try {
+      notice(this.observer);
+    } catch (error) {
+      process.emitWarning(`pi-dent: task ledger write failed: ${errorMessage(error)}`);
+    }
   }
 
   /** Whether the owning session is still current (Sections 1 and 4). */
@@ -130,6 +163,9 @@ export class TaskRegistry {
     if (row instanceof BashTaskRow && input.command !== undefined) row.command = input.command;
     if (row instanceof ScriptTaskRow && input.code !== undefined) row.code = input.code;
     this.owned.push(row);
+    this.observe((observer) =>
+      observer.registered(row, { toolCallId: input.toolCallId, fleetQuery: input.fleetQuery }),
+    );
     this.emit();
     return row;
   }
@@ -169,6 +205,7 @@ export class TaskRegistry {
     row.settledAt = Date.now();
     this.detachChildren(row);
     row.cancel = undefined;
+    this.observe((observer) => observer.settled(row));
     this.emit();
     this.notifyCohort(row.cohort);
   }
@@ -224,7 +261,9 @@ export class TaskRegistry {
     }
     if (row.status !== "running") return;
     const changed = row.apply(fields);
-    if (changed) this.emit();
+    if (!changed) return;
+    this.observe((observer) => observer.amended(row, fields));
+    this.emit();
   }
 
   /** Append one progress line, keeping the latest 1000; a no-op on a settled row (Section 3). */
@@ -372,7 +411,7 @@ export class TaskRegistry {
     return () => this.listeners.delete(listener);
   }
 
-  /** The `list` line format of task-tool.md Section 2.3, with the display label (task-registry.md Section 2). */
+  /** The summary line of task-tool.md Section 2.3, with the display label (task-registry.md Section 2). */
   listLine(row: TaskRow): string {
     return `${row.taskId} · ${row.status} · ${labelText(row.label)}`;
   }

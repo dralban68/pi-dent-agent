@@ -32,6 +32,8 @@ export interface ToolLogOptions {
   runStart: () => number;
   /** Append one line to the run's stderr. */
   reportFailure: (line: string) => void;
+  /** Called once the log file is created. */
+  onCreated?: ((path: string) => void) | undefined;
   now?: () => number;
 }
 
@@ -113,6 +115,7 @@ export class ScriptToolLog {
     }
     this.created = true;
     this.state = "open";
+    this.options.onCreated?.(this.path);
     this.append({ role: "user", content: source });
   }
 

@@ -31,10 +31,10 @@ test("Task list line uses the display label, not the raw label", async () => {
     undefined,
     undefined as never,
   );
-  assert.equal(
-    result.content[0]?.type === "text" ? result.content[0].text : "",
-    `${row.taskId} · running · ${DISPLAY_LABEL}`,
-  );
+  // Without a task ledger the figures say so (task-tool.md Section 2.3).
+  const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+  assert.ok(text.startsWith(`${row.taskId} · running · `), text);
+  assert.ok(text.endsWith(` · ledger unavailable · ${DISPLAY_LABEL}`), text);
   assert.equal(registry.listLine(row), `${row.taskId} · running · ${DISPLAY_LABEL}`);
 });
 

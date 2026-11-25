@@ -102,6 +102,36 @@ test("reset returns to no tasks and a zero sum", () => {
   assert.equal(tally.statusText(), undefined);
 });
 
+test("the tally is partial from reset until its seed applies; the status line says so meanwhile", () => {
+  const tally = new UsageTally();
+  let changes = 0;
+  tally.subscribe(() => (changes += 1));
+  const seed = tally.reset();
+  assert.equal(tally.partial, true);
+  tally.countTask();
+  tally.addMessage({ input: 1000, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0.25 } });
+  assert.equal(tally.statusText(), "1 agent · 1 turn · ↑1.0k ↓0 · $0.250 (partial) │");
+  const before = changes;
+  seed({
+    count: 2,
+    usage: { input: 500, output: 10, cacheRead: 0, cacheWrite: 0, cost: 0.5, turns: 3 },
+  });
+  assert.equal(changes, before + 1, "the end of the partial state is a change");
+  assert.equal(tally.partial, false);
+  assert.equal(tally.statusText(), "3 agents · 4 turns · ↑1.5k ↓10 · $0.750 │");
+  seed({ count: 9, usage: zeroUsageSum() });
+  assert.equal(tally.tasks, 3, "a seed applies once");
+});
+
+test("a seed of an earlier session start is not applied after the next reset", () => {
+  const tally = new UsageTally();
+  const stale = tally.reset();
+  tally.reset();
+  stale({ count: 4, usage: zeroUsageSum() });
+  assert.equal(tally.tasks, 0);
+  assert.equal(tally.partial, true, "the current seed has not completed");
+});
+
 test("a throwing listener affects neither the tally nor the caller", () => {
   const tally = new UsageTally();
   let calls = 0;

@@ -115,6 +115,9 @@ test("Session details: identity, null rules, sorted models, canonical classes", 
     },
     modelGuidance: null,
     billing: null,
+    // Without a task ledger the usage figures are unavailable (session-tool.md Section 2).
+    ledger: "unavailable",
+    usage: null,
   });
   const text = result.content[0];
   assert.equal(text?.type, "text");
@@ -125,6 +128,7 @@ test("Session details: identity, null rules, sorted models, canonical classes", 
       "sessionFile: /tmp/s.jsonl",
       "cwd: /w/cwd",
       "model: anthropic/claude:high",
+      "ledger: unavailable",
       "models:",
       "anthropic/Zed",
       "anthropic/claude",
@@ -133,6 +137,7 @@ test("Session details: identity, null rules, sorted models, canonical classes", 
       "big → anthropic/claude:high",
       "plain → anthropic/claude",
       "small → openai/gpt:low",
+      "usage: ledger unavailable",
     ].join("\n"),
   );
 });
@@ -148,6 +153,9 @@ test("Session: null file and model, empty models and classes", async () => {
     modelClasses: {},
     modelGuidance: null,
     billing: null,
+    // Without a task ledger the usage figures are unavailable (session-tool.md Section 2).
+    ledger: "unavailable",
+    usage: null,
   });
   const first = result.content[0];
   assert.equal(
@@ -157,8 +165,10 @@ test("Session: null file and model, empty models and classes", async () => {
       "sessionFile: (none)",
       "cwd: /w/cwd",
       "model: (none)",
+      "ledger: unavailable",
       "models:",
       "modelClasses:",
+      "usage: ledger unavailable",
     ].join("\n"),
   );
 });
@@ -228,7 +238,7 @@ test("Session: active model guidance filters models and appends guidance", async
   assert.equal(text?.type, "text");
   const textStr = text?.type === "text" ? text.text : "";
   assert.ok(
-    textStr.endsWith("Model guidance:\n- a/flash-1: quick edits"),
+    textStr.endsWith("Model guidance:\n- a/flash-1: quick edits\nusage: ledger unavailable"),
     `expected text to end with guidance, got:\n${textStr}`,
   );
 });
@@ -257,7 +267,7 @@ test("Session: active model guidance with leveled entry strips level for models 
   assert.equal(text?.type, "text");
   const textStr = text?.type === "text" ? text.text : "";
   assert.ok(
-    textStr.endsWith("Model guidance:\n- a/flash-1:high: deep thought"),
+    textStr.endsWith("Model guidance:\n- a/flash-1:high: deep thought\nusage: ledger unavailable"),
     `expected text to end with guidance, got:\n${textStr}`,
   );
 });
