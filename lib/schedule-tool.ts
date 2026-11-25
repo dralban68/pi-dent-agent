@@ -18,6 +18,11 @@ import { firstLine, errorMessage, isPlainObject, shortUuid } from "./util.ts";
  */
 const CHECK_INTERVAL_MS = 500;
 /** The `setStatus` key of Section 6. */
+export const SCHEDULE_TOOL_NAME = "Schedule";
+
+export const SCHEDULE_UNAVAILABLE_TEXT =
+  "Schedule is unavailable: this is an agent session with no user input.";
+
 export const SCHEDULE_STATUS_KEY = "pi-dent-schedule";
 /** The `customType` of a scheduled message (Section 4.2). */
 export const SCHEDULE_CUSTOM_TYPE = "pi-dent-schedule";
@@ -167,8 +172,12 @@ export interface ScheduleRuntime {
   sessionShutdown(options: { sessionId: string; reason: ScheduleShutdownReason }): void;
   /** `message_start`: the host inserted a scheduled message, or started someone else's (Section 4.2). */
   messageStarted(options: { sessionId: string; message: unknown }): void;
-  /** One `Schedule` call of the session (Sections 1.2 and 3). */
-  execute(options: { sessionId: string; params: ScheduleToolParams }): ToolResult;
+  /** One `Schedule` call of the session (Sections 1.2, 1.3, and 3). */
+  execute(options: {
+    sessionId: string;
+    params: ScheduleToolParams;
+    hasUI?: boolean | undefined;
+  }): ToolResult;
 }
 
 declare global {
@@ -577,7 +586,13 @@ export function scheduleRuntime(settings: {
     schedule.queuedDueAt = plan.firing.dueAt;
   }
 
-  function execute(options: { sessionId: string; params: ScheduleToolParams }): ToolResult {
+  function execute(options: {
+    sessionId: string;
+    params: ScheduleToolParams;
+    hasUI?: boolean | undefined;
+  }): ToolResult {
+    // Section 1.3: an agent session has no user input, so Schedule is unavailable.
+    if (options.hasUI === false) return textError(SCHEDULE_UNAVAILABLE_TEXT);
     const { params } = options;
     const action = actionOf(params);
     if (action === undefined) {
@@ -800,7 +815,11 @@ export function makeScheduleTool(runtime: ScheduleRuntime) {
       _onUpdate: ((partial: ToolResult) => void) | undefined,
       ctx: ExtensionToolContext,
     ): Promise<ToolResult> {
-      return runtime.execute({ sessionId: ctx.sessionManager.getSessionId(), params });
+      return runtime.execute({
+        sessionId: ctx.sessionManager.getSessionId(),
+        params,
+        hasUI: ctx.hasUI,
+      });
     },
   });
 }

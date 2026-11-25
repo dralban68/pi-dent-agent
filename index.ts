@@ -67,10 +67,17 @@ import {
 } from "./lib/task-ledger-wiring.ts";
 import {
   SCHEDULE_STATUS_KEY,
+  SCHEDULE_TOOL_NAME,
   makeScheduleTool,
   scheduleRuntime,
   type ScheduleWindow,
 } from "./lib/schedule-tool.ts";
+import {
+  type SessionKind,
+  SESSION_KIND_ENV,
+  appendSessionMode,
+  sessionKindForMain,
+} from "./lib/session-kind.ts";
 import {
   ASK_USER_TOOL_NAME,
   askUserRuntime,
@@ -199,6 +206,18 @@ function hideAskUserQuestionWithoutUi(pi: ExtensionAPI, ctx: ExtensionContext): 
 }
 
 /**
+ * schedule-tool.md Section 1.3: in an agent session (no user interface) `Schedule`
+ * leaves the active tool set before the session's first model request, every other
+ * tool's activity unchanged; in a user session, its activity stays as the host set it.
+ */
+function hideScheduleWithoutUi(pi: ExtensionAPI, ctx: ExtensionContext): void {
+  if (ctx.hasUI) return;
+  const active = pi.getActiveTools();
+  if (!active.includes(SCHEDULE_TOOL_NAME)) return;
+  pi.setActiveTools(active.filter((name) => name !== SCHEDULE_TOOL_NAME));
+}
+
+/**
  * bash-tool.md Section 7: every session_start deactivates the built-in `bash`,
  * and a selection that still names it while omitting `Bash` leaves the session
  * without a shell tool.
@@ -257,6 +276,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerEntryRenderer("pi-dent-recap", renderRecapEntry);
 
   let currentHost: HostSession | undefined;
+  let currentSessionKind: SessionKind | undefined;
   // bash-tool.md Section 3: one settings reader per boot window, shared by the main session's
   // Bash and every child session's, so each unreadable file is reported once per boot window.
   const bashSettings = (cwd: string) =>
@@ -618,9 +638,13 @@ export default function (pi: ExtensionAPI) {
     pluginMcp.register();
     // Section 7: removed before the handler returns, whatever fails later.
     deactivateBuiltinBash(pi, ctx);
-    // ask-user-question-tool.md Section 1.4: hidden in print and JSON mode before
-    // the session's first model request.
+    // ask-user-question-tool.md Section 1.4 and schedule-tool.md Section 1.3:
+    // hidden in print and JSON mode (agent sessions) before the first model request.
     hideAskUserQuestionWithoutUi(pi, ctx);
+    hideScheduleWithoutUi(pi, ctx);
+    // session-tool.md Section 3.1: expose the main session's kind in process.env.
+    currentSessionKind = sessionKindForMain(ctx.hasUI);
+    process.env[SESSION_KIND_ENV] = currentSessionKind;
     agentTool.refresh(modelCatalog(guidance, ctx.modelRegistry?.getAvailable() ?? []));
     currentHost = hostFromContext(pi, ctx);
     engine.resetRegistry();
@@ -899,6 +923,11 @@ export default function (pi: ExtensionAPI) {
         fleet.close(event.reason === "reload" ? { keepPending: true } : undefined);
       }
     }
+    // session-tool.md Section 3.1: unset PI_DENT_SESSION_KIND when it still holds this session's value.
+    if (currentSessionKind !== undefined && process.env[SESSION_KIND_ENV] === currentSessionKind) {
+      delete process.env[SESSION_KIND_ENV];
+    }
+    currentSessionKind = undefined;
     // The pi ctx behind the host is stale from here on.
     currentHost = undefined;
     // billing.md Section 4.5: the next diagnostic waits for the next session_start.
@@ -1008,14 +1037,16 @@ export default function (pi: ExtensionAPI) {
   // every turn (skill-tool.md Section 1). Plugin context blocks follow the
   // skill catalog on every turn (plugin.md Section 10).
   if (boot.skills.length > 0) registerOwnedTool(makeSkillTool(boot));
-  pi.on("before_agent_start", async (event) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     if (event.systemPromptOptions?.skills) event.systemPromptOptions.skills.length = 0;
     const basePrompt = event.systemPrompt;
     const withSkills =
       boot.skills.length > 0 && pi.getActiveTools().includes("Skill")
         ? appendSkillCatalog(basePrompt, boot.skills)
         : basePrompt;
-    const systemPrompt = appendPluginContext(withSkills, boot.plugins);
+    const withPlugins = appendPluginContext(withSkills, boot.plugins);
+    const kind = ctx?.hasUI === undefined ? currentSessionKind : sessionKindForMain(ctx.hasUI);
+    const systemPrompt = kind === undefined ? withPlugins : appendSessionMode(withPlugins, kind);
     return systemPrompt === basePrompt ? undefined : { systemPrompt };
   });
   pi.registerTool(

@@ -6,6 +6,7 @@ import { after, test } from "node:test";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { getApiProvider, registerFauxProvider } from "@earendil-works/pi-ai/compat";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
+import { AGENT_SESSION_MODE_LINE } from "../../lib/session-kind.ts";
 import {
   DispatchEngine,
   buildChildSystemPrompt,
@@ -333,7 +334,10 @@ test("child system prompt gets matching rule texts appended (and not non-matchin
     { provider: "p", id: "main" },
     boot.config,
   );
-  assert.equal(prompt, "Base system prompt\n\nrule for main model\n\nrule for p provider");
+  assert.equal(
+    prompt,
+    `Base system prompt\n\nrule for main model\n\nrule for p provider\n\n${AGENT_SESSION_MODE_LINE}`,
+  );
 
   // For a model that doesn't match the first rule
   const prompt2 = buildChildSystemPrompt(
@@ -342,7 +346,7 @@ test("child system prompt gets matching rule texts appended (and not non-matchin
     { provider: "p", id: "other" },
     boot.config,
   );
-  assert.equal(prompt2, "Base prompt\n\nrule for p provider");
+  assert.equal(prompt2, `Base prompt\n\nrule for p provider\n\n${AGENT_SESSION_MODE_LINE}`);
 
   // When skills are also present, skills section is preserved before rules
   const skill = { name: "test-skill", description: "a test skill", body: "...", source: "..." };
@@ -354,7 +358,7 @@ test("child system prompt gets matching rule texts appended (and not non-matchin
   );
   assert.equal(
     promptWithSkills,
-    "Base prompt\n\n<available_skills>\ntest-skill — a test skill\n</available_skills>\n\nrule for main model\n\nrule for p provider",
+    `Base prompt\n\n<available_skills>\ntest-skill — a test skill\n</available_skills>\n\nrule for main model\n\nrule for p provider\n\n${AGENT_SESSION_MODE_LINE}`,
   );
 });
 

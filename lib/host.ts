@@ -2,6 +2,7 @@ import type { Api } from "@earendil-works/pi-ai";
 import type { Model } from "@earendil-works/pi-ai/compat";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { ThinkingLevel } from "./model-string.ts";
+import type { SessionKind } from "./session-kind.ts";
 
 /** A provider configuration as a model runtime registers it. */
 export type ProviderConfigInput = Parameters<ModelRuntime["registerProvider"]>[1];
@@ -61,6 +62,8 @@ export interface HostSession {
   sessionFile(): string | undefined;
   /** Directory of the session file (default session dir when not persisted). */
   sessionDir(): string;
+  /** Session kind (`"user"` or `"agent"`, session-tool.md Section 3). */
+  sessionKind?(): SessionKind;
   model(): { provider: string; id: string } | undefined;
   thinking(): ThinkingLevel | undefined;
   /** Live active tool set, in session order (the tool cap). */

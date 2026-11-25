@@ -5,6 +5,7 @@ import { defineTool, keyHint, type ToolDefinition } from "@earendil-works/pi-cod
 import { Text, TruncatedText } from "@earendil-works/pi-tui";
 import type { BootSnapshot, DispatchFn, ToolResult, UpdateCallback } from "./engine.ts";
 import type { HostSession } from "./host.ts";
+import { type SessionKind, sessionKindForMain } from "./session-kind.ts";
 import type { BillingService } from "./billing.ts";
 import { type ModelRef, billingReportText } from "./billing-text.ts";
 import { killTask, type TaskKind, type TaskRegistry, type TaskRow } from "./registry.ts";
@@ -689,6 +690,8 @@ export const sessionParameterSchema = Type.Object({}, { additionalProperties: fa
 export interface SessionToolDeps {
   boot: BootSnapshot;
   hostProvider: () => HostSession | undefined;
+  /** Fixed session kind (e.g. `"agent"` for a child session); omitted for main sessions. */
+  sessionKind?: SessionKind | undefined;
   /** The main session's billing service; absent while billing is disabled (billing.md Section 1). */
   billing?: BillingService | undefined;
   /** Where the usage figures are read (session-tool.md Section 2); `ledger` unavailable without. */
@@ -716,6 +719,12 @@ export function makeSessionTool(deps: SessionToolDeps) {
       const host = deps.hostProvider();
       const sessionId = ctx?.sessionManager?.getSessionId?.() ?? host?.sessionId();
       if (!sessionId) return textError("no live session identity for Session");
+      const sessionKind: SessionKind =
+        deps.sessionKind ??
+        (ctx?.hasUI === undefined
+          ? (host?.sessionKind?.() ?? "agent")
+          : sessionKindForMain(ctx.hasUI));
+      const userInput = sessionKind === "user";
       // The ledger read is issued once, after the identity check; it is awaited with the rest.
       const unread: SessionUsageReport = { ledger: "unavailable", usage: null };
       const usageRead = deps.ledger
@@ -761,6 +770,8 @@ export function makeSessionTool(deps: SessionToolDeps) {
       const usage = await usageRead;
       const text = [
         `sessionId: ${sessionId}`,
+        `sessionKind: ${sessionKind}`,
+        `userInput: ${userInput}`,
         `sessionFile: ${sessionFile ?? "(none)"}`,
         `cwd: ${cwd}`,
         `model: ${model ?? "(none)"}`,
@@ -782,6 +793,8 @@ export function makeSessionTool(deps: SessionToolDeps) {
         content: [{ type: "text", text }],
         details: {
           sessionId,
+          sessionKind,
+          userInput,
           sessionFile,
           cwd,
           model,

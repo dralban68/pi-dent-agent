@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { guidanceToInject } from "../../lib/guidance-inject.ts";
 import { BillingService } from "../../lib/billing.ts";
 import { buildChildSystemPrompt, dispatchChildGuidance } from "../../lib/engine.ts";
+import { AGENT_SESSION_MODE_LINE } from "../../lib/session-kind.ts";
 import {
   GUIDANCE_CUSTOM_TYPE,
   billingEnabled,
@@ -236,23 +237,23 @@ test("child guidance: sections 1 and 2; billing lines only with billing text; em
   assert.equal(childGuidance(guidance, inventory, undefined), "", "no billing, no lines");
 });
 
-test("child system prompt: skills, rules, then the child guidance after a blank line", () => {
+test("child system prompt: skills, rules, then the child guidance, then session mode line", () => {
   const config = boot({ rules: [{ match: "m", rule: "a rule" }] }).config;
   assert.equal(
     buildChildSystemPrompt("Base", [], { provider: "p", id: "m" }, config, "GUIDANCE"),
-    "Base\n\na rule\n\nGUIDANCE",
+    `Base\n\na rule\n\nGUIDANCE\n\n${AGENT_SESSION_MODE_LINE}`,
   );
   assert.equal(
     buildChildSystemPrompt("Base", [], { provider: "p", id: "x" }, config, "GUIDANCE"),
-    "Base\n\nGUIDANCE",
+    `Base\n\nGUIDANCE\n\n${AGENT_SESSION_MODE_LINE}`,
   );
   assert.equal(
     buildChildSystemPrompt("Base", [], { provider: "p", id: "m" }, config),
-    "Base\n\na rule",
+    `Base\n\na rule\n\n${AGENT_SESSION_MODE_LINE}`,
   );
   assert.equal(
     buildChildSystemPrompt("Base", [], { provider: "p", id: "m" }, config, ""),
-    "Base\n\na rule",
+    `Base\n\na rule\n\n${AGENT_SESSION_MODE_LINE}`,
   );
 });
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { appendSkillCatalog, buildChildSystemPrompt } from "../../lib/engine.ts";
+import { AGENT_SESSION_MODE_LINE } from "../../lib/session-kind.ts";
 import type { SkillEntry } from "../../lib/catalogs.ts";
 import type { BootConfig } from "../../lib/config.ts";
 import { appendPluginContext, type PluginEntry } from "../../lib/plugins.ts";
@@ -64,6 +65,8 @@ test("child prompt: skill catalog, then plugin context blocks, then session rule
       "</plugin_context>",
       "",
       "a rule",
+      "",
+      AGENT_SESSION_MODE_LINE,
     ].join("\n"),
   );
 });
@@ -74,7 +77,7 @@ test("child prompt: plugin context precedes the child guidance", () => {
   ]);
   assert.equal(
     prompt,
-    'Base\n\n<plugin_context plugin="alpha">\nAlpha rules.\n</plugin_context>\n\nGUIDANCE',
+    `Base\n\n<plugin_context plugin="alpha">\nAlpha rules.\n</plugin_context>\n\nGUIDANCE\n\n${AGENT_SESSION_MODE_LINE}`,
   );
 });
 
@@ -82,9 +85,12 @@ test("child prompt: no admitted plugin context leaves the prompt unchanged", () 
   const cfg = config([{ match: "m", rule: "a rule" }]);
   assert.equal(
     buildChildSystemPrompt("Base", [], model, cfg, undefined, [plugin("alpha")]),
-    "Base\n\na rule",
+    `Base\n\na rule\n\n${AGENT_SESSION_MODE_LINE}`,
   );
-  assert.equal(buildChildSystemPrompt("Base", [], model, cfg), "Base\n\na rule");
+  assert.equal(
+    buildChildSystemPrompt("Base", [], model, cfg),
+    `Base\n\na rule\n\n${AGENT_SESSION_MODE_LINE}`,
+  );
 });
 
 test("main session: plugin context follows the skill catalog append", () => {

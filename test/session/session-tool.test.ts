@@ -104,6 +104,8 @@ test("Session details: identity, null rules, sorted models, canonical classes", 
   assert.notEqual(result.isError, true);
   assert.deepEqual(result.details, {
     sessionId: "s-uuid",
+    sessionKind: "agent",
+    userInput: false,
     sessionFile: "/tmp/s.jsonl",
     cwd: "/w/cwd",
     model: "anthropic/claude:high",
@@ -125,6 +127,8 @@ test("Session details: identity, null rules, sorted models, canonical classes", 
     text?.type === "text" ? text.text : "",
     [
       "sessionId: s-uuid",
+      "sessionKind: agent",
+      "userInput: false",
       "sessionFile: /tmp/s.jsonl",
       "cwd: /w/cwd",
       "model: anthropic/claude:high",
@@ -146,6 +150,8 @@ test("Session: null file and model, empty models and classes", async () => {
   const result = await run({ boot: boot() }, {}, stubCtx("s2"));
   assert.deepEqual(result.details, {
     sessionId: "s2",
+    sessionKind: "agent",
+    userInput: false,
     sessionFile: null,
     cwd: "/w/cwd",
     model: null,
@@ -162,6 +168,8 @@ test("Session: null file and model, empty models and classes", async () => {
     first?.type === "text" ? first.text : "",
     [
       "sessionId: s2",
+      "sessionKind: agent",
+      "userInput: false",
       "sessionFile: (none)",
       "cwd: /w/cwd",
       "model: (none)",

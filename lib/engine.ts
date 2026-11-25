@@ -52,6 +52,7 @@ import {
   type HostSession,
   extensionProvidersOf,
 } from "./host.ts";
+import { appendSessionMode, sessionKindForMain } from "./session-kind.ts";
 import type { BillingService } from "./billing.ts";
 import {
   childGuidance,
@@ -711,8 +712,8 @@ export function sessionNotes(dir: string, tools: readonly string[]): string {
 
 /**
  * Build child session system prompt per specs/agent-tool.md Section 4.2, specs/plugin.md
- * Section 10, and specs/model-guidance.md Section 4: prompt, skill catalog, plugin context,
- * session rules, child guidance.
+ * Section 10, specs/model-guidance.md Section 4, and specs/session-tool.md Section 3.2:
+ * prompt, skill catalog, plugin context, session rules, child guidance, session mode line.
  */
 export function buildChildSystemPrompt(
   prompt: string,
@@ -729,7 +730,8 @@ export function buildChildSystemPrompt(
     childRules.length > 0
       ? `${promptWithSkills}${childRules.map((r) => `\n\n${r}`).join("")}`
       : promptWithSkills;
-  return childGuidanceText ? `${withRules}\n\n${childGuidanceText}` : withRules;
+  const withGuidance = childGuidanceText ? `${withRules}\n\n${childGuidanceText}` : withRules;
+  return appendSessionMode(withGuidance, "agent");
 }
 
 /**
@@ -935,6 +937,7 @@ export function hostFromContext(
     sessionId: () => ctx.sessionManager.getSessionId(),
     sessionFile: () => ctx.sessionManager.getSessionFile(),
     sessionDir: () => ctx.sessionManager.getSessionDir(),
+    sessionKind: () => sessionKindForMain(ctx.hasUI),
     model: () => (ctx.model ? { provider: ctx.model.provider, id: ctx.model.id } : undefined),
     thinking: () => ctx.thinkingLevel,
     activeTools: () => pi.getActiveTools(),
@@ -990,6 +993,7 @@ export function hostFromSessionBox(
     sessionId: () => session()?.sessionId ?? "",
     sessionFile: () => session()?.sessionFile,
     sessionDir: () => session()?.sessionManager.getSessionDir() ?? "",
+    sessionKind: () => "agent",
     model: () => {
       const model = session()?.model;
       return model ? { provider: model.provider, id: model.id } : undefined;
@@ -2364,7 +2368,7 @@ export class DispatchEngine {
           hostProvider: () => childHost,
           cohortFor: (toolCallId) => childCohorts.cohortFor(toolCallId),
           agentDir: () => childDir,
-          extraEnv: () => ({ PI_DENT_SESSION_DIR: childDir }),
+          extraEnv: () => ({ PI_DENT_SESSION_DIR: childDir, PI_DENT_SESSION_KIND: "agent" }),
           settings: this.bashSettings,
         }),
         makeAgentTool({
@@ -2382,6 +2386,7 @@ export class DispatchEngine {
         makeSessionTool({
           boot: this.boot,
           hostProvider: () => childHost,
+          sessionKind: "agent",
           billing: this.billing,
           // A child session's figures are its dispatch's row's (session-tool.md Section 2).
           ledger:
@@ -2395,7 +2400,7 @@ export class DispatchEngine {
           hostProvider: () => childHost,
           cohortFor: (toolCallId) => childCohorts.cohortFor(toolCallId),
           agentDir: () => childDir,
-          extraEnv: () => ({ PI_DENT_SESSION_DIR: childDir }),
+          extraEnv: () => ({ PI_DENT_SESSION_DIR: childDir, PI_DENT_SESSION_KIND: "agent" }),
           toolsAllow: () => parseScript(this.boot.config).toolsAllow ?? DEFAULT_TOOLS_ALLOW,
         }),
         // A child session binds `Search` when the tool cap includes it

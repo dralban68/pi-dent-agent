@@ -222,6 +222,7 @@ export function buildBashEnv(
 
   const model = host.model();
   setOrDelete(env, "PI_DENT_SESSION_DIR", process.env.PI_DENT_SESSION_DIR);
+  setOrDelete(env, "PI_DENT_SESSION_KIND", process.env.PI_DENT_SESSION_KIND);
   setOrDelete(env, "PI_SESSION_ID", host.sessionId());
   setOrDelete(env, "PI_SESSION_FILE", host.sessionFile());
   setOrDelete(env, "PI_PROVIDER", model?.provider);

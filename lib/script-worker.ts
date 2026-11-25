@@ -861,6 +861,10 @@ void (async () => {
         if (sessionDir !== undefined && !("PI_DENT_SESSION_DIR" in callerEnv)) {
           injected.PI_DENT_SESSION_DIR = sessionDir;
         }
+        const sessionKind = process.env.PI_DENT_SESSION_KIND;
+        if (sessionKind !== undefined && !("PI_DENT_SESSION_KIND" in callerEnv)) {
+          injected.PI_DENT_SESSION_KIND = sessionKind;
+        }
         for (const name of TEMP_VARIABLES) {
           const value = process.env[name];
           if (value !== undefined && !(name in callerEnv)) injected[name] = value;
