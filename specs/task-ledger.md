@@ -2,8 +2,9 @@
 
 This document specifies the task ledger: the database in which the pi-dent processes of one
 machine keep a permanent history of every task and of each main session's own usage. It owns the
-ledger's location, format and version, its two tables, when rows are written, how rows of ended
-processes are settled, concurrent access, failures, and the figures derived from the rows. The
+ledger's location, format and version, its two tables, the migration from format version 1, when
+rows are written, how rows of ended processes are settled, concurrent access, failures, and the
+figures derived from the rows. The
 task row and task registry are owned by [task-registry.md](task-registry.md); the usage sum by
 [agent-tool.md](agent-tool.md), Section 13; the surfaces that show ledger figures by
 [task-tool.md](task-tool.md), Section 2.3, and [session-tool.md](session-tool.md), Section 2.
@@ -20,9 +21,10 @@ timeout of 10 ms. Its path is the value of the environment variable `PI_DENT_TAS
 given, when set and non-empty, else `~/.pi/pi-dent/tasks-v1.sqlite`, `~` being the user's home
 directory. The path is read when the ledger is opened.
 
-The format version is `1` and is recorded as the database's `user_version`. Each extension
-instance MUST open the ledger once, at the first `session_start` of its main session, and MUST,
-in this order:
+The format version is `2` and is recorded as the database's `user_version`. Format version `1` is
+the format of Section 2 without what the migration of Section 2.3 adds. Each extension instance
+MUST open the ledger once, at the first `session_start` of its main session, and MUST, in this
+order:
 
 1. When the ledger path and the path of the local session store
    ([session-store.md](session-store.md), Section 1) or of the session index
@@ -31,19 +33,29 @@ in this order:
    unusable (Section 7) without opening the file.
 2. Create the file's directory and the file when absent.
 3. When `user_version` is `0` and the database holds no table: create the schema of Section 2
-   and set `user_version` to `1`, inside one transaction begun with `BEGIN IMMEDIATE`, so that of
-   two processes opening an absent file the second finds the first's schema; a creation that
-   fails is rolled back whole.
-4. When `user_version` is `1`: use the database.
-5. Otherwise: leave the file unchanged; the ledger is unusable (Section 7).
-6. Run the sweep of Section 4.1.
+   and set `user_version` to `2`, inside one transaction begun with `BEGIN IMMEDIATE`.
+4. When `user_version` is `1`: migrate the database (Section 2.3) and set `user_version` to `2`,
+   inside one transaction begun with `BEGIN IMMEDIATE`.
+5. When `user_version` is `2`: use the database.
+6. Otherwise: leave the file unchanged; the ledger is unusable (Section 7).
+7. Run the sweep of Section 4.1.
 
-A ledger file of another format version (`tasks-v<n>.sqlite`) MUST NOT be read, changed, or
-deleted. No row is ever deleted: the ledger keeps every row for as long as the file exists.
+The `user_version` that steps 3 to 6 act on is read inside the transaction of steps 3 and 4,
+after it has begun, so that of two processes opening an absent or a format version 1 file at
+once, the second finds the first's schema or migration and neither creates nor migrates again. A
+creation or a migration that fails is rolled back whole, leaving the file's version and rows as
+they were, and the ledger is unusable (Section 7).
+
+The `v1` of the file name `tasks-v1.sqlite` names the file, not the format version: a ledger of
+format version `2` keeps that name. A file in `~/.pi/pi-dent/` named `tasks-v<n>.sqlite`, `<n>`
+being other than `1`, is not the ledger, unless it is at the ledger path, and MUST NOT be read,
+changed, or deleted. No row is ever deleted: the ledger keeps every row for as long as the file
+exists.
 
 ## 2. Schema
 
-The schema is exactly these statements; the table, column, and index names are normative:
+The schema is exactly these statements; the table, column, index, and trigger names are
+normative:
 
 ```sql
 CREATE TABLE sessions (
@@ -57,7 +69,8 @@ CREATE TABLE sessions (
   cache_read   INTEGER NOT NULL,
   cache_write  INTEGER NOT NULL,
   cost         REAL    NOT NULL,
-  turns        INTEGER NOT NULL
+  turns        INTEGER NOT NULL,
+  tool_calls   INTEGER
 ) WITHOUT ROWID;
 CREATE TABLE tasks (
   row_id        TEXT    PRIMARY KEY,
@@ -86,13 +99,22 @@ CREATE TABLE tasks (
   cache_read    INTEGER,
   cache_write   INTEGER,
   cost          REAL,
-  turns         INTEGER
+  turns         INTEGER,
+  tool_calls    INTEGER
 );
 CREATE INDEX tasks_session ON tasks (session_id, task_id);
 CREATE INDEX tasks_parent ON tasks (parent_id) WHERE parent_id IS NOT NULL;
 CREATE INDEX tasks_session_path ON tasks (session_path) WHERE session_path IS NOT NULL;
 CREATE INDEX tasks_running ON tasks (status) WHERE status = 'running';
+CREATE TRIGGER sessions_tool_calls_unknown AFTER UPDATE OF turns ON sessions
+BEGIN
+  UPDATE sessions SET tool_calls = NULL WHERE session_id = NEW.session_id;
+END;
 ```
+
+The trigger makes a ledger session row's `tool_calls` null
+whenever an `UPDATE` sets its `turns`; the write of Section 3.3 sets `tool_calls` again after it,
+in the same transaction.
 
 Times are milliseconds since the Unix epoch. A `tasks` row is a ledger row; a `sessions` row is a
 ledger session row. The ledger session ID of a session is its own session ID for a main session,
@@ -102,15 +124,16 @@ and for a child session the ledger session ID of the session that dispatched it,
 
 One per main session, holding the main session's own usage, never that of its tasks:
 
-| Column                                                 | Contract                                                                                                                                                                                                             |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session_id`                                           | The main session's ID.                                                                                                                                                                                               |
-| `session_file`                                         | Absolute path of the main session's session file; null when the session has none (`--no-session`).                                                                                                                   |
-| `cwd`                                                  | The main session's working directory.                                                                                                                                                                                |
-| `started_at`                                           | Time of the row's insertion; never changed afterwards.                                                                                                                                                               |
-| `updated_at`                                           | Time of the row's latest write.                                                                                                                                                                                      |
-| `input`, `output`, `cache_read`, `cache_write`, `cost` | The sums of the input, output, cache-read, and cache-write token counts and of the cost of the counted entries' host `usage`, as [footer.md](footer.md), Section 2.2, sums its session totals; `cost` in US dollars. |
-| `turns`                                                | The number of assistant-message entries of the session, on every branch, with or without a host `usage`, that are not entries copied by a fork (below).                                                              |
+| Column                                                 | Contract                                                                                                                                                                                                                                        |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session_id`                                           | The main session's ID.                                                                                                                                                                                                                          |
+| `session_file`                                         | Absolute path of the main session's session file; null when the session has none (`--no-session`).                                                                                                                                              |
+| `cwd`                                                  | The main session's working directory.                                                                                                                                                                                                           |
+| `started_at`                                           | Time of the row's insertion; never changed afterwards.                                                                                                                                                                                          |
+| `updated_at`                                           | Time of the row's latest write.                                                                                                                                                                                                                 |
+| `input`, `output`, `cache_read`, `cache_write`, `cost` | The sums of the input, output, cache-read, and cache-write token counts and of the cost of the counted entries' host `usage`, as [footer.md](footer.md), Section 2.2, sums its session totals; `cost` in US dollars.                            |
+| `turns`                                                | The number of assistant-message entries of the session, on every branch, with or without a host `usage`, that are not entries copied by a fork (below).                                                                                         |
+| `tool_calls`                                           | The number of tool calls ([agent-tool.md](agent-tool.md), Section 13) of the assistant messages of the entries `turns` counts. Null, as unknown, in a row kept by the migration or written last by a process of format version 1 (Section 2.3). |
 
 The counted entries are the entries of the session, on every branch, as the host holds them,
 that [footer.md](footer.md), Section 2.2, sums into its session totals, except:
@@ -132,7 +155,8 @@ the tool result message of the call that made it, so with this rule a `Script` r
 
 The six usage columns form a usage sum ([agent-tool.md](agent-tool.md), Section 13) whose fields
 `input`, `output`, `cacheRead`, `cacheWrite`, `cost`, and `turns` are the columns of those names,
-`cache_read` being `cacheRead` and `cache_write` being `cacheWrite`.
+`cache_read` being `cacheRead` and `cache_write` being `cacheWrite`. `tool_calls` is not a field
+of the usage sum.
 
 ### 2.2 Ledger row
 
@@ -166,6 +190,7 @@ one, has one.
 | `session_path`                                                  | For an `agent` row, its `sessionPath` once set: the session file of the dispatch's child session, the source file of a `resume`. For a `script` row, its tool log path ([script-tool.md](script-tool.md), Section 8.4) once the tool log is created. Else null.                                                     |
 | `result_path`                                                   | The row's `resultPath` once settled with one: a result spill ([agent-tool.md](agent-tool.md), Section 7) or an output file ([script-tool.md](script-tool.md), Section 6; [bash-tool.md](bash-tool.md), Section 4). Else null.                                                                                       |
 | `input`, `output`, `cache_read`, `cache_write`, `cost`, `turns` | For an `agent` row, the row's usage sum ([agent-tool.md](agent-tool.md), Section 13), mapped to columns as in Section 2.1, a zero usage sum while the row's `usage` is absent; null for a `script` or `bash` row.                                                                                                   |
+| `tool_calls`                                                    | For an `agent` or `script` row, the row's `toolCalls` ([task-registry.md](task-registry.md), Section 2); null for a `bash` row. Null, as unknown, in a row kept by the migration or inserted by a process of format version 1 (Section 2.3).                                                                        |
 
 A task row's ledger row is the one inserted for it (Section 3.2), or, for a row a rebuild inserts,
 the one Section 4.2 finds; a task row registered while the ledger was unusable has none.
@@ -174,6 +199,42 @@ The task's pre-start checks have passed: for an `agent` row, when the usage tall
 dispatch ([agent-tool.md](agent-tool.md), Section 13); for a `script` row, when the call has
 passed the checks of [script-tool.md](script-tool.md), Section 2; for a `bash` row, when it has
 passed those of [bash-tool.md](bash-tool.md), Section 2.
+
+### 2.3 Migration from format version 1
+
+Migrating executes exactly these statements, in this order, before `user_version` is set to `2`
+(Section 1, step 4):
+
+```sql
+ALTER TABLE sessions ADD COLUMN tool_calls INTEGER;
+ALTER TABLE tasks ADD COLUMN tool_calls INTEGER;
+CREATE TRIGGER sessions_tool_calls_unknown AFTER UPDATE OF turns ON sessions
+BEGIN
+  UPDATE sessions SET tool_calls = NULL WHERE session_id = NEW.session_id;
+END;
+```
+
+It keeps every row, with `tool_calls` null, and adds none. A migrated database and one created
+by Section 1, step 3, have the same tables, the same columns in the same order with the same
+types and constraints, the same indexes, and the same trigger; the SQL text SQLite stores for a
+table can differ.
+
+A process running a pi-dent of format version 1 can have the ledger open while another process
+migrates it:
+
+- An extension instance of that process whose opening completed before the migration goes on
+  reading and writing the file for the rest of the instance, on its open connection and on a
+  connection it opens again for an operation issued after it closed its own, without reading
+  `user_version` again. Its inserts name no `tool_calls`, so a ledger row or ledger session row
+  it inserts holds null; its update of a ledger session row sets `turns`, so the trigger of
+  Section 2 makes that row's `tool_calls` null; its other writes change no `tool_calls`, and its
+  reads do not read the column.
+- An extension instance of that process that opens the ledger after the migration finds
+  `user_version` `2` and makes the ledger unusable for itself with the reason
+  `unsupported task ledger version 2`.
+
+> Note (non-normative): the trigger is what keeps an old process's update of a ledger session row
+> from leaving beside its `turns` a count another process wrote.
 
 ## 3. Writes
 
@@ -207,7 +268,8 @@ each setting `updated_at` to the time it is issued:
 | `register` ([task-registry.md](task-registry.md), Section 3)                                                             | Insert the ledger row with the columns of Section 2.2, `status` `running`, `dispatched` `0`, and `resumes_id`, `settled_at`, and `result_path` null.                                                                                                                                                                                                                                                                  |
 | An `amend` that changes the row's `label`, `agent`, `model`, or `sessionPath`; the creation of a `script` row's tool log | Set `label`, `agent`, `model`, and `session_path` to their new values.                                                                                                                                                                                                                                                                                                                                                |
 | The task's pre-start checks pass (Section 2.2)                                                                           | Set `dispatched` to `1` and `cwd` to the working directory the task runs in; for a `resume` dispatch, set `resumes_id`: for a `resume` given as a task ID, the `row_id` of the resolved row; for a path, the `row_id` of the ledger row, other than this one, with the latest `started_at` among those whose `session_path` equals, as text, the session file path the `resume` resolves to. Null when there is none. |
-| An assistant message is added to the row's `usage` ([agent-tool.md](agent-tool.md), Section 13)                          | Set the six usage columns to the row's usage sum, whatever the ledger row's `status`.                                                                                                                                                                                                                                                                                                                                 |
+| An assistant message is added to the row's `usage` ([agent-tool.md](agent-tool.md), Section 13)                          | Set the six usage columns to the row's usage sum and `tool_calls` to the row's `toolCalls`, whatever the ledger row's `status`.                                                                                                                                                                                                                                                                                       |
+| A `script` row's run starts a nested call ([script-tool.md](script-tool.md), Section 8.4)                                | Set `tool_calls` to the row's `toolCalls`, whatever the ledger row's `status`.                                                                                                                                                                                                                                                                                                                                        |
 | `settle`                                                                                                                 | When the ledger row's `status` is `running`: set `status` to the row's terminal `status`, `settled_at` to its `settledAt`, and `result_path` to its `resultPath`. Otherwise change nothing.                                                                                                                                                                                                                           |
 
 Recovery attempts ([agent-tool.md](agent-tool.md), Section 8) are part of their dispatch's row and
@@ -221,10 +283,11 @@ add no ledger row. A `resume` is a new dispatch with its own task ID and ledger 
 
 For its main session, the extension MUST write the ledger session row: insert it at
 `session_start`, a reload included, when the ledger holds none with that `session_id`, else
-update it; and set `session_file`, `cwd`, and the six usage columns to their values of
-Section 2.1 at `session_start`, at `session_shutdown`, and each time the host reports the end of a
-message or a compaction or branch summary of the main session, issuing the write at that report.
-A child session has no ledger session row.
+update it; and set `session_file`, `cwd`, the six usage columns, and `tool_calls` to their values
+of Section 2.1 at `session_start`, at `session_shutdown`, and each time the host reports the end
+of a message or a compaction or branch summary of the main session, issuing the write at that
+report. Each such write sets `tool_calls` after `turns`, in the same transaction, so that the
+trigger of Section 2 does not leave it null. A child session has no ledger session row.
 
 ## 4. Settling rows of ended processes
 
@@ -266,7 +329,7 @@ failure reported, and the rows they would have settled are settled by the sweep.
 ## 5. Concurrent access
 
 Several processes, and several extension instances of one process, read and write the ledger at
-once. Child sessions run in the process of their main session, so a process writes the rows of
+once; what a process of format version 1 among them does is stated in Section 2.3. Child sessions run in the process of their main session, so a process writes the rows of
 its own main sessions' task trees and their `Fleet` query dispatches, and the sweep writes rows of
 gone processes.
 
@@ -301,6 +364,13 @@ Totals are derived when read and never stored. For a ledger row `R`:
   row; its own descendants are still its descendants.
 - The own usage of `R` is the usage sum of its six usage columns; a zero usage sum when they are
   null.
+- The own tool-call count of `R` is its `tool_calls`; it is unknown when `tool_calls` is null.
+  No figure sums `tool_calls` over several rows.
+
+  > Note (non-normative): a row written under format version 1 holds no count, so a sum over a
+  > tree or a session that includes one would be unknown, or would pass for complete when it
+  > is not.
+
 - The cumulative usage of `R` is its own usage plus the own usage of every descendant, field by
   field.
 - The wall time of `R` is `settled_at` minus `started_at`, or, while `R` is `running`, the time
@@ -325,17 +395,18 @@ rounds down. A sum of `cost` values is the floating-point sum of the stored valu
 
 The ledger becomes unusable for an extension instance when, in that instance:
 
-| Condition                                                                                                                                  | Reason                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| The ledger path names the local session store's file (Section 1, step 1)                                                                   | `the task ledger file is the local session store file`                           |
-| The ledger path names the session index's file (Section 1, step 1)                                                                         | `the task ledger file is the session index file`                                 |
-| The directory or the file cannot be created or opened                                                                                      | The error's message.                                                             |
-| `user_version` is neither `0` with no table nor `1`                                                                                        | `unsupported task ledger version <user_version>`                                 |
-| SQLite reports that the file is not a database or is malformed, at opening or in any statement                                             | `task ledger file is corrupt: <message>`, `<message>` being the error's message. |
-| Any other SQLite error, at opening, in creating the schema, in the sweep, in a read, or in a write, other than a busy database (Section 5) | The error's message.                                                             |
+| Condition                                                                                                                                                | Reason                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| The ledger path names the local session store's file (Section 1, step 1)                                                                                 | `the task ledger file is the local session store file`                           |
+| The ledger path names the session index's file (Section 1, step 1)                                                                                       | `the task ledger file is the session index file`                                 |
+| The directory or the file cannot be created or opened                                                                                                    | The error's message.                                                             |
+| `user_version` is neither `0` with no table, nor `1`, nor `2`                                                                                            | `unsupported task ledger version <user_version>`                                 |
+| SQLite reports that the file is not a database or is malformed, at opening or in any statement                                                           | `task ledger file is corrupt: <message>`, `<message>` being the error's message. |
+| Any other SQLite error, at opening, in creating the schema, in migrating, in the sweep, in a read, or in a write, other than a busy database (Section 5) | The error's message.                                                             |
 
-- The extension MUST NOT delete or replace a file that is corrupt or of another version, and
-  MUST NOT execute a statement that writes to it; a write that fails is rolled back.
+- The extension MUST NOT delete or replace a file that is corrupt or whose `user_version` makes
+  the ledger unusable, and MUST NOT execute a statement that writes to it; a write that fails,
+  a migration included, is rolled back.
 - The first time the ledger becomes unusable in an extension instance, the extension MUST show
   one `warning` notice `pi-dent: task ledger unavailable: <reason>` through the host `notify` API
   ([config-file.md](config-file.md), Section 6), and none again in that instance.
@@ -390,5 +461,9 @@ The ledger becomes unusable for an extension instance when, in that instance:
   it: roll back a journal a crashed writer left, and create `-wal` and `-shm` companions for a
   file in write-ahead-log mode.
 - A file at the ledger path that is another application's SQLite database with `user_version`
-  `1` is used as the ledger.
+  `2` is used as the ledger; with `user_version` `1`, it is migrated when it has tables named
+  `sessions` and `tasks`, and otherwise the migration fails and the ledger is unusable.
+- The tool calls of a task that a process of format version 1 runs are counted nowhere: its
+  ledger row keeps `tool_calls` null. A ledger session row that such a process wrote last holds
+  null until a process of format version 2 writes it again.
 - The SQLite file format is SQLite's.

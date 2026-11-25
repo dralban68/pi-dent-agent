@@ -687,12 +687,17 @@ The usage of an assistant message is its host `usage`: the token counts `input`,
 assistant message to it adds the message's four token counts and its cost to the fields of the
 same name and 1 to `turns`. An assistant message without a host `usage` adds only the 1.
 
+The tool calls of an assistant message are the parts of its host `content` whose `type` is
+`"toolCall"`, whether or not the host ran them; a message whose `content` is not an array has
+none. They are no field of a usage sum.
+
 - For every assistant message that ends in the child session of a dispatch while its task row is
   `running` — in any attempt, and in a turn between two attempts — the tool MUST add the message
   to the task row's `usage` ([task-registry.md](task-registry.md), Section 2) through `amend`,
-  the row's `usage` being a zero usage sum while absent. Unlike the attempt record's `usage`
-  (Section 7), the row's `usage` is never reset. Each such addition is written to the task
-  ledger ([task-ledger.md](task-ledger.md), Section 3.2).
+  the row's `usage` being a zero usage sum while absent, and in the same `amend` add the number
+  of the message's tool calls to the row's `toolCalls`. Unlike the attempt record's `usage`
+  (Section 7), the row's `usage` and `toolCalls` are never reset. Each such addition is written
+  to the task ledger ([task-ledger.md](task-ledger.md), Section 3.2).
 - The usage tally is one count `tasks` and one usage sum, kept in memory per main session and
   seeded from the task ledger. At every `session_start` of the main session, a reload included,
   `tasks` is 0 and the usage sum is zero, and before the handler returns the extension MUST issue

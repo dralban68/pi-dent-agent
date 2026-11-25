@@ -123,7 +123,7 @@ notifications use it ([task-registry.md](task-registry.md), Section 5).
 - When the session owns no tasks, the result is the single line `(no tasks)`, and no ledger read
   is made.
 - `details` MUST carry
-  `{ action: "list", ledger, tasks: Array<{ taskId, status, label, resultPath?, durationMs, usage?, total?, descendantMs? }> }`:
+  `{ action: "list", ledger, tasks: Array<{ taskId, status, label, resultPath?, durationMs, usage?, total?, descendantMs?, toolCalls? }> }`:
   - `label` is the row's display label ([task-registry.md](task-registry.md), Section 2).
   - `ledger` is `"ok"`, `"unavailable"`, or `"busy"`, as above; absent when no ledger read is
     made.
@@ -132,6 +132,9 @@ notifications use it ([task-registry.md](task-registry.md), Section 5).
     descendant time in milliseconds ([task-ledger.md](task-ledger.md), Section 6), each a
     present field only when `ledger` is `"ok"` and the row has a ledger row; a usage sum is the
     object `{ input, output, cacheRead, cacheWrite, cost, turns }`.
+  - `toolCalls` is the ledger row's own tool-call count ([task-ledger.md](task-ledger.md),
+    Section 6), present only when `ledger` is `"ok"`, the row has a ledger row, and the count is
+    known; never `0` in place of an unknown count.
 
 Example: `a1b2c3d4 · completed · 2m05s · 12 turns · $0.042 · total $0.118 · reviewer — Review the diff`.
 

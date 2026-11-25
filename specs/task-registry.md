@@ -54,8 +54,10 @@ A row carries the common fields above plus exactly the kind-specific fields of i
 | `agent`   | `task`        | string?        | Task text of the dispatch; set by the owning contract.                                                                                                           |
 | `agent`   | `sessionPath` | string?        | Session file of the current attempt's child session; set by the owning contract.                                                                                 |
 | `agent`   | `usage`       | usage sum?     | The usage sum of the dispatch ([agent-tool.md](agent-tool.md), Section 13); absent until its first assistant message ends, and on a rebuilt row.                 |
+| `agent`   | `toolCalls`   | number?        | The number of tool calls of the assistant messages added to `usage` ([agent-tool.md](agent-tool.md), Section 13); `0` at `register`; absent on a rebuilt row.    |
 | `agent`   | `children`    | task registry? | Attached task registry (Section 6).                                                                                                                              |
 | `script`  | `code`        | string         | The script source of the call: the inline `code`, or the plugin script file's content; set by the owning contract ([script-tool.md](script-tool.md), Section 6). |
+| `script`  | `toolCalls`   | number         | The number of nested calls the run has started ([script-tool.md](script-tool.md), Section 8.4); `0` at `register`.                                               |
 | `bash`    | `command`     | string         | The command text of the call, unchanged; set by the owning contract.                                                                                             |
 
 The display label of a task row is the first line of `label` with ANSI escape sequences and

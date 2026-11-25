@@ -536,7 +536,9 @@ so that `Search` reads it like the session file of an `Agent` dispatch.
   the entry on the line before it (`null` for the first entry after the header), and a
   `timestamp` of the moment it is written, as an [RFC 3339] date-time in UTC.
 - A nested call counts toward `toolCalls` and the `--- tool calls` block of Section 5 when it
-  starts, whether or not the log could be written.
+  starts, whether or not the log could be written. When it starts, the tool MUST also add 1 to
+  the task row's `toolCalls` ([task-registry.md](task-registry.md), Section 2) through `amend`,
+  so that the row's `toolCalls` is the number of nested calls the run has started.
 - A failure to create or write the tool log MUST NOT fail the run or the call. The first such
   failure of a run appends the line `pi-dent: tool log write failed: <message>` to the run's
   `stderr`, `<message>` being the error's message, and the tool writes no further line to that
