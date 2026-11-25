@@ -18,7 +18,10 @@ import { LedgerHolder, NestedCalls, type LedgerScope } from "../../lib/task-ledg
 import { rebuildInterruptedTasks } from "../../lib/task-rebuild.ts";
 import { engineDeps } from "../support/engine-deps.ts";
 import { must } from "../support/must.ts";
-import { openLedger, raw, taskRow, tempDir } from "./support.ts";
+import { makeBashTool } from "../../lib/bash-tool.ts";
+import { FleetCoordinator } from "../../lib/fleet.ts";
+import { makeFleetTool, makeTaskTool } from "../../lib/tools.ts";
+import { openLedger, raw, tempDir } from "./support.ts";
 
 /**
  * specs/task-ledger.md Sections 3.1, 3.2 and 4.2 through real dispatches: every task row of every
@@ -89,7 +92,11 @@ interface Main {
 }
 
 /** A main session `main-id` whose engine writes into `ledger`. */
-function mainSession(ledger: TaskLedger | undefined, tools = ["Agent"]): Main {
+function mainSession(
+  ledger: TaskLedger | undefined,
+  tools = ["Agent"],
+  fleet?: FleetCoordinator,
+): Main {
   const root = tempDir();
   mkdirSync(join(root, "main"), { recursive: true });
   const sessionFile = join(root, "main", "main.jsonl");
@@ -118,7 +125,7 @@ function mainSession(ledger: TaskLedger | undefined, tools = ["Agent"]): Main {
   const engine = new DispatchEngine(
     boot,
     () => host,
-    undefined,
+    fleet,
     undefined,
     undefined,
     engineDeps({ ledger: scope }),
@@ -156,11 +163,30 @@ function script(steps: Record<string, Array<() => Reply | Promise<Reply>>>): voi
 const textOf = (result: ToolResult): string =>
   result.content[0]?.type === "text" ? result.content[0].text : "";
 
-const rowIdOf = (row: TaskRow | undefined): string => {
-  const ref = row?.ledger?.ref;
-  assert.equal(typeof ref, "string", "the row has a ledger row");
-  return String(ref);
-};
+/** The ledger row of a task row, found by its task ID and start time. */
+function ledgerRowOf(path: string, row: TaskRow | undefined): Record<string, unknown> {
+  const db = raw(path);
+  try {
+    const found = db
+      .prepare("SELECT * FROM tasks WHERE task_id = ? AND started_at = ?")
+      .all(row?.taskId ?? "", row?.startedAt ?? -1);
+    assert.equal(found.length, 1, `one ledger row for task ${row?.taskId}`);
+    return { ...must(found[0]) };
+  } finally {
+    db.close();
+  }
+}
+
+const rowIdOf = (path: string, row: TaskRow | undefined): string =>
+  String(ledgerRowOf(path, row).row_id);
+
+/** The `Task` `list` text of a registry, read from `ledger`. */
+async function listText(registry: TaskRegistry, ledger: TaskLedger): Promise<string> {
+  const tool = makeTaskTool({ registry: () => registry, ledger: () => ledger });
+  return textOf(
+    await tool.execute("tc", { action: "list" } as never, undefined, undefined, undefined as never),
+  );
+}
 
 /** Every ledger row, keyed by task ID. */
 function ledgerRows(path: string): Map<string, Record<string, unknown>> {
@@ -195,7 +221,7 @@ test("a foreground agent task's ledger row follows it from register to settle", 
   const row = main.engine.registry.rows[0];
   assert.ok(row instanceof AgentTaskRow);
   await ledger.flushed();
-  const written = taskRow(path, rowIdOf(row));
+  const written = ledgerRowOf(path, row);
   const usage = must(row.usage);
   assert.deepEqual(
     {
@@ -274,7 +300,7 @@ test("a background agent task and an agent its child session dispatches: the nes
     [1, "completed", 1],
   );
   const inner = must([...rows.values()].find((row) => row.task_id !== outer.taskId));
-  assert.equal(inner.parent_id, rowIdOf(outer));
+  assert.equal(inner.parent_id, rowIdOf(path, outer));
   assert.equal(inner.session_id, "main-id", "a child session's rows file under the main session");
   assert.deepEqual([inner.background, inner.status, inner.dispatched], [0, "completed", 1]);
   assert.equal(inner.turns, 1);
@@ -302,7 +328,11 @@ test("an agent a script run of a child session dispatches has the script's row a
   const rows = [...ledgerRows(path).values()];
   const scriptRow = must(rows.find((row) => row.kind === "script"));
   const nested = must(rows.find((row) => row.kind === "agent" && row.task_id !== outer.taskId));
-  assert.equal(scriptRow.parent_id, rowIdOf(outer), "rule 2: the script ran in the child session");
+  assert.equal(
+    scriptRow.parent_id,
+    rowIdOf(path, outer),
+    "rule 2: the script ran in the child session",
+  );
   assert.equal(nested.parent_id, scriptRow.row_id, "rule 1: the run's nested call registered it");
   assert.deepEqual([scriptRow.dispatched, scriptRow.status], [1, "completed"]);
   assert.match(String(scriptRow.session_path), /\.jsonl$/, "the run's tool log");
@@ -341,7 +371,7 @@ test("a resume by task ID links its row to the row it continues", async () => {
   assert.equal(resumed.isError, undefined, textOf(resumed));
   const second = must(main.engine.registry.rows[1]);
   await ledger.flushed();
-  assert.equal(taskRow(path, rowIdOf(second)).resumes_id, rowIdOf(first));
+  assert.equal(ledgerRowOf(path, second).resumes_id, rowIdOf(path, first));
   ledger.close();
 });
 
@@ -352,7 +382,7 @@ test("a pre-start rejection has a ledger row that never became dispatched", asyn
   assert.equal(result.isError, true);
   const row = must(main.engine.registry.rows[0]);
   await ledger.flushed();
-  const written = taskRow(path, rowIdOf(row));
+  const written = ledgerRowOf(path, row);
   assert.deepEqual(
     [written.dispatched, written.status, written.settled_at, written.turns],
     [0, "failed", row.settledAt, 0],
@@ -382,7 +412,7 @@ test("a reload settles a running background task cancelled; the next rebuild mak
   release();
   assert.equal(row.status, "cancelled");
   await ledger.flushed();
-  assert.equal(taskRow(path, rowIdOf(row)).status, "cancelled");
+  assert.equal(ledgerRowOf(path, row).status, "cancelled");
 
   // The next extension instance opens the ledger anew and rebuilds from the task record.
   const next = openLedger({ path });
@@ -394,11 +424,14 @@ test("a reload settles a running background task cancelled; the next rebuild mak
   });
   assert.equal(inserted, 1);
   await next.ledger.flushed();
-  const written = taskRow(path, rowIdOf(row));
+  const written = ledgerRowOf(path, row);
   assert.deepEqual([written.status, written.settled_at], ["interrupted", row.settledAt]);
-  // The rebuilt row reads its figures by the key that found its ledger row.
-  const figures = await next.ledger.readRowFigures([must(rebuilt.rows[0]?.ledger).ref]);
-  assert.equal(figures.status === "ok" && figures.value.size, 1);
+  // The rebuilt row shows its ledger row's figures, found by the key of Section 4.2.
+  const listed = await listText(rebuilt, next.ledger);
+  assert.match(
+    listed,
+    new RegExp(`^${row.taskId} · interrupted · \\d+s · 0 turns · \\$0\\.000 · `),
+  );
   ledger.close();
   next.ledger.close();
 });
@@ -416,8 +449,9 @@ test("an unusable or busy ledger does not disturb a dispatch", async () => {
   const main = mainSession(unusable.ledger);
   const result = await dispatch(main, { task: "UNUSABLE" });
   assert.equal(textOf(result), "fine");
-  assert.equal(main.engine.registry.rows[0]?.ledger, undefined, "registered while unusable");
   assert.equal(unusable.notices.length, 1);
+  // Task list says so instead of showing figures (task-tool.md Section 2.3).
+  assert.match(await listText(main.engine.registry, unusable.ledger), / · ledger unavailable · /);
 
   const busy = openLedger();
   await busy.ledger.flushed();
@@ -432,6 +466,131 @@ test("an unusable or busy ledger does not disturb a dispatch", async () => {
   }
   await busy.ledger.flushed();
   const row = must(held.engine.registry.rows[0]);
-  assert.equal(taskRow(busy.path, rowIdOf(row)).status, "completed", "written once the lock went");
+  assert.equal(ledgerRowOf(busy.path, row).status, "completed", "written once the lock went");
   busy.ledger.close();
+});
+
+test("a Fleet query to a child session files its row under the child's dispatch, in the child's cwd", async () => {
+  let release = (): void => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  let childStarted = (): void => {};
+  const started = new Promise<void>((resolve) => (childStarted = resolve));
+  script({
+    "CHILD-TASK": [
+      async () => {
+        childStarted();
+        await gate;
+        return fauxAssistantMessage("child done");
+      },
+    ],
+    "QUESTION-TO-CHILD": [() => fauxAssistantMessage("child answer")],
+  });
+  const { ledger, path } = openLedger();
+  const root = tempDir();
+  const fleet = new FleetCoordinator(boot, { dbPath: join(root, "fleet.sqlite"), bootId: "boot" });
+  const main = mainSession(ledger, ["Agent", "Fleet"], fleet);
+  fleet.registerEndpoint(
+    {
+      sessionId: "main-id",
+      cwd: () => main.root,
+      isIdle: () => true,
+      abortTurn: () => {},
+      deliverTurn: () => {},
+    },
+    "idle",
+  );
+  const childCwd = join(main.root, "child-cwd");
+  mkdirSync(childCwd);
+  let dispatched: Promise<ToolResult> | undefined;
+  try {
+    dispatched = dispatch(main, { task: "CHILD-TASK", cwd: childCwd });
+    await started;
+    const child = must(fleet.listSessions("children", main.root, "main-id")[0]);
+    const fleetTool = makeFleetTool({ fleet, hostProvider: () => main.host });
+    const asked = await fleetTool.execute(
+      "fq",
+      { action: "query", target: child.sessionId, body: "QUESTION-TO-CHILD" } as never,
+      undefined,
+      undefined,
+      undefined as never,
+    );
+    assert.equal(asked.isError, undefined, textOf(asked));
+    let query: Record<string, unknown> | undefined;
+    const deadline = Date.now() + 10_000;
+    while (query?.status !== "completed") {
+      if (Date.now() > deadline) throw new Error("the query's ledger row never completed");
+      await ledger.flushed();
+      query = [...ledgerRows(path).values()].find((row) => row.fleet_query === 1);
+      if (query?.status !== "completed") await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const outer = must(main.engine.registry.rows[0]);
+    assert.deepEqual(
+      [query.session_id, query.parent_id, query.cwd],
+      ["main-id", rowIdOf(path, outer), childCwd],
+    );
+  } finally {
+    release();
+    await dispatched;
+    fleet.close();
+    ledger.close();
+  }
+});
+
+test("a bash task's ledger row: dispatched once its checks pass, its output file, no usage", async () => {
+  const { ledger, path } = openLedger();
+  const main = mainSession(ledger);
+  const bash = makeBashTool({
+    registry: () => main.engine.registry,
+    hostProvider: () => main.host,
+    cohortFor: (toolCallId) => toolCallId,
+    agentDir: () => join(main.root, "agent"),
+    settings: () => ({}),
+  });
+  const result = await bash.execute(
+    "bash-1",
+    { command: "echo hi" } as never,
+    undefined,
+    undefined,
+    undefined as never,
+  );
+  assert.equal(result.isError, undefined, textOf(result));
+  const outputPath = (result.details as { outputPath: string }).outputPath;
+  const rejected = await bash.execute(
+    "bash-2",
+    { command: "echo no", cwd: join(main.root, "missing") } as never,
+    undefined,
+    undefined,
+    undefined as never,
+  );
+  assert.equal(rejected.isError, true);
+  await ledger.flushed();
+  const [ran, refused] = main.engine.registry.rows;
+  const written = ledgerRowOf(path, ran);
+  assert.deepEqual(
+    [written.kind, written.dispatched, written.cwd, written.status, written.result_path],
+    ["bash", 1, main.root, "completed", outputPath],
+  );
+  assert.deepEqual(
+    [written.input, written.output, written.cache_read, written.cache_write, written.cost],
+    [null, null, null, null, null],
+  );
+  assert.equal(written.turns, null);
+  const refusedRow = ledgerRowOf(path, refused);
+  assert.deepEqual([refusedRow.dispatched, refusedRow.status], [0, "failed"]);
+  ledger.close();
+});
+
+test("a resume by path links its row to the latest row of that session file", async () => {
+  script({ PATHED: [() => fauxAssistantMessage("one"), () => fauxAssistantMessage("two")] });
+  const { ledger, path } = openLedger();
+  const main = mainSession(ledger);
+  await dispatch(main, { task: "PATHED" });
+  const first = must(main.engine.registry.rows[0]);
+  assert.ok(first instanceof AgentTaskRow);
+  const resumed = await dispatch(main, { task: "again", resume: must(first.sessionPath) });
+  assert.equal(resumed.isError, undefined, textOf(resumed));
+  const second = must(main.engine.registry.rows[1]);
+  await ledger.flushed();
+  assert.equal(ledgerRowOf(path, second).resumes_id, rowIdOf(path, first));
+  ledger.close();
 });

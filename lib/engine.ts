@@ -1409,7 +1409,9 @@ export class DispatchEngine {
   /**
    * Run a Fleet `query` in an isolated child session owned by this session,
    * with local completion notification suppressed and isolated from the
-   * session's public Task list (specs/fleet-tool.md Section 4).
+   * session's public Task list (specs/fleet-tool.md Section 4). `ledger` is the target session's
+   * ledger scope, this engine's own by default: a child session's query is run by the engine that
+   * dispatched it, with the child's scope (task-ledger.md Section 3.1, rule 2).
    */
   async runIsolatedQuery(
     host: HostSession,
@@ -1419,6 +1421,7 @@ export class DispatchEngine {
       subject?: string | undefined;
       body: string;
     },
+    ledger: LedgerScope | undefined = this.deps.ledger,
   ): Promise<{ text: string; isError: boolean }> {
     const queryEngine = new DispatchEngine(
       this.boot,
@@ -1435,7 +1438,7 @@ export class DispatchEngine {
         // A query counts in the main session's tally, like the dispatch it is (Section 13).
         usageTally: this.usageTally,
         // Its row is the target session's, under its ledger session ID (task-ledger.md 2.2).
-        ledger: this.deps.ledger,
+        ledger,
       },
     );
     this.queryEngines.add(queryEngine);
@@ -2566,7 +2569,7 @@ export class DispatchEngine {
                 });
                 return true;
               },
-              runQuery: (query) => this.runIsolatedQuery(childHost, query),
+              runQuery: (query) => this.runIsolatedQuery(childHost, query, childLedger),
               // A warning of the boot window that runs the child: displayed, and never
               // a triggered model turn (Section 3.1).
               notify: (text) => emitWarning(warningChannel, text),
