@@ -70,6 +70,18 @@ terms:
         from: specs/thesaurus.md
       - date: 2026-11-14
         op: update
+  - id: agent-figures
+    label: agent figures
+    meaning: "The number of dispatched agent rows under a ledger row or session, and the usage they hold"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - usage-tally
+    history:
+      - date: 2026-11-25
+        op: add
   - id: agent-identity
     label: agent identity
     meaning: "The name a dispatch's agent goes by"
@@ -510,6 +522,19 @@ terms:
         from: specs/thesaurus.md
       - date: 2026-11-14
         op: update
+  - id: cumulative-usage
+    label: cumulative usage
+    meaning: "A ledger row's own usage plus that of all its descendants"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - own-usage
+      - usage-tally
+    history:
+      - date: 2026-11-25
+        op: add
   - id: current-lineage
     label: current lineage
     meaning: "The path of session entries, from the last one back through its parents, that a session last continued"
@@ -560,6 +585,18 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: descendant-time
+    label: descendant time
+    meaning: "The sum of the wall times of a ledger row's descendants"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - wall-time
+    history:
+      - date: 2026-11-25
+        op: add
   - id: descriptor
     label: descriptor
     meaning: What a model string resolves to
@@ -1146,6 +1183,55 @@ terms:
         from: specs/thesaurus.md
       - date: 2026-11-14
         op: update
+  - id: ledger-order
+    label: ledger order
+    meaning: The single order in which one process applies its task ledger reads and writes
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-25
+        op: add
+      - date: 2026-11-25
+        op: update
+  - id: ledger-row
+    label: ledger row
+    meaning: "The task ledger's record of one task row"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - task-row
+      - task-record
+    history:
+      - date: 2026-11-25
+        op: add
+  - id: ledger-session-id
+    label: ledger session ID
+    meaning: "The session ID of the main session at the root of a session's dispatch ancestry"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - session-id
+    history:
+      - date: 2026-11-25
+        op: add
+  - id: ledger-session-row
+    label: ledger session row
+    meaning: "The task ledger's record of one main session's own usage"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - ledger-row
+    history:
+      - date: 2026-11-25
+        op: add
   - id: list-page
     label: list page
     meaning: "The task browser page that lists the task rows, one selected"
@@ -1443,6 +1529,18 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: own-usage
+    label: own usage
+    meaning: The usage sum of one ledger row or ledger session row alone
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - usage-sum
+    history:
+      - date: 2026-11-25
+        op: add
   - id: owner-process
     label: owner process
     meaning: The process of the boot window that registered a session record
@@ -1469,6 +1567,22 @@ terms:
         from: specs/thesaurus.md
       - date: 2026-11-14
         op: update
+  - id: partial-usage-tally
+    label: partial usage tally
+    meaning: "A usage tally whose seed read from the task ledger has not completed, or will not"
+    owner: specs/agent-tool.md
+    group: Tasks
+    key: shared
+    status: deprecated
+    distinguish:
+      - usage-tally
+    reason: out-of-scope
+    history:
+      - date: 2026-11-25
+        op: add
+      - date: 2026-11-25
+        op: deprecate
+        reason: out-of-scope
   - id: plugin
     label: Plugin
     meaning: The tool that reads one plugin resource file of a plugin
@@ -1695,6 +1809,18 @@ terms:
     status: active
     history:
       - date: 2026-11-15
+        op: add
+  - id: read-deadline
+    label: read deadline
+    meaning: How long a surface waits for its task ledger read before showing the ledger as busy
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - read-bound
+    history:
+      - date: 2026-11-25
         op: add
   - id: reap
     label: reap
@@ -2113,6 +2239,18 @@ terms:
       - date: 2026-11-14
         op: deprecate
         reason: out-of-scope
+  - id: session-usage
+    label: session usage
+    meaning: "A main session's own usage plus that of every ledger row of the session"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - usage-tally
+    history:
+      - date: 2026-11-25
+        op: add
   - id: sessions-directory
     label: sessions directory
     meaning: "The directory that holds a main session's session file"
@@ -2382,6 +2520,20 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: task-ledger
+    label: task ledger
+    meaning: "The database in which the pi-dent processes of one machine keep a permanent history of every task and of each main session's own usage"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - task-record
+      - session-index
+      - local-session-store
+    history:
+      - date: 2026-11-25
+        op: add
   - id: task-record
     label: task record
     meaning: "The file a dispatching session writes beside a background Agent task's session file so the task can be rebuilt"
@@ -2609,6 +2761,28 @@ terms:
     history:
       - date: 2026-11-15
         op: add
+  - id: usage-sum
+    label: usage sum
+    meaning: "The token counts, cost, and turn count added up over a set of assistant messages"
+    owner: specs/agent-tool.md
+    group: Tasks
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-25
+        op: add
+  - id: usage-tally
+    label: usage tally
+    meaning: "The in-memory count of a main session's dispatches and the usage sum of their assistant messages"
+    owner: specs/agent-tool.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - usage-sum
+    history:
+      - date: 2026-11-25
+        op: add
   - id: waited-query
     label: waited query
     meaning: "A Fleet query from a child session, whose tool call returns the reply"
@@ -2624,6 +2798,18 @@ terms:
         op: import
         from: specs/thesaurus.md
       - date: 2026-11-14
+        op: update
+  - id: wall-time
+    label: wall time
+    meaning: "The time from a task's start to its settlement, or to the moment of reading while it runs"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: local
+    status: active
+    history:
+      - date: 2026-11-25
+        op: add
+      - date: 2026-11-25
         op: update
   - id: watched-task
     label: watched task
