@@ -379,8 +379,8 @@ The ledger becomes unusable for an extension instance when, in that instance:
   nested calls does not say which call each part of the `usage` came from. A `Fleet` tool result
   given a host `usage` that way counts in the querying session, while the query's usage is also in
   the target session's ledger rows.
-- A rebuilt row whose ledger row is missing (written while the ledger was unusable, or by an
-  earlier pi-dent) is not added to the ledger.
+- A rebuilt row whose ledger row is missing (its task registered while the ledger was unusable)
+  is not added to the ledger.
 - A `resume` given as a path matches earlier rows by the path's text only: a symbolic link or a
   `..` segment leaves `resumes_id` null.
 - Usage a child session's host charges outside its assistant messages, a host `usage` on its tool
