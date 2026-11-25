@@ -16,7 +16,7 @@ which serves only rebuild and `resume` and is deleted on consume, nor the local 
 ## 1. Location and format
 
 The task ledger is one SQLite database file in write-ahead-log journal mode, opened with a busy
-timeout of 5000 ms. Its path is the value of the environment variable `PI_DENT_TASKS_DB`, used as
+timeout of 10 ms. Its path is the value of the environment variable `PI_DENT_TASKS_DB`, used as
 given, when set and non-empty, else `~/.pi/pi-dent/tasks-v1.sqlite`, `~` being the user's home
 directory. The path is read when the ledger is opened.
 
@@ -110,7 +110,7 @@ One per main session, holding the main session's own usage, never that of its ta
 | `started_at`                                           | Time of the row's insertion; never changed afterwards.                                                                                                                                                               |
 | `updated_at`                                           | Time of the row's latest write.                                                                                                                                                                                      |
 | `input`, `output`, `cache_read`, `cache_write`, `cost` | The sums of the input, output, cache-read, and cache-write token counts and of the cost of the counted entries' host `usage`, as [footer.md](footer.md), Section 2.2, sums its session totals; `cost` in US dollars. |
-| `turns`                                                | The number of counted entries that are assistant messages.                                                                                                                                                           |
+| `turns`                                                | The number of assistant-message entries of the session, on every branch, with or without a host `usage`, that are not entries copied by a fork (below).                                                              |
 
 The counted entries are the entries of the session, on every branch, as the host holds them,
 that [footer.md](footer.md), Section 2.2, sums into its session totals, except:
@@ -235,7 +235,8 @@ probe counts as existing), or when `owner_pid` is the checking process's own and
 differs from the checking process's start time by more than 1000 ms.
 
 The sweep MUST set, for every ledger row whose `status` is `running` and whose owner is gone,
-`status` to `interrupted` and `settled_at` to the row's `updated_at`, in one transaction. It runs
+`status` to `interrupted`, `settled_at` to the row's `updated_at`, and then `updated_at` to the
+time of the sweep, in one transaction. It runs
 when the ledger is opened (Section 1), so a row left `running` by a process that ended is settled
 by the next opening of the ledger by any pi-dent process, whether or not its session starts again.
 
@@ -249,7 +250,7 @@ find its ledger row: the one with the session's ledger session ID, the record's 
 `task_id`, and the record's `startedAt` as `started_at`. When the inserted row is `interrupted`
 and the ledger row's `status` is `running` or `cancelled`, the extension MUST set `status` to
 `interrupted`, keeping `settled_at` when it is not null, else setting it to the row's
-`updated_at`. A rebuild inserts no ledger row: a record with no matching ledger row has none.
+`updated_at`, and then setting `updated_at` to the time of the write. A rebuild inserts no ledger row: a record with no matching ledger row has none.
 
 > Note (non-normative): a reload settles a running background task `cancelled` as its task
 > registry ends ([task-record.md](task-record.md), Section 2); the rebuild that follows makes it
@@ -284,6 +285,10 @@ gone processes.
 - A transaction that cannot begin within the busy timeout is not a failure: it MUST be attempted
   again until it begins, and the operations behind it in the process's ledger order wait for it.
   Between two attempts the extension MUST yield to the process's event loop.
+
+  > Note (non-normative): the busy timeout is short because SQLite waits inside the process's one
+  > thread; the retries, not the timeout, carry a write past a long lock.
+
 - The read deadline is 2000 ms: a surface's read that has not completed 2000 ms after it is
   issued is abandoned, and the surface shows the ledger as busy, in the text its spec gives.
 
