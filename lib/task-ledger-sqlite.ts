@@ -8,12 +8,6 @@ import type { TaskKind, TaskStatus } from "./task-row.ts";
 import { errorMessage, isPlainObject } from "./util.ts";
 import { zeroUsageSum, type UsageSum } from "./usage.ts";
 
-/** The trigger of Section 2: an `UPDATE` that sets a session row's `turns` makes `tool_calls` null. */
-const TOOL_CALLS_TRIGGER = `CREATE TRIGGER sessions_tool_calls_unknown AFTER UPDATE OF turns ON sessions
-BEGIN
-  UPDATE sessions SET tool_calls = NULL WHERE session_id = NEW.session_id;
-END;`;
-
 /** The schema of Section 2, verbatim. */
 export const LEDGER_SCHEMA = `
 CREATE TABLE sessions (
@@ -28,7 +22,7 @@ CREATE TABLE sessions (
   cache_write  INTEGER NOT NULL,
   cost         REAL    NOT NULL,
   turns        INTEGER NOT NULL,
-  tool_calls   INTEGER
+  tool_calls   INTEGER NOT NULL
 ) WITHOUT ROWID;
 CREATE TABLE tasks (
   row_id        TEXT    PRIMARY KEY,
@@ -64,14 +58,6 @@ CREATE INDEX tasks_session ON tasks (session_id, task_id);
 CREATE INDEX tasks_parent ON tasks (parent_id) WHERE parent_id IS NOT NULL;
 CREATE INDEX tasks_session_path ON tasks (session_path) WHERE session_path IS NOT NULL;
 CREATE INDEX tasks_running ON tasks (status) WHERE status = 'running';
-${TOOL_CALLS_TRIGGER}
-`;
-
-/** The migration from format version 1 (Section 2.3), verbatim. */
-export const LEDGER_MIGRATION_FROM_1 = `
-ALTER TABLE sessions ADD COLUMN tool_calls INTEGER;
-ALTER TABLE tasks ADD COLUMN tool_calls INTEGER;
-${TOOL_CALLS_TRIGGER}
 `;
 
 const SQLITE_BUSY = 5;
@@ -140,7 +126,7 @@ export interface LedgerFigureRow {
   settledAt: number | null;
   /** The own usage: the six usage columns, a zero usage sum when they are null. */
   own: UsageSum;
-  /** The own tool-call count; undefined when `tool_calls` is null (unknown). */
+  /** The own tool-call count; undefined for a `bash` row, whose `tool_calls` is null. */
   toolCalls: number | undefined;
 }
 

@@ -422,7 +422,7 @@ test("a ledger that cannot be used is one notice, and the tally stays partial", 
   try {
     // A file of another format version is left unchanged and makes the ledger unusable.
     const db = raw(box.ledgerPath);
-    db.exec("PRAGMA user_version = 3");
+    db.exec("PRAGMA user_version = 2");
     db.close();
     await factory(stub.pi);
     await fire(stub, "session_start", { reason: "startup" }, ctx);
@@ -434,7 +434,7 @@ test("a ledger that cannot be used is one notice, and the tally stays partial", 
       ui.notices.filter((notice) => notice.message.includes("task ledger")),
       [
         {
-          message: "pi-dent: task ledger unavailable: unsupported task ledger version 3",
+          message: "pi-dent: task ledger unavailable: unsupported task ledger version 2",
           level: "warning",
         },
       ],

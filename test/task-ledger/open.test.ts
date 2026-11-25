@@ -20,13 +20,13 @@ test("the ledger path is PI_DENT_TASKS_DB when set and non-empty, else ~/.pi/pi-
   assert.equal(taskLedgerPath({}, "/home/u"), "/home/u/.pi/pi-dent/tasks-v1.sqlite");
 });
 
-test("the first opening creates the directory, the file, the schema and user_version 2 in WAL mode", async () => {
+test("the first opening creates the directory, the file, the schema and user_version 1 in WAL mode", async () => {
   const dir = tempDir();
   const { ledger, path, notices } = openLedger({ path: join(dir, "a", "b", "tasks.sqlite") });
   await ledger.flushed();
   assert.equal(ledger.unusableReason(), undefined);
   assert.deepEqual(notices, []);
-  assert.equal(userVersionOf(path), 2);
+  assert.equal(userVersionOf(path), 1);
   const db = raw(path);
   try {
     const names = db
@@ -36,7 +36,6 @@ test("the first opening creates the directory, the file, the schema and user_ver
       .all()
       .map((row) => `${String(row.type)} ${String(row.name)}`);
     assert.deepEqual(names, [
-      "trigger sessions_tool_calls_unknown",
       "table sessions",
       "table tasks",
       "index tasks_parent",
@@ -93,6 +92,12 @@ test("the first opening creates the directory, the file, the schema and user_ver
       "turns",
       "tool_calls",
     ]);
+    const notNull = (table: string) =>
+      db
+        .prepare(`PRAGMA table_info(${table})`)
+        .all()
+        .find((row) => row.name === "tool_calls")?.notnull;
+    assert.deepEqual([notNull("sessions"), notNull("tasks")], [1, 0], "null only for a bash row");
     assert.equal(db.prepare("PRAGMA journal_mode").get()?.journal_mode, "wal");
   } finally {
     db.close();
@@ -100,7 +105,7 @@ test("the first opening creates the directory, the file, the schema and user_ver
   ledger.close();
 });
 
-test("an existing version 2 ledger is used with its rows", async () => {
+test("an existing version 1 ledger is used with its rows", async () => {
   const first = openLedger();
   const rowId = inserted(first.ledger);
   await first.ledger.flushed();
@@ -311,7 +316,7 @@ test("two processes opening an absent file both use one schema", async () => {
   const at = String(Date.now() + 500);
   const outputs = await Promise.all([0, 1, 2].map(() => runChild([url, path, dir, at])));
   assert.deepEqual(outputs, Array(3).fill(JSON.stringify({ reason: null })));
-  assert.equal(userVersionOf(path), 2);
+  assert.equal(userVersionOf(path), 1);
   const db = raw(path);
   try {
     assert.equal(

@@ -22,7 +22,7 @@ export interface TaskFeedTask {
   detail: string;
   label: string;
   usage?: UsageSum;
-  /** Absent for a `bash` row and a row without one: not applicable or unknown, never 0. */
+  /** Absent for a `bash` row and a rebuilt row, which has none; never 0 in their place. */
   toolCalls?: number;
 }
 

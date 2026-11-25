@@ -89,7 +89,7 @@ test("row and session figures over a tree with a row whose parent is missing", a
   assert.equal(rows.get(orphanChild)?.wallMs, 0);
   assert.equal(rows.get(orphanChild)?.descendants, 0);
   assert.deepEqual(rows.get(grandchild)?.own, usage(0, 0, 0, 0));
-  // A bash row's count is unknown, not 0 (Section 6).
+  // A bash row has no tool-call count, not 0 (Section 6).
   assert.equal(rows.get(grandchild)?.toolCalls, undefined);
 
   assert.deepEqual(ok(await ledger.readSessionFigures("session-a")), {

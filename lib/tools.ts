@@ -586,7 +586,7 @@ async function taskList(
       entry.usage = figures.own;
       entry.total = figures.total;
       entry.descendantMs = figures.descendantMs;
-      // task-tool.md Section 2.3: absent while the count is unknown, never 0 in its place.
+      // task-tool.md Section 2.3: absent for a bash row, never 0 in its place.
       if (figures.toolCalls !== undefined) entry.toolCalls = figures.toolCalls;
     }
     return entry;
