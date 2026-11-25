@@ -34,6 +34,21 @@ test("sums the entries the footer sums, on every branch, and counts assistant me
   assert.deepEqual(sessionRowUsage(entries, { timestamp: AT }), usage(48, 18, 0.96875, 2, 100, 20));
 });
 
+test("counts an assistant message without a host usage as a turn", () => {
+  const entries = [
+    message("assistant", AT),
+    message("assistant", AT, hostUsage(10, 1, 0.5)),
+    message("user", AT),
+  ];
+  assert.deepEqual(sessionRowUsage(entries, { timestamp: AT }), usage(10, 1, 0.5, 2));
+  const header = { timestamp: AT, parentSession: "/s/parent.jsonl" };
+  // A fork-copied assistant message adds no turn, with or without a usage.
+  assert.deepEqual(
+    sessionRowUsage([message("assistant", "2026-03-01T09:00:00.000Z"), ...entries], header),
+    usage(10, 1, 0.5, 2),
+  );
+});
+
 test("leaves out an Agent tool result's usage", () => {
   const entries = [
     message("assistant", AT, hostUsage(10, 1, 0.5)),

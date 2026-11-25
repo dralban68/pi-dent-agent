@@ -5,8 +5,8 @@
  * Every operation is issued without waiting: it joins the process's ledger order (Section 5), one
  * queue shared on `globalThis` by every extension instance of the process, which a drain loop
  * applies in a later turn of the event loop. A transaction that cannot begin is attempted again
- * after an awaited pause; each attempt waits inside SQLite for at most `BUSY_ATTEMPT_MS`, so a
- * busy file never holds the event loop for the busy timeout.
+ * after an awaited pause; each attempt waits inside SQLite for at most the busy timeout,
+ * `BUSY_TIMEOUT_MS`.
  */
 
 import { randomUUID } from "node:crypto";
@@ -47,12 +47,10 @@ export const TASKS_DB_ENV = "PI_DENT_TASKS_DB";
 export const LEDGER_FILE_NAME = "tasks-v1.sqlite";
 /** The format version recorded in `user_version` (Section 1). */
 export const LEDGER_VERSION = 1;
-/** The busy timeout of Section 1. */
-export const BUSY_TIMEOUT_MS = 5000;
+/** The busy timeout of Section 1: how long one attempt waits inside SQLite. */
+export const BUSY_TIMEOUT_MS = 10;
 /** The read deadline of Section 5. */
 export const READ_DEADLINE_MS = 2000;
-/** How long one attempt of a transaction waits inside SQLite before the queue pauses (Section 5). */
-const BUSY_ATTEMPT_MS = 10;
 /** The awaited pause between two attempts (Section 5). */
 const BUSY_RETRY_DELAY_MS = 10;
 /** The start-time tolerance of an owner of this process's pid (Section 4.1). */
@@ -604,7 +602,7 @@ export class TaskLedger {
     for (;;) {
       let db: DatabaseSync;
       try {
-        db = new DatabaseSync(this.path, { readOnly: true, timeout: BUSY_ATTEMPT_MS });
+        db = new DatabaseSync(this.path, { readOnly: true, timeout: BUSY_TIMEOUT_MS });
       } catch (error) {
         if (!isCorruptError(error)) return true; // The read-write opening reports its own failure.
         this.fail(failureReason(error));
@@ -763,8 +761,8 @@ export class TaskLedger {
     if (this.reason !== undefined) return;
     if (this.db !== undefined) return this.db;
     try {
-      // Each attempt waits at most BUSY_ATTEMPT_MS inside SQLite; the queue waits between attempts.
-      this.db = new DatabaseSync(this.path, { timeout: BUSY_ATTEMPT_MS });
+      // Each attempt waits at most the busy timeout inside SQLite; the queue waits between attempts.
+      this.db = new DatabaseSync(this.path, { timeout: BUSY_TIMEOUT_MS });
       return this.db;
     } catch (error) {
       this.fail(failureReason(error));

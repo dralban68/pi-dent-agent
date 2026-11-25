@@ -33,7 +33,8 @@ export interface LedgerSessionHeader {
 /**
  * The usage sum of a ledger session row: the entries footer.md Section 2.2 sums, on every branch,
  * less `Agent` tool results and, in a fork, the entries copied from the parent session
- * (Section 2.1). `turns` counts the counted assistant messages.
+ * (Section 2.1). `turns` counts every assistant message not copied by a fork, with or without a
+ * host `usage`.
  */
 export function sessionRowUsage(
   entries: readonly LedgerSessionEntry[],
@@ -45,33 +46,31 @@ export function sessionRowUsage(
       : undefined;
   const sum = zeroUsageSum();
   for (const entry of entries) {
-    const counted = countedUsage(entry);
-    if (counted === undefined) continue;
     if (forkedAt !== undefined) {
       const at = instant(entry.timestamp);
       if (at !== undefined && at < forkedAt) continue;
     }
-    sum.input += counted.usage.input;
-    sum.output += counted.usage.output;
-    sum.cacheRead += counted.usage.cacheRead;
-    sum.cacheWrite += counted.usage.cacheWrite;
-    sum.cost += counted.usage.cost.total;
-    if (counted.assistant) sum.turns += 1;
+    if (entry.type === "message" && entry.message?.role === "assistant") sum.turns += 1;
+    const usage = countedUsage(entry);
+    if (usage === undefined) continue;
+    sum.input += usage.input;
+    sum.output += usage.output;
+    sum.cacheRead += usage.cacheRead;
+    sum.cacheWrite += usage.cacheWrite;
+    sum.cost += usage.cost.total;
   }
   return sum;
 }
 
 /** The usage an entry adds to the footer's session totals, less an `Agent` tool result's. */
-function countedUsage(
-  entry: LedgerSessionEntry,
-): { usage: LedgerEntryUsage; assistant: boolean } | undefined {
+function countedUsage(entry: LedgerSessionEntry): LedgerEntryUsage | undefined {
   if (entry.type === "usage" || entry.type === "compaction" || entry.type === "branch_summary") {
-    return entry.usage === undefined ? undefined : { usage: entry.usage, assistant: false };
+    return entry.usage;
   }
   if (entry.type !== "message" || entry.message?.usage === undefined) return;
   const { role, toolName, usage } = entry.message;
-  if (role === "assistant") return { usage, assistant: true };
-  if (role === "toolResult" && toolName !== "Agent") return { usage, assistant: false };
+  if (role === "assistant") return usage;
+  if (role === "toolResult" && toolName !== "Agent") return usage;
   return;
 }
 

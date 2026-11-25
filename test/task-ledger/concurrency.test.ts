@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { READ_DEADLINE_MS } from "../../lib/task-ledger.ts";
+import { BUSY_TIMEOUT_MS, READ_DEADLINE_MS } from "../../lib/task-ledger.ts";
 import { inserted, ok, openLedger, raw, taskRow, usage } from "./support.ts";
 
 /** specs/task-ledger.md Sections 5 and 7: the process's ledger order, busy files, deadlines, failures. */
@@ -48,7 +48,8 @@ test("a write behind a held lock is retried, not failed, and the event loop keep
   assert.equal(ledger.unusableReason(), undefined);
   assert.deepEqual(notices, []);
   assert.equal(taskRow(path, rowId).status, "running");
-  // Far below the 5000 ms busy timeout: no attempt held the event loop for it.
+  // Each attempt waits at most the 10 ms busy timeout (Section 1), then yields.
+  assert.equal(BUSY_TIMEOUT_MS, 10);
   assert.ok(gap < 250, `event loop blocked for ${gap} ms`);
   ledger.close();
 });

@@ -236,12 +236,13 @@ test("a rebuilt interrupted row makes its running or cancelled ledger row interr
   await ledger.flushed();
   const columns = (rowId: string) => {
     const row = taskRow(path, rowId);
-    return [row.status, row.settled_at];
+    return [row.status, row.settled_at, row.updated_at];
   };
-  assert.deepEqual(columns(running), ["interrupted", 1000]);
-  assert.deepEqual(columns(cancelled), ["interrupted", 1150]);
-  assert.deepEqual(columns(completed), ["completed", 1160]);
-  assert.deepEqual(columns(otherStart), ["running", null]);
+  // settled_at from the old updated_at (or kept), then updated_at the time of the write.
+  assert.deepEqual(columns(running), ["interrupted", 1000, 1300]);
+  assert.deepEqual(columns(cancelled), ["interrupted", 1150, 1300]);
+  assert.deepEqual(columns(completed), ["completed", 1160, 1200]);
+  assert.deepEqual(columns(otherStart), ["running", null, 1000]);
   const db = raw(path);
   assert.equal(db.prepare("SELECT count(*) AS n FROM tasks").get()?.n, 4);
   db.close();

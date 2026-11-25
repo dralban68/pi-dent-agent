@@ -49,12 +49,13 @@ test("opening settles the running rows of a gone owner interrupted at their upda
   await second.ledger.flushed();
   const columns = (rowId: string) => {
     const row = taskRow(first.path, rowId);
-    return [row.status, row.settled_at];
+    return [row.status, row.settled_at, row.updated_at];
   };
-  assert.deepEqual(columns(dead), ["interrupted", 4242]);
-  assert.deepEqual(columns(deadSettled), ["completed", 3000]);
-  assert.deepEqual(columns(recycled), ["interrupted", 4444]);
-  assert.deepEqual(columns(live), ["running", null]);
-  assert.deepEqual(columns(parent), ["running", null]);
+  // settled_at from the old updated_at, then updated_at the time of the sweep.
+  assert.deepEqual(columns(dead), ["interrupted", 4242, 9999]);
+  assert.deepEqual(columns(deadSettled), ["completed", 3000, 4343]);
+  assert.deepEqual(columns(recycled), ["interrupted", 4444, 9999]);
+  assert.deepEqual(columns(live), ["running", null, 4545]);
+  assert.deepEqual(columns(parent), ["running", null, 4646]);
   second.ledger.close();
 });
