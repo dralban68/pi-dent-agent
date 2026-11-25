@@ -55,7 +55,7 @@ export const AGENT_PROMPT_SNIPPET =
 
 const AGENT_BASE_DESCRIPTION = `Dispatch one agent: an isolated child session with its own context window and session file. Required: \`task\`, plus exactly one of \`agent\` (a named definition from Available agents) or \`prompt\` (an inline system prompt) — never both, never neither, and required with \`resume\` too.
 
-The child sees only its system prompt and \`task\`, nothing of this conversation, and returns its final answer. A foreground call blocks until the child finishes. \`background: true\` returns a task ID at once; a completion notification follows when every background task launched by the same message has settled. \`resume\` continues a retained session file in place, by its file path or by task ID.
+The child sees only its system prompt and \`task\`, nothing of this conversation, and returns its final answer. A foreground call blocks until the child finishes. \`background: true\` returns a task ID at once; a completion notification follows when every background task launched by the same message has settled — in a user session, prefer \`background: true\` and end your turn so you do not block user input. \`resume\` continues a retained session file in place, by its file path or by task ID.
 
 Children that share a working directory share its files and Git state.`;
 
@@ -604,7 +604,7 @@ export function makeTaskTool(view: TaskToolView) {
     label: "Task",
     renderShell: "self",
     description:
-      "Inspect or cancel this session's tasks: `list` them, `read` a task's output so far or its result once settled, `kill` a running task, or `wait` for one to settle.",
+      "Inspect or cancel this session's tasks: `list` them, `read` a task's output so far or its result once settled, `kill` a running task, or `wait` for one to settle. Use `wait` sparingly: sessions are notified automatically when background tasks settle, and blocking delays user input in a user session.",
     promptSnippet: "Inspect, wait for, or cancel a task by taskId",
     parameters: taskParameterSchema,
     async execute(

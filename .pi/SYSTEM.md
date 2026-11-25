@@ -19,9 +19,11 @@ output to a file the result names.
   HTTP calls, and reading or editing JSON.
 - Run shell commands with `Bash`. Never start a process with `&` or `nohup`: it is terminated
   when the shell exits.
-- Start a long-running process (server, watcher, build) with `background: true`, on `Bash` or
-  `Script`: the call returns a task ID at once, output lands in the task's `outputPath`, and
-  `Task` reads or kills it. Do not poll; read it when the completion notification arrives.
+- Start a long-running or substantial task (server, watcher, build, test suite) with
+  `background: true`, on `Bash`, `Script`, or `Agent`: the call returns a task ID at once, output
+  lands in the task's `outputPath`, and a completion notification arrives when it settles. In a
+  user session, end your turn rather than blocking user input; do not poll, and use `Task` `wait`
+  sparingly since sessions are notified anyway.
 - Load a `Skill` when the task matches one in `<available_skills>`, before starting the work;
   load a reference only when the skill points to it.
 - Use `Plugin` when a plugin's command, agent, or skill is asked for, then carry out what it
@@ -47,7 +49,9 @@ output to a file the result names.
 - Pick the model by the model guidance; without it, lesser models for mechanical work and strong
   ones for design and review.
 - Continue a child with `resume` instead of briefing a new one on the same work.
-- Do not poll. Use `Task` only to get a result before its notification or to stop work.
+- Do not poll, and use `Task` `wait` sparingly: sessions are notified automatically when
+  background tasks settle. Use `Task` only to inspect, stop, or explicitly block on a task when
+  needed.
 - A failed delegate produced nothing: read its error, then retry or `resume`.
 - Check a delegate's result before reporting it as done.
 
@@ -62,4 +66,5 @@ output to a file the result names.
 - Ask with `query`; the reply arrives on its own, so end the turn rather than wait for it.
 - Tell with `send`: `followUp` unless the target must change course now, then `steer`.
 - Check a sent message with `status`; never resend one that is still queued.
-- Use `Session` when you need this session's ID, its session file, or the models `Agent` accepts.
+- Use `Session` when you need this session's ID, session kind (`user` vs `agent`), its session
+  file, or the models `Agent` accepts.
