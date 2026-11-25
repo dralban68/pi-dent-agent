@@ -1,3 +1,4 @@
+import "../support/isolate-session-store.ts";
 import { test } from "node:test";
 import { isolateTaskLedger } from "../support/task-ledger-env.ts";
 import assert from "node:assert/strict";

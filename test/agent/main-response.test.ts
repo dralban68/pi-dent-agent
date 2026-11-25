@@ -1,3 +1,4 @@
+import "../support/isolate-session-store.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
