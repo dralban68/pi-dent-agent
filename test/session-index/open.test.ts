@@ -62,7 +62,7 @@ test("the index path is PI_DENT_SEARCH_DB when set and non-empty, else ~/.pi/pi-
 });
 
 test("the index path and the session store path are different files by default", () => {
-  assert.equal(sessionStorePath({}, "/home/user"), "/home/user/.pi/pi-dent/fleet.sqlite");
+  assert.equal(sessionStorePath({}, "/home/user"), "/home/user/.pi/pi-dent/fleet-v2.sqlite");
   assert.equal(
     sessionStorePath({ PI_DENT_FLEET_DB: "/tmp/store.sqlite" }, "/home/user"),
     "/tmp/store.sqlite",

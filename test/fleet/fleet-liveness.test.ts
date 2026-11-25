@@ -104,7 +104,7 @@ test("a session whose owner process is gone is an unknown target: resolution del
     raw
       .prepare("UPDATE fleet_sessions SET owner_pid = ?, owner_boot = ? WHERE session_id = ?")
       .run(deadPid(), "bootCrashed", "orphan-target");
-    // Control: an identical row without owner info stays a target (owner unknown, never guessed).
+    // Control: an identical row whose owner is this live boot window stays a target.
     fleet.upsertSession({ sessionId: "owned-target", cwd: dir, state: "idle" });
 
     registerSender(fleet, "sender-1", dir);
@@ -116,7 +116,7 @@ test("a session whose owner process is gone is an unknown target: resolution del
       undefined,
       undefined as never,
     );
-    assert.equal(control.details.state, "idle", "control row without owner info is idle");
+    assert.equal(control.details.state, "idle", "control row of a live owner is idle");
 
     // `list` omits the record and, being read-only, leaves it in the store.
     const listed = await tool.execute(

@@ -4,9 +4,9 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import type { BootSnapshot } from "../../lib/engine.ts";
@@ -64,8 +64,8 @@ function plantCrashedRecord(dbPath: string, sessionId: string, cwd: string): voi
   try {
     db.prepare(
       `INSERT INTO fleet_sessions
-         (session_id, cwd, repo_root, state, alive, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden)
-         VALUES (?, ?, NULL, 'running', 1, ?, '[]', ?, 'bootCrashed', 1, NULL, 0)`,
+         (session_id, cwd, repo_root, state, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden)
+         VALUES (?, ?, NULL, 'running', ?, '[]', ?, 'bootCrashed', 1, NULL, 0)`,
     ).run(sessionId, cwd, Date.now(), deadPid());
   } finally {
     db.close();
@@ -128,91 +128,81 @@ test("opening the store deletes a record whose owner process is gone", () => {
   }
 });
 
-test("ancient message rows and legacy dead session rows are purged when the store opens", () => {
+test("message rows created more than 7 days earlier are deleted when the store opens", () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-dent-fleet-purge-"));
   try {
     const db = join(dir, "fleet.sqlite");
+    new FleetCoordinator(emptyBoot(dir), { dbPath: db, bootId: "bootOld" }).close();
+    const day = 86_400_000;
     const seed = rawDb(db);
-    seed.exec(`
-			CREATE TABLE IF NOT EXISTS fleet_sessions (
-				session_id TEXT PRIMARY KEY, cwd TEXT NOT NULL, repo_root TEXT, state TEXT NOT NULL,
-				alive INTEGER NOT NULL, updated_at INTEGER NOT NULL, turns_json TEXT NOT NULL
-			);
-			CREATE TABLE IF NOT EXISTS fleet_messages (
-				message_id INTEGER PRIMARY KEY AUTOINCREMENT, sender_session_id TEXT NOT NULL,
-				target_session_id TEXT NOT NULL, boot_id TEXT NOT NULL, kind TEXT NOT NULL, subject TEXT,
-				body TEXT NOT NULL, deliver TEXT NOT NULL, abort INTEGER NOT NULL, correlation_id TEXT,
-				status TEXT NOT NULL, rejection_reason TEXT, created_at INTEGER NOT NULL, delivered_at INTEGER
-			);
-			INSERT INTO fleet_sessions VALUES ('dead-old', '${dir}', NULL, 'idle', 0, ${Date.now() - 30 * 86400_000}, '[]');
-			INSERT INTO fleet_messages (sender_session_id, target_session_id, boot_id, kind, subject, body, deliver, abort, correlation_id, status, rejection_reason, created_at, delivered_at)
-				VALUES ('s', 't', 'old-boot', 'send', NULL, 'x', 'followUp', 0, NULL, 'delivered', NULL, ${Date.now() - 30 * 86400_000}, ${Date.now() - 30 * 86400_000});
-		`);
+    const insert = seed.prepare(
+      `INSERT INTO fleet_messages
+         (sender_session_id, target_session_id, boot_id, kind, subject, body, deliver, abort, correlation_id, status, rejection_reason, created_at, delivered_at, deliver_text)
+         VALUES ('s', 't', 'old-boot', 'send', NULL, ?, 'followUp', 0, NULL, 'delivered', NULL, ?, NULL, NULL)`,
+    );
+    insert.run("ancient", Date.now() - 8 * day);
+    insert.run("recent", Date.now() - 6 * day);
     seed.close();
 
     const fleet = new FleetCoordinator(emptyBoot(dir), { dbPath: db, bootId: "bootNew" });
     const check = rawDb(db);
-    const sessions = check.prepare("SELECT COUNT(*) AS n FROM fleet_sessions").get() as {
-      n: number;
-    };
-    const messages = check.prepare("SELECT COUNT(*) AS n FROM fleet_messages").get() as {
-      n: number;
-    };
+    const bodies = check
+      .prepare("SELECT body FROM fleet_messages")
+      .all()
+      .map((row) => row.body);
     check.close();
-    assert.equal(sessions.n, 0, "long-dead session rows must be purged");
-    assert.equal(messages.n, 0, "ancient message rows from dead boot windows must be purged");
+    assert.deepEqual(bodies, ["recent"]);
     fleet.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("opening a store deletes legacy alive = 0 rows, keeps live rows, and rejects their pending messages", () => {
-  const dir = mkdtempSync(join(tmpdir(), "pi-dent-fleet-legacy-"));
+test("a new store file records format version 2", () => {
+  const dir = mkdtempSync(join(tmpdir(), "pi-dent-fleet-version-"));
   try {
     const db = join(dir, "fleet.sqlite");
-    const now = Date.now();
-    const seed = rawDb(db);
-    seed.exec(`
-			CREATE TABLE IF NOT EXISTS fleet_sessions (
-				session_id TEXT PRIMARY KEY, cwd TEXT NOT NULL, repo_root TEXT, state TEXT NOT NULL,
-				alive INTEGER NOT NULL, updated_at INTEGER NOT NULL, turns_json TEXT NOT NULL
-			);
-			CREATE TABLE IF NOT EXISTS fleet_messages (
-				message_id INTEGER PRIMARY KEY AUTOINCREMENT, sender_session_id TEXT NOT NULL,
-				target_session_id TEXT NOT NULL, boot_id TEXT NOT NULL, kind TEXT NOT NULL, subject TEXT,
-				body TEXT NOT NULL, deliver TEXT NOT NULL, abort INTEGER NOT NULL, correlation_id TEXT,
-				status TEXT NOT NULL, rejection_reason TEXT, created_at INTEGER NOT NULL, delivered_at INTEGER
-			);
-		`);
-    const insertSession = seed.prepare(
-      "INSERT INTO fleet_sessions VALUES (?, ?, NULL, 'idle', ?, ?, '[]')",
-    );
-    // Recent updated_at: deletion is for ended sessions, not retention.
-    insertSession.run("legacy-dead", dir, 0, now);
-    insertSession.run("legacy-live", dir, 1, now);
-    const insertMessage = seed.prepare(
-      "INSERT INTO fleet_messages (sender_session_id, target_session_id, boot_id, kind, subject, body, deliver, abort, correlation_id, status, rejection_reason, created_at, delivered_at) VALUES (?, ?, 'bootOld', 'send', NULL, 'x', 'followUp', 0, NULL, 'pending', NULL, ?, NULL)",
-    );
-    insertMessage.run("s", "legacy-dead", now);
-    insertMessage.run("s", "legacy-live", now);
-    seed.close();
-
-    const fleet = new FleetCoordinator(emptyBoot(dir), { dbPath: db, bootId: "bootNew" });
-    assert.equal(fleet.getSession("legacy-dead"), undefined, "an alive = 0 row is deleted at open");
-    assert.ok(fleet.getSession("legacy-live"), "a live row is kept");
-
+    new FleetCoordinator(emptyBoot(dir), { dbPath: db }).close();
     const check = rawDb(db);
-    const statuses = check
-      .prepare("SELECT target_session_id, status FROM fleet_messages ORDER BY message_id")
-      .all()
-      .map((row) => ({ target_session_id: row.target_session_id, status: row.status }));
+    const version = check.prepare("PRAGMA user_version").get()?.user_version;
     check.close();
-    assert.deepEqual(statuses, [
-      { target_session_id: "legacy-dead", status: "rejected" },
-      { target_session_id: "legacy-live", status: "pending" },
-    ]);
-    fleet.close();
+    assert.equal(version, 2);
+    // A second opening uses the file as it is.
+    const again = new FleetCoordinator(emptyBoot(dir), { dbPath: db });
+    again.upsertSession({ sessionId: "s", cwd: dir, state: "idle" });
+    assert.ok(again.getSession("s"));
+    again.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a file of another format version fails the opening and is left unchanged", () => {
+  const dir = mkdtempSync(join(tmpdir(), "pi-dent-fleet-other-version-"));
+  try {
+    const cases = [
+      { name: "version-1", setup: "CREATE TABLE t (x); PRAGMA user_version = 1;", version: 1 },
+      { name: "version-3", setup: "PRAGMA user_version = 3;", version: 3 },
+      {
+        name: "unversioned-with-table",
+        setup: "CREATE TABLE fleet_sessions (session_id TEXT);",
+        version: 0,
+      },
+    ];
+    for (const { name, setup, version } of cases) {
+      const db = join(dir, `${name}.sqlite`);
+      const seed = rawDb(db);
+      seed.exec(setup);
+      seed.close();
+      const before = readFileSync(db);
+      assert.throws(
+        () => new FleetCoordinator(emptyBoot(dir), { dbPath: db }),
+        { message: `unsupported session store version ${version}` },
+        name,
+      );
+      assert.deepEqual(readFileSync(db), before, `${name}: the file is unchanged`);
+      assert.equal(existsSync(`${db}-wal`), false, `${name}: no write-ahead log is started`);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -237,10 +227,15 @@ test("the store path is PI_DENT_FLEET_DB when set and non-empty, else the home d
 
     // An empty value is unset, never a private in-memory store (session-store.md Section 1).
     process.env.PI_DENT_FLEET_DB = "";
+    // A file of another format version beside it is neither read nor changed.
+    const other = join(home, ".pi", "pi-dent", "fleet.sqlite");
+    mkdirSync(dirname(other), { recursive: true });
+    writeFileSync(other, "not this format");
     const fallback = new FleetCoordinator(emptyBoot(dir));
-    assert.equal(fallback.dbPath, join(home, ".pi", "pi-dent", "fleet.sqlite"));
+    assert.equal(fallback.dbPath, join(home, ".pi", "pi-dent", "fleet-v2.sqlite"));
     assert.ok(existsSync(fallback.dbPath), "the default store is a file in the home directory");
     fallback.close();
+    assert.equal(readFileSync(other, "utf8"), "not this format");
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
@@ -296,7 +291,7 @@ test("a gone-owner reap leaves a session that re-registered since the read, with
       .prepare(
         `INSERT INTO fleet_messages
            (sender_session_id, target_session_id, boot_id, kind, subject, body, deliver, abort, correlation_id, status, rejection_reason, created_at, delivered_at, deliver_text)
-           VALUES ('a-peer', 'a-resumed', 'bootPeer', 'send', NULL, 'work', 'followUp', 0, NULL, 'pending', NULL, ?, NULL, NULL)`,
+           VALUES ('a-peer', 'a-resumed', 'bootPeer', 'send', NULL, 'work', 'followUp', 0, NULL, 'pending', NULL, ?, NULL, '[Fleet from a-peer]' || char(10) || 'work')`,
       )
       .run(Date.now());
     const messageId = Number(queued.lastInsertRowid);
@@ -347,7 +342,7 @@ test("reaping a crashed session deletes only that record and rejects its own pen
       .prepare(
         `INSERT INTO fleet_messages
            (sender_session_id, target_session_id, boot_id, kind, subject, body, deliver, abort, correlation_id, status, rejection_reason, created_at, delivered_at, deliver_text)
-           VALUES ('peer', 'gone-sess', 'bootPeer', 'send', NULL, 'work', 'followUp', 0, NULL, 'pending', NULL, ?, NULL, NULL)`,
+           VALUES ('peer', 'gone-sess', 'bootPeer', 'send', NULL, 'work', 'followUp', 0, NULL, 'pending', NULL, ?, NULL, '[Fleet from peer]' || char(10) || 'work')`,
       )
       .run(Date.now());
     seed.close();
@@ -367,54 +362,6 @@ test("reaping a crashed session deletes only that record and rejects its own pen
     const remaining = record.prepare("SELECT COUNT(*) AS n FROM fleet_sessions").get();
     record.close();
     assert.equal(remaining?.n, 0, "the crashed record is deleted");
-    fleet.close();
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("opening an older store adds the parent column, and an absent parent reads as null", () => {
-  const dir = mkdtempSync(join(tmpdir(), "pi-dent-fleet-parent-column-"));
-  try {
-    const db = join(dir, "fleet.sqlite");
-    const now = Date.now();
-    const seed = rawDb(db);
-    // A store an older pi-dent wrote: no parent_session_id column (session-store.md Section 1).
-    seed.exec(`
-			CREATE TABLE IF NOT EXISTS fleet_sessions (
-				session_id TEXT PRIMARY KEY, cwd TEXT NOT NULL, repo_root TEXT, state TEXT NOT NULL,
-				alive INTEGER NOT NULL, updated_at INTEGER NOT NULL, turns_json TEXT NOT NULL,
-				owner_pid INTEGER, owner_boot TEXT, owner_started INTEGER, agents_dir TEXT,
-				hidden INTEGER NOT NULL DEFAULT 0
-			);
-			CREATE TABLE IF NOT EXISTS fleet_messages (
-				message_id INTEGER PRIMARY KEY AUTOINCREMENT, sender_session_id TEXT NOT NULL,
-				target_session_id TEXT NOT NULL, boot_id TEXT NOT NULL, kind TEXT NOT NULL, subject TEXT,
-				body TEXT NOT NULL, deliver TEXT NOT NULL, abort INTEGER NOT NULL, correlation_id TEXT,
-				status TEXT NOT NULL, rejection_reason TEXT, created_at INTEGER NOT NULL, delivered_at INTEGER,
-				deliver_text TEXT
-			);
-			INSERT INTO fleet_sessions (session_id, cwd, repo_root, state, alive, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden)
-				VALUES ('old-session', '${dir}', NULL, 'idle', 1, ${now}, '[]', NULL, NULL, NULL, NULL, 0);
-		`);
-    seed.close();
-
-    const fleet = new FleetCoordinator(emptyBoot(dir), { dbPath: db, bootId: "bootNew" });
-    const check = rawDb(db);
-    const columns = check.prepare("PRAGMA table_info(fleet_sessions)").all();
-    check.close();
-    assert.equal(
-      columns.some((column) => column.name === "parent_session_id"),
-      true,
-      "opening the store adds the parent column",
-    );
-    assert.equal(
-      must(fleet.getSession("old-session")).parentSessionId,
-      undefined,
-      "a record written before the column has no parent",
-    );
-    fleet.upsertSession({ sessionId: "old-session", cwd: dir, state: "idle" });
-    assert.equal(must(fleet.getSession("old-session")).parentSessionId, undefined);
     fleet.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });

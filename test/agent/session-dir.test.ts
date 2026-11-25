@@ -463,26 +463,16 @@ test("sweep never deletes a nested agent directory on its own", () => {
   assert.equal(existsSync(join(dir, "child-1234abcd.agents", "old.txt")), true);
 });
 
-test("sweep removes an expired agent directory's output files with it, and touches no pi-dent-scripts tree", () => {
+test("sweep removes an expired agent directory's output files with it", () => {
   const dir = join(sessionsRoot(), "expired.agents");
   makeTree(dir, ["output/run1.log", "output/run1.json", "output/notes.txt"], 40);
   const live = join(sessionsRoot(), "fresh.agents");
   makeTree(live, ["output/run2.log"], 0);
-  // Output files have no sweep of their own (Section 10): a stray tree with
-  // Script's former layout is not touched.
-  const scripts = join(tmpdir(), "pi-dent-scripts", `stray-${process.pid}`);
-  makeTree(scripts, ["run3.log", "run3.json"], 40);
-  try {
-    retentionSweep(30, []);
-    assert.equal(existsSync(join(dir, "output", "run1.log")), false);
-    assert.equal(existsSync(join(dir, "output", "run1.json")), false);
-    assert.equal(existsSync(dir), false, "the directory goes whole");
-    assert.equal(existsSync(join(live, "output", "run2.log")), true);
-    assert.equal(existsSync(join(scripts, "run3.log")), true);
-    assert.equal(existsSync(join(scripts, "run3.json")), true);
-  } finally {
-    rmSync(scripts, { recursive: true, force: true });
-  }
+  retentionSweep(30, []);
+  assert.equal(existsSync(join(dir, "output", "run1.log")), false);
+  assert.equal(existsSync(join(dir, "output", "run1.json")), false);
+  assert.equal(existsSync(dir), false, "the directory goes whole");
+  assert.equal(existsSync(join(live, "output", "run2.log")), true);
 });
 
 // Live sessions (Section 10): the local session store says which directories are in use.
@@ -502,7 +492,7 @@ const deadPid = () => spawnSync(process.execPath, ["-e", ""]).pid;
 function foreignRecord(path: string, id: string, pid: number, agentsDir: string | null) {
   const db = new DatabaseSync(path);
   db.prepare(
-    "INSERT INTO fleet_sessions (session_id, cwd, state, alive, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir) VALUES (?, '/tmp', 'idle', 1, ?, '[]', ?, 'deadbeef', ?, ?)",
+    "INSERT INTO fleet_sessions (session_id, cwd, state, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden) VALUES (?, '/tmp', 'idle', ?, '[]', ?, 'deadbeef', ?, ?, 0)",
   ).run(id, Date.now(), pid, Date.now() - 100_000, agentsDir);
   db.close();
 }
@@ -567,7 +557,7 @@ test("sweep deletes no agent directory when the store is unreadable or a live re
   const path = dbPath();
   const fleet = coordinator(path);
   try {
-    foreignRecord(path, "legacy", process.ppid, null);
+    foreignRecord(path, "no-dir", process.ppid, null);
     assert.equal(fleet.liveAgentDirs(), undefined);
     retentionSweep(30, fleet.liveAgentDirs());
     assert.equal(existsSync(join(dir, "old.txt")), true, "record without a directory");

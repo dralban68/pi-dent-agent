@@ -24,6 +24,8 @@ const record = (
   state,
   updatedAt: 0,
   turns,
+  ownerPid: 0,
+  ownerStarted: 0,
   hidden: false,
 });
 
@@ -115,8 +117,8 @@ test("the feed is computed at start and every 5 seconds on the boot window's tim
 
 test("the payload carries the session ID, the machine list, and each summary", () => {
   const sessions = [
-    record("a", [{ command: "/x", goal: "ship the feed", files: [] }], "running"),
-    record("b", [{ command: "run tests", goal: "", files: [] }]),
+    record("a", [{ command: "/x", goal: "ship the feed", files: [], startedAt: 0 }], "running"),
+    record("b", [{ command: "run tests", goal: "", files: [], startedAt: 0 }]),
     record("c", []),
   ];
   const { fleet, state } = fakeFleet(sessions, "endpoint");
@@ -140,7 +142,9 @@ test("the payload carries the session ID, the machine list, and each summary", (
   );
   const first = must(payload.sessions[0]);
   assert.equal(first.cwd, "/work/a");
-  assert.deepEqual(first.turns, [{ command: "/x", goal: "ship the feed", files: [] }]);
+  assert.deepEqual(first.turns, [
+    { command: "/x", goal: "ship the feed", files: [], startedAt: 0 },
+  ]);
 });
 
 test("the feed sets the widget only when its text changes", () => {
@@ -152,7 +156,7 @@ test("the feed sets the widget only when its text changes", () => {
   tick();
   tick();
   assert.equal(calls.length, 1);
-  state.sessions = [record("s1", [{ command: "c", goal: "g", files: [] }])];
+  state.sessions = [record("s1", [{ command: "c", goal: "g", files: [], startedAt: 0 }])];
   tick();
   assert.equal(calls.length, 2);
   assert.equal(parsed(at(must(must(calls[1])[1]), 0)).sessions[0]?.summary, "g");
@@ -225,11 +229,23 @@ test("stopping a feed that never set the widget clears nothing", () => {
 });
 
 test("the summary is the goal, else the command, else null", () => {
-  assert.equal(fleetFeedSummary(record("s", [{ command: "c", goal: "g", files: [] }])), "g");
-  assert.equal(fleetFeedSummary(record("s", [{ command: "c", goal: "", files: [] }])), "c");
-  assert.equal(fleetFeedSummary(record("s", [{ command: "", goal: "", files: [] }])), null);
+  assert.equal(
+    fleetFeedSummary(record("s", [{ command: "c", goal: "g", files: [], startedAt: 0 }])),
+    "g",
+  );
+  assert.equal(
+    fleetFeedSummary(record("s", [{ command: "c", goal: "", files: [], startedAt: 0 }])),
+    "c",
+  );
+  assert.equal(
+    fleetFeedSummary(record("s", [{ command: "", goal: "", files: [], startedAt: 0 }])),
+    null,
+  );
   assert.equal(fleetFeedSummary(record("s", [])), null);
-  const { fleet } = fakeFleet([record("s", [{ command: "c", goal: "", files: [] }])], "endpoint");
+  const { fleet } = fakeFleet(
+    [record("s", [{ command: "c", goal: "", files: [], startedAt: 0 }])],
+    "endpoint",
+  );
   assert.equal(
     fleetFeedText(fleet, "s", "/work/s"),
     JSON.stringify({
@@ -241,7 +257,7 @@ test("the summary is the goal, else the command, else null", () => {
           kind: "machine",
           state: "idle",
           cwd: "/work/s",
-          turns: [{ command: "c", goal: "", files: [] }],
+          turns: [{ command: "c", goal: "", files: [], startedAt: 0 }],
           summary: "c",
         },
       ],

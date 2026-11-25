@@ -118,7 +118,7 @@ function seed(fleet: FleetCoordinator, cwd: string): void {
     sessionId: CURRENT,
     cwd,
     state: "idle",
-    turns: [{ command: "self", goal: "Current work", files: [] }],
+    turns: [{ command: "self", goal: "Current work", files: [], startedAt: 0 }],
   });
   registerCurrent(fleet, cwd);
   fleet.upsertSession({ sessionId: "sess-alpha", cwd, state: "running" });
@@ -126,7 +126,7 @@ function seed(fleet: FleetCoordinator, cwd: string): void {
     sessionId: "sess-bravo",
     cwd,
     state: "idle",
-    turns: [{ command: "inspect", goal: "Bravo work", files: [] }],
+    turns: [{ command: "inspect", goal: "Bravo work", files: [], startedAt: 0 }],
   });
   fleet.upsertSession({ sessionId: "sess-charlie", cwd, state: "idle" });
 }

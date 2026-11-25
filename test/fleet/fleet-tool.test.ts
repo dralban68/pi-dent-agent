@@ -174,19 +174,23 @@ test("Fleet list: running-first ordering, repo/worktree vs machine scope, and fo
       sessionId: "sess-idle-repo1",
       cwd: repo1,
       state: "idle",
-      turns: [{ command: "check status", goal: "Checking repo status", files: [] }],
+      turns: [{ command: "check status", goal: "Checking repo status", files: [], startedAt: 1 }],
     });
     fleet.upsertSession({
       sessionId: "sess-running-wt1",
       cwd: wt1,
       state: "running",
-      turns: [{ command: "edit files", goal: "Updating index.ts", files: ["index.ts"] }],
+      turns: [
+        { command: "edit files", goal: "Updating index.ts", files: ["index.ts"], startedAt: 2 },
+      ],
     });
     fleet.upsertSession({
       sessionId: "sess-running-repo2",
       cwd: repo2,
       state: "running",
-      turns: [{ command: "other repo work", goal: "Building repo2", files: ["pkg.json"] }],
+      turns: [
+        { command: "other repo work", goal: "Building repo2", files: ["pkg.json"], startedAt: 3 },
+      ],
     });
 
     const tool = makeFleetTool({ fleet, hostProvider: () => stubHost("sess-idle-repo1", repo1) });
@@ -873,7 +877,7 @@ test("Fleet fan-out is a tool error only when every recipient failed", async () 
   }
 });
 
-test("Fleet turn startedAt: recorded at turn start, emitted in json only when present, compact/full unchanged", async () => {
+test("Fleet turn startedAt: recorded at turn start, emitted in json, compact/full unchanged", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-dent-fleet-started-"));
   try {
     const fleet = new FleetCoordinator(emptyBoot(dir), { dbPath: join(dir, "fleet.sqlite") });
@@ -882,27 +886,7 @@ test("Fleet turn startedAt: recorded at turn start, emitted in json only when pr
     fleet.recordTurnStart("sess-timed", dir, "first line\nsecond", "");
     const after = Date.now();
     const started = must(must(fleet.getSession("sess-timed")).turns[0]).startedAt;
-    assert.equal(typeof started, "number");
-    assert.equal(Number.isFinite(started), true);
-    assert.equal(started !== undefined && started >= before && started <= after, true);
-
-    // Stored records: a non-finite, string or missing startedAt reads back without the key.
-    fleet.upsertSession({
-      sessionId: "sess-odd",
-      cwd: dir,
-      state: "idle",
-      turns: [
-        { command: "a", goal: "", files: [], startedAt: "soon" },
-        { command: "b", goal: "", files: [], startedAt: Number.NaN },
-        { command: "c", goal: "", files: [] },
-        { command: "d", goal: "", files: [], startedAt: 42 },
-      ] as never,
-    });
-    const odd = must(fleet.getSession("sess-odd"));
-    assert.equal("startedAt" in must(odd.turns[0]), false);
-    assert.equal("startedAt" in must(odd.turns[1]), false);
-    assert.equal("startedAt" in must(odd.turns[2]), false);
-    assert.equal(must(odd.turns[3]).startedAt, 42);
+    assert.equal(started >= before && started <= after, true);
 
     const tool = makeFleetTool({ fleet, hostProvider: () => stubHost("sess-timed", dir) });
     const res = await tool.execute(
@@ -918,22 +902,17 @@ test("Fleet turn startedAt: recorded at turn start, emitted in json only when pr
     };
     const timed = must(payload.sessions.find((s) => s.sessionId === "sess-timed"));
     assert.equal(timed.turns[0]?.startedAt, started);
-    const odds = must(payload.sessions.find((s) => s.sessionId === "sess-odd"));
-    assert.deepEqual(
-      odds.turns.map((t) => "startedAt" in t),
-      [false, false, false, true],
-    );
 
-    // compact and full do not show startedAt: same text with or without it.
+    // compact and full do not show startedAt: same text whatever its value.
     const withStart = must(fleet.getSession("sess-timed"));
-    const withoutStart: FleetSessionRecord = {
+    const otherStart: FleetSessionRecord = {
       ...withStart,
-      turns: withStart.turns.map(({ startedAt: _ignored, ...turn }) => turn),
+      turns: withStart.turns.map((turn) => ({ ...turn, startedAt: turn.startedAt + 1 })),
     };
     for (const format of ["compact", "full"] as const) {
       assert.equal(
         formatFleetList([withStart], "machine", format),
-        formatFleetList([withoutStart], "machine", format),
+        formatFleetList([otherStart], "machine", format),
       );
     }
     assert.equal(formatFleetList([withStart], "machine", "full").includes("startedAt"), false);

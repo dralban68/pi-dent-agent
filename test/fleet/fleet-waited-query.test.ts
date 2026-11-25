@@ -346,17 +346,17 @@ test("a hidden record this window did not write becomes its own wait address", a
       },
       "idle",
     );
-    // A hidden record another boot window left behind; a record with no owner
-    // process is never gone, so only the wait may claim and delete it.
+    // A hidden record another boot window left behind; a record whose owner
+    // process is live is never gone, so only the wait may claim and delete it.
     const raw = new DatabaseSync(dbPath);
     try {
       raw
         .prepare(
           `INSERT INTO fleet_sessions
-				 (session_id, cwd, repo_root, state, alive, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden, parent_session_id)
-				 VALUES (?, ?, NULL, 'running', 1, ?, '[]', NULL, NULL, NULL, NULL, 1, NULL)`,
+				 (session_id, cwd, repo_root, state, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden, parent_session_id)
+				 VALUES (?, ?, NULL, 'running', ?, '[]', ?, NULL, ?, NULL, 1, NULL)`,
         )
-        .run("child-fallback", dir, Date.now());
+        .run("child-fallback", dir, Date.now(), process.ppid, Date.now());
     } finally {
       raw.close();
     }
@@ -532,7 +532,7 @@ test("waited query: any other message pending for the hidden record is rejected"
       .prepare(
         `INSERT INTO fleet_messages
 				 (sender_session_id, target_session_id, boot_id, kind, subject, body, deliver, abort, correlation_id, status, rejection_reason, created_at, delivered_at, deliver_text)
-				 VALUES ('target-sess', ?, 'other-boot', 'send', NULL, 'a plain message', 'followUp', 0, NULL, 'pending', NULL, ?, NULL, NULL)`,
+				 VALUES ('target-sess', ?, 'other-boot', 'send', NULL, 'a plain message', 'followUp', 0, NULL, 'pending', NULL, ?, NULL, '[Fleet from target-sess]' || char(10) || 'a plain message')`,
       )
       .run("child-session-0001", Date.now());
     raw.close();
@@ -682,8 +682,8 @@ function plantGoneSession(dbPath: string, sessionId: string, cwd: string): void 
   try {
     db.prepare(
       `INSERT INTO fleet_sessions
-				 (session_id, cwd, repo_root, state, alive, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden)
-				 VALUES (?, ?, NULL, 'idle', 1, ?, '[]', ?, 'boot-window-that-is-gone', 1, NULL, 0)`,
+				 (session_id, cwd, repo_root, state, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden)
+				 VALUES (?, ?, NULL, 'idle', ?, '[]', ?, 'boot-window-that-is-gone', 1, NULL, 0)`,
     ).run(sessionId, cwd, Date.now(), process.pid);
   } finally {
     db.close();
@@ -962,8 +962,8 @@ function plantPendingSend(dbPath: string, targetSessionId: string, body: string)
     db.prepare(
       `INSERT INTO fleet_messages
          (sender_session_id, target_session_id, boot_id, kind, subject, body, deliver, abort, correlation_id, status, rejection_reason, created_at, delivered_at, deliver_text)
-         VALUES ('other-sess', ?, 'boot-other', 'send', NULL, ?, 'followUp', 0, NULL, 'pending', NULL, 0, NULL, NULL)`,
-    ).run(targetSessionId, body);
+         VALUES ('other-sess', ?, 'boot-other', 'send', NULL, ?, 'followUp', 0, NULL, 'pending', NULL, 0, NULL, '[Fleet from other-sess]' || char(10) || ?)`,
+    ).run(targetSessionId, body, body);
   } finally {
     db.close();
   }
@@ -991,7 +991,8 @@ function writeReplyWhileRejecting(
           (sender_session_id, target_session_id, boot_id, kind, subject, body, deliver, abort, correlation_id, status, rejection_reason, created_at, delivered_at, deliver_text)
           VALUES ('${targetSessionId}', '${senderSessionId}', 'boot-t', 'send', NULL,
             '[Fleet query reply correlationId=${correlationId}]' || char(10) || 'Query cancelled: the target session ended or reloaded.',
-            'followUp', 0, NULL, 'pending', NULL, 0, NULL, NULL);
+            'followUp', 0, NULL, 'pending', NULL, 0, NULL,
+            '[Fleet from ${targetSessionId}]' || char(10) || '[Fleet query reply correlationId=${correlationId}]' || char(10) || 'Query cancelled: the target session ended or reloaded.');
         DELETE FROM fleet_sessions WHERE session_id = '${targetSessionId}';
       END
     `);

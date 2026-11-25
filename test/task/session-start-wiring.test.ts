@@ -198,9 +198,9 @@ function ownSessionInAnotherProcess(project: string): void {
   try {
     db.prepare(
       `INSERT INTO fleet_sessions
-         (session_id, cwd, repo_root, state, alive, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden)
-       VALUES (?, ?, NULL, 'idle', 1, ?, '[]', ?, 'bbbbbbbb', NULL, NULL, 0)`,
-    ).run(SESSION_ID, project, Date.now(), process.ppid);
+         (session_id, cwd, repo_root, state, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden)
+       VALUES (?, ?, NULL, 'idle', ?, '[]', ?, 'bbbbbbbb', ?, NULL, 0)`,
+    ).run(SESSION_ID, project, Date.now(), process.ppid, Date.now());
   } finally {
     db.close();
   }

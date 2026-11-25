@@ -873,17 +873,18 @@ test("a Fleet turn delivered at registration counts toward no attempt's usage", 
     const childFile = must(at(resultsOf(first), 0).sessionPath);
     const childId = sessionIdOf(childFile);
 
-    // A record with no owner, so the resumed registration may claim it, and a followUp
+    // A record no boot window owns (a live process, released), so the resumed registration
+    // may claim it, and a followUp
     // waiting in the store: registration drains it into a turn before the first prompt.
     const raw = new DatabaseSync(dbPath);
     try {
       raw
         .prepare(
           `INSERT OR REPLACE INTO fleet_sessions
-				 (session_id, cwd, repo_root, state, alive, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden, parent_session_id)
-				 VALUES (?, ?, NULL, 'idle', 1, ?, '[]', NULL, NULL, NULL, NULL, 0, NULL)`,
+				 (session_id, cwd, repo_root, state, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden, parent_session_id)
+				 VALUES (?, ?, NULL, 'idle', ?, '[]', ?, NULL, ?, NULL, 0, NULL)`,
         )
-        .run(childId, root, Date.now());
+        .run(childId, root, Date.now(), process.ppid, Date.now());
     } finally {
       raw.close();
     }
@@ -1131,10 +1132,10 @@ test("a liveness expiry during the wait for a Fleet turn fails the dispatch with
       raw
         .prepare(
           `INSERT OR REPLACE INTO fleet_sessions
-				 (session_id, cwd, repo_root, state, alive, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden, parent_session_id)
-				 VALUES (?, ?, NULL, 'idle', 1, ?, '[]', NULL, NULL, NULL, NULL, 0, NULL)`,
+				 (session_id, cwd, repo_root, state, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden, parent_session_id)
+				 VALUES (?, ?, NULL, 'idle', ?, '[]', ?, NULL, ?, NULL, 0, NULL)`,
         )
-        .run(childId, root, Date.now());
+        .run(childId, root, Date.now(), process.ppid, Date.now());
     } finally {
       raw.close();
     }

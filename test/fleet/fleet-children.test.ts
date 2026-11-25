@@ -229,8 +229,8 @@ function plantChildRecord(
   try {
     db.prepare(
       `INSERT INTO fleet_sessions
-				 (session_id, cwd, repo_root, state, alive, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden, parent_session_id)
-				 VALUES (?, ?, NULL, 'running', 1, ?, '[]', ?, ?, 1, NULL, 0, ?)`,
+				 (session_id, cwd, repo_root, state, updated_at, turns_json, owner_pid, owner_boot, owner_started, agents_dir, hidden, parent_session_id)
+				 VALUES (?, ?, NULL, 'running', ?, '[]', ?, ?, 1, NULL, 0, ?)`,
     ).run(sessionId, cwd, Date.now(), process.pid, ownerBoot, parentSessionId);
   } finally {
     db.close();

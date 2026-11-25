@@ -198,28 +198,6 @@ test("manifest: known keys load; unknown keys produce one diagnostic and are ign
   }
 });
 
-test("manifest: a leftover uuid key is an unknown key; the plugin still loads by name", () => {
-  const fixture = makeFixture();
-  try {
-    const dir = pluginDir(
-      fixture.home,
-      "plugins/legacy",
-      JSON.stringify({ uuid: "old-identity", name: "legacy" }),
-    );
-    const { catalog, diagnostics } = discover(fixture, {
-      global: { legacy: { path: "plugins/legacy" } },
-    });
-    assert.equal(catalog.plugins.length, 1);
-    assert.equal(at(catalog.plugins, 0).name, "legacy");
-    assert.equal(at(catalog.plugins, 0).root, dir);
-    const lines = linesFor(diagnostics, join(dir, "plugin.json"));
-    assert.equal(lines.length, 1, `one diagnostic: ${JSON.stringify(diagnostics)}`);
-    assert.match(at(lines, 0), /unknown manifest keys uuid ignored/);
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
 test("discovery: merged entries are read in lexicographic key order", () => {
   const fixture = makeFixture();
   try {

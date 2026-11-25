@@ -55,7 +55,7 @@ export const STORE_DB_ENV = "PI_DENT_FLEET_DB";
 export const INDEX_FILE_NAME = "search-v2.sqlite";
 
 /** The session store's file name under `~/.pi/pi-dent/` (session-store.md, Section 1). */
-const STORE_FILE_NAME = "fleet.sqlite";
+const STORE_FILE_NAME = "fleet-v2.sqlite";
 
 /** The format version recorded in `user_version` (Section 1). */
 export const FORMAT_VERSION = 2;
@@ -154,7 +154,7 @@ export function searchIndexPath(
 
 /**
  * The session store's path, which the index MUST NOT share (Section 1): `PI_DENT_FLEET_DB`
- * when set and non-empty, else `~/.pi/pi-dent/fleet.sqlite` (session-store.md, Section 1).
+ * when set and non-empty, else `~/.pi/pi-dent/fleet-v2.sqlite` (session-store.md, Section 1).
  * The store's module owns this resolution; it is repeated here because Section 1 makes
  * the index responsible for not being the store's file.
  */

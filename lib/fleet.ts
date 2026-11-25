@@ -69,7 +69,7 @@ export interface FleetTurnRecord {
   command: string;
   goal: string;
   files: string[];
-  startedAt?: number | undefined;
+  startedAt: number;
 }
 
 export interface FleetSessionRecord {
@@ -79,9 +79,9 @@ export interface FleetSessionRecord {
   state: FleetSessionState;
   updatedAt: number;
   turns: FleetTurnRecord[];
-  ownerPid?: number | undefined;
+  ownerPid: number;
   ownerBoot?: string | undefined;
-  ownerStarted?: number | undefined;
+  ownerStarted: number;
   agentsDir?: string | undefined;
   /** A hidden record: an address for a waited-query reply, never a fleet session. */
   hidden: boolean;
@@ -112,6 +112,54 @@ export interface FleetEndpoint {
         body: string;
       }) => Promise<{ text: string; isError: boolean }>)
     | undefined;
+}
+
+/** The store's file name under `~/.pi/pi-dent/` (session-store.md, Section 1). */
+const STORE_FILE_NAME = "fleet-v2.sqlite";
+/** The format version recorded in `user_version` (session-store.md, Section 1). */
+const STORE_FORMAT_VERSION = 2;
+/** The store's tables (session-store.md, Sections 2 and 3). */
+const STORE_SCHEMA = `
+	CREATE TABLE fleet_sessions (
+		session_id TEXT PRIMARY KEY,
+		cwd TEXT NOT NULL,
+		repo_root TEXT,
+		state TEXT NOT NULL,
+		updated_at INTEGER NOT NULL,
+		turns_json TEXT NOT NULL,
+		owner_pid INTEGER NOT NULL,
+		owner_boot TEXT,
+		owner_started INTEGER NOT NULL,
+		agents_dir TEXT,
+		-- 1 for a hidden record: an address for a waited-query reply (session-store.md Section 4).
+		hidden INTEGER NOT NULL,
+		-- The dispatching session of a child session record; NULL for a fleet session.
+		parent_session_id TEXT
+	);
+	CREATE TABLE fleet_messages (
+		message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		sender_session_id TEXT NOT NULL,
+		target_session_id TEXT NOT NULL,
+		boot_id TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		subject TEXT,
+		body TEXT NOT NULL,
+		deliver TEXT NOT NULL,
+		abort INTEGER NOT NULL,
+		correlation_id TEXT,
+		status TEXT NOT NULL,
+		rejection_reason TEXT,
+		created_at INTEGER NOT NULL,
+		delivered_at INTEGER,
+		deliver_text TEXT
+	);
+`;
+
+/** A required integer column of a stored row; any other value is a store that is not this format's. */
+function integerColumn(row: Record<string, SQLOutputValue>, column: string): number {
+  const value = row[column];
+  if (typeof value === "number") return value;
+  throw new Error(`session store column ${column} holds no integer`);
 }
 
 const BUILTIN_COMMANDS = new Set(["compact", "abort"]);
@@ -337,103 +385,52 @@ export class FleetCoordinator {
     this.dbPath =
       opts.dbPath ||
       process.env.PI_DENT_FLEET_DB ||
-      join(homedir(), ".pi", "pi-dent", "fleet.sqlite");
+      join(homedir(), ".pi", "pi-dent", STORE_FILE_NAME);
     mkdirSync(dirname(this.dbPath), { recursive: true });
     this.db = new DatabaseSync(this.dbPath);
-    this.db.exec("PRAGMA journal_mode = WAL;");
-    this.db.exec("PRAGMA busy_timeout = 5000;");
-    this.db.exec(`
-			CREATE TABLE IF NOT EXISTS fleet_sessions (
-				session_id TEXT PRIMARY KEY,
-				cwd TEXT NOT NULL,
-				repo_root TEXT,
-				state TEXT NOT NULL,
-				-- Always 1; kept so an older pi-dent process sharing this file still works.
-				alive INTEGER NOT NULL,
-				updated_at INTEGER NOT NULL,
-				turns_json TEXT NOT NULL,
-				owner_pid INTEGER,
-				owner_boot TEXT,
-				owner_started INTEGER,
-				agents_dir TEXT,
-				-- 1 for a hidden record: an address for a waited-query reply (session-store.md Section 4).
-				hidden INTEGER NOT NULL DEFAULT 0,
-				-- The dispatching session of a child session record; NULL for a fleet session.
-				parent_session_id TEXT
-			);
-			CREATE TABLE IF NOT EXISTS fleet_messages (
-				message_id INTEGER PRIMARY KEY AUTOINCREMENT,
-				sender_session_id TEXT NOT NULL,
-				target_session_id TEXT NOT NULL,
-				boot_id TEXT NOT NULL,
-				kind TEXT NOT NULL,
-				subject TEXT,
-				body TEXT NOT NULL,
-				deliver TEXT NOT NULL,
-				abort INTEGER NOT NULL,
-				correlation_id TEXT,
-				status TEXT NOT NULL,
-				rejection_reason TEXT,
-				created_at INTEGER NOT NULL,
-				delivered_at INTEGER,
-				deliver_text TEXT
-			);
-		`);
-    this.migrateSchema();
+    try {
+      this.db.exec("PRAGMA busy_timeout = 5000;");
+      this.openFormat();
+      // After the version check: a file of another format is left unchanged (Section 1).
+      this.db.exec("PRAGMA journal_mode = WAL;");
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
     this.purgeAncientRows();
     trackBootWindow(this.bootId);
     this.sweepDeadOwners();
   }
 
-  /** Add columns introduced after first release (no-op on current schemas). */
-  private migrateSchema(): void {
-    const sessionCols = new Set(
-      this.db
-        .prepare("PRAGMA table_info('fleet_sessions')")
-        .all()
-        .map((c) => (typeof c.name === "string" ? c.name : "")),
-    );
-    if (!sessionCols.has("owner_pid"))
-      this.db.exec("ALTER TABLE fleet_sessions ADD COLUMN owner_pid INTEGER");
-    if (!sessionCols.has("owner_boot"))
-      this.db.exec("ALTER TABLE fleet_sessions ADD COLUMN owner_boot TEXT");
-    if (!sessionCols.has("owner_started"))
-      this.db.exec("ALTER TABLE fleet_sessions ADD COLUMN owner_started INTEGER");
-    if (!sessionCols.has("agents_dir"))
-      this.db.exec("ALTER TABLE fleet_sessions ADD COLUMN agents_dir TEXT");
-    if (!sessionCols.has("hidden"))
-      this.db.exec("ALTER TABLE fleet_sessions ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0");
-    if (!sessionCols.has("parent_session_id"))
-      this.db.exec("ALTER TABLE fleet_sessions ADD COLUMN parent_session_id TEXT");
-    const messageCols = new Set(
-      this.db
-        .prepare("PRAGMA table_info('fleet_messages')")
-        .all()
-        .map((c) => (typeof c.name === "string" ? c.name : "")),
-    );
-    if (!messageCols.has("deliver_text"))
-      this.db.exec("ALTER TABLE fleet_messages ADD COLUMN deliver_text TEXT");
+  /**
+   * Create the tables of an empty file, use a file of this format version, and
+   * refuse any other, the check and the creation in one transaction
+   * (specs/session-store.md, Section 1).
+   */
+  private openFormat(): void {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const versionRow = this.db.prepare("PRAGMA user_version").get();
+      const version = typeof versionRow?.user_version === "number" ? versionRow.user_version : 0;
+      const tables = this.db
+        .prepare("SELECT count(*) AS n FROM sqlite_schema WHERE type = 'table'")
+        .get();
+      if (version === 0 && tables?.n === 0) {
+        this.db.exec(STORE_SCHEMA);
+        this.db.exec(`PRAGMA user_version = ${STORE_FORMAT_VERSION};`);
+      } else if (version !== STORE_FORMAT_VERSION) {
+        throw new Error(`unsupported session store version ${version}`);
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      if (this.db.isTransaction) this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   private purgeAncientRows(): void {
     const cutoff = Date.now() - RETENTION_MS;
     this.db.prepare("DELETE FROM fleet_messages WHERE created_at < ?").run(cutoff);
-  }
-
-  /** Delete rows a pre-Section-6 store left behind as ended sessions. */
-  private purgeLegacyDeadRows(): void {
-    const rows = this.db.prepare("SELECT session_id FROM fleet_sessions WHERE alive = 0").all();
-    for (const row of rows) {
-      if (typeof row.session_id === "string") {
-        // Conditional like every reap: a row another boot window rewrote since
-        // this read is live and stays (specs/session-store.md, Section 4).
-        this.deleteIfUnchanged(
-          "DELETE FROM fleet_sessions WHERE session_id = ? AND alive = 0",
-          [row.session_id],
-          row.session_id,
-        );
-      }
-    }
   }
 
   /**
@@ -739,13 +736,12 @@ export class FleetCoordinator {
     const turns = (input.turns ?? existing?.turns ?? []).slice(-MAX_TURNS);
     this.db
       .prepare(
-        `INSERT INTO fleet_sessions (${SESSION_COLUMNS}, alive)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        `INSERT INTO fleet_sessions (${SESSION_COLUMNS})
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				 ON CONFLICT(session_id) DO UPDATE SET
 				   cwd = excluded.cwd,
 				   repo_root = excluded.repo_root,
 				   state = excluded.state,
-				   alive = 1,
 				   updated_at = excluded.updated_at,
 				   turns_json = excluded.turns_json,
 				   owner_pid = excluded.owner_pid,
@@ -1587,13 +1583,6 @@ export class FleetCoordinator {
    */
   private prepareDelivery(row: StoredMessageRow): PreparedDelivery {
     if (row.deliver_text !== null) return { kind: "turn", text: row.deliver_text };
-    if (!row.body.startsWith("/")) {
-      // Legacy row written before target-side rendering.
-      return {
-        kind: "turn",
-        text: this.formatEnvelope(row.sender_session_id, row.subject, row.body),
-      };
-    }
     const check = this.validateBodyCommand(row.body);
     if (check.kind === "builtin") return { kind: "builtin", name: check.name, args: check.args };
     if (check.kind === "rejected") return { kind: "rejected", reason: check.reason };
@@ -1869,17 +1858,16 @@ export class FleetCoordinator {
 
   /** True when the session's owning boot window verifiably no longer exists. */
   private ownerIsGone(session: {
-    ownerPid?: number | undefined;
+    ownerPid: number;
     ownerBoot?: string | undefined;
-    ownerStarted?: number | undefined;
+    ownerStarted: number;
   }): boolean {
-    if (session.ownerPid === undefined) return false; // unknown owner: never reap by guesswork
     if (session.ownerBoot === this.bootId) return false; // owned by this live coordinator
     if (session.ownerPid === process.pid) {
       // Same pid: a boot window of this process (live, or released without a
       // session_shutdown), or a recycled pid from before this process started.
       if (session.ownerBoot !== undefined) return !liveBootWindows.has(session.ownerBoot);
-      return session.ownerStarted !== undefined && session.ownerStarted < PROCESS_STARTED_MS - 1000;
+      return session.ownerStarted < PROCESS_STARTED_MS - 1000;
     }
     return !isPidAlive(session.ownerPid);
   }
@@ -1900,12 +1888,7 @@ export class FleetCoordinator {
     // sweep's snapshot keeps its record and its queued messages (session-store.md, Section 4).
     return this.deleteIfUnchanged(
       "DELETE FROM fleet_sessions WHERE session_id = ? AND owner_pid IS ? AND owner_boot IS ? AND owner_started IS ?",
-      [
-        session.sessionId,
-        session.ownerPid ?? null,
-        session.ownerBoot ?? null,
-        session.ownerStarted ?? null,
-      ],
+      [session.sessionId, session.ownerPid, session.ownerBoot ?? null, session.ownerStarted],
       session.sessionId,
     );
   }
@@ -1917,7 +1900,6 @@ export class FleetCoordinator {
    */
   private sweepDeadOwners(): void {
     if (this.closed) return;
-    this.purgeLegacyDeadRows(); // an older pi-dent process may still mark a row dead
     const rows = this.db.prepare(`SELECT ${SESSION_COLUMNS} FROM fleet_sessions`).all();
     for (const row of rows) {
       this.reapIfGone(this.hydrateSession(row));
@@ -1959,18 +1941,20 @@ export class FleetCoordinator {
       if (Array.isArray(parsed)) {
         turns = parsed
           .filter((item): item is Record<string, unknown> => isPlainObject(item))
-          .map((item): FleetTurnRecord => {
-            const turn: FleetTurnRecord = {
-              command: typeof item.command === "string" ? item.command : "",
-              goal: typeof item.goal === "string" ? item.goal : "",
-              files: Array.isArray(item.files)
-                ? item.files.filter((f): f is string => typeof f === "string")
-                : [],
-            };
-            return typeof item.startedAt === "number" && Number.isFinite(item.startedAt)
-              ? { ...turn, startedAt: item.startedAt }
-              : turn;
-          });
+          .flatMap((item): FleetTurnRecord[] =>
+            typeof item.startedAt === "number"
+              ? [
+                  {
+                    command: typeof item.command === "string" ? item.command : "",
+                    goal: typeof item.goal === "string" ? item.goal : "",
+                    files: Array.isArray(item.files)
+                      ? item.files.filter((f): f is string => typeof f === "string")
+                      : [],
+                    startedAt: item.startedAt,
+                  },
+                ]
+              : [],
+          );
       }
     } catch {
       turns = [];
@@ -1997,9 +1981,9 @@ export class FleetCoordinator {
       state,
       updatedAt: typeof row.updated_at === "number" ? row.updated_at : 0,
       turns,
-      ownerPid: typeof row.owner_pid === "number" ? row.owner_pid : undefined,
+      ownerPid: integerColumn(row, "owner_pid"),
       ownerBoot: typeof row.owner_boot === "string" ? row.owner_boot : undefined,
-      ownerStarted: typeof row.owner_started === "number" ? row.owner_started : undefined,
+      ownerStarted: integerColumn(row, "owner_started"),
       agentsDir: typeof row.agents_dir === "string" ? row.agents_dir : undefined,
       hidden: row.hidden === 1,
       parentSessionId,
