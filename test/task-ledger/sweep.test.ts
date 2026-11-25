@@ -59,3 +59,21 @@ test("opening settles the running rows of a gone owner interrupted at their upda
   assert.deepEqual(columns(parent), ["running", null, 4646]);
   second.ledger.close();
 });
+
+test("an owner the probe may not signal counts as existing", async (t) => {
+  // A non-root process gets EPERM signalling pid 1 (Section 4.1).
+  if (process.getuid?.() === 0) {
+    t.skip("running as root: signalling pid 1 succeeds, so no permission-denied probe");
+    return;
+  }
+  const first = openLedger();
+  const rowId = inserted(first.ledger, { taskId: "init0001" });
+  await first.ledger.flushed();
+  first.ledger.close();
+  setOwner(first.path, rowId, 1, 1, 4242);
+  const second = openLedger({ path: first.path, now: () => 9999 });
+  await second.ledger.flushed();
+  const row = taskRow(first.path, rowId);
+  assert.deepEqual([row.status, row.settled_at, row.updated_at], ["running", null, 4242]);
+  second.ledger.close();
+});

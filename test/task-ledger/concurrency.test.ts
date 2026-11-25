@@ -17,40 +17,21 @@ function holdWriteLock(path: string): { release: () => void } {
   };
 }
 
-/** The longest gap between ticks of a 10 ms interval while `during` runs. */
-async function longestGap(during: () => Promise<void>): Promise<number> {
-  let last = performance.now();
-  let longest = 0;
-  const ticker = setInterval(() => {
-    const at = performance.now();
-    longest = Math.max(longest, at - last);
-    last = at;
-  }, 10);
-  try {
-    await during();
-  } finally {
-    clearInterval(ticker);
-  }
-  return longest;
-}
-
-test("a write behind a held lock is retried, not failed, and the event loop keeps running", async () => {
-  const { ledger, path, notices } = openLedger();
+test("a write behind a held lock is attempted again until it applies, with no failure", async () => {
+  // Each attempt waits at most the busy timeout inside SQLite, then the queue pauses (Section 5).
+  assert.equal(BUSY_TIMEOUT_MS, 10);
+  const { ledger, path, notices } = openLedger({ readDeadlineMs: 50 });
   await ledger.flushed();
   const lock = holdWriteLock(path);
-  let rowId = "";
-  const gap = await longestGap(async () => {
-    rowId = inserted(ledger);
-    await new Promise((resolveWait) => setTimeout(resolveWait, 400));
-    lock.release();
-    await ledger.flushed();
-  });
-  assert.equal(ledger.unusableReason(), undefined);
+  const rowId = inserted(ledger);
+  // A read behind the write is abandoned at its 50 ms deadline: by then the write has met the
+  // held lock on more than one attempt, each 10 ms in SQLite and a 10 ms pause.
+  assert.deepEqual(await ledger.readRowFigures([rowId]), { status: "busy" });
+  assert.equal(ledger.unusableReason(), undefined, "a busy file is no failure");
+  lock.release();
+  await ledger.flushed();
   assert.deepEqual(notices, []);
-  assert.equal(taskRow(path, rowId).status, "running");
-  // Each attempt waits at most the 10 ms busy timeout (Section 1), then yields.
-  assert.equal(BUSY_TIMEOUT_MS, 10);
-  assert.ok(gap < 250, `event loop blocked for ${gap} ms`);
+  assert.equal(taskRow(path, rowId).status, "running", "the write applied once the lock went");
   ledger.close();
 });
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, linkSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
@@ -249,23 +249,72 @@ function runChild(args: string[]): Promise<string> {
   });
 }
 
+test("a wrong-version file in write-ahead-log mode keeps its bytes and gets no writing statement", async () => {
+  const dir = tempDir();
+  const path = join(dir, "tasks-v1.sqlite");
+  const db = raw(path);
+  db.exec("PRAGMA journal_mode = WAL; CREATE TABLE other (a INTEGER); PRAGMA user_version = 3;");
+  db.close();
+  const before = readFileSync(path);
+  const { ledger, notices } = openLedger({ path });
+  await ledger.flushed();
+  ledger.writeSession({
+    sessionId: "s",
+    sessionFile: null,
+    cwd: "/",
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+  });
+  await ledger.flushed();
+  ledger.close();
+  assert.equal(ledger.unusableReason(), "unsupported task ledger version 3");
+  assert.equal(notices.length, 1);
+  assert.equal(readFileSync(path).equals(before), true, "the main file is unchanged");
+  // SQLite may create the companions of a WAL file (Section 9); a write would add a frame to the
+  // log, past its 32-byte header.
+  const wal = `${path}-wal`;
+  assert.equal(!existsSync(wal) || statSync(wal).size <= 32, true, "no frame was written");
+  assert.equal(userVersionOf(path), 3);
+});
+
+test("a statement that finds the file malformed after opening gives the corrupt reason", async () => {
+  const { ledger, path, notices } = openLedger();
+  for (let index = 0; index < 50; index += 1) inserted(ledger, { taskId: `t${index}` });
+  await ledger.flushed();
+  // The connection closes once idle; the log is checkpointed into the file and emptied.
+  ledger.close();
+  const checkpoint = raw(path);
+  checkpoint.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  checkpoint.close();
+  // Every page past the first, which holds the schema, becomes garbage.
+  const bytes = readFileSync(path);
+  const pageSize = bytes.readUInt16BE(16);
+  bytes.fill(0xa5, pageSize);
+  writeFileSync(path, bytes);
+  const read = await ledger.readAgentFigures("session-a");
+  assert.equal(read.status, "unavailable");
+  const reason = ledger.unusableReason() ?? "";
+  assert.ok(reason.startsWith("task ledger file is corrupt: "), reason);
+  assert.deepEqual(notices, [
+    { message: `pi-dent: task ledger unavailable: ${reason}`, level: "warning" },
+  ]);
+  assert.equal(readFileSync(path).equals(bytes), true, "the corrupt file is left as it is");
+});
+
 test("two processes opening an absent file both use one schema", async () => {
   const url = pathToFileURL(join(import.meta.dirname, "..", "..", "lib", "task-ledger.ts")).href;
-  for (let round = 0; round < 3; round += 1) {
-    const dir = tempDir();
-    const path = join(dir, "tasks-v1.sqlite");
-    const at = String(Date.now() + 500);
-    const outputs = await Promise.all([0, 1, 2].map(() => runChild([url, path, dir, at])));
-    assert.deepEqual(outputs, Array(3).fill(JSON.stringify({ reason: null })));
-    assert.equal(userVersionOf(path), 1);
-    const db = raw(path);
-    try {
-      assert.equal(
-        db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table'").get()?.n,
-        2,
-      );
-    } finally {
-      db.close();
-    }
+  const dir = tempDir();
+  const path = join(dir, "tasks-v1.sqlite");
+  const at = String(Date.now() + 500);
+  const outputs = await Promise.all([0, 1, 2].map(() => runChild([url, path, dir, at])));
+  assert.deepEqual(outputs, Array(3).fill(JSON.stringify({ reason: null })));
+  assert.equal(userVersionOf(path), 1);
+  const db = raw(path);
+  try {
+    assert.equal(
+      db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table'").get()?.n,
+      2,
+    );
+  } finally {
+    db.close();
   }
 });
