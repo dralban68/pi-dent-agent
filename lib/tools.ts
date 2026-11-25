@@ -604,7 +604,7 @@ export function makeTaskTool(view: TaskToolView) {
     label: "Task",
     renderShell: "self",
     description:
-      "Inspect or cancel this session's tasks: `list` them, `read` a task's output so far or its result once settled, `kill` a running task, or `wait` for one to settle. Use `wait` sparingly: sessions are notified automatically when background tasks settle, and blocking delays user input in a user session.",
+      "Inspect or cancel this session's tasks: `list` them, `read` a task's output so far or its result once settled, `kill` a running task, or `wait` for one to settle. Never call `wait` when you can simply end your turn: ending your turn with no tool calls pauses until background tasks finish and delivers their notifications in your next turn (and avoids blocking user input in a user session).",
     promptSnippet: "Inspect, wait for, or cancel a task by taskId",
     parameters: taskParameterSchema,
     async execute(

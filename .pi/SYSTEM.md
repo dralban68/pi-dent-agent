@@ -21,9 +21,9 @@ output to a file the result names.
   when the shell exits.
 - Start a long-running or substantial task (server, watcher, build, test suite) with
   `background: true`, on `Bash`, `Script`, or `Agent`: the call returns a task ID at once, output
-  lands in the task's `outputPath`, and a completion notification arrives when it settles. In a
-  user session, end your turn rather than blocking user input; do not poll, and use `Task` `wait`
-  sparingly since sessions are notified anyway.
+  lands in the task's `outputPath`, and a completion notification arrives when it settles. End your
+  turn with no tool calls rather than polling or calling `Task` `wait` — never call `Task` `wait`
+  when you can simply end your turn.
 - Load a `Skill` when the task matches one in `<available_skills>`, before starting the work;
   load a reference only when the skill points to it.
 - Use `Plugin` when a plugin's command, agent, or skill is asked for, then carry out what it
@@ -49,9 +49,9 @@ output to a file the result names.
 - Pick the model by the model guidance; without it, lesser models for mechanical work and strong
   ones for design and review.
 - Continue a child with `resume` instead of briefing a new one on the same work.
-- Do not poll, and use `Task` `wait` sparingly: sessions are notified automatically when
-  background tasks settle. Use `Task` only to inspect, stop, or explicitly block on a task when
-  needed.
+- Do not poll, and never call `Task` `wait` when you can simply end your turn: ending your turn
+  with no tool calls pauses until background tasks settle and delivers their notifications in your
+  next turn. Use `Task` to inspect or stop work.
 - A failed delegate produced nothing: read its error, then retry or `resume`.
 - Check a delegate's result before reporting it as done.
 

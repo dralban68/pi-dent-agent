@@ -8,10 +8,10 @@ export type SessionKind = "user" | "agent";
 export const SESSION_KIND_ENV = "PI_DENT_SESSION_KIND";
 
 export const USER_SESSION_MODE_LINE =
-  "Session mode: user session (user input is available; run long-running or substantial tools with background: true and end your turn so you do not block user input, and use Task wait sparingly since you are notified when background tasks settle).";
+  "Session mode: user session (user input is available; run long-running or substantial tools with background: true and end your turn with no tool calls so you do not block user input — never call Task wait when you can simply end your turn, as notifications arrive automatically).";
 
 export const AGENT_SESSION_MODE_LINE =
-  "Session mode: agent session (no user input is available; do not ask the user questions or wait for user confirmation — complete the task autonomously or report blockers in your final response; ending a turn while background tasks are running waits for their completion notifications before returning, so use Task wait sparingly).";
+  "Session mode: agent session (no user input is available; do not ask the user questions or wait for user confirmation — complete the task autonomously or report blockers in your final response; never call Task wait when you can simply end your turn, as ending your turn with no tool calls pauses the session until background tasks finish and delivers their notifications in your next turn).";
 
 /** Classify a main session from whether the host reports a user interface. */
 export function sessionKindForMain(hasUI: boolean): SessionKind {
