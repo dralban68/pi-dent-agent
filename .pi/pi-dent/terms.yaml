@@ -109,6 +109,19 @@ terms:
     history:
       - date: 2026-11-15
         op: add
+  - id: agent-session
+    label: agent session
+    meaning: "A child session, or a main session for which the host reports no user interface, so user input is not available"
+    owner: specs/session-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - child-session
+      - user-session
+    history:
+      - date: 2026-11-25
+        op: add
   - id: argument-string
     label: argument string
     meaning: The text of a slash command invocation that follows its command token
@@ -2796,6 +2809,18 @@ terms:
     status: active
     distinguish:
       - usage-sum
+    history:
+      - date: 2026-11-25
+        op: add
+  - id: user-session
+    label: user session
+    meaning: "A main session for which the host reports a user interface, so user input is available"
+    owner: specs/session-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    distinguish:
+      - main-session
     history:
       - date: 2026-11-25
         op: add
