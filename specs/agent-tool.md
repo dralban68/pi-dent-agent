@@ -782,8 +782,6 @@ Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
   agent directory is kept; the store cannot tell the two processes apart.
 - Behavior when the recorded working directory of a `resume` source no longer exists or is not a
   directory; it is not validated.
-- A `<tmpdir>/pi-dent-scripts/` tree an earlier version wrote is neither read nor swept, and what
-  the operating system does with it is the system's.
 - Whether the host, when it validates against the schema of Section 1.1, first coerces an
   argument to the type the schema names, and so whether a convertible value of the wrong type is
   admitted rather than rejected as a schema rejection, is the host's.

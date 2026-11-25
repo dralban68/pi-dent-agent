@@ -148,7 +148,6 @@ with no limit on their number:
   again with an unchanged text nor on a timer.
 - While the task tree has no member the widget MUST NOT be set, and when it comes to have none
   the widget MUST be cleared; ending the main session MUST clear it.
-- The feed version `tasks/1`, which carried only the content of Section 4, is no longer set.
 - In RPC mode without `PI_DENT_FEEDS` set to `1`, and in any other mode, the extension MUST NOT set
   `pi-dent-tasks` as an array of strings.
 - A feed that fails to read the task tree or to set the widget leaves the widget as it is, and no

@@ -110,7 +110,7 @@ identity as above, then the action-specific checks in this order, reporting the 
     one empty line.
   - `json`: a JSON object, indented by 2 spaces, `{ "scope": <scope>, "snapshot": true,
     "sessions": [<session>…] }` with no notice, where `<session>` is `{ "sessionId", "kind", "state",
-    "cwd", "repoRoot"?, "parent"?, "turns": [{ "command", "goal", "files", "startedAt"? }…] }`; `startedAt` is present when the turn record has it, and `repoRoot` is
+    "cwd", "repoRoot"?, "parent"?, "turns": [{ "command", "goal", "files", "startedAt" }…] }`; `repoRoot` is
     omitted for a session in no repository. `parent` is present for a child session and is the
     session ID of the session that spawned it.
 - When no session is in scope, `compact` and `full` return `(no active sessions in <scope> scope)`,

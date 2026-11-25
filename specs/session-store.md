@@ -9,39 +9,54 @@ its two tables, a session's membership and lifecycle, and message delivery. The 
 
 The local session store is one SQLite database file in write-ahead-log journal mode with a busy
 timeout of 5000 ms. Its path is the value of the environment variable `PI_DENT_FLEET_DB` when set and
-non-empty, else `~/.pi/pi-dent/fleet.sqlite`. Opening the store MUST create the file's directory and
-the two tables below when absent, and MUST add any column of them that an older store lacks
-(`owner_pid`, `owner_boot`, `owner_started`, `agents_dir`, `hidden`, `deliver_text`, `parent_session_id`); the store carries no
-schema version.
+non-empty, else `~/.pi/pi-dent/fleet-v2.sqlite`.
+
+The format version is `2` and is recorded as the database's `user_version`. Opening the store
+MUST, in this order:
+
+1. Create the file's directory and the file when absent.
+2. When `user_version` is `0` and the database holds no table: create the tables of Sections 2
+   and 3, each column `NOT NULL` unless its type says nullable, and set `user_version` to `2`.
+3. When `user_version` is `2`: use the database.
+4. Otherwise: leave the file unchanged and fail the opening with the error
+   `unsupported session store version <user_version>`.
+
+The check of step 2 and the creation MUST happen inside one transaction begun with
+`BEGIN IMMEDIATE`, so that of two processes opening an absent file the second finds the first's
+tables; a creation that fails is rolled back whole. A file of another format version, such as
+`~/.pi/pi-dent/fleet.sqlite`, MUST NOT be read, changed or deleted.
+
+> Note (non-normative): the store holds live coordination state, not history, so a new format
+> version starts from an empty file; sessions of processes that use another file are not in this
+> one's fleet.
 
 ## 2. Session records
 
 Table `fleet_sessions`, one row per session in the fleet, one per child session record, and one per
 hidden record (Section 4):
 
-| Column              | Type              | Contract                                                                                                                                                                                                                      |
-| ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session_id`        | text, primary key | The session ID.                                                                                                                                                                                                               |
-| `cwd`               | text              | The session's working directory as an absolute path.                                                                                                                                                                          |
-| `repo_root`         | text, nullable    | The repository root of `cwd` ([fleet-tool.md](fleet-tool.md), Section 2), else null.                                                                                                                                          |
-| `state`             | text              | `idle` while the session is idle (below), else `running`.                                                                                                                                                                     |
-| `alive`             | integer           | Always `1`; kept for older pi-dent processes sharing the file, which mark a record they ended with `0`. A record with `0` is deleted as ended (Section 4).                                                                    |
-| `updated_at`        | integer           | Time of the last write, milliseconds since the Unix epoch.                                                                                                                                                                    |
-| `turns_json`        | text              | JSON array of the latest 5 turn records, oldest first (below).                                                                                                                                                                |
-| `owner_pid`         | integer, nullable | Process ID of the boot window's process.                                                                                                                                                                                      |
-| `owner_boot`        | text, nullable    | The owning boot window's ID (8 lowercase hexadecimal digits); null after a reload released it.                                                                                                                                |
-| `owner_started`     | integer, nullable | Approximate start time of the owner process, milliseconds since the Unix epoch.                                                                                                                                               |
-| `agents_dir`        | text, nullable    | The session's agent directory as an absolute path, written at registration and kept across a reload; null in a record written by an older pi-dent. Retention behavior is owned by [agent-tool.md](agent-tool.md), Section 10. |
-| `hidden`            | integer           | `1` for a hidden record (Section 4), else `0`; absent in a record written by an older pi-dent, read as `0`.                                                                                                                   |
-| `parent_session_id` | text, nullable    | The session ID of the dispatching session of a child session record (Section 4); null for a fleet session. Absent in a record written by an older pi-dent, read as null.                                                      |
+| Column              | Type              | Contract                                                                                                                                                                                                              |
+| ------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session_id`        | text, primary key | The session ID.                                                                                                                                                                                                       |
+| `cwd`               | text              | The session's working directory as an absolute path.                                                                                                                                                                  |
+| `repo_root`         | text, nullable    | The repository root of `cwd` ([fleet-tool.md](fleet-tool.md), Section 2), else null.                                                                                                                                  |
+| `state`             | text              | `idle` while the session is idle (below), else `running`.                                                                                                                                                             |
+| `updated_at`        | integer           | Time of the last write, milliseconds since the Unix epoch.                                                                                                                                                            |
+| `turns_json`        | text              | JSON array of the latest 5 turn records, oldest first (below).                                                                                                                                                        |
+| `owner_pid`         | integer           | Process ID of the boot window's process.                                                                                                                                                                              |
+| `owner_boot`        | text, nullable    | The owning boot window's ID (8 lowercase hexadecimal digits); null after a reload released it.                                                                                                                        |
+| `owner_started`     | integer           | Approximate start time of the owner process, milliseconds since the Unix epoch.                                                                                                                                       |
+| `agents_dir`        | text, nullable    | The session's agent directory as an absolute path, written at registration and kept across a reload; null for a hidden record (Section 4). Retention behavior is owned by [agent-tool.md](agent-tool.md), Section 10. |
+| `hidden`            | integer           | `1` for a hidden record (Section 4), else `0`.                                                                                                                                                                        |
+| `parent_session_id` | text, nullable    | The session ID of the dispatching session of a child session record (Section 4); null for a fleet session.                                                                                                            |
 
-A turn record is `{ "command": string, "goal": string, "files": string[], "startedAt"?: number }`:
+A turn record is `{ "command": string, "goal": string, "files": string[], "startedAt": number }`:
 
 | Field       | Contract                                                                                                                                                                                                                                                       |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `command`   | The first line of the text of the user message that started the turn, cut to at most 120 characters.                                                                                                                                                           |
 | `goal`      | The turn's goal: the first line, cut to at most 120 characters, of the text of the first assistant message of the turn whose text is not whitespace-only, that text trimmed at its ends before the line is taken; empty until there is one.                    |
-| `startedAt` | The time the turn started, milliseconds since the Unix epoch; absent in a record written by an older pi-dent. A reader MUST treat a value that is not a finite number as absent.                                                                               |
+| `startedAt` | The time the turn started, milliseconds since the Unix epoch.                                                                                                                                                                                                  |
 | `files`     | The paths changed by the turn's successful tool calls, in order, without duplicates: the `path` (else `file_path`) input of `edit` and `write`, and the `path` and `moveTo` of each `details.files` entry of `apply_patch` (tool names compared in lowercase). |
 
 The text of a message is its `message.content` when that is a string; when it is an array, the
@@ -110,7 +125,7 @@ registration that finds that owner live is refused, and its boot window shows th
   as existing), or `owner_pid` is the checking process's own and `owner_started` is more than
   1000 ms earlier than the checking process's start. A record whose `owner_pid` is the checking
   process's own and whose `owner_boot` is set is instead gone exactly when that boot window has
-  been torn down in the process. A record without `owner_pid` is never gone.
+  been torn down in the process.
 - The local session store MUST hold a session's record only while the session is in the fleet,
   or while the dispatch that runs it does:
   - A session that ends MUST have its record deleted at once, by the boot window that owns it; a
@@ -121,12 +136,9 @@ registration that finds that owner live is refused, and its boot window shows th
     reads the record, and at most 2000 ms apart while the boot window has a registered session, a
     hidden record, or a child session record. A session registered by the checking boot window is
     never deleted this way.
-  - A record with `alive` `0`, which an older pi-dent process writes instead of deleting the record,
-    MUST be deleted when a boot window opens the store, and at most 2000 ms apart while it has a
-    registered session, a hidden record, or a child session record.
   - Deleting a record MUST reject every message still `pending` for that session with the reason
     `target session ended before delivery` ([fleet-tool.md](fleet-tool.md), Section 5).
-  - A deletion under the two rules above MUST delete the record only as the detection read it: a
+  - A deletion of a record whose owner process is gone MUST delete the record only as the detection read it: a
     record another boot window registered as its own after that read belongs to that window and
     MUST be left unchanged, with its messages.
   - A `send` or `query` whose target's record the store no longer holds when its row is written
@@ -196,4 +208,5 @@ reported.
 
 - Behavior when the local session store cannot be opened, and store write failures other than
   those before a waited query is enqueued.
-- Compatibility between pi-dent versions whose store schemas differ beyond the additive columns.
+- A file at the `PI_DENT_FLEET_DB` path that is another application's SQLite database with
+  `user_version` `2` is used as the store.
