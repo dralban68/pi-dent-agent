@@ -702,6 +702,13 @@ same name and 1 to `turns`. An assistant message without a host `usage` adds onl
   so it counts the dispatches of earlier extension instances and processes of the session and
   none of the dispatches that follow it. A session ID the ledger holds no row of, a read that
   fails, and an unusable ledger add nothing.
+- The usage tally is partial from `session_start` until its seed read completes. A seed read that
+  fails, that is not made because the task ledger is unusable, or that is dropped because the
+  ledger becomes unusable before it is applied ([task-ledger.md](task-ledger.md), Section 7)
+  leaves the usage tally partial until the next `session_start`. A seed read has no deadline: it
+  waits for a busy ledger ([task-ledger.md](task-ledger.md), Section 5), and the tally stays
+  partial meanwhile. A ledger that becomes unusable after the seed read completed does not make
+  the tally partial.
 - `tasks` MUST increase by 1 for every dispatch that is not a pre-start rejection, once its
   pre-start checks pass: an `Agent` call of the main session, an `Agent` call of a child session
   at any depth, a `resume`, and a `Fleet` query dispatch alike. A recovery attempt is no new
@@ -718,7 +725,7 @@ extension MUST show the usage status line through the host `setStatus` API under
 `pi-dent-agents`:
 
 ```text
-<agents> │
+<agents><partial> │
 ```
 
 The line is that text, coloured only through the host theme. Its last character is `│`
@@ -729,6 +736,8 @@ The line is that text, coloured only through the host theme. Its last character 
 
 - `<agents>` is `<tasks> <noun> · <usage>` of the usage tally: `<noun>` is `agent` when `tasks` is
   1, else `agents`.
+- `<partial>` is a space followed by `(partial)` while the usage tally is partial,
+  else empty.
 - `<usage>` is `<turns> <unit> · ↑<input> ↓<output><cache> · $<cost>` of a usage sum, here the
   usage tally's: `<unit>` is `turn` when `turns` is 1, else `turns`; `<cache>` is ` R<cacheRead>`
   when `cacheRead` is not 0, followed by ` W<cacheWrite>` when `cacheWrite` is not 0, else empty.
@@ -737,7 +746,8 @@ The line is that text, coloured only through the host theme. Its last character 
   (`15k`); `n / 1000000` with one decimal and `M` below 10000000 (`1.5M`); else `n / 1000000`
   rounded to the nearest integer and `M`.
 - `<cost>` is `cost` with exactly three decimals, rounded to the nearest (`0.042`).
-- The line MUST reflect every change of the usage tally within 1000 ms. At every
+- The line MUST reflect every change of the usage tally, the end of its partial state included,
+  within 1000 ms. At every
   `session_shutdown`, a reload included, the extension MUST clear the key.
 - When the host `setStatus` API throws, the dispatch and the usage tally are unaffected and no
   failure is reported.
@@ -777,7 +787,5 @@ Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
   child session.
 - After a reload, usage that the ended extension instance's dispatches add after the seed read
   of Section 13 is in the task ledger but not in the usage tally.
-- Nothing marks a usage tally whose seed read has not completed, failed, or met an unusable task
-  ledger: it shows only the dispatches of its own extension instance.
 - Usage the host charges a child session outside its assistant messages (a compaction or branch
   summary) is in no usage sum.

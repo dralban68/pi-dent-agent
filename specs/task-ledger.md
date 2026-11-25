@@ -102,15 +102,33 @@ and for a child session the ledger session ID of the session that dispatched it,
 
 One per main session, holding the main session's own usage, never that of its tasks:
 
-| Column                                                 | Contract                                                                                                                                                                                                                                                       |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session_id`                                           | The main session's ID.                                                                                                                                                                                                                                         |
-| `session_file`                                         | Absolute path of the main session's session file; null when the session has none (`--no-session`).                                                                                                                                                             |
-| `cwd`                                                  | The main session's working directory.                                                                                                                                                                                                                          |
-| `started_at`                                           | Time of the row's insertion; never changed afterwards.                                                                                                                                                                                                         |
-| `updated_at`                                           | Time of the row's latest write.                                                                                                                                                                                                                                |
-| `input`, `output`, `cache_read`, `cache_write`, `cost` | The session totals of input, output, cache-read, and cache-write tokens and of cost of [footer.md](footer.md), Section 2.2, over every entry of the session that carries a host `usage`, on every branch, as the host holds the entries; `cost` in US dollars. |
-| `turns`                                                | The number of the session's assistant-message entries, on every branch.                                                                                                                                                                                        |
+| Column                                                 | Contract                                                                                                                                                                                                             |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session_id`                                           | The main session's ID.                                                                                                                                                                                               |
+| `session_file`                                         | Absolute path of the main session's session file; null when the session has none (`--no-session`).                                                                                                                   |
+| `cwd`                                                  | The main session's working directory.                                                                                                                                                                                |
+| `started_at`                                           | Time of the row's insertion; never changed afterwards.                                                                                                                                                               |
+| `updated_at`                                           | Time of the row's latest write.                                                                                                                                                                                      |
+| `input`, `output`, `cache_read`, `cache_write`, `cost` | The sums of the input, output, cache-read, and cache-write token counts and of the cost of the counted entries' host `usage`, as [footer.md](footer.md), Section 2.2, sums its session totals; `cost` in US dollars. |
+| `turns`                                                | The number of counted entries that are assistant messages.                                                                                                                                                           |
+
+The counted entries are the entries of the session, on every branch, as the host holds them,
+that [footer.md](footer.md), Section 2.2, sums into its session totals, except:
+
+- A tool result message whose tool name is `Agent`. The usage of an `Agent` dispatch is in its
+  ledger row; any host `usage` on its tool result was put there by another extension.
+- An entry copied by a fork. When the session header carries a string `parentSession`, the host
+  made the session from another session file, keeping the copied entries' `timestamp`s; an entry
+  whose `timestamp` is earlier than the header's `timestamp` is then a copied entry. Both
+  `timestamp`s are [RFC 3339] date-times, compared as instants.
+
+A tool result that a pi-dent tool returns MUST NOT carry a host `usage`, and pi-dent's handlers of
+the host's tool-result event MUST NOT set one. The host adds the `usage` of a nested call's result to
+the tool result message of the call that made it, so with this rule a `Script` run's nested
+`Agent` calls add nothing to the run's tool result.
+
+> Note (non-normative): the host totals that the footer shows count both exceptions; the ledger
+> session row leaves them out so that the session usage of Section 6 counts each message once.
 
 The six usage columns form a usage sum ([agent-tool.md](agent-tool.md), Section 13) whose fields
 `input`, `output`, `cacheRead`, `cacheWrite`, `cost`, and `turns` are the columns of those names,
@@ -317,12 +335,15 @@ The ledger becomes unusable for an extension instance when, in that instance:
   one `warning` notice `pi-dent: task ledger unavailable: <reason>` through the host `notify` API
   ([config-file.md](config-file.md), Section 6), and none again in that instance.
 - An unusable ledger stays unusable for the rest of the extension instance: the instance makes
-  no further ledger write, its queued writes are dropped, and its surfaces show the ledger as
+  no further ledger read or write, its queued reads and writes are dropped, and its surfaces show the ledger as
   unavailable, in the text their specs give, never zero figures. The next extension instance
   opens the ledger anew.
 - No ledger failure fails, cancels, or delays a task or a tool call.
 
 ## 8. Normative references
+
+- [RFC 3339] Date and Time on the Internet: Timestamps, G. Klyne, C. Newman, July 2002:
+  Section 5.6, the date-time form of a session header's and a session entry's `timestamp`.
 
 - [RFC 9562] Universally Unique IDentifiers (UUIDs), K. Davis, B. Peabody, P. Leach, May 2024:
   Section 5.4, UUID version 4, and its text form.
@@ -335,16 +356,22 @@ The ledger becomes unusable for an extension instance when, in that instance:
   in memory without bound and every surface read shows the ledger as busy.
 - Two processes running one main session ID, such as a boot window whose session-store
   registration was refused, both write its ledger session row; the last write wins.
-- A forked session's ledger session row counts the entries the fork copied from its source, so
-  the two sessions' usage overlaps.
-- Whether a tool result's host `usage` in the main session repeats usage that a ledger row also
-  holds, which would count it twice in the session usage, is not checked.
+- A session forked without a session file (`--no-session`) has no `parentSession` in its header,
+  so the entries the fork copied count in its ledger session row.
+- A system clock set back after a fork can give an entry added after the fork a `timestamp`
+  earlier than the header's, so that entry is not counted.
+- Another extension's tool-result handler that sets a host `usage` on a nested call's result adds
+  it to the calling tool's result message; when that nested call is an `Agent` call of a `Script`
+  run, its usage counts twice in the session usage, because the host's record of the run's
+  nested calls does not say which call each part of the `usage` came from. A `Fleet` tool result
+  given a host `usage` that way counts in the querying session, while the query's usage is also in
+  the target session's ledger rows.
 - A rebuilt row whose ledger row is missing (written while the ledger was unusable, or by an
   earlier pi-dent) is not added to the ledger.
 - A `resume` given as a path matches earlier rows by the path's text only: a symbolic link or a
   `..` segment leaves `resumes_id` null.
-- Usage a child session's host charges outside its assistant messages is in no ledger row
-  ([agent-tool.md](agent-tool.md), Section 15).
+- Usage a child session's host charges outside its assistant messages, a host `usage` on its tool
+  results included, is in no ledger row ([agent-tool.md](agent-tool.md), Section 15).
 - `session_path` and `result_path` can name files the retention sweep
   ([agent-tool.md](agent-tool.md), Section 10) has since deleted, and the file grows without
   bound.

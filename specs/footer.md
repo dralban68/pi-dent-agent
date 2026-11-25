@@ -40,7 +40,8 @@ marker at its end, and is colored only through the host theme. A token count is 
 [agent-tool.md](agent-tool.md), Section 13.
 
 The footer MUST reflect a change of any value it shows — a session entry, the model, the
-thinking level, the Git branch, the usage tally, an extension status — within 1000 ms.
+thinking level, the Git branch, the usage tally and the end of its partial state, an extension
+status — within 1000 ms.
 
 ### 2.1 Path line
 
@@ -58,16 +59,16 @@ thinking level, the Git branch, the usage tally, an extension status — within 
 `<left>` is these segments, joined by one space, a segment being omitted when its condition
 fails:
 
-| Segment           | Condition                                            | Value                                                                                                                                                                         |
-| ----------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `↑<input>`        | `input` is not 0                                     | Session total of input tokens.                                                                                                                                                |
-| `↓<output>`       | `output` is not 0                                    | Session total of output tokens.                                                                                                                                               |
-| `R<cacheRead>`    | `cacheRead` is not 0                                 | Session total of cache-read tokens.                                                                                                                                           |
-| `W<cacheWrite>`   | `cacheWrite` is not 0                                | Session total of cache-write tokens.                                                                                                                                          |
-| `CH<rate>%`       | `cacheRead` or `cacheWrite` is not 0, and a rate     | Cache hit rate of the latest assistant message, one decimal: `cacheRead / (input + cacheRead + cacheWrite) × 100` of its usage; no rate when the divisor is 0.                |
-| `$<cost><sub>`    | `cost` is not 0, or the model is subscription-paid   | Session total cost with exactly three decimals; `<sub>` is ` (sub)` when the model is subscription-paid, else empty.                                                          |
-| `<context><auto>` | always                                               | `<percent>%/<window>`, `<percent>` the context usage with one decimal, or `?/<window>` when the host does not know it; `<auto>` is ` (auto)` when auto-compaction is enabled. |
-| `│ <agents>`      | the usage tally's `tasks` is at least 1, and it fits | `<agents>` of the usage tally ([agent-tool.md](agent-tool.md), Section 13).                                                                                                   |
+| Segment               | Condition                                            | Value                                                                                                                                                                                   |
+| --------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `↑<input>`            | `input` is not 0                                     | Session total of input tokens.                                                                                                                                                          |
+| `↓<output>`           | `output` is not 0                                    | Session total of output tokens.                                                                                                                                                         |
+| `R<cacheRead>`        | `cacheRead` is not 0                                 | Session total of cache-read tokens.                                                                                                                                                     |
+| `W<cacheWrite>`       | `cacheWrite` is not 0                                | Session total of cache-write tokens.                                                                                                                                                    |
+| `CH<rate>%`           | `cacheRead` or `cacheWrite` is not 0, and a rate     | Cache hit rate of the latest assistant message, one decimal: `cacheRead / (input + cacheRead + cacheWrite) × 100` of its usage; no rate when the divisor is 0.                          |
+| `$<cost><sub>`        | `cost` is not 0, or the model is subscription-paid   | Session total cost with exactly three decimals; `<sub>` is ` (sub)` when the model is subscription-paid, else empty.                                                                    |
+| `<context><auto>`     | always                                               | `<percent>%/<window>`, `<percent>` the context usage with one decimal, or `?/<window>` when the host does not know it; `<auto>` is ` (auto)` when auto-compaction is enabled.           |
+| `│ <agents><partial>` | the usage tally's `tasks` is at least 1, and it fits | `<agents>` of the usage tally ([agent-tool.md](agent-tool.md), Section 13); `<partial>` is a space followed by `(partial)` while the usage tally is partial (that section), else empty. |
 
 - The session totals sum the host `usage` of every entry of the session file that carries one:
   an assistant message, a tool result message, a `usage` entry, a `compaction` entry, and a
@@ -83,7 +84,7 @@ fails:
   and else ` • <level>`, and empty for any other model; `<provider>` is `(<provider>) ` when the
   host reports more than one available provider and there is a current model, else empty.
 - Fit: with `W` the render width, a `<left>` wider than `W` is truncated to it. When
-  `<left>`, 2 columns, and `<right>` together exceed `W`, first the `│ <agents>` segment is
+  `<left>`, 2 columns, and `<right>` together exceed `W`, first the `│ <agents><partial>` segment is
   dropped from `<left>` and rendered on the status line instead (Section 2.3); then `<provider>`
   is dropped; then `<right>` is truncated, with no marker, to the columns left after `<left>` and
   2 columns of padding, and omitted when none is left.
@@ -93,7 +94,7 @@ fails:
 The status line is the statuses of the host's extension status map, in ascending order of their
 keys, each with every line break and tab replaced by a space, runs of spaces collapsed to one,
 and leading and trailing spaces removed; a status that is then empty is left out. When the stats
-line dropped the `│ <agents>` segment, `<agents>` is the first status. The statuses are joined by
+line dropped the `│ <agents><partial>` segment, `<agents><partial>` is the first status. The statuses are joined by
 `│`. With no status the line is absent.
 
 ## 3. Normative references
