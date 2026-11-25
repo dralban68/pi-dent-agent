@@ -334,8 +334,8 @@ The ledger becomes unusable for an extension instance when, in that instance:
 | SQLite reports that the file is not a database or is malformed, at opening or in any statement                                             | `task ledger file is corrupt: <message>`, `<message>` being the error's message. |
 | Any other SQLite error, at opening, in creating the schema, in the sweep, in a read, or in a write, other than a busy database (Section 5) | The error's message.                                                             |
 
-- A file that is corrupt or of another version MUST NOT be changed, deleted, or replaced; a
-  write that fails is rolled back.
+- The extension MUST NOT delete or replace a file that is corrupt or of another version, and
+  MUST NOT execute a statement that writes to it; a write that fails is rolled back.
 - The first time the ledger becomes unusable in an extension instance, the extension MUST show
   one `warning` notice `pi-dent: task ledger unavailable: <reason>` through the host `notify` API
   ([config-file.md](config-file.md), Section 6), and none again in that instance.
@@ -386,6 +386,9 @@ The ledger becomes unusable for an extension instance when, in that instance:
 - Whether the host reports the calling tool call of a nested call that a background `Script` run
   makes after its tool call has returned is the host's; without it, rule 1 of Section 3.1 does not
   apply to the row that call registers.
+- Opening a file that is corrupt or of another version lets SQLite do its own housekeeping on
+  it: roll back a journal a crashed writer left, and create `-wal` and `-shm` companions for a
+  file in write-ahead-log mode.
 - A file at the ledger path that is another application's SQLite database with `user_version`
   `1` is used as the ledger.
 - The SQLite file format is SQLite's.
