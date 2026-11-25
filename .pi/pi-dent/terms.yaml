@@ -1529,6 +1529,19 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: own-tool-call-count
+    label: own tool-call count
+    meaning: "The number of tool calls recorded in one ledger row or ledger session row alone, unknown when not recorded"
+    owner: specs/task-ledger.md
+    group: Tasks
+    key: shared
+    status: active
+    distinguish:
+      - own-usage
+      - usage-sum
+    history:
+      - date: 2026-11-25
+        op: add
   - id: own-usage
     label: own usage
     meaning: The usage sum of one ledger row or ledger session row alone
