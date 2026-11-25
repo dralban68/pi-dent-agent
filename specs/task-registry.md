@@ -9,7 +9,8 @@ nesting, and registry changes. Task kinds, status meaning, and the task tree are
 
 - A main session MUST own exactly one live task registry at a time, created with the session. A
   child session MUST own exactly one while an attempt runs in it, created for that attempt
-  (Section 6). A task registry is kept in extension memory and never persisted.
+  (Section 6). A task registry is kept in extension memory and never persisted; the task ledger
+  ([task-ledger.md](task-ledger.md)) keeps a history of its rows.
 - `Agent`, `Script`, and `Bash` MUST register into the task registry of the invoking session; `Task`
   MUST operate only on it.
 - A main session's task registry is live from its creation until its session ends or a reload;
@@ -109,8 +110,8 @@ first committed outcome is preserved.
 - `register` MUST set `consumed` to `true` for a foreground row and to `false` for a background
   row. A pre-start rejection MUST be consumed before it settles.
 - The first time `settle` or adoption leaves no running row in a cohort, every unconsumed background
-  row of the cohort whose status is `completed`, `failed`, or `cancelled` MUST be listed, one per
-  line in the `list` line format of [task-tool.md](task-tool.md), Section 2.3 using each row's
+  row of the cohort whose status is `completed`, `failed`, or `cancelled` MUST be listed, one
+  summary line per row ([task-tool.md](task-tool.md), Section 2.3), using each row's
   display label (Section 2), in registration order, after the line `Background tasks settled:`,
   as one completion notification;
   a row whose `browserKill` is `true` and whose `status` is `cancelled` MUST have its line
@@ -134,8 +135,8 @@ first committed outcome is preserved.
   task registry that is not live MUST send none.
 - After a rebuild ([task-record.md](task-record.md), Section 3), the session's task registry MUST
   send one interrupted notification when the rebuild inserted one or more `interrupted` rows: a
-  message listing those rows in registration order, one per line in the `list` line format of
-  [task-tool.md](task-tool.md), Section 2.3, after the line
+  message listing those rows in registration order, one summary line per row
+  ([task-tool.md](task-tool.md), Section 2.3), after the line
   `Interrupted tasks (resume with Agent resume=<taskId>):` (`<taskId>` literally), through the same
   `sendMessage` call shape as the completion notification. The interrupted notification MUST NOT
   consume the rows.

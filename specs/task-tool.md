@@ -5,7 +5,8 @@ and cancelling tasks owned by the current session. The task is owned by [task.md
 task row, task registry, and completion notification by [task-registry.md](task-registry.md);
 how a task runs, produces output, and cancels is
 owned by the tool that registered it ([agent-tool.md](agent-tool.md),
-[script-tool.md](script-tool.md), [bash-tool.md](bash-tool.md)).
+[script-tool.md](script-tool.md), [bash-tool.md](bash-tool.md)); the usage and time figures
+of `list` by [task-ledger.md](task-ledger.md).
 
 ## 1. Tool registration surface
 
@@ -46,8 +47,10 @@ checked in this order, the first failure reported:
 
 ## 2. Operations
 
-Every operation except the blocking `wait` of Section 2.4 is non-blocking and scoped strictly to
-the task registry of the invoking session ([task-registry.md](task-registry.md), Section 1).
+Every operation is scoped strictly to the task registry of the invoking session
+([task-registry.md](task-registry.md), Section 1). Every operation except the blocking `wait` of
+Section 2.4 is non-blocking, except that `list` waits for its task ledger read for at most the
+read deadline ([task-ledger.md](task-ledger.md), Section 5).
 
 ### 2.1 `read`
 
@@ -95,12 +98,42 @@ Invokes the task row's cancellation handler and MUST `consume` the row, whatever
 
 ### 2.3 `list`
 
-Returns all task rows owned by the invoking session in registration order:
+Returns all task rows owned by the invoking session in registration order.
 
-- One summary line per task: `<taskId> · <status> · <label>`, where `<label>` is the display
-  label ([task-registry.md](task-registry.md), Section 2). When the session owns no tasks, the
-  result is the single line `(no tasks)`.
-- `details` MUST carry `{ action: "list", tasks: Array<{ taskId, status, label, resultPath? }> }`, `label` being the row's display label ([task-registry.md](task-registry.md), Section 2).
+The summary line of a task row is `<taskId> · <status> · <label>`, where `<label>` is the
+display label ([task-registry.md](task-registry.md), Section 2); the completion and interrupted
+notifications use it ([task-registry.md](task-registry.md), Section 5).
+
+- One list line per task: `<taskId> · <status> · <elapsed> · <figures> · <label>`, with
+  `<figures> · ` left out when `<figures>` is empty, where:
+  - `<elapsed>` is the duration from the row's `startedAt` to its `settledAt`, or to the time of
+    the call while it has none, rendered as `<elapsed>` of [task.md](task.md), Section 4.
+  - `<figures>` is taken from the row's ledger row ([task-ledger.md](task-ledger.md),
+    Section 2.2), read once per call after the checks of Section 1 have passed: for an `agent`
+    row, `<turns> <unit> · $<cost>` of its own usage, `<unit>` being `turn` when `turns` is 1,
+    else `turns`; then, when the ledger row has at least one descendant, `total $<total>` of its
+    cumulative usage ([task-ledger.md](task-ledger.md), Section 6), separated from what precedes
+    it by a space, `·`, and a space. `<cost>` and `<total>` are rendered as `<cost>` of
+    [agent-tool.md](agent-tool.md), Section 13. A `script` or `bash` row without a descendant has
+    empty `<figures>`.
+  - `<figures>` is `no ledger row` for a row that has no ledger row; `ledger unavailable` for
+    every row while the task ledger is unusable ([task-ledger.md](task-ledger.md), Section 7);
+    and `ledger busy` for every row when the read was abandoned at the read deadline
+    ([task-ledger.md](task-ledger.md), Section 5).
+- When the session owns no tasks, the result is the single line `(no tasks)`, and no ledger read
+  is made.
+- `details` MUST carry
+  `{ action: "list", ledger, tasks: Array<{ taskId, status, label, resultPath?, durationMs, usage?, total?, descendantMs? }> }`:
+  - `label` is the row's display label ([task-registry.md](task-registry.md), Section 2).
+  - `ledger` is `"ok"`, `"unavailable"`, or `"busy"`, as above; absent when no ledger read is
+    made.
+  - `durationMs` is the duration of `<elapsed>` in milliseconds.
+  - `usage` is the ledger row's own usage, `total` its cumulative usage, and `descendantMs` its
+    descendant time in milliseconds ([task-ledger.md](task-ledger.md), Section 6), each a
+    present field only when `ledger` is `"ok"` and the row has a ledger row; a usage sum is the
+    object `{ input, output, cacheRead, cacheWrite, cost, turns }`.
+
+Example: `a1b2c3d4 · completed · 2m05s · 12 turns · $0.042 · total $0.118 · reviewer — Review the diff`.
 
 ### 2.4 `wait`
 

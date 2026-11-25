@@ -5,7 +5,8 @@ background `Agent` task's session file so the task can be rebuilt and resumed af
 ends or reloads. It owns the record's file format, lifecycle, and rebuild. The task row and task
 registry are owned by [task-registry.md](task-registry.md); the `Agent` `resume` surface and
 session-file naming by [agent-tool.md](agent-tool.md); the meaning of a task's status by
-[task.md](task.md).
+[task.md](task.md). A task record is not the task's history: that is the task ledger
+([task-ledger.md](task-ledger.md)).
 
 ## 1. Format
 
@@ -92,6 +93,7 @@ A record MUST NOT carry the task text or the settled result text.
 - A rebuild MUST skip a record whose `taskId` is already a row of the task registry.
 - The interrupted notification MUST list only the `interrupted` rows the current rebuild inserted,
   never a row an earlier rebuild inserted into the same task registry.
+- A rebuild changes the task ledger per [task-ledger.md](task-ledger.md), Section 4.2.
 - Inserted `interrupted` rows trigger the interrupted notification of
   [task-registry.md](task-registry.md), Section 5; a rebuilt row never triggers the completion
   notification.

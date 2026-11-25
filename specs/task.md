@@ -7,7 +7,8 @@ row, its storage, and completion notification are owned by
 belong to the tool that starts it ([agent-tool.md](agent-tool.md),
 [script-tool.md](script-tool.md), [bash-tool.md](bash-tool.md), [fleet-tool.md](fleet-tool.md)).
 The inspection and cancellation surface is [task-tool.md](task-tool.md); the task browser's
-kill key cancels through the same path ([task-browser.md](task-browser.md), Section 4.4).
+kill key cancels through the same path ([task-browser.md](task-browser.md), Section 4.4). The
+permanent history of tasks is the task ledger ([task-ledger.md](task-ledger.md)).
 
 ## 1. Task kinds
 
@@ -59,7 +60,9 @@ A tool's spec states only what the working directory is used for and any default
   The terminal values are `completed`, `failed`, `cancelled`, and `interrupted`; a task is
   settled when its `status` is terminal. The owning contract sets its `label` and maps its
   outcome to `completed`, `failed`, or `cancelled`. A task is `interrupted` only by a rebuild
-  ([task-record.md](task-record.md), Section 3) that finds its task record `running`.
+  ([task-record.md](task-record.md), Section 3) that finds its task record `running`. A task's
+  ledger row in the task ledger can also become `interrupted` when the process that ran the task
+  ends first ([task-ledger.md](task-ledger.md), Section 4); that changes no task row.
 - A task belongs to one task registry at a time; when that registry ends, the task follows
   [task-registry.md](task-registry.md), Section 4.
 

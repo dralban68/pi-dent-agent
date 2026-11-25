@@ -691,10 +691,17 @@ same name and 1 to `turns`. An assistant message without a host `usage` adds onl
   `running` — in any attempt, and in a turn between two attempts — the tool MUST add the message
   to the task row's `usage` ([task-registry.md](task-registry.md), Section 2) through `amend`,
   the row's `usage` being a zero usage sum while absent. Unlike the attempt record's `usage`
-  (Section 7), the row's `usage` is never reset.
-- The usage tally is one count `tasks` and one usage sum, kept in memory per main session. At
-  every `session_start` of the main session, a reload included, `tasks` is 0 and the usage sum is
-  zero.
+  (Section 7), the row's `usage` is never reset. Each such addition is written to the task
+  ledger ([task-ledger.md](task-ledger.md), Section 3.2).
+- The usage tally is one count `tasks` and one usage sum, kept in memory per main session and
+  seeded from the task ledger. At every `session_start` of the main session, a reload included,
+  `tasks` is 0 and the usage sum is zero, and before the handler returns the extension MUST issue
+  a read of the agent figures of the session's ID ([task-ledger.md](task-ledger.md), Section 6).
+  When the read completes, its count MUST be added to `tasks` and its usage sum to the usage sum.
+  The read is applied in the process's ledger order ([task-ledger.md](task-ledger.md), Section 5),
+  so it counts the dispatches of earlier extension instances and processes of the session and
+  none of the dispatches that follow it. A session ID the ledger holds no row of, a read that
+  fails, and an unusable ledger add nothing.
 - `tasks` MUST increase by 1 for every dispatch that is not a pre-start rejection, once its
   pre-start checks pass: an `Agent` call of the main session, an `Agent` call of a child session
   at any depth, a `resume`, and a `Fleet` query dispatch alike. A recovery attempt is no new
@@ -768,7 +775,9 @@ Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
 - A per-model compaction override (`compaction.modelOverrides`) of the child's working directory is
   outside Section 3.4, which names the three fields: the settings layer merge can carry it into the
   child session.
-- The usage tally is not stored: the usage of the dispatches before a reload or in an earlier
-  process of the same session is in no total.
+- After a reload, usage that the ended extension instance's dispatches add after the seed read
+  of Section 13 is in the task ledger but not in the usage tally.
+- Nothing marks a usage tally whose seed read has not completed, failed, or met an unusable task
+  ledger: it shows only the dispatches of its own extension instance.
 - Usage the host charges a child session outside its assistant messages (a compaction or branch
   summary) is in no usage sum.

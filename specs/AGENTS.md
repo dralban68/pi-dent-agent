@@ -8,7 +8,7 @@ satisfies every MUST and MUST NOT. This file holds pi-dent's spec list and diffe
 Each file is `<name>.md`; a tool spec (`<name>-tool.md`) links its resource spec for the shape.
 
 - Dispatch: `agent`, `agent-tool`
-- Tasks: `task`, `task-record`, `task-registry`, `task-browser`, `task-tool`
+- Tasks: `task`, `task-record`, `task-registry`, `task-ledger`, `task-browser`, `task-tool`
 - Sessions: `session-store`, `session-index`, `session-transcript`, `session-tool`
 - Skills and plugins: `skill`, `skill-tool`, `plugin`, `plugin-tool`, `plugin-ui`, `plugin-state`, `package`
 - Tools: `bash-tool`, `script-tool`, `search-tool`, `fleet-tool`, `schedule-tool`, `ask-user-question-tool`

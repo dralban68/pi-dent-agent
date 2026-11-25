@@ -134,6 +134,13 @@ session (main or child)
 - Task registries do not survive a reload; a task record does. A background `agent` task has one,
   and at the main session's start a rebuild turns task records back into task rows. One still
   running becomes an interrupted task, which `Agent` `resume` can continue.
+- The task ledger is a third shared database, beside the local session store and the session
+  index, and the only one that is a permanent history: one ledger row per task row of every kind,
+  linked to its parent row (the dispatch whose child session, or the `Script` run whose nested
+  call, registered it), and one ledger session row per main session for the session's own usage.
+  Totals are summed from the rows when read. It seeds the usage tally at `session_start`, and
+  `Task` `list` and `Session` show its figures. Unlike a task record, it serves neither rebuild
+  nor `resume`, and nothing deletes its rows.
 - The browser stack is the open full-screen browsers, newest on top; the task browser is one of
   them, and only the top one takes keys.
 - The task browser's list page lists the task tree; `enter` opens the details page of the selected
@@ -145,6 +152,7 @@ session (main or child)
 
 Specs: [task.md](../specs/task.md), Sections 1–3; [task-registry.md](../specs/task-registry.md),
 Sections 1 and 4–6; [task-record.md](../specs/task-record.md);
+[task-ledger.md](../specs/task-ledger.md);
 [task-tool.md](../specs/task-tool.md); [task-browser.md](../specs/task-browser.md).
 
 ## Fleet and the local session store
