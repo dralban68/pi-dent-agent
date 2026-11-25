@@ -1531,7 +1531,7 @@ terms:
         from: specs/thesaurus.md
   - id: own-tool-call-count
     label: own tool-call count
-    meaning: "The number of tool calls recorded in one ledger row or ledger session row alone, unknown when not recorded"
+    meaning: "The number of tool calls recorded in one ledger row or ledger session row alone; a bash row has none"
     owner: specs/task-ledger.md
     group: Tasks
     key: shared
@@ -1542,6 +1542,9 @@ terms:
     history:
       - date: 2026-11-25
         op: add
+      - date: 2026-11-25
+        op: update
+        meaning: "The number of tool calls recorded in one ledger row or ledger session row alone, unknown when not recorded"
   - id: own-usage
     label: own usage
     meaning: The usage sum of one ledger row or ledger session row alone
