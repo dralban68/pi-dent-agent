@@ -1,9 +1,11 @@
 # `Session` tool specification
 
 This document specifies the `Session` tool: a read-only report on the invoking session — its
-identity, session file, model, the configured models, model guidance, billing, and usage. Model
-strings and the inventory are owned by [model-string.md](model-string.md); the billing report
-by [billing.md](billing.md); the usage figures by [task-ledger.md](task-ledger.md).
+identity, session kind and user-input availability, session file, model, the configured models,
+model guidance, billing, and usage — together with the session kind classification, environment
+variable, and system prompt mode line. Model strings and the inventory are owned by
+[model-string.md](model-string.md); the billing report by [billing.md](billing.md); the usage
+figures by [task-ledger.md](task-ledger.md).
 
 ## 1. Registration surface
 
@@ -29,6 +31,8 @@ gathering other report data. A call MUST NOT change session state; its report qu
 | Field           | Type                   | Contract                                                                                                                                                                                                                                                                                                                                                                                             |
 | --------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sessionId`     | string                 | The session's UUID.                                                                                                                                                                                                                                                                                                                                                                                  |
+| `sessionKind`   | `"user" \| "agent"`    | `"user"` for a user session, `"agent"` for an agent session (Section 3).                                                                                                                                                                                                                                                                                                                             |
+| `userInput`     | boolean                | `true` for a user session, `false` for an agent session (Section 3).                                                                                                                                                                                                                                                                                                                                 |
 | `sessionFile`   | string \| `null`       | Absolute path of the session file; `null` when the session has no persisted session file.                                                                                                                                                                                                                                                                                                            |
 | `cwd`           | string                 | The session's working directory.                                                                                                                                                                                                                                                                                                                                                                     |
 | `model`         | string \| `null`       | Canonical serialization ([model-string.md](model-string.md), Section 5) of the session's current model and thinking level; `null` when none is selected.                                                                                                                                                                                                                                             |
@@ -78,6 +82,44 @@ it is 1, else `agents`. Otherwise they are the single line `usage: ledger unavai
 `usage: ledger busy`, or `usage: no ledger row`, for `ledger` `"unavailable"`, `"busy"`, and
 `"missing"`.
 
-## 3. Specification gaps
+## 3. Session kind
+
+Every session is either a user session or an agent session:
+
+- A **user session** is a main session for which the host reports a user interface (terminal mode
+  or RPC mode). Its `sessionKind` is `"user"` and its `userInput` is `true`.
+- An **agent session** is a child session ([agent-tool.md](agent-tool.md), Section 4.2, including a
+  `Fleet` query child per [fleet-tool.md](fleet-tool.md), Section 4), or a main session for which
+  the host reports no user interface (print mode or JSON mode). Its `sessionKind` is `"agent"` and
+  its `userInput` is `false`.
+
+### 3.1 Environment variable
+
+pi-dent MUST expose the invoking session's kind as `PI_DENT_SESSION_KIND`, with value `"user"` for
+a user session and `"agent"` for an agent session:
+
+- At a main session's `session_start`, pi-dent MUST set `PI_DENT_SESSION_KIND` in the process
+  environment its tools inherit to the session's kind; at `session_shutdown`, pi-dent MUST unset
+  it when it still holds that session's value.
+- A child session's `PI_DENT_SESSION_KIND` MUST be `"agent"`, visible to the child's tools only,
+  without mutating shared `process.env`; a child's tools MUST NOT see the dispatching session's
+  value.
+
+### 3.2 System prompt mode line
+
+Every session's system prompt MUST include its session mode line as its final part, joined to any
+preceding text by `"\n\n"`:
+
+| Session kind  | Mode line                                                                                                                                                                                           |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| user session  | `Session mode: user session (user input is available).`                                                                                                                                             |
+| agent session | `Session mode: agent session (no user input is available; do not ask the user questions or wait for user confirmation — complete the task autonomously or report blockers in your final response).` |
+
+For a main session, pi-dent MUST append the mode line on `before_agent_start`, after the skill
+catalog ([skill-tool.md](skill-tool.md), Section 1) and plugin context blocks
+([plugin.md](plugin.md), Section 10). For a child session, the mode line is the final part of the
+child's system prompt ([agent-tool.md](agent-tool.md), Section 4.2).
+
+## 4. Specification gaps
 
 None.

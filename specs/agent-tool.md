@@ -291,9 +291,10 @@ The child MUST run in-process on the pi SDK:
   injection of Section 3.2, and the resolved cwd. The system prompt is the agent `prompt`, then
   for a dynamic dispatch the session notes (below), then
   the `<available_skills>` injection (Section 3.2), then the plugin context blocks
-  ([plugin.md](plugin.md), Section 10), then the session rules for the resolved model
-  and, when the effective tool cap includes `Agent`, the child guidance
-  ([model-guidance.md](model-guidance.md), Section 4); the non-empty parts MUST be joined by
+  ([plugin.md](plugin.md), Section 10), then the session rules for the resolved model,
+  when the effective tool cap includes `Agent`, the child guidance
+  ([model-guidance.md](model-guidance.md), Section 4), and finally the session mode line
+  ([session-tool.md](session-tool.md), Section 3.2); the non-empty parts MUST be joined by
   `"\n\n"`, and the plugin context blocks form one part, each block separated from the next by
   `"\n\n"`. The session MUST mint a fresh session ID for `persistent` (a `resume` dispatch
   continues under the source session's ID). Every attempt is one prompt of that session,
@@ -370,7 +371,8 @@ The child MUST run in-process on the pi SDK:
   session ends. A failure to create it at session start leaves `PI_DENT_SESSION_DIR` unset and does
   not fail the session. A child's `PI_DENT_SESSION_DIR` MUST be the child session's own agent
   directory, visible to the child's tools only, without mutating shared `process.env`; a child's
-  tools MUST NOT see the dispatching session's value. A `resume` attempt and every recovery
+  tools MUST NOT see the dispatching session's value. Likewise, a child's `PI_DENT_SESSION_KIND`
+  is `"agent"` per [session-tool.md](session-tool.md), Section 3.1. A `resume` attempt and every recovery
   attempt use the same agent directory as the child session's earlier attempts, with its files
   intact. A failure to create an agent directory fails the dispatch with
   `failureCode: "invalid-plan"` and `failurePhase: "plan-resolution"`, before any prompt is sent.

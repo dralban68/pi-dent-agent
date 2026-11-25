@@ -88,6 +88,9 @@ dispatch (one `Agent` call of the dispatching session, itself a main session or 
   providers as copies, not by loading their extensions (agent-tool.md, Section 4.2).
 - Recovery re-prompts inside one dispatch. `resume` is a new dispatch that continues a retained
   session file, named by path or by task ID.
+- Every session is either a user session (a main session with a user interface: terminal or RPC
+  mode) or an agent session (a child session, or a main session without a user interface: print or
+  JSON mode). User sessions have user input available; agent sessions do not.
 - Every session has an agent directory. It holds the session files of the session's children,
   and so their agent directories, recursively; it also holds task records, result spills, output
   files. Only the retention sweep removes one, whole, and never one that a live
@@ -105,7 +108,8 @@ dispatch (one `Agent` call of the dispatching session, itself a main session or 
 - The consumed bytes of a session file are the leading bytes that the index has read and describes.
 
 Specs: [agent-tool.md](../specs/agent-tool.md), Sections 3, 4.2, 8, 9, and 10;
-[agent.md](../specs/agent.md); [session-transcript.md](../specs/session-transcript.md);
+[agent.md](../specs/agent.md); [session-tool.md](../specs/session-tool.md), Section 3;
+[session-transcript.md](../specs/session-transcript.md);
 [session-index.md](../specs/session-index.md); [search-tool.md](../specs/search-tool.md),
 Section 2.
 

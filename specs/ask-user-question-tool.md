@@ -104,19 +104,19 @@ Each schema property carries this `description`:
 
 ### 1.4 Activation
 
-A session has a user interface when the host reports one for it: in terminal mode and RPC mode,
-not in print mode or JSON mode. At every `session_start`, before the session's first model
-request, the extension MUST:
+A main session is a user session when the host reports a user interface for it, and an agent
+session otherwise ([session-tool.md](session-tool.md), Section 3). At every `session_start`,
+before the session's first model request, the extension MUST:
 
-- in a session without a user interface, remove `AskUserQuestion` from the session's active tool
-  set through the host's active-tool API, leaving every other tool's activity unchanged, so that
-  the tool is not declared to the model;
-- in a session with a user interface, leave the tool's activity as the host set it.
+- in an agent session, remove `AskUserQuestion` from the session's active tool set through the
+  host's active-tool API, leaving every other tool's activity unchanged, so that the tool is not
+  declared to the model;
+- in a user session, leave the tool's activity as the host set it.
 
 The run mode is fixed for the process, so every `session_start` of a process, a reload's included,
-decides the same. A call that reaches a session without a user interface all the same — the tool
-made active again by the user or another extension — MUST return the no-UI result (Section 6.2)
-after validation, showing nothing.
+decides the same. A call that reaches an agent session all the same — the tool made active again
+by the user or another extension — MUST return the no-UI result (Section 6.2) after validation,
+showing nothing.
 
 ## 2. Asking
 

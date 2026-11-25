@@ -66,6 +66,20 @@ check 12.
 > Note (non-normative): 8640000000000000 ms after the Unix epoch is the latest instant an
 > ECMAScript `Date` represents.
 
+### 1.3 Activation
+
+At every `session_start`, before the session's first model request, the extension MUST:
+
+- in an agent session ([session-tool.md](session-tool.md), Section 3), remove `Schedule` from the
+  session's active tool set through the host's active-tool API, leaving every other tool's activity
+  unchanged, so that the tool is not declared to the model;
+- in a user session, leave the tool's activity as the host set it.
+
+A call that reaches an agent session all the same — the tool made active again by the user or
+another extension — MUST fail as a tool error (`isError: true`) with the text
+`Schedule is unavailable: this is an agent session with no user input.`, before validation and
+leaving pending schedules unchanged.
+
 ## 2. Schedules
 
 ### 2.1 Schedule

@@ -308,8 +308,9 @@ The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md
 - Child processes spawned by a script are owned by the host runtime; their termination follows the
   worker termination rule above. `Bash` `background: true` ([bash-tool.md](bash-tool.md),
   Section 6) keeps a command running beyond a tool call. A child process spawned with an `env`
-  option the script passes that does not name `PI_DENT_SESSION_DIR` MUST still receive the script's
-  `PI_DENT_SESSION_DIR` ([agent-tool.md](agent-tool.md), Section 4.2), when set; likewise each of
+  option the script passes that does not name `PI_DENT_SESSION_DIR` or `PI_DENT_SESSION_KIND` MUST
+  still receive the script's values ([agent-tool.md](agent-tool.md), Section 4.2;
+  [session-tool.md](session-tool.md), Section 3.1), when set; likewise each of
   `TMPDIR`, `TMP` and `TEMP` that the worker's `process.env` holds and that `env` option does not
   name. A call to `spawnSync`, `execSync`, or `execFileSync` MUST throw an error inside the script;
   uncaught, it settles the run with `exitReason: "threw"`.
