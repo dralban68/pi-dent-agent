@@ -101,3 +101,16 @@ test("a session without a ledger session row has no session figures but its agen
   assert.equal(ok(await ledger.readAgentFigures("session-a")).count, 1);
   ledger.close();
 });
+
+test("a rebuilt row's figures are read by the key Section 4.2 finds its ledger row by", async () => {
+  const { ledger } = openLedger();
+  const rowId = inserted(ledger, { taskId: "k0000000", startedAt: 42 });
+  ledger.setTaskUsage(rowId, usage(5, 6, 0.5, 1));
+  const key = { sessionId: "session-a", taskId: "k0000000", startedAt: 42 };
+  const missing = { ...key, startedAt: 43 };
+  const rows = ok(await ledger.readRowFigures([key, missing]));
+  assert.equal(rows.get(key)?.rowId, rowId);
+  assert.deepEqual(rows.get(key)?.own, usage(5, 6, 0.5, 1));
+  assert.equal(rows.has(missing), false);
+  ledger.close();
+});

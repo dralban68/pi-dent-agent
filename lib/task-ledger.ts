@@ -198,12 +198,26 @@ export interface LedgerTaskAmend {
   sessionPath?: string | undefined;
 }
 
+/** The key Section 4.2 finds a rebuilt task row's ledger row by. */
+export interface LedgerTaskKey {
+  /** The session's ledger session ID. */
+  sessionId: string;
+  taskId: string;
+  startedAt: number;
+}
+
+/** A task row's ledger row: its `row_id`, or for a rebuilt row the key that finds it (Section 2.2). */
+export type LedgerRowRef = string | LedgerTaskKey;
+
 /** How a `resume` dispatch names the row it continues (Section 3.2). */
 export type LedgerResume =
-  /** A task ID: the resolved task row's `row_id`, undefined when it has no ledger row. */
-  | { by: "task"; rowId: string | undefined }
-  /** A path: the latest other row whose `session_path` equals this row's. */
-  | { by: "path" };
+  /** A task ID: the resolved task row's ledger row, undefined when it has none. */
+  | { by: "task"; row: LedgerRowRef | undefined }
+  /**
+   * A path: the latest other row whose `session_path` equals `sessionPath`, the text this row's
+   * `session_path` takes; this row's current `session_path` when omitted.
+   */
+  | { by: "path"; sessionPath?: string | undefined };
 
 export interface LedgerDispatched {
   /** The working directory the task runs in. */
@@ -407,19 +421,18 @@ export class TaskLedger {
       );
       if (resume === undefined) return;
       if (resume.by === "task") {
-        db.prepare("UPDATE tasks SET resumes_id = ? WHERE row_id = ?").run(
-          resume.rowId ?? null,
-          rowId,
-        );
+        const resumed = resume.row === undefined ? undefined : resolveRef(db, resume.row);
+        db.prepare("UPDATE tasks SET resumes_id = ? WHERE row_id = ?").run(resumed ?? null, rowId);
         return;
       }
       db.prepare(
         `UPDATE tasks SET resumes_id = (
            SELECT other.row_id FROM tasks AS other
-           WHERE other.session_path = tasks.session_path AND other.row_id <> tasks.row_id
+           WHERE other.session_path = COALESCE(?, tasks.session_path)
+             AND other.row_id <> tasks.row_id
            ORDER BY other.started_at DESC, other.row_id DESC LIMIT 1)
          WHERE row_id = ?`,
-      ).run(rowId);
+      ).run(resume.sessionPath ?? null, rowId);
     });
   }
 
@@ -513,11 +526,13 @@ export class TaskLedger {
   }
 
   /**
-   * The figures of ledger rows, for a surface, under the read deadline, in one read; a `row_id`
-   * the ledger holds no row of is absent from the map.
+   * The figures of ledger rows, for a surface, under the read deadline, in one read, keyed by the
+   * refs given; a ref the ledger holds no row of is absent from the map.
    */
-  readRowFigures(rowIds: readonly string[]): Promise<LedgerRead<Map<string, LedgerRowFigures>>> {
-    const ids = [...rowIds];
+  readRowFigures(
+    refs: readonly LedgerRowRef[],
+  ): Promise<LedgerRead<Map<LedgerRowRef, LedgerRowFigures>>> {
+    const given = [...refs];
     return this.read((db) => {
       const at = this.now();
       const byId = db.prepare(`SELECT ${FIGURE_COLUMNS} FROM tasks WHERE row_id = ?`);
@@ -527,8 +542,10 @@ export class TaskLedger {
            UNION SELECT tasks.row_id FROM tasks JOIN below ON tasks.parent_id = below.row_id)
          SELECT ${FIGURE_COLUMNS} FROM tasks WHERE row_id IN (SELECT row_id FROM below) AND row_id <> ?`,
       );
-      const figures = new Map<string, LedgerRowFigures>();
-      for (const id of ids) {
+      const figures = new Map<LedgerRowRef, LedgerRowFigures>();
+      for (const ref of given) {
+        const id = resolveRef(db, ref);
+        if (id === undefined) continue;
         const found = byId.get(id);
         if (found === undefined) continue;
         const row = figureRowOf(found);
@@ -539,7 +556,7 @@ export class TaskLedger {
           total = addUsage(total, one.own);
           descendantMs += wallMs(one, at);
         }
-        figures.set(id, {
+        figures.set(ref, {
           rowId: id,
           kind: row.kind,
           status: row.status,
@@ -610,6 +627,8 @@ export class TaskLedger {
       }
       let outcome: "busy" | "readable" | "unreadable" = "readable";
       try {
+        // One snapshot: another process's schema creation commits between two bare reads.
+        db.exec("BEGIN");
         const version = userVersion(db);
         if (version !== LEDGER_VERSION && (version !== 0 || tableCount(db) !== 0)) {
           this.fail(`unsupported task ledger version ${version}`);
@@ -842,6 +861,18 @@ function resolvedPath(path: string): string {
   const parent = dirname(absolute);
   if (parent === absolute) return absolute;
   return join(resolvedPath(parent), basename(absolute));
+}
+
+/** The `row_id` a ref names; for a key, the first match in `row_id` order (Section 4.2). */
+function resolveRef(db: DatabaseSync, ref: LedgerRowRef): string | undefined {
+  if (typeof ref === "string") return ref;
+  const found = db
+    .prepare(
+      `SELECT row_id FROM tasks WHERE session_id = ? AND task_id = ? AND started_at = ?
+       ORDER BY row_id LIMIT 1`,
+    )
+    .get(ref.sessionId, ref.taskId, ref.startedAt);
+  return isPlainObject(found) && typeof found.row_id === "string" ? found.row_id : undefined;
 }
 
 function sessionRows(db: DatabaseSync, sessionId: string): LedgerFigureRow[] {

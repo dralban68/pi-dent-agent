@@ -119,12 +119,24 @@ test("a resume by task ID records the resolved row, or null when it has none", a
   const { ledger, path } = openLedger();
   const original = inserted(ledger);
   const resume = inserted(ledger, { taskId: "22222222" });
-  ledger.markDispatched(resume, { cwd: "/w", resume: { by: "task", rowId: original } });
+  ledger.markDispatched(resume, { cwd: "/w", resume: { by: "task", row: original } });
   const orphan = inserted(ledger, { taskId: "33333333" });
-  ledger.markDispatched(orphan, { cwd: "/w", resume: { by: "task", rowId: undefined } });
+  ledger.markDispatched(orphan, { cwd: "/w", resume: { by: "task", row: undefined } });
+  // A rebuilt row is named by the key Section 4.2 finds its ledger row by.
+  const rebuilt = inserted(ledger, { taskId: "44444444", startedAt: 77 });
+  const byKey = inserted(ledger, { taskId: "55555555" });
+  const key = { sessionId: "session-a", taskId: "44444444", startedAt: 77 };
+  ledger.markDispatched(byKey, { cwd: "/w", resume: { by: "task", row: key } });
+  const unknown = inserted(ledger, { taskId: "66666666" });
+  ledger.markDispatched(unknown, {
+    cwd: "/w",
+    resume: { by: "task", row: { ...key, startedAt: 78 } },
+  });
   await ledger.flushed();
   assert.equal(taskRow(path, resume).resumes_id, original);
   assert.equal(taskRow(path, orphan).resumes_id, null);
+  assert.equal(taskRow(path, byKey).resumes_id, rebuilt);
+  assert.equal(taskRow(path, unknown).resumes_id, null);
   ledger.close();
 });
 
@@ -138,7 +150,11 @@ test("a resume by path records the other row with the latest started_at and the 
   ledger.markDispatched(resume, { cwd: "/w", resume: { by: "path" } });
   const lonely = inserted(ledger, { startedAt: 500, sessionPath: "/s/none.jsonl" });
   ledger.markDispatched(lonely, { cwd: "/w", resume: { by: "path" } });
+  // Before its session_path is set, the path the row's session_path takes is matched.
+  const early = inserted(ledger, { startedAt: 600 });
+  ledger.markDispatched(early, { cwd: "/w", resume: { by: "path", sessionPath: file } });
   await ledger.flushed();
+  assert.equal(taskRow(path, early).resumes_id, latest);
   assert.equal(taskRow(path, resume).resumes_id, latest);
   assert.notEqual(taskRow(path, resume).resumes_id, older);
   assert.equal(taskRow(path, lonely).resumes_id, null);
