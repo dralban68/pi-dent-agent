@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { sessionRowUsage, type LedgerSessionEntry } from "../../lib/task-ledger.ts";
+import {
+  sessionRowToolCalls,
+  sessionRowUsage,
+  type LedgerSessionEntry,
+} from "../../lib/task-ledger.ts";
 import { usage } from "./support.ts";
 
-/** specs/task-ledger.md Section 2.1: the usage of a ledger session row. */
+/** specs/task-ledger.md Section 2.1: the usage and tool-call count of a ledger session row. */
 
 function hostUsage(input: number, output: number, cost: number, cacheRead = 0, cacheWrite = 0) {
   return { input, output, cacheRead, cacheWrite, cost: { total: cost } };
@@ -77,4 +81,29 @@ test("in a fork, leaves out the entries timestamped before the header", () => {
     sessionRowUsage(entries, { timestamp: header.timestamp, parentSession: 7 }),
     usage(104, 106, 1.75, 3),
   );
+});
+
+function withContent(role: string, timestamp: string, content: unknown): LedgerSessionEntry {
+  return { type: "message", timestamp, message: { role, content } };
+}
+
+const call = (name: string) => ({ type: "toolCall", id: name, name, arguments: {} });
+
+test("tool_calls counts the toolCall parts of the assistant messages turns counts, fork copies left out", () => {
+  const header = { timestamp: AT, parentSession: "/s/parent.jsonl" };
+  const entries = [
+    // Copied by the fork: neither a turn nor its tool calls count.
+    withContent("assistant", "2026-03-01T09:00:00.000Z", [call("a"), call("b"), call("c")]),
+    withContent("assistant", AT, [{ type: "text", text: "x" }, call("Read"), call("Bash")]),
+    withContent("assistant", AT, [{ type: "thinking", thinking: "t" }]),
+    withContent("assistant", AT, "not an array"),
+    // Only assistant messages carry the session's own tool calls.
+    withContent("user", AT, [call("u")]),
+    withContent("toolResult", AT, [call("r")]),
+    { type: "custom", timestamp: AT, message: { role: "assistant", content: [call("x")] } },
+  ];
+  assert.equal(sessionRowToolCalls(entries, header), 2);
+  assert.equal(sessionRowUsage(entries, header).turns, 3);
+  // Not a fork: the copied-looking entry counts too.
+  assert.equal(sessionRowToolCalls(entries, { timestamp: AT }), 5);
 });

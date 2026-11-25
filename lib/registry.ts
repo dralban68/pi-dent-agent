@@ -159,7 +159,10 @@ export class TaskRegistry {
       background: input.background,
       startedAt: Date.now(),
     });
-    if (row instanceof AgentTaskRow) row.task = input.task;
+    if (row instanceof AgentTaskRow) {
+      row.task = input.task;
+      row.toolCalls = 0;
+    }
     if (row instanceof BashTaskRow && input.command !== undefined) row.command = input.command;
     if (row instanceof ScriptTaskRow && input.code !== undefined) row.code = input.code;
     this.owned.push(row);

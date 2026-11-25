@@ -1,6 +1,6 @@
 /**
- * The usage of a main session's ledger session row (specs/task-ledger.md Section 2.1), from the
- * session entries and header the host holds.
+ * The usage and tool-call count of a main session's ledger session row (specs/task-ledger.md
+ * Section 2.1), from the session entries and header the host holds.
  */
 
 import { zeroUsageSum, type UsageSum } from "./usage.ts";
@@ -20,7 +20,13 @@ export interface LedgerSessionEntry {
   timestamp?: string | undefined;
   usage?: LedgerEntryUsage | undefined;
   message?:
-    | { role: string; toolName?: string | undefined; usage?: LedgerEntryUsage | undefined }
+    | {
+        role: string;
+        toolName?: string | undefined;
+        usage?: LedgerEntryUsage | undefined;
+        /** The host `content`, read for its tool calls. */
+        content?: unknown;
+      }
     | undefined;
 }
 
@@ -40,17 +46,9 @@ export function sessionRowUsage(
   entries: readonly LedgerSessionEntry[],
   header: LedgerSessionHeader | undefined,
 ): UsageSum {
-  const forkedAt =
-    header !== undefined && typeof header.parentSession === "string"
-      ? instant(header.timestamp)
-      : undefined;
   const sum = zeroUsageSum();
-  for (const entry of entries) {
-    if (forkedAt !== undefined) {
-      const at = instant(entry.timestamp);
-      if (at !== undefined && at < forkedAt) continue;
-    }
-    if (entry.type === "message" && entry.message?.role === "assistant") sum.turns += 1;
+  for (const entry of notForkCopied(entries, header)) {
+    if (isAssistantMessage(entry)) sum.turns += 1;
     const usage = countedUsage(entry);
     if (usage === undefined) continue;
     sum.input += usage.input;
@@ -60,6 +58,55 @@ export function sessionRowUsage(
     sum.cost += usage.cost.total;
   }
   return sum;
+}
+
+/**
+ * The `tool_calls` of a ledger session row (Section 2.1): the tool calls of the assistant messages
+ * whose entries `turns` counts.
+ */
+export function sessionRowToolCalls(
+  entries: readonly LedgerSessionEntry[],
+  header: LedgerSessionHeader | undefined,
+): number {
+  let count = 0;
+  for (const entry of notForkCopied(entries, header)) {
+    if (isAssistantMessage(entry)) count += toolCallCount(entry.message?.content);
+  }
+  return count;
+}
+
+/** The tool calls of an assistant message (agent-tool.md Section 13): its `toolCall` parts. */
+export function toolCallCount(content: unknown): number {
+  if (!Array.isArray(content)) return 0;
+  let count = 0;
+  for (const part of content) {
+    if (typeof part === "object" && part !== null && Reflect.get(part, "type") === "toolCall") {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function isAssistantMessage(entry: LedgerSessionEntry): boolean {
+  return entry.type === "message" && entry.message?.role === "assistant";
+}
+
+/** The entries of the session less, in a fork, those copied from the parent session. */
+function* notForkCopied(
+  entries: readonly LedgerSessionEntry[],
+  header: LedgerSessionHeader | undefined,
+): Generator<LedgerSessionEntry> {
+  const forkedAt =
+    header !== undefined && typeof header.parentSession === "string"
+      ? instant(header.timestamp)
+      : undefined;
+  for (const entry of entries) {
+    if (forkedAt !== undefined) {
+      const at = instant(entry.timestamp);
+      if (at !== undefined && at < forkedAt) continue;
+    }
+    yield entry;
+  }
 }
 
 /** The usage an entry adds to the footer's session totals, less an `Agent` tool result's. */

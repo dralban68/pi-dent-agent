@@ -1,6 +1,6 @@
 import type { TaskRegistry } from "./registry.ts";
 import { collectAllTasks, flattenTree, TASK_WIDGET_ID } from "./task-widget.ts";
-import { AgentTaskRow, shownLabel } from "./task-row.ts";
+import { AgentTaskRow, shownLabel, toolCallsOf } from "./task-row.ts";
 import type { UsageSum } from "./usage.ts";
 
 /**
@@ -22,23 +22,31 @@ export interface TaskFeedTask {
   detail: string;
   label: string;
   usage?: UsageSum;
+  /** Absent for a `bash` row and a row without one: not applicable or unknown, never 0. */
+  toolCalls?: number;
 }
 
 /** The task feed's `<task>` objects, one per member of the task tree (task.md Section 4.1). */
 export function taskFeedTasks(registry: TaskRegistry): TaskFeedTask[] {
-  return flattenTree(collectAllTasks(registry)).map(({ row, depth }) => ({
-    taskId: row.taskId,
-    depth,
-    kind: row.kind,
-    background: row.background,
-    status: row.status,
-    orphan: row.orphan,
-    startedAt: row.startedAt,
-    ...(row.settledAt === undefined ? {} : { settledAt: row.settledAt }),
-    detail: row.displayDetail(),
-    label: shownLabel(row.label),
-    ...(row instanceof AgentTaskRow && row.usage !== undefined ? { usage: { ...row.usage } } : {}),
-  }));
+  return flattenTree(collectAllTasks(registry)).map(({ row, depth }) => {
+    const toolCalls = toolCallsOf(row);
+    return {
+      taskId: row.taskId,
+      depth,
+      kind: row.kind,
+      background: row.background,
+      status: row.status,
+      orphan: row.orphan,
+      startedAt: row.startedAt,
+      ...(row.settledAt === undefined ? {} : { settledAt: row.settledAt }),
+      detail: row.displayDetail(),
+      label: shownLabel(row.label),
+      ...(row instanceof AgentTaskRow && row.usage !== undefined
+        ? { usage: { ...row.usage } }
+        : {}),
+      ...(toolCalls === undefined ? {} : { toolCalls }),
+    };
+  });
 }
 
 /** The host surface the feed needs: set a widget's lines, or clear it with `undefined`. */

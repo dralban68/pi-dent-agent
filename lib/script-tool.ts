@@ -474,6 +474,8 @@ export function makeScriptTool(deps: ScriptToolDeps) {
             if (tool === undefined || ctx === undefined)
               throw new Error(`tool ${name} is not bound`);
             const callId = toolLog.start(name, args);
+            // Section 8.4: the row's count of the nested calls the run has started.
+            registry.amend(row, { toolCalls: toolLog.calls });
             // The run's settlement aborts the call: it is logged as aborted at that moment.
             const onAbort = (): void => toolLog.abort(callId);
             callSignal.addEventListener("abort", onAbort, { once: true });

@@ -223,7 +223,7 @@ async function earlierDispatches(path: string): Promise<void> {
   ] as const) {
     const rowId = inserted(ledger, { sessionId: SESSION_ID, taskId });
     ledger.markDispatched(rowId, { cwd: "/w" });
-    ledger.setTaskUsage(rowId, sum);
+    ledger.setTaskUsage(rowId, sum, 0);
     ledger.settleTask(rowId, { status: "completed", settledAt: 2000 });
   }
   await ledger.flushed();
@@ -264,7 +264,11 @@ test("the ledger session row is written at session_start, each message end, comp
     {
       type: "message",
       timestamp: AT,
-      message: { role: "assistant", content: [], usage: hostUsage(10, 0.5) },
+      message: {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "c1", name: "Agent", arguments: {} }],
+        usage: hostUsage(10, 0.5),
+      },
     },
     // The usage of an Agent dispatch is in its ledger row, not the session's (Section 2.1).
     {
@@ -288,15 +292,31 @@ test("the ledger session row is written at session_start, each message end, comp
     await fire(stub, "session_start", { reason: "startup" }, ctx);
     await until(() => row() !== undefined, "the session row");
     assert.deepEqual(
-      [row()?.session_file, row()?.cwd, row()?.input, row()?.output, row()?.cost, row()?.turns],
-      [join(box.project, "session.jsonl"), box.project, 10, 1, 0.5, 1],
+      [
+        row()?.session_file,
+        row()?.cwd,
+        row()?.input,
+        row()?.output,
+        row()?.cost,
+        row()?.turns,
+        row()?.tool_calls,
+      ],
+      [join(box.project, "session.jsonl"), box.project, 10, 1, 0.5, 1, 1],
     );
 
     // The host reports a message's end before it saves the message (Section 3.3).
-    const ended = { role: "assistant", content: [], usage: hostUsage(5, 0.25) };
+    const ended = {
+      role: "assistant",
+      content: [
+        { type: "toolCall", id: "c2", name: "Read", arguments: {} },
+        { type: "toolCall", id: "c3", name: "Bash", arguments: {} },
+      ],
+      usage: hostUsage(5, 0.25),
+    };
     await fire(stub, "message_end", { message: ended }, ctx);
     await until(() => row()?.turns === 2, "the row counting the ended message");
     assert.equal(row()?.input, 15);
+    assert.equal(row()?.tool_calls, 3, "the ended message's tool calls, counted like its turn");
     // Once saved, the same message is counted once.
     entries.push({ type: "message", timestamp: AT, message: ended });
     await fire(stub, "message_end", { message: { role: "user", content: "next" } }, ctx);
@@ -306,6 +326,7 @@ test("the ledger session row is written at session_start, each message end, comp
     await fire(stub, "session_compact", { compactionEntry: {} }, ctx);
     await until(() => row()?.input === 22, "the row with the compaction");
     assert.equal(row()?.turns, 2, "the saved message is counted once");
+    assert.equal(row()?.tool_calls, 3, "and its tool calls once");
     const summary = { type: "branch_summary", timestamp: AT, usage: hostUsage(3, 0.0625) };
     entries.push(summary);
     await fire(stub, "session_tree", { summaryEntry: summary }, ctx);
@@ -401,7 +422,7 @@ test("a ledger that cannot be used is one notice, and the tally stays partial", 
   try {
     // A file of another format version is left unchanged and makes the ledger unusable.
     const db = raw(box.ledgerPath);
-    db.exec("PRAGMA user_version = 2");
+    db.exec("PRAGMA user_version = 3");
     db.close();
     await factory(stub.pi);
     await fire(stub, "session_start", { reason: "startup" }, ctx);
@@ -413,7 +434,7 @@ test("a ledger that cannot be used is one notice, and the tally stays partial", 
       ui.notices.filter((notice) => notice.message.includes("task ledger")),
       [
         {
-          message: "pi-dent: task ledger unavailable: unsupported task ledger version 2",
+          message: "pi-dent: task ledger unavailable: unsupported task ledger version 3",
           level: "warning",
         },
       ],

@@ -55,7 +55,7 @@ test("an ok read shows elapsed, own turns and cost, the total with descendants, 
     label: "\u001b[31mred\u001b[0m\nsecond line",
     background: true,
   });
-  registry.amend(parent, { usage: usage(10, 1, 0.042, 12) });
+  registry.amend(parent, { usage: usage(10, 1, 0.042, 12), toolCalls: 5 });
   // A dispatch's child session files its rows under the dispatch's row (task-ledger.md 3.1).
   const children = registryOf(childScope(scope, parent, () => "/child"));
   const child = children.register({
@@ -67,6 +67,7 @@ test("an ok read shows elapsed, own turns and cost, the total with descendants, 
   children.amend(child, { usage: usage(5, 1, 0.076, 1) });
   children.settle(child, { status: "completed" });
   const script = registry.register({ kind: "script", cohort: "c", label: "s", background: false });
+  registry.amend(script, { toolCalls: 2 });
   registry.settle(script, { status: "completed" });
   registry.settle(parent, { status: "completed" });
 
@@ -89,6 +90,7 @@ test("an ok read shows elapsed, own turns and cost, the total with descendants, 
     usage: usage(10, 1, 0.042, 12),
     total: usage(15, 2, 0.042 + 0.076, 13),
     descendantMs: settledMs(child),
+    toolCalls: 5,
   });
   assert.deepEqual(details.tasks[1], {
     taskId: script.taskId,
@@ -98,10 +100,33 @@ test("an ok read shows elapsed, own turns and cost, the total with descendants, 
     usage: usage(0, 0, 0, 0),
     total: usage(0, 0, 0, 0),
     descendantMs: 0,
+    toolCalls: 2,
   });
   // A one-turn agent row says `turn`.
   const one = await list(children, ledger);
   assert.match(textOf(one), / · 1 turn · \$0\.076 · inner$/);
+  ledger.close();
+});
+
+test("details carry no toolCalls for a bash row or a ledger row whose count is unknown", async () => {
+  const { ledger, path } = openLedger();
+  const registry = registryOf(scopeOf(ledger));
+  const bash = registry.register({ kind: "bash", cohort: "c", label: "b", background: false });
+  const agent = registry.register({ kind: "agent", cohort: "c", label: "a", background: false });
+  await ledger.flushed();
+  // As the migration from format version 1 leaves a row (task-ledger.md Section 2.3).
+  const db = raw(path);
+  db.exec("UPDATE tasks SET tool_calls = NULL WHERE kind = 'agent'");
+  db.close();
+  const result = await list(registry, ledger);
+  const details = result.details as { ledger: string; tasks: Array<Record<string, unknown>> };
+  assert.equal(details.ledger, "ok");
+  const byId = new Map(details.tasks.map((task) => [task.taskId, task]));
+  for (const row of [bash, agent]) {
+    const entry = byId.get(row.taskId) ?? {};
+    assert.equal("usage" in entry, true, "the row has a ledger row");
+    assert.equal("toolCalls" in entry, false, `${row.kind}: absent, never 0`);
+  }
   ledger.close();
 });
 

@@ -57,7 +57,7 @@ test("reads see every write issued before them, across instances, an ended insta
   const first = openLedger();
   const rowId = inserted(first.ledger);
   first.ledger.markDispatched(rowId, { cwd: "/w" });
-  first.ledger.setTaskUsage(rowId, usage(5, 6, 0.125, 2));
+  first.ledger.setTaskUsage(rowId, usage(5, 6, 0.125, 2), 0);
   first.ledger.close();
   const second = openLedger({ path: first.path });
   const figures = ok(await second.ledger.readAgentFigures("session-a"));
@@ -93,7 +93,13 @@ test("a failing statement makes the ledger unusable once, dropping queued reads"
     }),
     undefined,
   );
-  ledger.writeSession({ sessionId: "s", sessionFile: null, cwd: "/", usage: usage(0, 0, 0, 0) });
+  ledger.writeSession({
+    sessionId: "s",
+    sessionFile: null,
+    cwd: "/",
+    usage: usage(0, 0, 0, 0),
+    toolCalls: 0,
+  });
   assert.deepEqual(await ledger.readRowFigures([]), { status: "unavailable", reason });
   await ledger.flushed();
   assert.deepEqual(notices, [

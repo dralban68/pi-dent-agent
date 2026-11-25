@@ -13,11 +13,11 @@ test("row and session figures over a tree with a row whose parent is missing", a
 
   const root = inserted(ledger, { taskId: "r0000000", startedAt: 1000 });
   ledger.markDispatched(root, { cwd: "/w" });
-  ledger.setTaskUsage(root, u1);
+  ledger.setTaskUsage(root, u1, 4);
   ledger.settleTask(root, { status: "completed", settledAt: 5000 });
   const child = inserted(ledger, { taskId: "a0000000", parentRowId: root, startedAt: 1100 });
   ledger.markDispatched(child, { cwd: "/w" });
-  ledger.setTaskUsage(child, u2);
+  ledger.setTaskUsage(child, u2, 0);
   ledger.settleTask(child, { status: "completed", settledAt: 2100 });
   const grandchild = inserted(ledger, {
     taskId: "b0000000",
@@ -34,6 +34,7 @@ test("row and session figures over a tree with a row whose parent is missing", a
     parentRowId: "00000000-0000-4000-8000-000000000000",
     kind: "script",
     startedAt: 2000,
+    toolCalls: 2,
   });
   const orphanChild = inserted(ledger, {
     taskId: "d0000000",
@@ -41,13 +42,19 @@ test("row and session figures over a tree with a row whose parent is missing", a
     startedAt: 3000,
   });
   ledger.markDispatched(orphanChild, { cwd: "/w" });
-  ledger.setTaskUsage(orphanChild, u3);
+  ledger.setTaskUsage(orphanChild, u3, 0);
   ledger.settleTask(orphanChild, { status: "cancelled", settledAt: 2500 });
 
   const elsewhere = inserted(ledger, { sessionId: "session-b", taskId: "e0000000" });
   ledger.markDispatched(elsewhere, { cwd: "/w" });
-  ledger.setTaskUsage(elsewhere, usage(9999, 9999, 99, 99));
-  ledger.writeSession({ sessionId: "session-a", sessionFile: null, cwd: "/w", usage: own });
+  ledger.setTaskUsage(elsewhere, usage(9999, 9999, 99, 99), 0);
+  ledger.writeSession({
+    sessionId: "session-a",
+    sessionFile: null,
+    cwd: "/w",
+    usage: own,
+    toolCalls: 0,
+  });
 
   const rows = ok(
     await ledger.readRowFigures([root, orphan, orphanChild, grandchild, "absent-row"]),
@@ -58,6 +65,7 @@ test("row and session figures over a tree with a row whose parent is missing", a
     kind: "agent",
     status: "completed",
     own: u1,
+    toolCalls: 4,
     total: usage(300, 30, 0.75, 5, 1000, 50),
     descendants: 3,
     wallMs: 4000,
@@ -70,6 +78,7 @@ test("row and session figures over a tree with a row whose parent is missing", a
     kind: "script",
     status: "running",
     own: usage(0, 0, 0, 0),
+    toolCalls: 2,
     total: u3,
     descendants: 1,
     wallMs: 8000,
@@ -80,6 +89,8 @@ test("row and session figures over a tree with a row whose parent is missing", a
   assert.equal(rows.get(orphanChild)?.wallMs, 0);
   assert.equal(rows.get(orphanChild)?.descendants, 0);
   assert.deepEqual(rows.get(grandchild)?.own, usage(0, 0, 0, 0));
+  // A bash row's count is unknown, not 0 (Section 6).
+  assert.equal(rows.get(grandchild)?.toolCalls, undefined);
 
   assert.deepEqual(ok(await ledger.readSessionFigures("session-a")), {
     own,
@@ -105,7 +116,7 @@ test("a session without a ledger session row has no session figures but its agen
 test("a rebuilt row's figures are read by the key Section 4.2 finds its ledger row by", async () => {
   const { ledger } = openLedger();
   const rowId = inserted(ledger, { taskId: "k0000000", startedAt: 42 });
-  ledger.setTaskUsage(rowId, usage(5, 6, 0.5, 1));
+  ledger.setTaskUsage(rowId, usage(5, 6, 0.5, 1), 0);
   const key = { sessionId: "session-a", taskId: "k0000000", startedAt: 42 };
   const missing = { ...key, startedAt: 43 };
   const rows = ok(await ledger.readRowFigures([key, missing]));

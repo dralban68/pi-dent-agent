@@ -308,7 +308,8 @@ test("a background agent task and an agent its child session dispatches: the nes
 });
 
 test("an agent a script run of a child session dispatches has the script's row as its parent", async () => {
-  const code = 'await tools.Agent({ prompt: "I", task: "VIA-SCRIPT" }); "ok"';
+  const code =
+    'await tools.Agent({ prompt: "I", task: "VIA-SCRIPT" }); await tools.Agent({ prompt: "I", task: "SECOND-NESTED" }); "ok"';
   script({
     SCRIPTED: [
       () =>
@@ -318,6 +319,7 @@ test("an agent a script run of a child session dispatches has the script's row a
       () => fauxAssistantMessage("outer done"),
     ],
     "VIA-SCRIPT": [() => fauxAssistantMessage("inner done")],
+    "SECOND-NESTED": [() => fauxAssistantMessage("inner done")],
   });
   const { ledger, path } = openLedger();
   const main = mainSession(ledger, ["Agent", "Script"]);
@@ -328,6 +330,11 @@ test("an agent a script run of a child session dispatches has the script's row a
   const rows = [...ledgerRows(path).values()];
   const scriptRow = must(rows.find((row) => row.kind === "script"));
   const nested = must(rows.find((row) => row.kind === "agent" && row.task_id !== outer.taskId));
+  // The tool-call counts: the outer child's one Script call; the run's two nested calls; none in
+  // the nested agents' answers.
+  assert.equal(must(ledgerRows(path).get(outer.taskId)).tool_calls, 1);
+  assert.equal(scriptRow.tool_calls, 2, "one per nested call the run started");
+  assert.equal(nested.tool_calls, 0);
   assert.equal(
     scriptRow.parent_id,
     rowIdOf(path, outer),
@@ -575,6 +582,7 @@ test("a bash task's ledger row: dispatched once its checks pass, its output file
     [null, null, null, null, null],
   );
   assert.equal(written.turns, null);
+  assert.equal(written.tool_calls, null, "a bash row has no tool-call count");
   const refusedRow = ledgerRowOf(path, refused);
   assert.deepEqual([refusedRow.dispatched, refusedRow.status], [0, "failed"]);
   ledger.close();

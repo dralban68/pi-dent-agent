@@ -198,6 +198,8 @@ export class AgentTaskRow extends TaskRow {
   recordPath?: string | undefined;
   /** Usage sum of the dispatch (agent-tool.md Section 13); absent until its first assistant message ends. */
   usage?: UsageSum | undefined;
+  /** Tool calls of the messages added to `usage` (Section 2): `0` at `register`, absent on a rebuilt row. */
+  toolCalls?: number | undefined;
   /** Attached task registry (Section 6). */
   children?: TaskRegistry | undefined;
 
@@ -207,10 +209,15 @@ export class AgentTaskRow extends TaskRow {
     agent?: string;
     sessionPath?: string;
     usage?: UsageSum;
+    toolCalls?: number;
   }): boolean {
     let changed = super.apply(fields);
     if (fields.usage !== undefined) {
       this.usage = fields.usage;
+      changed = true;
+    }
+    if (fields.toolCalls !== undefined && fields.toolCalls !== this.toolCalls) {
+      this.toolCalls = fields.toolCalls;
       changed = true;
     }
     for (const key of ["model", "agent", "sessionPath"] as const) {
@@ -232,6 +239,17 @@ export class ScriptTaskRow extends TaskRow {
   readonly kind = "script";
   /** The script source of the call (task-registry.md Section 2); set by `register` and by the owning contract at source resolution. */
   code = "";
+  /** The number of nested calls the run has started (Section 2). */
+  toolCalls = 0;
+
+  override apply(fields: { label?: string; toolCalls?: number }): boolean {
+    let changed = super.apply(fields);
+    if (fields.toolCalls !== undefined && fields.toolCalls !== this.toolCalls) {
+      this.toolCalls = fields.toolCalls;
+      changed = true;
+    }
+    return changed;
+  }
 
   protected detail(): string {
     return "";
@@ -246,6 +264,12 @@ export class BashTaskRow extends TaskRow {
   protected detail(): string {
     return "";
   }
+}
+
+/** A row's `toolCalls` (task-registry.md Section 2): none for a `bash` row or a rebuilt row. */
+export function toolCallsOf(row: TaskRow): number | undefined {
+  if (row instanceof AgentTaskRow || row instanceof ScriptTaskRow) return row.toolCalls;
+  return;
 }
 
 /** Fields `amend` may replace on a row of type `R` (task-registry.md Section 3). */

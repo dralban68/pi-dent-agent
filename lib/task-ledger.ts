@@ -22,6 +22,7 @@ import {
   figureRowOf,
   isBusyError,
   isCorruptError,
+  LEDGER_MIGRATION_FROM_1,
   LEDGER_SCHEMA,
   numberOf,
   rollbackQuietly,
@@ -34,7 +35,7 @@ import type { TaskKind, TaskStatus, TerminalStatus } from "./task-row.ts";
 import { errorCode, errorMessage, isPlainObject } from "./util.ts";
 import { zeroUsageSum, type UsageSum } from "./usage.ts";
 
-export { sessionRowUsage } from "./task-ledger-usage.ts";
+export { sessionRowToolCalls, sessionRowUsage, toolCallCount } from "./task-ledger-usage.ts";
 export type {
   LedgerEntryUsage,
   LedgerSessionEntry,
@@ -43,10 +44,12 @@ export type {
 
 /** The environment variable naming the ledger file (Section 1). */
 export const TASKS_DB_ENV = "PI_DENT_TASKS_DB";
-/** The ledger file's name under `~/.pi/pi-dent/` (Section 1). */
+/** The ledger file's name under `~/.pi/pi-dent/` (Section 1); its `v1` is not the format version. */
 export const LEDGER_FILE_NAME = "tasks-v1.sqlite";
 /** The format version recorded in `user_version` (Section 1). */
-export const LEDGER_VERSION = 1;
+export const LEDGER_VERSION = 2;
+/** The earlier format version that opening migrates (Section 2.3). */
+const MIGRATED_VERSION = 1;
 /** The busy timeout of Section 1: how long one attempt waits inside SQLite. */
 export const BUSY_TIMEOUT_MS = 10;
 /** The read deadline of Section 5. */
@@ -188,6 +191,8 @@ export interface LedgerTaskInsert {
   /** The task row's `startedAt`. */
   startedAt: number;
   sessionPath?: string | undefined;
+  /** The row's `toolCalls`: present for an `agent` or `script` row, absent for a `bash` row. */
+  toolCalls?: number | undefined;
 }
 
 /** The new values an `amend`, or a script row's tool log creation, sets (Section 3.2). */
@@ -249,6 +254,8 @@ export interface LedgerSessionWrite {
   cwd: string;
   /** `sessionRowUsage` of the session's entries and header. */
   usage: UsageSum;
+  /** `sessionRowToolCalls` of the session's entries and header. */
+  toolCalls: number;
 }
 
 /** Agent figures (Section 6). */
@@ -263,6 +270,8 @@ export interface LedgerRowFigures {
   kind: TaskKind;
   status: TaskStatus;
   own: UsageSum;
+  /** The own tool-call count; undefined when unknown. */
+  toolCalls: number | undefined;
   /** The cumulative usage. */
   total: UsageSum;
   /** The number of descendants. */
@@ -361,9 +370,9 @@ export class TaskLedger {
         `INSERT INTO tasks (row_id, session_id, task_id, parent_id, resumes_id, fleet_query, kind,
            background, cwd, agent, label, model, status, dispatched, started_at, settled_at,
            updated_at, owner_pid, owner_started, session_path, result_path,
-           input, output, cache_read, cache_write, cost, turns)
+           input, output, cache_read, cache_write, cost, turns, tool_calls)
          VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 'running', 0, ?, NULL, ?, ?, ?, ?, NULL,
-           ?, ?, ?, ?, ?, ?)`,
+           ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         rowId,
         row.sessionId,
@@ -387,6 +396,7 @@ export class TaskLedger {
         usage?.cacheWrite ?? null,
         usage?.cost ?? null,
         usage?.turns ?? null,
+        row.kind === "bash" ? null : (row.toolCalls ?? null),
       );
     });
     return rowId;
@@ -436,15 +446,40 @@ export class TaskLedger {
     });
   }
 
-  /** An assistant message was added to the row's `usage`: write its usage sum, whatever the status. */
-  setTaskUsage(rowId: string, usage: UsageSum): void {
+  /**
+   * An assistant message was added to the row's `usage`: write its usage sum and `toolCalls`,
+   * whatever the status.
+   */
+  setTaskUsage(rowId: string, usage: UsageSum, toolCalls: number): void {
     const at = this.now();
     const sum = { ...usage };
     this.write((db) => {
       db.prepare(
         `UPDATE tasks SET input = ?, output = ?, cache_read = ?, cache_write = ?, cost = ?, turns = ?,
-           updated_at = ? WHERE row_id = ?`,
-      ).run(sum.input, sum.output, sum.cacheRead, sum.cacheWrite, sum.cost, sum.turns, at, rowId);
+           tool_calls = ?, updated_at = ? WHERE row_id = ?`,
+      ).run(
+        sum.input,
+        sum.output,
+        sum.cacheRead,
+        sum.cacheWrite,
+        sum.cost,
+        sum.turns,
+        toolCalls,
+        at,
+        rowId,
+      );
+    });
+  }
+
+  /** A `script` row's run started a nested call: write its `toolCalls`, whatever the status. */
+  setTaskToolCalls(rowId: string, toolCalls: number): void {
+    const at = this.now();
+    this.write((db) => {
+      db.prepare("UPDATE tasks SET tool_calls = ?, updated_at = ? WHERE row_id = ?").run(
+        toolCalls,
+        at,
+        rowId,
+      );
     });
   }
 
@@ -472,10 +507,14 @@ export class TaskLedger {
     });
   }
 
-  /** Insert or update the main session's ledger session row (Section 3.3). */
+  /**
+   * Insert or update the main session's ledger session row (Section 3.3). `tool_calls` is set by a
+   * second statement: the update of `turns` fires the trigger that makes it null (Section 2).
+   */
   writeSession(values: LedgerSessionWrite): void {
     const at = this.now();
     const usage = { ...values.usage };
+    const toolCalls = values.toolCalls;
     this.write((db) => {
       db.prepare(
         `INSERT INTO sessions (session_id, session_file, cwd, started_at, updated_at,
@@ -497,6 +536,10 @@ export class TaskLedger {
         usage.cacheWrite,
         usage.cost,
         usage.turns,
+      );
+      db.prepare("UPDATE sessions SET tool_calls = ? WHERE session_id = ?").run(
+        toolCalls,
+        values.sessionId,
       );
     });
   }
@@ -561,6 +604,7 @@ export class TaskLedger {
           kind: row.kind,
           status: row.status,
           own: row.own,
+          toolCalls: row.toolCalls,
           total,
           descendants: descendants.length,
           wallMs: wallMs(row, at),
@@ -594,11 +638,17 @@ export class TaskLedger {
     }
     if (existsSync(this.path) && !(await this.probe())) return;
     if (this.connection() === undefined) return;
-    // Steps 3 to 5: the check and the creation in one `BEGIN IMMEDIATE` transaction.
+    // Steps 3 to 6: the version is read inside the `BEGIN IMMEDIATE` transaction that creates or
+    // migrates, so of two processes the second finds the first's work (Section 1).
     const version = await this.transact("write", (db) => {
       const found = userVersion(db);
-      if (found !== 0 || tableCount(db) !== 0) return found;
-      db.exec(LEDGER_SCHEMA);
+      if (found === MIGRATED_VERSION) {
+        db.exec(LEDGER_MIGRATION_FROM_1);
+      } else if (found !== 0 || tableCount(db) !== 0) {
+        return found;
+      } else {
+        db.exec(LEDGER_SCHEMA);
+      }
       db.exec(`PRAGMA user_version = ${LEDGER_VERSION};`);
       return LEDGER_VERSION;
     });
@@ -613,7 +663,8 @@ export class TaskLedger {
 
   /**
    * Read the version of an existing file on a read-only connection, so a file of another version
-   * or a corrupt one is left unchanged (Section 7). False when the ledger became unusable.
+   * or a corrupt one is left unchanged (Section 7); version 1 passes, to be migrated (Section 2.3).
+   * False when the ledger became unusable.
    */
   private async probe(): Promise<boolean> {
     for (;;) {
@@ -630,7 +681,11 @@ export class TaskLedger {
         // One snapshot: another process's schema creation commits between two bare reads.
         db.exec("BEGIN");
         const version = userVersion(db);
-        if (version !== LEDGER_VERSION && (version !== 0 || tableCount(db) !== 0)) {
+        const usable =
+          version === LEDGER_VERSION ||
+          version === MIGRATED_VERSION ||
+          (version === 0 && tableCount(db) === 0);
+        if (!usable) {
           this.fail(`unsupported task ledger version ${version}`);
           return false;
         }

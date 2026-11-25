@@ -361,3 +361,51 @@ test("a recovery attempt keeps the row's usage growing and counts one task", asy
   assert.equal(tally.tasks, 1, "a recovery attempt is no new dispatch");
   assert.deepEqual(tally.sum, must(row.usage), "the tally counts each message once");
 });
+
+test("the row's toolCalls counts the tool calls of every attempt's assistant messages, never reset", async () => {
+  faux.setResponses([
+    // Attempt 1: a message asking for two tool calls ends in an error, so neither runs; both count.
+    () =>
+      fauxAssistantMessage(
+        [fauxToolCall("read", { path: "/nonexistent/a" }), fauxToolCall("read", { path: "/b" })],
+        { stopReason: "error", errorMessage: "429 rate limit" },
+      ),
+    // Attempt 2: one tool call, then the answer.
+    () =>
+      fauxAssistantMessage([fauxToolCall("read", { path: "/nonexistent/c" })], {
+        stopReason: "toolUse",
+      }),
+    () => fauxAssistantMessage("recovered"),
+  ]);
+  const { root, sessionFile } = newRoot();
+  const tally = new UsageTally();
+  const engine = new DispatchEngine(
+    bootWith(1),
+    () => undefined,
+    undefined,
+    undefined,
+    undefined,
+    engineDeps({ usageTally: tally }),
+  );
+  const seen: number[] = [];
+  engine.registry.subscribe(() => {
+    const toolCalls =
+      engine.registry.rows[0] instanceof AgentTaskRow
+        ? engine.registry.rows[0].toolCalls
+        : undefined;
+    if (toolCalls !== undefined && seen.at(-1) !== toolCalls) seen.push(toolCalls);
+  });
+  const result = await engine.dispatch({
+    toolCallId: "call-1",
+    params: { prompt: "P", task: "go" },
+    host: makeHost(root, sessionFile, ["Agent", "read"]),
+    cohortId: "cohort-1",
+  });
+  assert.equal(textOf(result), "recovered", textOf(result));
+  assert.equal(recordsOf(result).length, 2, "two attempts");
+  const row = agentRow(engine);
+  assert.equal(must(row.usage).turns, 3);
+  assert.equal(row.toolCalls, 3, "two blocks of attempt 1 and one of attempt 2");
+  assert.deepEqual(seen, [0, 2, 3], "0 at register, then growing with each message");
+  assert.equal("toolCalls" in tally.sum, false, "the usage tally counts no tool calls");
+});

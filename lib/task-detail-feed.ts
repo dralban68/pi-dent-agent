@@ -11,7 +11,14 @@ import {
   SessionEventReader,
 } from "./task-browser.ts";
 import type { FeedWidgetHost } from "./task-feed.ts";
-import { AgentTaskRow, BashTaskRow, feedText, shownLabel, type TaskRow } from "./task-row.ts";
+import {
+  AgentTaskRow,
+  BashTaskRow,
+  feedText,
+  shownLabel,
+  toolCallsOf,
+  type TaskRow,
+} from "./task-row.ts";
 import type { UsageSum } from "./usage.ts";
 
 /**
@@ -50,6 +57,7 @@ export interface TaskDetailPayload {
   settledAt?: number;
   label?: string;
   usage?: UsageSum;
+  toolCalls?: number;
   killable?: boolean;
   fields?: Array<{ name: string; value: string }>;
   error?: string;
@@ -89,6 +97,7 @@ function eventOf(event: SessionEvent): TaskDetailEvent {
 export function taskDetailPayload(source: TaskDetailSource): TaskDetailPayload {
   const { taskId, row } = source;
   if (row === undefined) return { piDent: "task/1", taskId, found: false };
+  const toolCalls = toolCallsOf(row);
   const head: TaskDetailPayload = {
     piDent: "task/1",
     taskId,
@@ -100,6 +109,7 @@ export function taskDetailPayload(source: TaskDetailSource): TaskDetailPayload {
     startedAt: row.startedAt,
     ...(row.settledAt === undefined ? {} : { settledAt: row.settledAt }),
     label: shownLabel(row.label),
+    ...(toolCalls === undefined ? {} : { toolCalls }),
     killable: source.killable,
   };
   if (row instanceof AgentTaskRow) {

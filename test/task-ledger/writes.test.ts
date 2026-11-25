@@ -28,6 +28,7 @@ test("register inserts a running, undispatched row with the task row's columns",
     model: "anthropic/claude:high",
     startedAt: 5900,
     sessionPath: "/s/child.jsonl",
+    toolCalls: 0,
   });
   await ledger.flushed();
   assert.match(rowId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -59,7 +60,31 @@ test("register inserts a running, undispatched row with the task row's columns",
     cache_write: 0,
     cost: 0,
     turns: 0,
+    tool_calls: 0,
   });
+  ledger.close();
+});
+
+test("a script row starts with its tool-call count; a bash row's is null whatever it is given", async () => {
+  const { ledger, path } = openLedger();
+  const script = inserted(ledger, { kind: "script", toolCalls: 0 });
+  const bash = inserted(ledger, { kind: "bash", toolCalls: 3 });
+  await ledger.flushed();
+  assert.equal(taskRow(path, script).tool_calls, 0);
+  assert.equal(taskRow(path, bash).tool_calls, null);
+  ledger.close();
+});
+
+test("a nested call's write sets a script row's tool_calls and updated_at whatever the status", async () => {
+  const { state, now } = clock();
+  const { ledger, path } = openLedger({ now });
+  const rowId = inserted(ledger, { kind: "script", toolCalls: 0 });
+  ledger.settleTask(rowId, { status: "completed", settledAt: 5500 });
+  state.now = 6000;
+  ledger.setTaskToolCalls(rowId, 2);
+  await ledger.flushed();
+  const row = taskRow(path, rowId);
+  assert.deepEqual([row.tool_calls, row.updated_at, row.status], [2, 6000, "completed"]);
   ledger.close();
 });
 
@@ -161,16 +186,25 @@ test("a resume by path records the other row with the latest started_at and the 
   ledger.close();
 });
 
-test("a usage write sets the six usage columns whatever the status", async () => {
+test("a usage write sets the six usage columns and tool_calls whatever the status", async () => {
   const { ledger, path } = openLedger();
   const rowId = inserted(ledger);
   ledger.settleTask(rowId, { status: "completed", settledAt: 2000 });
-  ledger.setTaskUsage(rowId, usage(10, 20, 0.5, 3, 4, 5));
+  ledger.setTaskUsage(rowId, usage(10, 20, 0.5, 3, 4, 5), 7);
   await ledger.flushed();
   const row = taskRow(path, rowId);
   assert.deepEqual(
-    [row.input, row.output, row.cache_read, row.cache_write, row.cost, row.turns, row.status],
-    [10, 20, 4, 5, 0.5, 3, "completed"],
+    [
+      row.input,
+      row.output,
+      row.cache_read,
+      row.cache_write,
+      row.cost,
+      row.turns,
+      row.tool_calls,
+      row.status,
+    ],
+    [10, 20, 4, 5, 0.5, 3, 7, "completed"],
   );
   ledger.close();
 });
@@ -273,6 +307,7 @@ test("the ledger session row is inserted once and updated after, keeping started
     sessionFile: null,
     cwd: "/a",
     usage: usage(1, 2, 0.1, 1),
+    toolCalls: 1,
   });
   state.now = 200;
   ledger.writeSession({
@@ -280,6 +315,7 @@ test("the ledger session row is inserted once and updated after, keeping started
     sessionFile: "/s/main.jsonl",
     cwd: "/b",
     usage: usage(3, 4, 0.25, 2, 5, 6),
+    toolCalls: 4,
   });
   await ledger.flushed();
   assert.deepEqual(sessionRow(path, "main"), {
@@ -294,6 +330,7 @@ test("the ledger session row is inserted once and updated after, keeping started
     cache_write: 6,
     cost: 0.25,
     turns: 2,
+    tool_calls: 4,
   });
   ledger.close();
 });

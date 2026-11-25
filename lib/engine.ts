@@ -78,6 +78,7 @@ import { AgentTaskRow, TaskRegistry, type TaskStatus, SPILL_THRESHOLD } from "./
 import type { SettleStatus } from "./task-row.ts";
 import { rewriteSettledRecord, writeRunningRecord } from "./task-record.ts";
 import type { LedgerResume } from "./task-ledger.ts";
+import { toolCallCount } from "./task-ledger-usage.ts";
 import { addMessage, UsageTally } from "./usage.ts";
 import { childScope, ledgerDispatched, LedgerTap, type LedgerScope } from "./task-ledger-wiring.ts";
 import {
@@ -2645,11 +2646,12 @@ export class DispatchEngine {
                 state.usage.contextTokens = Math.max(state.usage.contextTokens, usage.totalTokens);
               }
               state.usage.turns += 1;
-              // Section 13: the row's usage sums every attempt's assistant messages and is
-              // never reset; the tally takes the same message.
+              // Section 13: the row's usage and tool-call count sum every attempt's assistant
+              // messages and are never reset; the tally takes the same message's usage.
               if (registryRow.status === "running") {
                 registry.amend(registryRow, {
                   usage: addMessage(registryRow.usage, message.usage),
+                  toolCalls: (registryRow.toolCalls ?? 0) + toolCallCount(message.content),
                 });
                 this.usageTally.addMessage(message.usage);
               }

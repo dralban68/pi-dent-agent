@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { feedsAnnounced } from "../../lib/feeds.ts";
-import { TaskRegistry } from "../../lib/registry.ts";
+import { AgentTaskRow, TaskRegistry } from "../../lib/registry.ts";
 import { startTaskFeed, taskFeedTasks } from "../../lib/task-feed.ts";
 import { collectTaskTree, renderTaskTree, TASK_WIDGET_ID } from "../../lib/task-widget.ts";
 import { at, must } from "../support/must.ts";
@@ -91,6 +91,7 @@ test("the payload carries every member of the task tree with every task field", 
     startedAt: a.startedAt,
     detail: "anthropic/claude:high",
     label: "a",
+    toolCalls: 0,
   });
   assert.deepEqual(tb, {
     taskId: b.taskId,
@@ -102,6 +103,7 @@ test("the payload carries every member of the task tree with every task field", 
     startedAt: b.startedAt,
     detail: "",
     label: "b",
+    toolCalls: 0,
   });
   assert.equal(tcFeed?.kind, "script");
   assert.equal(tcFeed?.background, false);
@@ -276,5 +278,48 @@ test("each task carries its own usage sum once present and omits it when absent"
   assert.deepEqual(byId.get(child.taskId)?.usage, childUsage);
   assert.equal("usage" in must(byId.get(bash.taskId)), false);
 
+  feed.stop();
+});
+
+test("an agent or script task carries its toolCalls; a bash or rebuilt task has none, never 0", () => {
+  const root = reg();
+  const rec = recorder();
+  const feed = startTaskFeed(root, rec.host);
+  const agent = root.register({ kind: "agent", cohort: "c", label: "agent", background: true });
+  const script = root.register({ kind: "script", cohort: "c", label: "run", background: true });
+  const bash = root.register({ kind: "bash", cohort: "c", label: "echo", background: true });
+  const rebuilt = new AgentTaskRow({
+    taskId: "0000beef",
+    cohort: "c",
+    label: "rebuilt",
+    background: true,
+    startedAt: 1,
+  });
+  rebuilt.status = "interrupted";
+  rebuilt.settledAt = 2;
+  root.rebuild([rebuilt]);
+
+  const counts = () =>
+    new Map(lastPayload(rec.calls).tasks.map((t) => [t.taskId, t.toolCalls ?? "absent"]));
+  assert.deepEqual(
+    counts(),
+    new Map<string, unknown>([
+      [agent.taskId, 0],
+      [script.taskId, 0],
+      [bash.taskId, "absent"],
+      [rebuilt.taskId, "absent"],
+    ]),
+  );
+  for (const t of lastPayload(rec.calls).tasks) {
+    if (t.taskId === bash.taskId || t.taskId === rebuilt.taskId)
+      assert.equal("toolCalls" in t, false);
+  }
+
+  const before = rec.calls.length;
+  root.amend(agent, { toolCalls: 3 });
+  root.amend(script, { toolCalls: 1 });
+  assert.equal(rec.calls.length, before + 2, "each change of a count sets the feed");
+  assert.equal(counts().get(agent.taskId), 3);
+  assert.equal(counts().get(script.taskId), 1);
   feed.stop();
 });

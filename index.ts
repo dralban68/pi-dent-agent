@@ -60,7 +60,7 @@ import { pruneSessionIndex } from "./lib/session-index.ts";
 import { USAGE_STATUS_KEY, UsageTally } from "./lib/usage.ts";
 import { openTaskLedger } from "./lib/task-ledger.ts";
 import {
-  hostSessionUsage,
+  hostSessionFigures,
   LedgerHolder,
   NestedCalls,
   type LedgerScope,
@@ -287,11 +287,13 @@ export default function (pi: ExtensionAPI) {
     if (ledger === undefined || ctx === undefined) return;
     try {
       const manager = ctx.sessionManager;
+      const { usage, toolCalls } = hostSessionFigures(manager, ended);
       ledger.writeSession({
         sessionId: manager.getSessionId(),
         sessionFile: manager.getSessionFile() ?? null,
         cwd: ctx.cwd,
-        usage: hostSessionUsage(manager, ended),
+        usage,
+        toolCalls,
       });
     } catch (error) {
       reportDiagnostic({

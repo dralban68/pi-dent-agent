@@ -80,6 +80,7 @@ function arrange(ledger: TaskLedger): { holder: LedgerHolder; dispatch: TaskRow 
     sessionFile: null,
     cwd: "/w",
     usage: usage(5, 5, 1, 3),
+    toolCalls: 0,
   });
   return { holder, dispatch };
 }
@@ -154,6 +155,7 @@ test("an unusable ledger reports ledger unavailable, never zero figures", async 
     sessionFile: null,
     cwd: "/w",
     usage: usage(1, 1, 1, 1),
+    toolCalls: 0,
   });
   await ledger.flushed();
   const result = await report({ holder: holderOf(ledger) }, "main");
@@ -174,6 +176,7 @@ test("a read abandoned at the read deadline reports ledger busy", async () => {
       sessionFile: null,
       cwd: "/w",
       usage: usage(0, 0, 0, 0),
+      toolCalls: 0,
     });
     const result = await report({ holder: holderOf(ledger) }, "main");
     assert.equal((result.details as Record<string, unknown>).ledger, "busy");

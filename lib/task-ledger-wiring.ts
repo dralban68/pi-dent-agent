@@ -10,6 +10,7 @@
 
 import type { TaskObserver, RegisterCall } from "./registry.ts";
 import {
+  sessionRowToolCalls,
   sessionRowUsage,
   type LedgerResume,
   type LedgerRowFigures,
@@ -19,7 +20,7 @@ import {
   type LedgerTaskAmend,
   type TaskLedger,
 } from "./task-ledger.ts";
-import { AgentTaskRow, type TaskRow } from "./task-row.ts";
+import { AgentTaskRow, ScriptTaskRow, toolCallsOf, type TaskRow } from "./task-row.ts";
 import { isPlainObject } from "./util.ts";
 import { formatUsage, type UsageSum } from "./usage.ts";
 
@@ -153,6 +154,7 @@ export class LedgerTap implements TaskObserver {
       model: values.model,
       startedAt: row.startedAt,
       sessionPath: values.sessionPath,
+      toolCalls: toolCallsOf(row),
     });
     if (rowId !== undefined) row.ledger = { ledger, ref: rowId, written: values };
   }
@@ -161,7 +163,9 @@ export class LedgerTap implements TaskObserver {
     const link = row.ledger;
     if (link === undefined || typeof link.ref !== "string") return;
     if ("usage" in fields && row instanceof AgentTaskRow && row.usage !== undefined) {
-      link.ledger.setTaskUsage(link.ref, row.usage);
+      link.ledger.setTaskUsage(link.ref, row.usage, row.toolCalls ?? 0);
+    } else if ("toolCalls" in fields && row instanceof ScriptTaskRow) {
+      link.ledger.setTaskToolCalls(link.ref, row.toolCalls);
     }
     const values = amendValues(row, link.written.sessionPath);
     if (sameValues(values, link.written)) return;
@@ -236,16 +240,21 @@ function entryOf(value: unknown): LedgerSessionEntry | undefined {
             role: message.role,
             toolName: typeof message.toolName === "string" ? message.toolName : undefined,
             usage: usageOf(message.usage),
+            content: message.content,
           }
         : undefined,
   };
 }
 
 /**
- * The usage sum of the main session's ledger session row (Section 2.1); `ended` is the message
- * whose end the host is reporting, counted when the host has not saved it yet.
+ * The usage sum and tool-call count of the main session's ledger session row (Section 2.1);
+ * `ended` is the message whose end the host is reporting, counted when the host has not saved it
+ * yet.
  */
-export function hostSessionUsage(session: HostSessionEntries, ended?: unknown): UsageSum {
+export function hostSessionFigures(
+  session: HostSessionEntries,
+  ended?: unknown,
+): { usage: UsageSum; toolCalls: number } {
   const entries: LedgerSessionEntry[] = [];
   let saved = false;
   for (const raw of session.getEntries()) {
@@ -266,7 +275,10 @@ export function hostSessionUsage(session: HostSessionEntries, ended?: unknown): 
         parentSession: header.parentSession,
       }
     : undefined;
-  return sessionRowUsage(entries, read);
+  return {
+    usage: sessionRowUsage(entries, read),
+    toolCalls: sessionRowToolCalls(entries, read),
+  };
 }
 
 // ---------------------------------------------------------------------------

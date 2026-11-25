@@ -506,3 +506,22 @@ test("detail payload carries structured usage when present and omits it otherwis
   assert.equal("usage" in lastPayload(rec.calls), false);
   feed.stop();
 });
+
+test("detail payload carries toolCalls for an agent or script row and none for a bash row (task.md Section 4.2)", () => {
+  const { root, rec, feed } = setup();
+  const a = agent(root, "worker");
+  feed.watch(a.taskId);
+  assert.equal(lastPayload(rec.calls).toolCalls, 0);
+  root.amend(a, { toolCalls: 2 });
+  assert.equal(lastPayload(rec.calls).toolCalls, 2);
+
+  const s = root.register({ kind: "script", cohort: "c", label: "run", background: false });
+  root.amend(s, { toolCalls: 4 });
+  feed.watch(s.taskId);
+  assert.equal(lastPayload(rec.calls).toolCalls, 4);
+
+  const b = root.register({ kind: "bash", cohort: "c", label: "ls", background: false });
+  feed.watch(b.taskId);
+  assert.equal("toolCalls" in lastPayload(rec.calls), false);
+  feed.stop();
+});
