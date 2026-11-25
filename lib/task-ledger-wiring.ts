@@ -241,11 +241,22 @@ function entryOf(value: unknown): LedgerSessionEntry | undefined {
   };
 }
 
-/** The usage sum of the main session's ledger session row (Section 2.1). */
-export function hostSessionUsage(session: HostSessionEntries): UsageSum {
+/**
+ * The usage sum of the main session's ledger session row (Section 2.1); `ended` is the message
+ * whose end the host is reporting, counted when the host has not saved it yet.
+ */
+export function hostSessionUsage(session: HostSessionEntries, ended?: unknown): UsageSum {
   const entries: LedgerSessionEntry[] = [];
+  let saved = false;
   for (const raw of session.getEntries()) {
+    if (isPlainObject(raw) && ended !== undefined && raw.message === ended) saved = true;
     const entry = entryOf(raw);
+    if (entry !== undefined) entries.push(entry);
+  }
+  // The host reports a message's end before it saves the message (Section 3.3): count it as the
+  // entry the host is about to append.
+  if (ended !== undefined && !saved) {
+    const entry = entryOf({ type: "message", timestamp: new Date().toISOString(), message: ended });
     if (entry !== undefined) entries.push(entry);
   }
   const header = session.getHeader();

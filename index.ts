@@ -282,7 +282,7 @@ export default function (pi: ExtensionAPI) {
     calls: mainCalls,
   };
   /** Section 3.3: the main session's ledger session row, from the host's entries and header. */
-  const writeSessionRow = (ctx: ExtensionContext | undefined): void => {
+  const writeSessionRow = (ctx: ExtensionContext | undefined, ended?: unknown): void => {
     const ledger = ledgerHolder.ledger;
     if (ledger === undefined || ctx === undefined) return;
     try {
@@ -291,7 +291,7 @@ export default function (pi: ExtensionAPI) {
         sessionId: manager.getSessionId(),
         sessionFile: manager.getSessionFile() ?? null,
         cwd: ctx.cwd,
-        usage: hostSessionUsage(manager),
+        usage: hostSessionUsage(manager, ended),
       });
     } catch (error) {
       reportDiagnostic({
@@ -559,8 +559,9 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("message_end", async (event, ctx) => {
-    // task-ledger.md Section 3.3: every message end of the main session rewrites its row.
-    writeSessionRow(ctx);
+    // task-ledger.md Section 3.3: every message end of the main session rewrites its row. The
+    // host saves the message only after this event; the row counts it all the same.
+    writeSessionRow(ctx, event.message);
     if (event.message?.role === "assistant") {
       const sid = ctx?.sessionManager?.getSessionId?.() ?? currentHost?.sessionId();
       if (sid) fleet.recordTurnGoal(sid, messageText(event.message.content));
@@ -700,7 +701,7 @@ export default function (pi: ExtensionAPI) {
         },
         runQuery: (query) =>
           currentHost
-            ? engine.runIsolatedQuery(currentHost, query)
+            ? engine.runIsolatedQuery(currentHost, query, ledgerScope)
             : Promise.resolve({ text: "no live host session for the query", isError: true }),
       },
       ctx.isIdle() ? "idle" : "running",
@@ -788,7 +789,8 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_compact", async (_event, ctx) => {
-    // task-ledger.md Section 3.3: a compaction summary rewrites the ledger session row.
+    // task-ledger.md Section 3.3: a compaction summary rewrites the ledger session row; the host
+    // saved the compaction entry before this event, as it saves a branch summary's below.
     writeSessionRow(ctx);
     await guidanceCtl.sessionCompact(ctx);
   });
