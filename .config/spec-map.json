@@ -1,0 +1,10 @@
+{
+  "externalSpecs": {
+    "markdown-tool.md": "a spec of pi-dent-markdown",
+    "markdown.md": "a doc of pi-dent-markdown",
+    "terms-tool.md": "a spec of pi-dent-terms",
+    "web-fetch.md": "a spec of pi-dent-web-fetch",
+    "web-search.md": "a spec of pi-dent-web-search",
+    "query-protocol.md": "a spec of pi-dent-purse"
+  }
+}
