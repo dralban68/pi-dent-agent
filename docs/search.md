@@ -25,7 +25,9 @@ tool cap names it, and runs the index prune after the retention sweep.
 2. **Cover** each session within 3000 ms: an incremental catch-up into the index (one stat for an
    unchanged file), or a direct read when the index is unusable or a write failed. Uncovered
    sessions are reported and continue in the background.
-3. **Pull candidates** in the call's order from sources, merged:
+3. **Pull candidates** in the call's order from sources, merged. The numbers below are the step
+   limits of [search-tool.md, step limits](../specs/search-tool.md#step-limits), which tests lower
+   through its test seam:
    - **Per-session sources** (`FileSource`) when the covered sessions hold at most 200000 lines:
      each session's rows load through the `(file_id, line, part)` index, narrowed by trigrams
      first, so cost follows the scope's own items, not the index's.

@@ -140,6 +140,30 @@ The schema of an element of `kinds`, and of an alternative inside a property, ca
 `description`. The numbers in the `limit` and `context` descriptions are those of the `limit` and
 `context` rows of [parameter schema](#parameter-schema).
 
+### 1.4 Test seam {#test-seam}
+
+The library MUST provide a factory that builds the tool's runtime, and MUST accept in it the
+option `limits`: an object whose fields are step limits of [step limits](#step-limits), `pageRows` excepted, each
+an integer that replaces that limit's value in every call of the runtime. A step limit the
+object does not name keeps its value. With the given values and the values of the others, the
+factory MUST throw a `RangeError` whose message names a step limit that breaks one of these
+rules:
+
+- each given value is an integer from 1 to the limit's value in [step limits](#step-limits);
+- `pageRows` < `groupRows` < `windowRows` < `fileModeLines`;
+- `groupChunkRows` < `groupRows` and `collectionRows` < `groupRows`;
+- `probeByIdRows` < `firstLookupMatches` < `collectionRows` < `collectionChunkItems` ≤
+  `fileModeLines`;
+- `probeByIdRows` < `groupChunkRows`.
+
+The extension MUST build every runtime without `limits`; no tool parameter, environment
+variable, or configuration key sets it.
+
+> Note (non-normative): a path past a step limit needs a fixture of that limit's size, tens of
+> thousands of rows; lowered, the same paths run on fixtures of hundreds. The rules keep the
+> order of the table's values, so a lowered set takes the paths of the real one in the same
+> combinations.
+
 ## 2. Scope {#scope}
 
 ### 2.1 Reach and session resolution {#reach}
@@ -288,7 +312,9 @@ they cannot; the result is the same either way.
 
 When the tool-call signal aborts, a call of any action MUST end within 1000 ms as a tool error
 with the text `Search aborted`, including while the evaluation of one regular expression on one
-item is running. Catch-up transactions it has committed stay
+item is running. A `find` call whose signal aborts after it has covered its sessions
+([coverage](#coverage)) MUST end so within 100 ms of the abort, or of the end of the SQLite statement
+running at the abort when that is later. Catch-up transactions it has committed stay
 ([session-index.md, catch-up](session-index.md#catch-up)). An aborted call MUST NOT start a background
 catch-up ([coverage](#coverage)); a background catch-up an earlier call started is not affected.
 
@@ -306,6 +332,15 @@ of the query on one item is not excepted.
 > Note (non-normative): discovery, covering, the loading and ordering of rows, and evaluation
 > all scale with the sessions searched; without the yield one call freezes the session's user
 > interface and every other tool of the process for seconds, and an abort is not seen.
+
+A `find` call with `scope` `session` and no `after`, whose one session holds at most 100
+transcript items and has a complete catch-up when the call starts
+([session-index.md, catch-up](session-index.md#catch-up)), MUST return within 500 ms of its start, whatever the
+number of other session files in the project and of `files` rows in the index.
+
+> Note (non-normative): the 100 ms and 500 ms bounds were set from 2 ms and 21 ms measured
+> among 2002 sessions, with room for a slower machine; a call that searches one session must
+> not pay for the sessions it does not search.
 
 ## 3. Action `find` {#find}
 
@@ -489,6 +524,26 @@ shown hit in order,
 `session` the session key, `isError` present on `tool_result` items, `offLineage` a boolean,
 `time` in milliseconds since the Unix epoch, `at` the match position, present with `query`.
 
+### 3.5 Step limits {#step-limits}
+
+A `find` call reads the candidates of its sessions covered by catch-up from the session index in
+bounded steps, so that no one SQLite statement runs long ([abort and responsiveness](#abort)). The step limits
+bound those steps. They change how fast a call answers and nothing else: the hits are those of
+the equivalence rule of [evaluation](#evaluation) at any values [test seam](#test-seam) admits. A runtime built without
+`limits` MUST use the values of this table.
+
+| Step limit             | Value        | What it bounds                                                                                                                                                                                                                                                         |
+| ---------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fileModeLines`        | 200000 lines | When the `lines` of the `files` rows of the call's sessions covered by catch-up add up to at most this, the call reads each of those sessions' rows whole, by its `file_id`. Over it, the call scans: it reads the index's `items` rows in the call's order of `time`. |
+| `windowRows`           | 100000 rows  | A scan reads in windows: one spans this many `items` rows of the index from where the scan stands, in the call's order, and every row at the `time` of its last.                                                                                                       |
+| `pageRows`             | 256 rows     | A scan reads a window in pages of at most this many rows. The test seam does not change it.                                                                                                                                                                            |
+| `groupRows`            | 50000 rows   | A full page is completed by reading the rows of the call's sessions at the `time` of its last row, at most this many in one statement; with this many or more at that time, the scan walks them session by session instead.                                            |
+| `groupChunkRows`       | 20000 rows   | That walk reads at most this many rows of one session in one statement, on whole lines.                                                                                                                                                                                |
+| `collectionRows`       | 20000 rows   | A scan with `kinds`, `tool`, or `isError` first collects the `item_id`s of the rows that pass them: at most this many are every candidate of the call; with more, the scan reads windows.                                                                              |
+| `collectionChunkItems` | 200000 items | That collection reads a range of at most this many `item_id`s in one statement.                                                                                                                                                                                        |
+| `firstLookupMatches`   | 2000 matches | A call that narrows by trigrams ([evaluation](#evaluation)) first looks up the trigrams' matches in the whole index and selects its rows by them when there are at most this many; with more, it narrows the rows as it reads them.                                    |
+| `probeByIdRows`        | 1000 rows    | Up to this many rows are narrowed by looking up each row's `item_text` match; more, by one lookup over their `item_id` range.                                                                                                                                          |
+
 ## 4. Action `get` {#get}
 
 The call MUST be rejected as a tool error, the first failure reported, when the session key of
@@ -582,7 +637,8 @@ absolute path, times in milliseconds since the Unix epoch, and `path`, `startedA
   cannot be fetched by `get`; the `session` parameter takes the file's path instead.
 - A background catch-up that stops at a failed write is not reported until a later call
   itself meets the failed write.
-- How fast a call answers is not specified as a number; it depends on the machine. So does
+- Beyond the bounds of [abort and responsiveness](#abort), how fast a call answers is not specified as a
+  number; it depends on the machine. So does
   whether an item whose evaluation takes close to the evaluation limit of [evaluation](#evaluation) is a hit or an unmatched item.
 - Whether an unmatched item that a call evaluated beyond the last item it shows or stops at is
   counted in `<s>` is the implementation's; a continuation by `after` can count the same item
