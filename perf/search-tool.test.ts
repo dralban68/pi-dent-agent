@@ -19,13 +19,13 @@ import type { SearchHost } from "../lib/search-tool.ts";
 
 /**
  * specs/search-tool.md#abort: the time bounds of `Search` on workloads large enough to show
- * them. The 250 ms yield bound is the spec's; the 100 ms abort and 500 ms session-scope bounds
- * are tighter than the spec's 1000 ms abort bound and are this suite's own. Each test prints
- * what it measured. The behaviour on the same paths is in test/search-tool/.
+ * them, with the real step limits (specs/search-tool.md#step-limits). Each test prints what it
+ * measured. The behaviour on the same paths is in test/search-tool/.
  */
 
 after(cleanupRoots);
 
+// specs/search-tool.md#abort: no 250 ms without yielding.
 test("discovery and a sparse filter scan do not hold the event loop for 250 ms", async (t) => {
   const made = crowded(2000);
   const h = harness({ db: made.db });
@@ -40,8 +40,18 @@ test("discovery and a sparse filter scan do not hold the event loop for 250 ms",
   assert.equal(gap < 250, true, `the event loop was held for ${gap} ms`);
 });
 
+// specs/search-tool.md#abort: a session-scope find of at most 100 items returns within 500 ms.
 test("a session-scope find does not depend on the other sessions of the index", async (t) => {
   const made = crowded(2000);
+  // The invoking session at the bound's 100 items: the hit and 99 others.
+  const lines = [headerLine("main-session-0001"), userLine("a", null, "alpha needle a", 1)];
+  let parent = "a";
+  for (let index = 0; index < 99; index += 1) {
+    const id = `b${index}`;
+    lines.push(userLine(id, parent, `alpha haystack ${index}`, 2 + index));
+    parent = id;
+  }
+  writeSession(made.host.sessionFile ?? "", ...lines);
   await seed(made.db, [made.host.sessionFile ?? "", made.other]);
   const h = harness({ db: made.db });
   // Warm the index over every session first, so the call meets a full index.
@@ -50,33 +60,44 @@ test("a session-scope find does not depend on the other sessions of the index", 
   const started = Date.now();
   const outcome = await h.call(made.host, { action: "find", query: "needle", scope: "session" });
   const elapsed = Date.now() - started;
-  t.diagnostic(`session-scope find among 2002 sessions: ${elapsed} ms (bound 500 ms)`);
+  t.diagnostic(`session-scope find of 100 items among 2002 sessions: ${elapsed} ms (bound 500 ms)`);
   assert.deepEqual(hitAddresses(outcome), ["self:a"]);
   assert.equal(elapsed < 500, true, `session-scope find took ${elapsed} ms`);
 });
 
-test("an abort during paging is observed within 100 ms", async (t) => {
+// specs/search-tool.md#abort: an abort after covering ends the call within 100 ms.
+test("an abort after covering is observed within 100 ms", async (t) => {
   const made = crowded(2000);
   const clock = testClock();
   const h = harness({ db: made.db, clock });
   await h.call(made.host, { action: "find", query: "haystack", scope: "project-trees", limit: 1 });
   await h.runtime.backgroundDone();
   const controller = new AbortController();
-  const pending = h.call(
+  let covered = 0;
+  let abortedAt: number | undefined;
+  // 200 ms after the last of the 2002 sessions is covered, while the call reads their rows.
+  h.hook((event) => {
+    if (event.phase !== "cover") return;
+    covered += 1;
+    if (covered !== 2002) return;
+    setTimeout(() => {
+      abortedAt = Date.now();
+      controller.abort();
+    }, 200);
+  });
+  const outcome = await h.call(
     made.host,
     { action: "find", query: "zzzzabsent", scope: "project-trees" },
     controller.signal,
   );
-  await new Promise((done) => setTimeout(done, 20));
-  const abortedAt = Date.now();
-  controller.abort();
-  const outcome = await pending;
-  const elapsed = Date.now() - abortedAt;
+  assert.notEqual(abortedAt, undefined, "the call ended before the abort");
+  const elapsed = Date.now() - (abortedAt ?? 0);
   t.diagnostic(`abort observed after ${elapsed} ms (bound 100 ms)`);
   assert.equal(outcome.text, "Search aborted");
   assert.equal(elapsed < 100, true, `the abort took ${elapsed} ms`);
 });
 
+// specs/search-tool.md#abort: no 250 ms without yielding.
 test("a long evaluation yields to the event loop at least every 250 ms", async (t) => {
   const made = many(200, 100);
   const h = harness({ db: made.db });
@@ -89,10 +110,11 @@ test("a long evaluation yields to the event loop at least every 250 ms", async (
   assert.equal(gap < 250, true, `the event loop was held for ${gap} ms`);
 });
 
+// specs/search-tool.md#abort: no 250 ms without yielding, on a scan past the real `fileModeLines`.
 test("a filter no item passes ends unstopped and yields to the event loop", async (t) => {
   const made = fixture("search-tool-r3-sparse-");
   writeSession(made.mainFile, headerLine("main-session-0001"), userLine("a", null, "alpha", 1));
-  // 400 project members of 600 items each: 240000 lines, above the per-session bound.
+  // 400 project members of 600 items each: 240000 lines, above `fileModeLines`.
   for (let member = 0; member < 400; member += 1) {
     const lines = [headerLine(`member-${String(member).padStart(4, "0")}-sess`)];
     let parent: string | null = null;
