@@ -14,27 +14,27 @@ The parameter schema is a JSON object schema with `type: "object"` and
 or `status`. All other fields are optional in the schema; each action accepts only its fields
 below, and every other action/field combination MUST be rejected as a tool error at execution time.
 
-| Field       | Type                                      | Actions         | Contract                                                                                                                                                                                                                                     |
-| ----------- | ----------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `action`    | `"list" \| "send" \| "query" \| "status"` | all             | The sub-command to run.                                                                                                                                                                                                                      |
-| `scope`     | `"children" \| "repo" \| "machine"`?      | `list`          | `machine` (default): every fleet session on this machine, across repositories. `repo`: the fleet sessions of the current Git repository only, worktrees shared. `children`: the live child sessions the calling session spawned (Section 2). |
-| `format`    | `"compact" \| "full" \| "json"`?          | `list`          | `compact` (default): one line per session; `full`: recent turns per session; `json`: structured (Section 2).                                                                                                                                 |
-| `subject`   | string?                                   | `send`, `query` | Short subject, carried in the message envelope (Section 3.2).                                                                                                                                                                                |
-| `body`      | string?                                   | `send`, `query` | Required for `send` and `query` (non-empty after trimming). The message text queued for the target session (or passed as `task` on a `query`).                                                                                               |
-| `target`    | string?                                   | `send`, `query` | One target.                                                                                                                                                                                                                                  |
-| `targets`   | string[] (min 1)?                         | `send`          | Several targets; resolved targets are deduplicated.                                                                                                                                                                                          |
-| `broadcast` | `"repo" \| "machine"`?                    | `send`          | Fan-out scope: the sessions a `list` of that scope returns, without the calling session.                                                                                                                                                     |
-| `deliver`   | delivery mode?                            | `send`          | `steer` or `followUp` (Section 3.2). Default `followUp`.                                                                                                                                                                                     |
-| `abort`     | boolean?                                  | `send`          | `true` is valid only with `deliver: "steer"`, else the call MUST be rejected as a tool error: abort the target's active turn before injecting. `false` (default) is a no-op with any delivery mode.                                          |
-| `messageId` | number?                                   | `status`        | Required for `status`, an integer. The id returned by a prior `send` or `query`. Only messages the caller sent are visible.                                                                                                                  |
+| Field       | Type                                      | Actions         | Contract                                                                                                                                                                                                                                                  |
+| ----------- | ----------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `action`    | `"list" \| "send" \| "query" \| "status"` | all             | The sub-command to run.                                                                                                                                                                                                                                   |
+| `scope`     | `"children" \| "repo" \| "machine"`?      | `list`          | `machine` (default): every fleet session on this machine, across repositories. `repo`: the fleet sessions of the current Git repository only, worktrees shared. `children`: the live child sessions the calling session spawned ([action `list`](#list)). |
+| `format`    | `"compact" \| "full" \| "json"`?          | `list`          | `compact` (default): one line per session; `full`: recent turns per session; `json`: structured ([action `list`](#list)).                                                                                                                                 |
+| `subject`   | string?                                   | `send`, `query` | Short subject, carried in the message envelope ([delivery modes](#delivery-modes)).                                                                                                                                                                       |
+| `body`      | string?                                   | `send`, `query` | Required for `send` and `query` (non-empty after trimming). The message text queued for the target session (or passed as `task` on a `query`).                                                                                                            |
+| `target`    | string?                                   | `send`, `query` | One target.                                                                                                                                                                                                                                               |
+| `targets`   | string[] (min 1)?                         | `send`          | Several targets; resolved targets are deduplicated.                                                                                                                                                                                                       |
+| `broadcast` | `"repo" \| "machine"`?                    | `send`          | Fan-out scope: the sessions a `list` of that scope returns, without the calling session.                                                                                                                                                                  |
+| `deliver`   | delivery mode?                            | `send`          | `steer` or `followUp` ([delivery modes](#delivery-modes)). Default `followUp`.                                                                                                                                                                            |
+| `abort`     | boolean?                                  | `send`          | `true` is valid only with `deliver: "steer"`, else the call MUST be rejected as a tool error: abort the target's active turn before injecting. `false` (default) is a no-op with any delivery mode.                                                       |
+| `messageId` | number?                                   | `status`        | Required for `status`, an integer. The id returned by a prior `send` or `query`. Only messages the caller sent are visible.                                                                                                                               |
 
 The calling session is the session whose tool call invokes `Fleet`; its session ID is the sender of
 the call's messages. A `Fleet` call other than `list` MUST fail as a tool error with the error text
 `no live session identity for Fleet action "<action>"` when the calling session has no session ID,
 or when it is not a child session and has no live session identity here
-([session-store.md](session-store.md), Section 4). A child session
-([session-store.md](session-store.md), Section 4) is never refused: it MAY `send`, and its `query`
-is a waited query (Section 4.1). A `list` of scope `children` also needs the calling session's ID,
+([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)). A child session
+([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)) is never refused: it MAY `send`, and its `query`
+is a waited query ([waited query](#waited-query)). A `list` of scope `children` also needs the calling session's ID,
 and MUST fail with the same error text when it has none.
 
 A `send` MUST provide `body` and exactly one target mode — `target`, `targets`, or `broadcast` —
@@ -42,12 +42,12 @@ and MUST omit the other two. A `query` MUST provide `body` and `target` alone (`
 `broadcast` MUST be omitted). A `body` that is empty after trimming MUST be rejected as a tool
 error. A `target`, or a `targets` entry, that is empty after trimming MUST be rejected with the
 error text `target must be a non-empty string` — as a tool error for `target`, as a failed target
-for a `targets` entry (Section 3.1). The schema requires `target` and every `targets` entry to be
-a string, so a non-string value is a schema rejection ([task.md](task.md), Section 1).
+for a `targets` entry ([result](#result)). The schema requires `target` and every `targets` entry to be
+a string, so a non-string value is a schema rejection ([task.md, task kinds](task.md#task-kinds)).
 
 A target resolves, after trimming, as an exact session ID or else a unique session-ID prefix
 (case-sensitive), among the live fleet sessions and the calling session's own live child sessions
-([session-store.md](session-store.md), Section 4); a session that has ended, or whose owner process
+([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)); a session that has ended, or whose owner process
 is gone, is an unknown target. A child session is a candidate only for the session that spawned
 it, so it is an unknown target for every other caller. A target MAY resolve to the calling
 session. A target that does not resolve is rejected with one of these errors:
@@ -58,7 +58,7 @@ session. A target that does not resolve is rejected with one of these errors:
 | More than one session ID extends it | `ambiguous target prefix "<target>" matches <ids>` |
 
 `<ids>` is the matching session IDs in ascending order by the host's default locale-sensitive
-string comparison (Section 2), joined by `", "`. For a `send` or `query`
+string comparison ([action `list`](#list)), joined by `", "`. For a `send` or `query`
 the rejection is a tool error carrying that text. Target resolution is shared by `send` and
 `query`.
 
@@ -76,10 +76,10 @@ identity as above, then the action-specific checks in this order, reporting the 
 ## 2. Action `list` {#list}
 
 - `list` is read-only: a call MUST NOT change fleet state.
-- `list` MUST list only live sessions ([session-store.md](session-store.md), Section 4): it
+- `list` MUST list only live sessions ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)): it
   omits a record whose owner process is gone, without deleting it.
 - Scopes `machine` and `repo` list fleet sessions only: a child session record
-  ([session-store.md](session-store.md), Section 4) is never among them, so a `broadcast` of
+  ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)) is never among them, so a `broadcast` of
   either scope never reaches a child session.
 - Scope `children` lists the live child sessions whose parent is the calling session — the agents
   it spawned, whether it is a main session or a child session itself — and applies no repository
@@ -89,13 +89,13 @@ identity as above, then the action-specific checks in this order, reporting the 
 - Scope `repo` lists the sessions whose repository root equals the calling session's; when the
   calling session's working directory is in no repository, the sessions whose working directory
   equals it. A session's repository root is derived from its working directory when its record is
-  written ([session-store.md](session-store.md), Section 2): the nearest ancestor directory
+  written ([session-store.md, session records](session-store.md#session-records)): the nearest ancestor directory
   containing `.git`; when `.git` is a directory, that ancestor's resolved real path; when `.git` is
   a file `gitdir: <path>` whose directory holds a `commondir` file, the resolved real path of the
   parent of the directory `commondir` names, so that linked worktrees share one root; otherwise the
   ancestor's resolved real path. No `.git` ancestor means no repository root.
 - A listed session's `<kind>` is `instance` when its owner process
-  ([session-store.md](session-store.md), Section 4) is the calling session's process, else
+  ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)) is the calling session's process, else
   `machine`.
 - Three formats. The snapshot notice is the line
   `(Discovery snapshot — local machine only; carries no authoritative session age.)`:
@@ -126,8 +126,8 @@ identity as above, then the action-specific checks in this order, reporting the 
 
 - A unicast enqueues one message and returns its `messageId` (the handle for `status`), the resolved
   target session ID (`target`), the target state at enqueue time (`state`, per
-  [session-store.md](session-store.md), Section 2), and the message `status` after the immediate
-  delivery attempt of [session-store.md](session-store.md), Section 5 (`pending`, `delivered`, or
+  [session-store.md, session records](session-store.md#session-records)), and the message `status` after the immediate
+  delivery attempt of [session-store.md, delivery](session-store.md#delivery) (`pending`, `delivered`, or
   `rejected`).
   - Text, on one line:
 
@@ -141,7 +141,7 @@ identity as above, then the action-specific checks in this order, reporting the 
 - Delivery is asynchronous: a `followUp` behind a running target stays queued until that turn
   ends.
 - A child session target is reachable only through `target` or `targets` of the session that
-  spawned it: no `broadcast` scope lists one (Section 2).
+  spawned it: no `broadcast` scope lists one ([action `list`](#list)).
 - Fan-out (`targets` or `broadcast`) is independent best-effort: each target resolves and delivers
   on its own, and a target failure is reported — never rolled back, never blocking the other
   targets. The call is a tool error only when no recipient succeeded, that is when every target
@@ -173,18 +173,18 @@ message envelope: the line `[Fleet from <senderSessionId> — <subject>]` (or, w
 absent or empty, `[Fleet from <senderSessionId>]`), a line break, and the `body`.
 
 A `body` starting with `/` is executed by the target instead, with no envelope; the command token
-and argument string split per [slash-commands.md](slash-commands.md), Section 1. A body whose
+and argument string split per [slash-commands.md, registration](slash-commands.md#registration). A body whose
 token is empty is rejected as `empty slash command "/"`. The target classifies the body
 when it processes the message, in its own boot window, without waiting for idleness:
 
-| Command token                                               | Outcome                                                                                                                                                                                                    |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<namespace>:<command>` naming a plugin command             | The plugin command is rendered against the target's plugin catalog ([plugin.md](plugin.md), Sections 5–6) with the arguments; the rendered body is delivered as a user message honoring the delivery mode. |
-| `compact` or `abort`                                        | The host command is applied to the target directly and starts no turn — with `followUp` only once the target is idle, with `steer` at once. Arguments are ignored.                                         |
-| empty (no character between `/` and the first U+0020 space) | Rejected: `empty slash command "/"`.                                                                                                                                                                       |
-| `<namespace>:<command>` naming no plugin command            | Rejected: `unknown plugin slash command "/<token>"`.                                                                                                                                                       |
-| a plugin command whose rendering fails                      | Rejected: `failed to render "/<token>": <message>`.                                                                                                                                                        |
-| any other token                                             | Rejected: `unsupported slash command "/<token>"`.                                                                                                                                                          |
+| Command token                                               | Outcome                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<namespace>:<command>` naming a plugin command             | The plugin command is rendered against the target's plugin catalog ([plugin.md, slash commands](plugin.md#slash-commands), [plugin.md, argument substitution](plugin.md#argument-substitution)) with the arguments; the rendered body is delivered as a user message honoring the delivery mode. |
+| `compact` or `abort`                                        | The host command is applied to the target directly and starts no turn — with `followUp` only once the target is idle, with `steer` at once. Arguments are ignored.                                                                                                                               |
+| empty (no character between `/` and the first U+0020 space) | Rejected: `empty slash command "/"`.                                                                                                                                                                                                                                                             |
+| `<namespace>:<command>` naming no plugin command            | Rejected: `unknown plugin slash command "/<token>"`.                                                                                                                                                                                                                                             |
+| a plugin command whose rendering fails                      | Rejected: `failed to render "/<token>": <message>`.                                                                                                                                                                                                                                              |
+| any other token                                             | Rejected: `unsupported slash command "/<token>"`.                                                                                                                                                                                                                                                |
 
 A rejection makes the message's `status` `rejected` with the quoted `reason`; `<token>` is the
 command token. `compact` and `abort` are host commands: slash commands the host itself provides.
@@ -194,14 +194,14 @@ attempt delivers.
 - Delivery targets a conversation turn; routing to non-conversation consumers is out of scope.
 - `delivered` means the target session accepted the message for its turn (or applied the
   host command), not that it was read, acted on, or answered.
-- A child session target ([session-store.md](session-store.md), Section 4) receives messages into
+- A child session target ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)) receives messages into
   its own conversation, delivered by the boot window that runs its dispatch. The modes mean for it
   what they mean for a main session: `steer` enters the child's running turn or starts one when it
   is idle, and `followUp` waits until the child session is idle. A `followUp` drained at a turn's
   end is accepted when the child takes it, before that turn starts. Its `compact` and `abort` host
   commands apply to the child session; its plugin commands render against the catalog of the boot
   window that runs the child, which is the dispatching session's. The dispatch's wait for such a
-  turn, and what a Fleet abort does to it, follow [agent-tool.md](agent-tool.md), Section 4.2.
+  turn, and what a Fleet abort does to it, follow [agent-tool.md, child session](agent-tool.md#child-session).
 
 ## 4. Action `query` {#query}
 
@@ -209,9 +209,9 @@ attempt delivers.
 — executed by a dispatch on the target:
 
 - The call enqueues the query `body` to the target and returns immediately with the request's
-  `messageId` (statusable under Section 5), a `correlationId` (`q-` and 8 lowercase hexadecimal
+  `messageId` (statusable under [action `status`](#status)), a `correlationId` (`q-` and 8 lowercase hexadecimal
   digits) tying the reply to this query, the resolved target session ID, and the target's state at
-  enqueue time (`state`, Section 3.1). The text, on one line, is:
+  enqueue time (`state`, [result](#result)). The text, on one line, is:
 
   ```text
   Fleet query <messageId> enqueued to <target> (correlationId: <correlationId>, target state: <state>). Do not poll for the reply — the target will deliver a followUp reply quoting correlationId <correlationId> when its child session settles.
@@ -224,34 +224,34 @@ attempt delivers.
 - On delivery, the target MUST run the query as a dynamic dispatch
   ([agent-tool.md](agent-tool.md)) with `task` set to the `body`, owned by the target session as
   its dispatching session — never as a turn on the target's main conversation. Its task registry
-  and completion notifications follow [task-registry.md](task-registry.md), Sections 1 and 5.
+  and completion notifications follow [task-registry.md, ownership](task-registry.md#ownership) and [task-registry.md, cohorts and completion notification](task-registry.md#cohorts).
   Its tool cap is exempt from the `Agent` requirement
-  ([agent-tool.md](agent-tool.md), Section 3.1) and MUST contain only the read-only tools
+  ([agent-tool.md, tools](agent-tool.md#tools)) and MUST contain only the read-only tools
   `read`, `grep`, `find`, and `ls` present in the target's tool cap.
   Its `prompt` is exactly
   `You are answering a Fleet query from a sibling session in an isolated child session. Inspect the workspace and answer concisely.`;
   its model and thinking resolve from the `inherited` tier
-  ([agent-tool.md](agent-tool.md), Section 3.3).
+  ([agent-tool.md, model and thinking](agent-tool.md#model-thinking)).
 - Delivered queries run concurrently, without a per-target limit. A query is delivered and run
   at most once; identical queries are independent, each with its own `messageId` and
   `correlationId`.
 - When the dispatch settles, the target MUST send exactly one reply to the querying session. The
   reply is an ordinary `send` from the target to the querying session with `followUp` delivery
-  (Sections 3 and 5), `subject` `Re: <subject>` when the query's `subject` is present and not
+  ([action `send`](#send) and [action `status`](#status)), `subject` `Re: <subject>` when the query's `subject` is present and not
   empty, else `Query reply <correlationId>`, and the `body`
   `[Fleet query reply correlationId=<correlationId>]`, a line break, and the reply text. The
-  reply text is the dispatch's result text ([agent-tool.md](agent-tool.md), Section 7: the final
+  reply text is the dispatch's result text ([agent-tool.md, result contract](agent-tool.md#result-contract): the final
   answer, or the failure result when it did not complete), or `Query error: <message>` when the
   dispatch itself raised an error. Because the body starts with `[`, a reply is never executed as
   a slash command. The reply is never resent, and none is sent when the querying session has no
-  record in the local session store: it has ended, or its waited query (Section 4.1) has.
+  record in the local session store: it has ended, or its waited query ([waited query](#waited-query)) has.
 - When the dispatch is cancelled because its task registry ends
-  ([task-registry.md](task-registry.md), Section 1), the one reply's text MUST be
+  ([task-registry.md, ownership](task-registry.md#ownership)), the one reply's text MUST be
   `Query cancelled: the target session ended or reloaded.` A query still `pending` when the target
   reloads stays `pending` and is delivered in the target's next boot window; one still `pending`
-  when the target ends becomes `rejected` (Section 5). A child session target's record lifetime,
+  when the target ends becomes `rejected` ([action `status`](#status)). A child session target's record lifetime,
   and the rejection of the queries still pending for it, follow
-  [session-store.md](session-store.md), Section 4.
+  [session-store.md, membership and lifecycle](session-store.md#membership-lifecycle).
 - When the local session store refuses the reply's write, the target's boot window MUST show the
   `warning` notification `pi-dent: Fleet query reply to <sessionId> failed: <message>`,
   `<sessionId>` being the querying session's ID and `<message>` the error's message, and MUST NOT
@@ -259,10 +259,10 @@ attempt delivers.
 
 ### 4.1 Waited query {#waited-query}
 
-A `query` whose calling session is a child session is a waited query. It differs from Section 4 only as follows:
+A `query` whose calling session is a child session is a waited query. It differs from [action `query`](#query) only as follows:
 
 - The calling boot window MUST hold an address for the calling session
-  ([session-store.md](session-store.md), Section 4) from before the query is enqueued until the
+  ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)) from before the query is enqueued until the
   session's last waited query ends: the child session record of a calling session that has one,
   else a hidden record.
 - The call MUST NOT return until the query ends. The reply is not delivered as a turn: the calling
@@ -310,17 +310,17 @@ sent by the calling session in the caller's current boot window: a
 `status` for a message sent in an earlier boot window, or by another session, MUST return
 `unknown`. A reload neither ends a session nor cancels a pending message: pending messages to and
 from the session keep their delivery contract; a child session record's lifetime follows
-[session-store.md](session-store.md), Section 4.
+[session-store.md, membership and lifecycle](session-store.md#membership-lifecycle).
 
 ## 6. Fleet feed {#fleet-feed}
 
 The fleet feed carries a `list` to an RPC client that shows the fleet itself, under the same
-announcement as the task feed ([task.md](task.md), Section 4.1): when the main session runs in
+announcement as the task feed ([task.md, task feed](task.md#task-feed)): when the main session runs in
 pi's RPC mode, `PI_DENT_FEEDS` is `1` at session start, and the session is a member of the fleet
 with a live session identity, the extension MUST set the widget `pi-dent-fleet` through the host
 widget surface as an array of one string: the JSON text of
 `{ "piDent": "fleet/1", "sessionId": <the session's ID>, "sessions": [<session>…] }`, the
-`<session>` objects being those of a `json` `list` of scope `machine` (Section 2), in its order,
+`<session>` objects being those of a `json` `list` of scope `machine` ([action `list`](#list)), in its order,
 each with one more field, `summary`: the latest turn's goal when non-empty, else its command when
 non-empty, else `null`.
 

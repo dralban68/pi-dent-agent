@@ -26,9 +26,9 @@ Whitespace is every character the ECMAScript pattern `\s` matches ([ECMA-262]).
 
 The grammar is closed: every model string parses to exactly one descriptor or fails. A class
 name MUST be non-empty and MUST contain no whitespace, `/`, or `:`. `model-id` is further
-constrained by Section 2.1. Class names are
-dynamic — defined by the configuration of Section 3 — with one reserved name, `fallback`, whose
-no-match semantics are specified in Section 4.3.
+constrained by [concrete selector](#concrete-selector). Class names are
+dynamic — defined by the configuration of [model classes](#model-classes) — with one reserved name, `fallback`, whose
+no-match semantics are specified in [fallback](#fallback).
 
 Disambiguation: a model string containing `/` before the first `:` is concrete; a model string
 containing no `/` is a class reference. A model string whose first `/` appears after its first
@@ -68,22 +68,22 @@ can itself contain `/` (gateway-qualified selectors) and `:` (identity).
 
 The thinking suffix is the segment after the last `:` of the model string when that segment is
 a `thinking-level`. Any other segment after the last `:` is not a suffix; the colon is part of
-the model identity. Exactly one suffix is parsed; after stripping it, the Section 2.1 rules
+the model identity. Exactly one suffix is parsed; after stripping it, the [concrete selector](#concrete-selector) rules
 apply to the remainder.
 
 ## 3. Model classes {#model-classes}
 
 Class names are dynamic: the `modelClasses` configuration object defines them, mapping each
 class name to a concrete model. `fallback` is one reserved class name with special resolution
-semantics (Section 4.3).
+semantics ([fallback](#fallback)).
 
 - A key defines a class; it MUST be non-empty and contain no whitespace, `/`, or `:`.
 - A string value MUST be a concrete provider-qualified model string (it MUST contain `/`) with
   an optional thinking suffix; class references MUST NOT appear as configuration values (no
   chaining).
 - An object value MUST have `{ provider, id, thinking? }`; an unknown field follows the
-  unknown-key rule ([config-file.md](config-file.md), Section 2). Component rules follow
-  Section 2.1, and `thinking` MUST be a valid level.
+  unknown-key rule ([config-file.md, format](config-file.md#format)). Component rules follow
+  [concrete selector](#concrete-selector), and `thinking` MUST be a valid level.
 - A class definition violating any rule above MUST produce one diagnostic at boot and fail with
   `invalid-plan` when a model string naming that class is resolved.
 - A `modelClasses` value that is not a non-array object MUST produce one diagnostic and be ignored.
@@ -98,7 +98,7 @@ inventory: the host pi runtime's registered model list. The inventory is always 
 be empty; an empty inventory matches nothing. The inventory is owned by pi — pi-dent registers no
 models itself — and membership implies nothing about credentials or provider entitlement.
 Resolution has no authorization policy; dispatch can be bounded by model guidance
-([model-guidance.md](model-guidance.md), Section 3).
+([model-guidance.md, dispatch restriction](model-guidance.md#dispatch-restriction)).
 
 ### 4.1 Exact inventory match {#exact-match}
 
@@ -111,8 +111,8 @@ special case for ids that contain `:`.
 ### 4.2 Class resolution {#class-resolution}
 
 - A class reference MUST resolve through the active `modelClasses` mapping. A class with no
-  mapping is a no-match (Section 4.3), naming `modelClasses.<class>`.
-- The mapped value then resolves as a concrete selector (Section 4.1), with the inventory rules
+  mapping is a no-match ([fallback](#fallback)), naming `modelClasses.<class>`.
+- The mapped value then resolves as a concrete selector ([exact inventory match](#exact-match)), with the inventory rules
   above.
 - Only the referenced class is resolved; an unconfigured or invalid sibling class MUST NOT
   block the selection.
@@ -124,7 +124,7 @@ When resolution of a model string ends in a no-match — no inventory match (`mi
 an unmapped class (`missing-model-class`) — and the `fallback` class is defined, resolution
 MUST proceed through the fallback mapping exactly as if `fallback` had been referenced:
 
-- The fallback mapping MUST resolve once, as a concrete selector under Section 4.1; it MUST NOT chain to itself or to another class.
+- The fallback mapping MUST resolve once, as a concrete selector under [exact inventory match](#exact-match); it MUST NOT chain to itself or to another class.
 - An explicit thinking suffix on the original string MUST override the fallback mapping's
   configured thinking.
 - When `fallback` is not defined, a no-match MUST fail with its original error
@@ -149,8 +149,7 @@ resolved model string that carries a level, whether explicit, from a class mappi
 | not marked reasoning (flag absent or false) | `off` only.                                                                                                                                                            |
 | marked reasoning                            | `off`, `minimal`, `low`, `medium`, `high`, each unless the level map sets it to `null`; `xhigh` and `max` only when the level map defines a non-`null` value for them. |
 
-Precedence across a caller's selection tiers is owned by [agent-tool.md](agent-tool.md),
-Section 3.3; this specification fixes precedence only inside one string.
+Precedence across a caller's selection tiers is owned by [agent-tool.md, model and thinking](agent-tool.md#model-thinking); this specification fixes precedence only inside one string.
 
 ## 5. Canonical serialization {#serialization}
 
@@ -164,18 +163,18 @@ descriptor (round-trip).
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `invalid-plan`         | Grammar or configuration violation: empty component, internal whitespace, invalid class-name key, invalid thinking level, reserved thinking suffix. |
 | `ambiguous-model`      | More than one inventory model matches the resolved `provider/id`.                                                                                   |
-| `missing-model`        | No exact inventory match — after the fallback rule of Section 4.3.                                                                                  |
-| `missing-model-class`  | Referenced class has no configuration mapping — after the fallback rule of Section 4.3.                                                             |
-| `unsupported-thinking` | The resolved model does not support the requested thinking level (Section 4.4).                                                                     |
+| `missing-model`        | No exact inventory match — after the fallback rule of [fallback](#fallback).                                                                        |
+| `missing-model-class`  | Referenced class has no configuration mapping — after the fallback rule of [fallback](#fallback).                                                   |
+| `unsupported-thinking` | The resolved model does not support the requested thinking level ([thinking precedence](#thinking-precedence)).                                     |
 
 ## 7. Normative references {#references}
 
 - [ECMA-262] ECMAScript Language Specification, 14th edition (June 2023), Ecma International:
-  Regular Expressions (the `\s` class), for whitespace in Section 1.
+  Regular Expressions (the `\s` class), for whitespace in [grammar](#grammar).
 - [RFC 5234] Augmented BNF for Syntax Specifications: ABNF (STD 68), D. Crocker, P. Overell,
-  2008: the grammar notation of Section 1.
+  2008: the grammar notation of [grammar](#grammar).
 
 ## 8. Specification gaps {#gaps}
 
 - Malformed model-class diagnostic wording is open: any wording that names the owning file per
-  [config-file.md](config-file.md), Section 4, and the affected `modelClasses` key is allowed.
+  [config-file.md, attribution](config-file.md#attribution), and the affected `modelClasses` key is allowed.

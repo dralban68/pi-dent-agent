@@ -12,12 +12,12 @@ of `list` by [task-ledger.md](task-ledger.md).
 
 The extension MUST register the `Task` tool through the host `registerTool` API:
 
-| Field         | Value                               |
-| ------------- | ----------------------------------- |
-| `name`        | `"Task"`                            |
-| `label`       | `"Task"`                            |
-| `renderShell` | `"self"`                            |
-| `parameters`  | The parameter schema of Section 1.1 |
+| Field         | Value                                                         |
+| ------------- | ------------------------------------------------------------- |
+| `name`        | `"Task"`                                                      |
+| `label`       | `"Task"`                                                      |
+| `renderShell` | `"self"`                                                      |
+| `parameters`  | The parameter schema of [parameter schema](#parameter-schema) |
 
 ### 1.1 Parameter schema {#parameter-schema}
 
@@ -33,8 +33,8 @@ The parameter schema is a JSON object schema with `type: "object"` and
 The schema gives `taskId` the `pattern` `\S`: at least one character that is not white space.
 
 The host validates the call's arguments against the schema of this section before the tool runs,
-and rejects a call whose arguments do not satisfy it ([task.md](task.md), Section 1). `Task`
-registers no task row ([task.md](task.md), Section 1), so a schema rejection is a tool error
+and rejects a call whose arguments do not satisfy it ([task.md, task kinds](task.md#task-kinds)). `Task`
+registers no task row ([task.md, task kinds](task.md#task-kinds)), so a schema rejection is a tool error
 whose text is the host's.
 
 The checks the schema cannot express MUST reject the call as a tool error (`isError: true`),
@@ -48,9 +48,9 @@ checked in this order, the first failure reported:
 ## 2. Operations {#operations}
 
 Every operation is scoped strictly to the task registry of the invoking session
-([task-registry.md](task-registry.md), Section 1). Every operation except the blocking `wait` of
-Section 2.4 is non-blocking, except that `list` waits for its task ledger read for at most the
-read deadline ([task-ledger.md](task-ledger.md), Section 5).
+([task-registry.md, ownership](task-registry.md#ownership)). Every operation except the blocking `wait` of
+[`wait`](#wait) is non-blocking, except that `list` waits for its task ledger read for at most the
+read deadline ([task-ledger.md, concurrent access](task-ledger.md#concurrent-access)).
 
 ### 2.1 `read` {#read}
 
@@ -64,14 +64,14 @@ Returns a point-in-time snapshot of `taskId`:
   text — verbatim while the row carries no `resultPath`; with one, the preview: the first
   10 and last 10 lines of the text (all lines, with no omission line, when it has at
   most 20), each line cut to its first 120 characters (no marker), except on a `bash` row a line
-  that is exactly one of the header forms of [bash-tool.md](bash-tool.md), Section 4, with this
+  that is exactly one of the header forms of [bash-tool.md, output capture](bash-tool.md#output-capture), with this
   row's `<resultPath>`, which is returned whole, and on a `script` row a line that is exactly a
-  `--- tool calls` line of [script-tool.md](script-tool.md), Section 5, with this row's task ID,
+  `--- tool calls` line of [script-tool.md, result contract](script-tool.md#result-contract), with this row's task ID,
   which is returned whole; one `[... <n> lines omitted ...]` line between
   the groups; and a final `Full output: <resultPath>` line, present exactly when no line of the
   preview is such a header line. A read of a rebuilt row previews its `resultPath` file text
   by this same rule.
-  A rebuilt row carries no `result` ([task-record.md](task-record.md), Section 3): its text is
+  A rebuilt row carries no `result` ([task-record.md, rebuild](task-record.md#rebuild)): its text is
   the content of the `resultPath` file when it carries one, and otherwise the single line
   `(result not retained; resume with Agent resume=<taskId>)`.
 - When a settled row carries no `result` and its preview needs the text of its `resultPath`
@@ -88,8 +88,7 @@ Returns a point-in-time snapshot of `taskId`:
 Invokes the task row's cancellation handler and MUST `consume` the row, whatever its status:
 
 - If the task is `"running"`, the call requests cancellation and returns immediately with
-  `status: "running"`; settlement is asynchronous ([task-registry.md](task-registry.md),
-  Section 3).
+  `status: "running"`; settlement is asynchronous ([task-registry.md, operations](task-registry.md#operations)).
 - If the task has already settled, `kill` is a no-op on its outcome.
 - A running row without a cancellation handler is left running.
 - The text is `Task <taskId> kill requested (<status>).`, `<status>` being the row's status when
@@ -101,39 +100,37 @@ Invokes the task row's cancellation handler and MUST `consume` the row, whatever
 Returns all task rows owned by the invoking session in registration order.
 
 The summary line of a task row is `<taskId> · <status> · <label>`, where `<label>` is the
-display label ([task-registry.md](task-registry.md), Section 2); the completion and interrupted
-notifications use it ([task-registry.md](task-registry.md), Section 5).
+display label ([task-registry.md, task row](task-registry.md#task-row)); the completion and interrupted
+notifications use it ([task-registry.md, cohorts and completion notification](task-registry.md#cohorts)).
 
 - One list line per task: `<taskId> · <status> · <elapsed> · <figures> · <label>`, with
   `<figures> · ` left out when `<figures>` is empty, where:
   - `<elapsed>` is the duration from the row's `startedAt` to its `settledAt`, or to the time of
-    the call while it has none, rendered as `<elapsed>` of [task.md](task.md), Section 4.
-  - `<figures>` is taken from the row's ledger row ([task-ledger.md](task-ledger.md),
-    Section 2.2), read once per call after the checks of Section 1 have passed: for an `agent`
+    the call while it has none, rendered as `<elapsed>` of [task.md, task tree widget](task.md#task-tree-widget).
+  - `<figures>` is taken from the row's ledger row ([task-ledger.md, ledger row](task-ledger.md#ledger-row)), read once per call after the checks of [tool registration surface](#registration) have passed: for an `agent`
     row, `<turns> <unit> · $<cost>` of its own usage, `<unit>` being `turn` when `turns` is 1,
     else `turns`; then, when the ledger row has at least one descendant, `total $<total>` of its
-    cumulative usage ([task-ledger.md](task-ledger.md), Section 6), separated from what precedes
+    cumulative usage ([task-ledger.md, derived figures](task-ledger.md#derived-figures)), separated from what precedes
     it by a space, `·`, and a space. `<cost>` and `<total>` are rendered as `<cost>` of
-    [agent-tool.md](agent-tool.md), Section 13. A `script` or `bash` row without a descendant has
+    [agent-tool.md, usage](agent-tool.md#usage). A `script` or `bash` row without a descendant has
     empty `<figures>`.
   - `<figures>` is `no ledger row` for a row that has no ledger row; `ledger unavailable` for
-    every row while the task ledger is unusable ([task-ledger.md](task-ledger.md), Section 7);
+    every row while the task ledger is unusable ([task-ledger.md, failures](task-ledger.md#failures));
     and `ledger busy` for every row when the read was abandoned at the read deadline
-    ([task-ledger.md](task-ledger.md), Section 5).
+    ([task-ledger.md, concurrent access](task-ledger.md#concurrent-access)).
 - When the session owns no tasks, the result is the single line `(no tasks)`, and no ledger read
   is made.
 - `details` MUST carry
   `{ action: "list", ledger, tasks: Array<{ taskId, status, label, resultPath?, durationMs, usage?, total?, descendantMs?, toolCalls? }> }`:
-  - `label` is the row's display label ([task-registry.md](task-registry.md), Section 2).
+  - `label` is the row's display label ([task-registry.md, task row](task-registry.md#task-row)).
   - `ledger` is `"ok"`, `"unavailable"`, or `"busy"`, as above; absent when no ledger read is
     made.
   - `durationMs` is the duration of `<elapsed>` in milliseconds.
   - `usage` is the ledger row's own usage, `total` its cumulative usage, and `descendantMs` its
-    descendant time in milliseconds ([task-ledger.md](task-ledger.md), Section 6), each a
+    descendant time in milliseconds ([task-ledger.md, derived figures](task-ledger.md#derived-figures)), each a
     present field only when `ledger` is `"ok"` and the row has a ledger row; a usage sum is the
     object `{ input, output, cacheRead, cacheWrite, cost, turns }`.
-  - `toolCalls` is the ledger row's own tool-call count ([task-ledger.md](task-ledger.md),
-    Section 6), present only when `ledger` is `"ok"`, the row has a ledger row, and that ledger
+  - `toolCalls` is the ledger row's own tool-call count ([task-ledger.md, derived figures](task-ledger.md#derived-figures)), present only when `ledger` is `"ok"`, the row has a ledger row, and that ledger
     row has one; absent, never `0`, for a `bash` row.
 
 Example: `a1b2c3d4 · completed · 2m05s · 12 turns · $0.042 · total $0.118 · reviewer — Review the diff`.
@@ -141,11 +138,11 @@ Example: `a1b2c3d4 · completed · 2m05s · 12 turns · $0.042 · total $0.118 �
 ### 2.4 `wait` {#wait}
 
 Blocks until `taskId` is no longer `running` and returns what a `read` of the row returns at
-that moment (Section 2.1), including that section's consuming rule and result-file error; every
+that moment ([`read`](#read)), including that section's consuming rule and result-file error; every
 wait that is not an error MUST carry `details` `{ action: "wait", taskId, status, resultPath? }`.
 
-- The wait begins when the checks of Section 1 have passed, and its deadline is the `timeout`
-  of Section 1.1, that section's default when it is omitted, counted from the moment the wait
+- The wait begins when the checks of [tool registration surface](#registration) have passed, and its deadline is the `timeout`
+  of [parameter schema](#parameter-schema), that section's default when it is omitted, counted from the moment the wait
   begins. A row that is not `running` when the wait begins returns without waiting. When the
   deadline expires first, the call returns a tool error (`isError: true`) whose text is verbatim
   `Task <taskId> still running after <timeout>ms`, `<timeout>` being the wait's effective timeout
@@ -155,12 +152,12 @@ wait that is not an error MUST carry `details` `{ action: "wait", taskId, status
 
 ## 3. Specification gaps {#gaps}
 
-- Whether the host, when it validates against the schema of Section 1.1, first coerces an
+- Whether the host, when it validates against the schema of [parameter schema](#parameter-schema), first coerces an
   argument to the type the schema names, and so whether a convertible value of the wrong type is
   admitted rather than rejected as a schema rejection, is the host's.
-- The error text returned for the tool errors of Section 1, and the `details` those tool
+- The error text returned for the tool errors of [tool registration surface](#registration), and the `details` those tool
   errors carry, are unspecified.
 - The `renderResult` output other than the agent-directory substitution of
-  [agent-tool.md](agent-tool.md), Section 4.2, is unspecified.
-- The wait deadline of Section 2.4 uses a host timer; delays in servicing it, and in waking the
+  [agent-tool.md, child session](agent-tool.md#child-session), is unspecified.
+- The wait deadline of [`wait`](#wait) uses a host timer; delays in servicing it, and in waking the
   call after the row stops running, have no specified upper bound.

@@ -7,13 +7,12 @@ script execution and termination by [script-tool.md](script-tool.md).
 
 ## 1. Registration and gating {#registration-gating}
 
-- The extension MUST register the extension command `dent-ui` ([slash-commands.md](slash-commands.md),
-  Section 1) with description `Run and cancel plugin UI script calls`.
+- The extension MUST register the extension command `dent-ui` ([slash-commands.md, registration](slash-commands.md#registration)) with description `Run and cancel plugin UI script calls`.
   The host lists it in `get_commands` with `name` `dent-ui` and `source` `extension`.
 - Outside RPC mode (`mode !== "rpc"`), `/dent-ui` MUST be a no-op: it starts no script and sets
-  no widget. Unlike the task and fleet feeds ([task.md](task.md), Section 4.1), it does not
+  no widget. Unlike the task and fleet feeds ([task.md, task feed](task.md#task-feed)), it does not
   require `PI_DENT_FEEDS`.
-- The argument string ([slash-commands.md](slash-commands.md), Section 1) splits at its first
+- The argument string ([slash-commands.md, registration](slash-commands.md#registration)) splits at its first
   whitespace character (ECMAScript `\s`) into `<subcommand>` and `<json>` (trimmed). Any
   subcommand other than `run` or `cancel` MUST be a no-op.
 
@@ -23,30 +22,30 @@ script execution and termination by [script-tool.md](script-tool.md).
 
 - `<json>` MUST be parsed as JSON. When parsing fails, or the value is not a plain object with a
   non-empty string `id`, the command MUST do nothing and start no script.
-- Otherwise the command MUST validate, in order, emitting one `reply` with `ok: false` (Section 5)
+- Otherwise the command MUST validate, in order, emitting one `reply` with `ok: false` ([UI feed](#ui-feed))
   and starting no script on the first failure:
   1. `id` is already the `id` of an executing plugin UI call.
   2. `namespace` is not a string, or is not in the boot snapshot's plugin catalog
-     ([plugin.md](plugin.md), Section 8).
+     ([plugin.md, plugin catalog](plugin.md#plugin-catalog)).
   3. `root` is not a string, or does not equal the admitted plugin's plugin root.
   4. `check` is present and is not a string (`Invalid UI check`), or `round` is present and is not
-     a string or `check` is absent (`Invalid check round`), or the run override event (Section 7)
+     a string or `check` is absent (`Invalid check round`), or the run override event ([extension event seam](#extension-event-seam))
      for `check` (and optional `round`) receives no result (`Unknown UI check "<check>"`) or
      receives `{ ok: false, error }` (`<error>`).
   5. `path` is not a non-blank string, or fails the plugin script path check
-     ([plugin.md](plugin.md), Section 7; [script-tool.md](script-tool.md), Section 2).
+     ([plugin.md, contained paths](plugin.md#contained-paths); [script-tool.md, validation](script-tool.md#validation)).
   6. The resolved script file cannot be read as UTF-8.
 - Otherwise the command MUST start one plugin UI call without blocking the command handler, and
   execute the plugin script as the `Script` tool executes a foreground call
-  ([script-tool.md](script-tool.md), Sections 3 and 6) with:
+  ([script-tool.md, execution model](script-tool.md#execution-model) and [script-tool.md, timeout and delivery](script-tool.md#timeout-delivery)) with:
   - `code` the file's text and `filename` its resolved path,
   - `cwd` the invoking session's working directory,
   - `input` `{ "ui": <data> }`, with absent or `undefined` `data` taken as `null` (the agent
     imposes no payload cap on incoming `run` `data`),
   - the bundled packages available,
   - no time limit,
-  - tool functions per Section 4.2, or the `tools` supplied by a run override (Section 7),
-  - `dent.state` per [plugin-state.md](plugin-state.md), Section 6 (using the override's
+  - tool functions per [tool functions](#tool-functions), or the `tools` supplied by a run override ([extension event seam](#extension-event-seam)),
+  - `dent.state` per [plugin-state.md, the `dent.state` binding](plugin-state.md#dent-state) (using the override's
     `stateDir` when supplied),
   - no task row in the task registry, task feed, task detail feed, or task browser, and no output
     file or tool log.
@@ -58,7 +57,7 @@ script execution and termination by [script-tool.md](script-tool.md).
 
 - When `<json>` parses as a plain object whose `ids` is an array of strings, for each `id` that
   names an executing plugin UI call the command MUST cancel that call as a `Task` kill cancels a
-  `Script` run ([script-tool.md](script-tool.md), Section 6: terminating the worker and its
+  `Script` run ([script-tool.md, timeout and delivery](script-tool.md#timeout-delivery): terminating the worker and its
   spawned process tree).
 - The command answers nothing directly. An unknown `id`, or a malformed `<json>`, changes nothing.
 
@@ -66,26 +65,26 @@ script execution and termination by [script-tool.md](script-tool.md).
 
 ### 4.1 The `dent.ui` binding {#dent-ui}
 
-A JSON value is a JSON-compatible value per [script-tool.md](script-tool.md), Section 5. Its size
+A JSON value is a JSON-compatible value per [script-tool.md, result contract](script-tool.md#result-contract). Its size
 is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,144 bytes.
 
 - In a plugin UI call, and in no other script execution, `dent.ui` MUST be a frozen object with one
   method `send(data)`. Outside a plugin UI call `dent.ui` MUST be `undefined`.
 - `dent.state` and `dent.state.user` are bound for the plugin per
-  [plugin-state.md](plugin-state.md), Section 6.
+  [plugin-state.md, the `dent.state` binding](plugin-state.md#dent-state).
 - `dent.ui.send(data)` MUST throw an `Error`, sending nothing, when `data` is not a JSON value or
   when its size exceeds the payload cap.
 - Otherwise, unless the call has already settled (including after `process.exit`), it MUST emit
-  one `message` record on the UI feed (Section 5), in the order `send` was called, before the
+  one `message` record on the UI feed ([UI feed](#ui-feed)), in the order `send` was called, before the
   call's `reply`.
 
 ### 4.2 Tool functions {#tool-functions}
 
-- This section binds the tools of a plugin UI call unless a run override (Section 7) supplies a
+- This section binds the tools of a plugin UI call unless a run override ([extension event seam](#extension-event-seam)) supplies a
   replacement `tools` object.
 - A plugin UI call MUST bind two sets of callable tools, each filtered by `script.tools.allow`
-  ([script-tool.md](script-tool.md), Section 7) and the object-schema check
-  ([script-tool.md](script-tool.md), Section 8.1), with `Script`, `AskUserQuestion`, and
+  ([script-tool.md, configuration](script-tool.md#configuration)) and the object-schema check
+  ([script-tool.md, bound tools](script-tool.md#bound-tools)), with `Script`, `AskUserQuestion`, and
   `PluginUI` excluded:
   1. **Direct tools** — the active tools pi-dent registers itself (`Agent`, `Bash`, `Fleet`,
      `Markdown`, `Plugin`, `Schedule`, `Search`, `Session`, `Skill` when the boot snapshot holds at
@@ -94,12 +93,12 @@ is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,14
   2. **Proxied tools** — every other callable tool of the session (active `direct` tools and
      registered `codemode` or `deferred` tools reported by the host's `getAllTools()` and
      `getActiveTools()`, including pi's built-in host tools, MCP tools, and other extensions'
-     tools), executed through the tool proxy (Section 4.3).
+     tools), executed through the tool proxy ([tool proxy](#tool-proxy)).
 - Calling a bound tool `tools.<Name>(args)` MUST validate `args` against the tool's parameter
   schema and execute the tool with the same resolve and reject behaviour as a `Script` tool call
-  ([script-tool.md](script-tool.md), Section 8.3).
+  ([script-tool.md, calling a tool](script-tool.md#calling-tool)).
 - `dent.toolTypes()` MUST declare exactly the bound tools (direct and proxied,
-  [script-tool.md](script-tool.md), Section 8.2).
+  [script-tool.md, tool declarations](script-tool.md#tool-declarations)).
 - Every tool listed by the host's `getAllTools()` that is neither direct nor proxied — including
   `Script`, `AskUserQuestion`, `PluginUI`, inactive `direct` tools such as built-in `bash`, tools
   excluded by `script.tools.allow`, and tools without an object parameter schema — MUST be bound
@@ -108,7 +107,7 @@ is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,14
 - Tool calls made by a plugin UI call write no tool log. Tasks dispatched through `Agent` or
   `Bash` register in the session's task registry as usual.
 - On settlement (normal completion, `/dent-ui cancel`, or `session_shutdown`), every in-flight
-  tool call's abort signal MUST be aborted ([script-tool.md](script-tool.md), Section 8.3). A
+  tool call's abort signal MUST be aborted ([script-tool.md, calling a tool](script-tool.md#calling-tool)). A
   foreground `Agent` or `Bash` call aborts with that signal; a task dispatched with
   `background: true` survives `/dent-ui cancel` and is ended by `session_shutdown`.
 
@@ -148,7 +147,7 @@ one host `setWidget("pi-dent-ui", [line])` call, where `line` is the JSON text o
 
 - Records MUST NOT be coalesced or dropped. Every `message` of a plugin UI call MUST be emitted
   before its `reply`, and a `message` MUST NOT be emitted after its `reply`.
-- `data` in a `message` and `value` in a `reply` MUST NOT exceed the payload cap (Section 4.1).
+- `data` in a `message` and `value` in a `reply` MUST NOT exceed the payload cap ([the `dent.ui` binding](#dent-ui)).
 - Exactly one `reply` MUST be emitted for each `run` command with a non-empty string `id`:
 
 | Outcome                                                               | Reply                                                              |
@@ -165,7 +164,7 @@ one host `setWidget("pi-dent-ui", [line])` call, where `line` is the JSON text o
 
 On `session_start` (when a prior session's calls or proxy remain) and on `session_shutdown`
 (session switch, reload, or quit), every executing plugin UI call MUST be cancelled as in
-Section 3, and any active tool proxy MUST be disposed as in Section 4.3. Each cancelled plugin UI
+[`cancel`](#cancel), and any active tool proxy MUST be disposed as in [tool proxy](#tool-proxy). Each cancelled plugin UI
 call settles with `ok: false` and an `error` naming the session shutdown.
 
 ## 7. Extension event seam {#extension-event-seam}
@@ -175,15 +174,15 @@ boot plugin catalog through three synchronous `pi.events` channels:
 
 - `pi-dent:plugin-ui-run-override:v1` — emitted synchronously by `/dent-ui run` when the payload
   carries a string `check`, with `{ check, round?, sessionToolNames }`. A listener MAY set
-  `payload.result` to `{ ok: true, tools?, stateDir? }` (omitted `tools` keeps Section 4.2's
-  tools; `stateDir` redirects `dent.state` per [plugin-state.md](plugin-state.md), Section 6) or
+  `payload.result` to `{ ok: true, tools?, stateDir? }` (omitted `tools` keeps [tool functions](#tool-functions)'s
+  tools; `stateDir` redirects `dent.state` per [plugin-state.md, the `dent.state` binding](plugin-state.md#dent-state)) or
   to `{ ok: false, error }`. When no listener sets `result`, `/dent-ui run` replies with
   `Unknown UI check "<check>"`.
 - `pi-dent:plugin-ui-cancel-tag:v1` — handled by pi-dent; a payload `{ check, reason? }` with a
-  string `check` cancels every executing plugin UI call tagged with that `check` (Section 3).
+  string `check` cancels every executing plugin UI call tagged with that `check` ([`cancel`](#cancel)).
 - `pi-dent:plugin-catalog:v1` — handled by pi-dent; populates `payload.plugins` synchronously
   with `Array<{ namespace, root }>` from the boot snapshot's admitted plugins
-  ([plugin.md](plugin.md), Section 8).
+  ([plugin.md, plugin catalog](plugin.md#plugin-catalog)).
 
 ## 8. Specification gaps {#gaps}
 

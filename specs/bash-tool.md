@@ -16,7 +16,7 @@ The parameter schema is a JSON object schema with `type: "object"` and
 | ------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `command`     | string (required) | Shell command text: one line or several, passed to the shell unchanged. The schema gives it the `pattern` `\S` (at least one character that is not white space) and the description below.                  |
 | `timeout`     | integer?          | Per-call timeout in milliseconds, `1` or more, with no upper bound; a value above `2147483647` imposes no timeout. Omitted gives a foreground call `600000` ms and imposes no timeout on a background call. |
-| `cwd`         | string?           | Working directory of the shell: the `cwd` parameter ([task.md](task.md), Section 1.1).                                                                                                                      |
+| `cwd`         | string?           | Working directory of the shell: the `cwd` parameter ([task.md, the `cwd` parameter](task.md#cwd-parameter)).                                                                                                |
 | `background`  | boolean?          | Background delivery (default `false`).                                                                                                                                                                      |
 | `description` | string?           | UI label for the call.                                                                                                                                                                                      |
 
@@ -33,26 +33,26 @@ It MUST also contain the sentence
 `Temporary files go under $TMPDIR, the session's tmp folder, never /tmp; create them with mktemp "$TMPDIR/name.XXXXXX", since a bare mktemp may ignore $TMPDIR.`
 
 > Note (non-normative): `timeout` has the unit of `Script`
-> ([script-tool.md](script-tool.md), Section 1), without its upper bound, not the seconds of the
+> ([script-tool.md, parameter schema](script-tool.md#parameter-schema)), without its upper bound, not the seconds of the
 > suppressed built-in tool.
 
 ## 2. Validation {#validation}
 
 Validation has two stages. The host validates the call's arguments against the schema of
-Section 1 before the tool runs, and rejects a call whose arguments do not satisfy it. That
-rejection is a schema rejection ([task.md](task.md), Section 1): it registers no task row, and
-no output file is created. The schema constrains the types of Section 1's table, the presence of
+[parameter schema](#parameter-schema) before the tool runs, and rejects a call whose arguments do not satisfy it. That
+rejection is a schema rejection ([task.md, task kinds](task.md#task-kinds)): it registers no task row, and
+no output file is created. The schema constrains the types of [parameter schema](#parameter-schema)'s table, the presence of
 `command` and its pattern, the lower bound of `timeout`, and the set of admitted properties;
 every other
 condition on the arguments is the tool's.
 
-The checks the schema cannot express MUST reject the call as a pre-start rejection (Section 6),
+The checks the schema cannot express MUST reject the call as a pre-start rejection ([timeout, termination, and delivery](#timeout-delivery)),
 checked in this order, the first failure reported:
 
 - The host session that invoked the call; the failure text is verbatim
   `pi-dent: no live host session for the Bash call`.
-- The `cwd` check of [task.md](task.md), Section 1.1.
-- A shell that cannot be resolved (Section 3).
+- The `cwd` check of [task.md, the `cwd` parameter](task.md#cwd-parameter).
+- A shell that cannot be resolved ([execution model](#execution-model)).
 
 ## 3. Execution model {#execution-model}
 
@@ -76,9 +76,8 @@ checked in this order, the first failure reported:
   are read at each call.
 - A settings file that cannot be read or parsed contributes neither setting and MUST be reported
   as one `warning` naming the file, `pi-dent: <file>: <error>`, through the host `notify` API
-  ([config-file.md](config-file.md), Section 6), at most once per boot window per file. The
-  project settings file is read whatever its project trust ([config-file.md](config-file.md),
-  Section 1).
+  ([config-file.md, diagnostics](config-file.md#diagnostics)), at most once per boot window per file. The
+  project settings file is read whatever its project trust ([config-file.md, layers](config-file.md#layers)).
 - The shell's working directory is the resolved `cwd`.
 - The shell's standard input MUST be empty: a read from it returns end of input at once.
 - The shell's environment is the host process environment at call time, changed as follows:
@@ -86,8 +85,8 @@ checked in this order, the first failure reported:
   | Variable               | Value                                                                                                                                                                                                                                                                                           |
   | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | `PATH`                 | Prefixed with the directory `bin` of the host's configuration directory, the one holding the host's global settings file (`~/.pi/agent` by default), unless an entry, split on the platform's path delimiter, equals it as a string; on Windows the variable is matched without regard to case. |
-  | `PI_DENT_SESSION_DIR`  | The invoking session's value ([agent-tool.md](agent-tool.md), Section 4.2).                                                                                                                                                                                                                     |
-  | `PI_DENT_SESSION_KIND` | The invoking session's value ([session-tool.md](session-tool.md), Section 3.1).                                                                                                                                                                                                                 |
+  | `PI_DENT_SESSION_DIR`  | The invoking session's value ([agent-tool.md, child session](agent-tool.md#child-session)).                                                                                                                                                                                                     |
+  | `PI_DENT_SESSION_KIND` | The invoking session's value ([session-tool.md, environment variable](session-tool.md#environment-variable)).                                                                                                                                                                                   |
   | `PI_SESSION_ID`        | The invoking session's session ID.                                                                                                                                                                                                                                                              |
   | `PI_SESSION_FILE`      | The invoking session's session file path.                                                                                                                                                                                                                                                       |
   | `PI_PROVIDER`          | The provider of the invoking session's current model.                                                                                                                                                                                                                                           |
@@ -98,7 +97,7 @@ checked in this order, the first failure reported:
   the host process environment holds.
 
 - The caller-supplied environment of the tool, when it has one (for a child session,
-  [agent-tool.md](agent-tool.md), Section 4.2), is merged last: a variable it names takes its value,
+  [agent-tool.md, child session](agent-tool.md#child-session)), is merged last: a variable it names takes its value,
   for every variable of the table above and of this list.
 - Session temporary folder: when `PI_DENT_SESSION_DIR` is set and not empty, after that merge, the
   variables `TMPDIR`, `TMP` and `TEMP` take the value `<PI_DENT_SESSION_DIR>/tmp`, unless the
@@ -110,15 +109,15 @@ checked in this order, the first failure reported:
 - On a platform other than Windows the shell MUST be started as the leader of a new session, and
   so of a new process group, with no controlling terminal.
 - The run starts when the shell process is spawned. The run ends when the shell process has
-  exited and the first of these holds: both output pipes (Section 4) have reached their end;
+  exited and the first of these holds: both output pipes ([output capture](#output-capture)) have reached their end;
   1000 ms have passed since the exit. When the run ends the tool MUST close its ends of both
   pipes; later output is not captured.
 - A leftover process is a process of the shell's process group that is alive when the shell
-  process exits. When the shell process exits with `exitReason` `exited` (Section 5), the tool
+  process exits. When the shell process exits with `exitReason` `exited` ([result contract](#result-contract)), the tool
   MUST, on a platform other than Windows, terminate the shell's process group with the signal
-  sequence of Section 6, the first signal sent within 100 ms of the exit. `details.leftover` is
+  sequence of [timeout, termination, and delivery](#timeout-delivery), the first signal sent within 100 ms of the exit. `details.leftover` is
   `true` exactly when that first signal was delivered to at least one process; the body then
-  carries the leftover notice (Section 5).
+  carries the leftover notice ([result contract](#result-contract)).
 
   > Note (non-normative): a process started with `&` or `nohup` outlives the shell and is not
   > supervised by the task; terminating it keeps every process a call starts inside the task's
@@ -132,7 +131,7 @@ checked in this order, the first failure reported:
   UTF-8 byte stream: a sequence split between two chunks of one pipe is decoded whole, and a
   sequence that is invalid, or incomplete when the run ends, is decoded as U+FFFD. The captured
   output is not separated into two streams, and no character is removed from it.
-- `outputPath` is the path [script-tool.md](script-tool.md), Section 6 defines for the task's
+- `outputPath` is the path [script-tool.md, timeout and delivery](script-tool.md#timeout-delivery) defines for the task's
   session and task ID. The file MUST be created empty before the shell is spawned, in both
   deliveries, and every chunk MUST be appended to it as it arrives, as raw bytes, with nothing
   else written to it. A failure to create or write it MUST NOT fail the call, and no failure is
@@ -201,16 +200,16 @@ checked in this order, the first failure reported:
 
 - `exitReason` is the first of these outcomes to occur; a later one MUST NOT change it:
 
-  | `exitReason`   | Outcome                                           | Status line                                                                                                                                                      | Task status                                       |
-  | -------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-  | `exited`       | The shell process exits.                          | `Command exited with code <exitCode>` when `exitCode` is not `0`, else none.                                                                                     | `completed` when `exitCode` is `0`, else `failed` |
-  | `timeout`      | The timeout expires.                              | `Command timed out after <timeout> ms`                                                                                                                           | `failed`                                          |
-  | `aborted`      | The tool-call signal of a foreground call aborts. | `Command aborted`                                                                                                                                                | `cancelled`                                       |
-  | `killed`       | The task row's cancellation handler is invoked.   | `Command killed`, or `Command killed by the user from the task browser` when the row's `browserKill` is `true` ([task-registry.md](task-registry.md), Section 2) | `cancelled`                                       |
-  | `spawn-failed` | The shell process cannot be spawned.              | `Command failed to start: <message>`                                                                                                                             | `failed`                                          |
+  | `exitReason`   | Outcome                                           | Status line                                                                                                                                                              | Task status                                       |
+  | -------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+  | `exited`       | The shell process exits.                          | `Command exited with code <exitCode>` when `exitCode` is not `0`, else none.                                                                                             | `completed` when `exitCode` is `0`, else `failed` |
+  | `timeout`      | The timeout expires.                              | `Command timed out after <timeout> ms`                                                                                                                                   | `failed`                                          |
+  | `aborted`      | The tool-call signal of a foreground call aborts. | `Command aborted`                                                                                                                                                        | `cancelled`                                       |
+  | `killed`       | The task row's cancellation handler is invoked.   | `Command killed`, or `Command killed by the user from the task browser` when the row's `browserKill` is `true` ([task-registry.md, task row](task-registry.md#task-row)) | `cancelled`                                       |
+  | `spawn-failed` | The shell process cannot be spawned.              | `Command failed to start: <message>`                                                                                                                                     | `failed`                                          |
 
   `running` is the `exitReason` of the initial background return only. `<timeout>` is the timeout
-  the call imposes (Section 1) in decimal digits, using that section's default when omitted; `<message>` is the
+  the call imposes ([parameter schema](#parameter-schema)) in decimal digits, using that section's default when omitted; `<message>` is the
   spawn error's message.
 
 - `exitCode` is the shell process's exit code, or `128` plus the signal's number when a signal
@@ -230,10 +229,10 @@ checked in this order, the first failure reported:
   > Note (non-normative): This lexical rule can flag text in comments, heredocs, or command substitutions, and can miss shell syntax whose redirection target is not one word.
 
 - The body is these parts, each present as stated, joined by one empty line (`\n\n`), in the order listed: 1. the excerpt
-  (Section 4), when it is non-empty, which begins with its header when truncated; 2. the pipe notice `Note: the saved output holds only what the final pipe printed; rerun without the pipe to keep it all.`
+  ([output capture](#output-capture)), when it is non-empty, which begins with its header when truncated; 2. the pipe notice `Note: the saved output holds only what the final pipe printed; rerun without the pipe to keep it all.`
   when the call is filter-piped and the call is not stdout-redirected, whether or not the excerpt is truncated; the pipe notice is omitted when the call is stdout-redirected; 3. the redirect notice `Note: output redirected to a file is not shown or saved by Bash; run the command plainly to have its output saved for Read or rg.` when the call is file-redirected; 4. the status line, when the table gives one; 5. the leftover notice
   `Command left a process running; it was terminated. Use background: true, not & or nohup.` when the run has a
-  leftover process (Section 3). With no part present the body is `(no output)`.
+  leftover process ([execution model](#execution-model)). With no part present the body is `(no output)`.
 - A foreground call returns once the run has ended, with the body as `content[0].text` and
   `isError: true` exactly when the task status is not `completed`.
 
@@ -241,37 +240,37 @@ checked in this order, the first failure reported:
   > tool reported it; the status line tells a command that found nothing from one that broke.
 
 - `details` carries `{ taskId, exitReason, exitCode?, truncated, leftover, outputPath, durationMs, background? }`:
-  `truncated` is whether the excerpt is truncated, `leftover` is per Section 3 (`false` for any
+  `truncated` is whether the excerpt is truncated, `leftover` is per [execution model](#execution-model) (`false` for any
   other `exitReason`), `durationMs` the whole milliseconds, rounded
   down, from the run's start to its end (`0` when no run started), and `background` is present,
   `true`, only in the initial background return.
 
 ## 6. Timeout, termination, and delivery {#timeout-delivery}
 
-- Except where [task.md](task.md), Section 1 registers no row, every call registers one task
+- Except where [task.md, task kinds](task.md#task-kinds) registers no row, every call registers one task
   row (`kind: "bash"`) after the host has accepted its arguments and before the checks of
-  Section 2, `label` set to `description` when Section 1 does not treat it as absent, else to the
+  [validation](#validation), `label` set to `description` when [parameter schema](#parameter-schema) does not treat it as absent, else to the
   first line of `command` with its leading white space, line breaks included, removed, cut to 80
   characters (no marker), and `command` set to the call's `command`, unchanged
-  ([task-registry.md](task-registry.md), Section 2); task lifetime, cohort, and completion
+  ([task-registry.md, task row](task-registry.md#task-row)); task lifetime, cohort, and completion
   notification follow [task-registry.md](task-registry.md). The row's cancellation handler is
   set before the shell is spawned.
-- A call failing Section 2 is a pre-start rejection: its row is consumed
-  ([task-registry.md](task-registry.md), Section 5) and settles `failed`
+- A call failing [validation](#validation) is a pre-start rejection: its row is consumed
+  ([task-registry.md, cohorts and completion notification](task-registry.md#cohorts)) and settles `failed`
   with the error text as its result, no file is created, and the call returns the tool error
   (`isError: true`) directly in both foreground and background delivery.
-- In a call that passes Section 2, a cancellation that occurs before the shell is spawned, and in
+- In a call that passes [validation](#validation), a cancellation that occurs before the shell is spawned, and in
   a foreground call also an abort, a tool-call signal already aborted included, MUST prevent the
   spawn: the row settles with that outcome's `exitReason`, and its body is the status line.
 - The `timeout` deadline counts from the run's start, in both deliveries; its value is the one
-  Section 1 resolves, using that section's default for a foreground call that omits `timeout`.
-- At timeout expiry, foreground abort, or cancellation, when it sets `exitReason` (Section 5),
+  [parameter schema](#parameter-schema) resolves, using that section's default for a foreground call that omits `timeout`.
+- At timeout expiry, foreground abort, or cancellation, when it sets `exitReason` ([result contract](#result-contract)),
   the tool MUST terminate the shell's process tree: on a platform other than Windows, `SIGTERM`
   to the shell's process group, then `SIGKILL` to the same group no sooner than 200 ms and no
   later than 300 ms after it, a signal to a group with no process left being no failure; on
   Windows, forced termination of the shell process and all its descendants at once. The first
   signal MUST be sent within 100 ms of timeout expiry, and before the cancellation handler
-  returns. The run then ends per Section 3. An expiry, abort, or cancellation that does not set
+  returns. The run then ends per [execution model](#execution-model). An expiry, abort, or cancellation that does not set
   `exitReason` terminates nothing.
 - A background call MUST ignore the tool-call signal, before and after the call has returned: a
   background call never aborts, and a tool-call signal already aborted MUST NOT prevent the spawn.
@@ -282,12 +281,11 @@ checked in this order, the first failure reported:
   `{ taskId, outputPath, background: true, exitReason: "running", truncated: false, leftover: false, durationMs: 0 }`.
   A `spawn-failed` background call returns the same and settles its row.
 - When the run ends, or on `spawn-failed`, the row settles in both deliveries with the task
-  status of Section 5, the body as its result text, and `outputPath` as its `resultPath`.
+  status of [result contract](#result-contract), the body as its result text, and `outputPath` as its `resultPath`.
 - Inspection and cancellation go through the `Task` tool ([task-tool.md](task-tool.md)); the task
-  browser's kill key cancels through the same handler ([task-browser.md](task-browser.md),
-  Section 4.4), and its body carries the status line of Section 5.
+  browser's kill key cancels through the same handler ([task-browser.md, kill key](task-browser.md#kill-key)), and its body carries the status line of [result contract](#result-contract).
 - When the task registry holding a running row ends, the row follows
-  [task-registry.md](task-registry.md), Section 4; the shell of an adopted row keeps running.
+  [task-registry.md, registry end and adoption](task-registry.md#registry-end); the shell of an adopted row keeps running.
 
 ## 7. Suppression of the built-in tool {#builtin-suppression}
 
@@ -317,12 +315,10 @@ different names to the host, which compares tool names exactly.
   among the tools the host registered for the session, the extension MUST show, once for that
   `session_start`, the notification
   ``pi-dent: the tool selection names `bash`, which is disabled, and omits `Bash`: the session has no shell tool``
-  at level `warning` through the host `notify` API ([config-file.md](config-file.md),
-  Section 6). No notification is shown in any other case.
-- A child session binds `Bash` and never `bash`, per [agent-tool.md](agent-tool.md),
-  Section 3.1; its `Bash` calls register into the attempt's task registry and observe the child
-  session's working directory and environment values (Section 3).
-- `Script` keeps its own child-process rules ([script-tool.md](script-tool.md), Section 6).
+  at level `warning` through the host `notify` API ([config-file.md, diagnostics](config-file.md#diagnostics)). No notification is shown in any other case.
+- A child session binds `Bash` and never `bash`, per [agent-tool.md, tools](agent-tool.md#tools); its `Bash` calls register into the attempt's task registry and observe the child
+  session's working directory and environment values ([execution model](#execution-model)).
+- `Script` keeps its own child-process rules ([script-tool.md, timeout and delivery](script-tool.md#timeout-delivery)).
 
 ## 8. Specification gaps {#gaps}
 
@@ -332,20 +328,20 @@ different names to the host, which compares tool names exactly.
 - On Windows, a `bash.exe` that is the legacy WSL launcher does not accept the command text as an
   argument; its invocation is unspecified.
 - On Windows, the `shellPath` forms are unverified: whether a value naming a Git for Windows
-  `bash.exe`, a `~` or `~/` form, or a path that does not exist is treated as Section 3 states, is
+  `bash.exe`, a `~` or `~/` form, or a path that does not exist is treated as [execution model](#execution-model) states, is
   unspecified.
 - On Windows, the `PATH` environment variable is unverified: whether it is matched without regard
-  to case, as Section 3 requires, is unspecified.
+  to case, as [execution model](#execution-model) requires, is unspecified.
 - On Windows, termination of the shell's process tree is unverified at all three events that
   trigger it — timeout expiry, `Task` `kill`, and foreground abort: whether the shell process and
-  all its descendants are terminated, and within the bound of Section 6, is unspecified.
+  all its descendants are terminated, and within the bound of [timeout, termination, and delivery](#timeout-delivery), is unspecified.
 - On Windows, a leftover process has no definition, because the shell is not started as a group
   leader there; whether one is terminated, and the value of `details.leftover`, are unspecified.
 - On Windows, `exitCode` is unverified: no signal ends the shell process there, so the
-  `128`-plus-signal form of Section 5 is unreachable, and the `exitCode` of a shell the host
+  `128`-plus-signal form of [result contract](#result-contract) is unreachable, and the `exitCode` of a shell the host
   terminated is unspecified.
 - On Windows, the end of the run is unverified: whether the pipes of an exited shell reach their
-  end, and so whether the pipe end or the 1000 ms bound of Section 3 ends the run first, is
+  end, and so whether the pipe end or the 1000 ms bound of [execution model](#execution-model) ends the run first, is
   unspecified.
 - A process that leaves the shell's process group (a new session or group) is not reached by
   termination; whether it survives is the operating system's.
@@ -364,8 +360,8 @@ different names to the host, which compares tool names exactly.
 - The header and the row's `resultPath` name `outputPath` even when the file could not be created
   or written.
 - A relative `shellPath`, and one starting with `~` followed by a user name, are unspecified.
-- The texts of pre-start rejections, beyond what Section 2 requires, and the `details` of a
+- The texts of pre-start rejections, beyond what [validation](#validation) requires, and the `details` of a
   pre-start rejection and of a partial result are unspecified.
-- Whether the host, when it validates against the schema of Section 1, first coerces an argument
+- Whether the host, when it validates against the schema of [parameter schema](#parameter-schema), first coerces an argument
   to the type the schema names, and so whether a convertible value of the wrong type is admitted
   rather than rejected as a schema rejection, is the host's.

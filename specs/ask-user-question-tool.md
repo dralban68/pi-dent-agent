@@ -2,7 +2,7 @@
 
 This document specifies the `AskUserQuestion` tool: the surface through which the model of a main
 session asks the user one to four multiple-choice questions during an agent run and receives the
-answers as the tool result. A call registers no task row ([task.md](task.md), Section 1); `Task`
+answers as the tool result. A call registers no task row ([task.md, task kinds](task.md#task-kinds)); `Task`
 neither lists nor cancels it. A call is open from its start until it returns.
 
 ## 1. Tool registration surface {#registration}
@@ -10,19 +10,19 @@ neither lists nor cancels it. A call is open from its start until it returns.
 The extension MUST register the tool in the main session through the host `registerTool` API,
 when the extension loads and in every run mode:
 
-| Field           | Value                                  |
-| --------------- | -------------------------------------- |
-| `name`          | `"AskUserQuestion"`                    |
-| `label`         | `"AskUserQuestion"`                    |
-| `exposure`      | `"model-only"`                         |
-| `description`   | The text of Section 1.3                |
-| `promptSnippet` | The text of Section 1.3                |
-| `parameters`    | The parameter schema of Section 1.1    |
-| `renderShell`   | not set: the host's default tool shell |
+| Field           | Value                                                         |
+| --------------- | ------------------------------------------------------------- |
+| `name`          | `"AskUserQuestion"`                                           |
+| `label`         | `"AskUserQuestion"`                                           |
+| `exposure`      | `"model-only"`                                                |
+| `description`   | The text of [prompt texts](#prompt-texts)                     |
+| `promptSnippet` | The text of [prompt texts](#prompt-texts)                     |
+| `parameters`    | The parameter schema of [parameter schema](#parameter-schema) |
+| `renderShell`   | not set: the host's default tool shell                        |
 
 `exposure` `"model-only"` declares the tool to the model while it is active and makes it
 uncallable from another tool through the host's nested tool calls. A child session never binds
-the tool ([agent-tool.md](agent-tool.md), Section 3.1).
+the tool ([agent-tool.md, tools](agent-tool.md#tools)).
 
 > Note (non-normative): a child session has no terminal of its own; the child returns what it
 > needs decided in its final answer, and the session that dispatched it asks.
@@ -42,9 +42,9 @@ The parameter schema is a JSON object schema; every object in it has `additional
 | `questions[].multiSelect`           | boolean? | `true` lets the user choose several options. Default `false`.      |
 
 The schema constrains types and admitted properties only. The host validates arguments against it
-before execution and rejects a violation with its own error text ([task.md](task.md), Section 1).
+before execution and rejects a violation with its own error text ([task.md, task kinds](task.md#task-kinds)).
 Every string of the call is used with leading and trailing white space removed, in the checks of
-Section 1.2, in the question panel, in the dialogs, and in the result; the trimmed string is the
+[validation](#validation), in the question panel, in the dialogs, and in the result; the trimmed string is the
 field's value below. `<i>` is a question's 1-based position in `questions`, `<m>` the number of
 questions, `<j>` an option's 1-based position in its question's `options`, and `<n>` the
 question's option count. A string is one line when it contains neither a line feed nor a carriage
@@ -58,20 +58,20 @@ anything is shown to the user. Check 1 runs first; then, for each question in ar
 2 to 6, then checks 7 to 11 for each of its options in array order, then check 12, before the next
 question.
 
-| #   | Check                                                                                                                    | Error text                                                                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| 1   | `questions` holds fewer than 1 or more than 4 items                                                                      | `questions must hold 1 to 4 questions`                                     |
-| 2   | `question` is empty                                                                                                      | `question <i>: question must be a non-empty string`                        |
-| 3   | `question` is not one line                                                                                               | `question <i>: question must be one line`                                  |
-| 4   | `header` is empty                                                                                                        | `question <i>: header must be a non-empty string`                          |
-| 5   | `header` is not one line or is longer than 12 characters                                                                 | `question <i>: header must be one line of at most 12 characters`           |
-| 6   | `options` holds fewer than 2 or more than 4 items                                                                        | `question <i>: options must hold 2 to 4 options`                           |
-| 7   | `label` is empty                                                                                                         | `question <i> option <j>: label must be a non-empty string`                |
-| 8   | `label` is not one line or is longer than 60 characters                                                                  | `question <i> option <j>: label must be one line of at most 60 characters` |
-| 9   | `label` equals `other`, compared case-insensitively                                                                      | `question <i> option <j>: label "Other" is reserved`                       |
-| 10  | `label` equals the `label` of an earlier option of the same question, compared exactly after the cleaning of Section 3.3 | `question <i> option <j>: duplicate label "<label>"`                       |
-| 11  | `description` is empty or not one line                                                                                   | `question <i> option <j>: description must be a non-empty single line`     |
-| 12  | `question` equals the `question` of an earlier question of the call, compared exactly                                    | `question <i>: duplicate question`                                         |
+| #   | Check                                                                                                                                        | Error text                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 1   | `questions` holds fewer than 1 or more than 4 items                                                                                          | `questions must hold 1 to 4 questions`                                     |
+| 2   | `question` is empty                                                                                                                          | `question <i>: question must be a non-empty string`                        |
+| 3   | `question` is not one line                                                                                                                   | `question <i>: question must be one line`                                  |
+| 4   | `header` is empty                                                                                                                            | `question <i>: header must be a non-empty string`                          |
+| 5   | `header` is not one line or is longer than 12 characters                                                                                     | `question <i>: header must be one line of at most 12 characters`           |
+| 6   | `options` holds fewer than 2 or more than 4 items                                                                                            | `question <i>: options must hold 2 to 4 options`                           |
+| 7   | `label` is empty                                                                                                                             | `question <i> option <j>: label must be a non-empty string`                |
+| 8   | `label` is not one line or is longer than 60 characters                                                                                      | `question <i> option <j>: label must be one line of at most 60 characters` |
+| 9   | `label` equals `other`, compared case-insensitively                                                                                          | `question <i> option <j>: label "Other" is reserved`                       |
+| 10  | `label` equals the `label` of an earlier option of the same question, compared exactly after the cleaning of [panel content](#panel-content) | `question <i> option <j>: duplicate label "<label>"`                       |
+| 11  | `description` is empty or not one line                                                                                                       | `question <i> option <j>: description must be a non-empty single line`     |
+| 12  | `question` equals the `question` of an earlier question of the call, compared exactly                                                        | `question <i>: duplicate question`                                         |
 
 ### 1.3 Prompt texts {#prompt-texts}
 
@@ -105,7 +105,7 @@ Each schema property carries this `description`:
 ### 1.4 Activation {#activation}
 
 A main session is a user session when the host reports a user interface for it, and an agent
-session otherwise ([session-tool.md](session-tool.md), Section 3). At every `session_start`,
+session otherwise ([session-tool.md, session kind](session-tool.md#session-kind)). At every `session_start`,
 before the session's first model request, the extension MUST:
 
 - in an agent session, remove `AskUserQuestion` from the session's active tool set through the
@@ -115,7 +115,7 @@ before the session's first model request, the extension MUST:
 
 The run mode is fixed for the process, so every `session_start` of a process, a reload's included,
 decides the same. A call that reaches an agent session all the same — the tool made active again
-by the user or another extension — MUST return the no-UI result (Section 6.2) after validation,
+by the user or another extension — MUST return the no-UI result ([other results](#other-results)) after validation,
 showing nothing.
 
 ## 2. Asking {#asking}
@@ -126,15 +126,15 @@ After validation passes, in this order:
 2. When the tool-call signal is already aborted, the call MUST return the aborted result.
 3. Otherwise the call joins the session's question queue.
 
-The tool-call signal ([task.md](task.md), Section 5) aborts when the agent run is aborted. The question queue holds a session's open calls that passed step 2, in
+The tool-call signal ([task.md, host terms](task.md#host-terms)) aborts when the agent run is aborted. The question queue holds a session's open calls that passed step 2, in
 the order they reached step 3. Only the first call of the queue is asked; the next call MUST be
 asked when the earlier call returns. A call leaves the queue when it returns. A call is asked
-through the question panel (Section 3) in terminal mode. In RPC mode it is asked through the
-question form request (Section 4.4) when the environment variable `PI_DENT_ASK_FORM` of the pi process
-is `1`, and through the dialog sequence (Section 4) otherwise.
+through the question panel ([question panel](#question-panel)) in terminal mode. In RPC mode it is asked through the
+question form request ([question form request](#form-request)) when the environment variable `PI_DENT_ASK_FORM` of the pi process
+is `1`, and through the dialog sequence ([dialog sequence](#dialog-sequence)) otherwise.
 
 A question has no timeout: an open call waits until the user answers or declines, or until
-Section 5 ends it.
+[ending without answers](#no-answers) ends it.
 
 > Note (non-normative): a `Bash` or `Script` timeout guards against a process that hangs; a
 > question waits for a person, and expiring it would answer for them or discard what they typed.
@@ -164,7 +164,7 @@ A call is direct when it has exactly one question and that question is single-se
 The question panel is the interactive view through which the user answers one call in terminal
 mode. The panel is drawn inside a border, and its size is fixed while it is open. It MUST be shown
 through the host custom UI surface as an overlay centred in the terminal, as wide as the panel and
-with the largest page height of Section 3.1 as its maximum height, and with the host's
+with the largest page height of [size and border](#size-border) as its maximum height, and with the host's
 blocked-on-user report of kind `question` and message
 `The agent is asking you a question` for as long as it is open. It MUST take keyboard focus when it
 opens and consume all input while it is open. It is not a browser
@@ -184,9 +184,9 @@ The panel's height is fixed while the panel is open: it is computed when the pan
 only when the terminal rows change, as the smaller of the largest page height and the terminal
 rows minus 2, and never fewer than 3 lines. The largest page height is 2 border lines, plus the
 tab bar's lines when the call is not direct, plus the largest page body, plus the lines of the
-longest key-hint line of Section 3.3, every line count measured at the inner width. A question
+longest key-hint line of [panel content](#panel-content), every line count measured at the inner width. A question
 page's body is, in lines: its `question` text at the inner width, plus 1 empty line, plus for each
-option the lines of its row as Section 3.3 renders it — the 2 columns before its number,
+option the lines of its row as [panel content](#panel-content) renders it — the 2 columns before its number,
 `<number>. `, `[ ] ` when the question is multi-select, and its `label` — plus the lines of its
 `description` indented by 5 columns, plus 1 line for the Other row, plus 5 lines of text entry —
 one empty line, the line `Your answer:`, and 3 editor lines — which every question page counts
@@ -245,7 +245,7 @@ Inside the border, from top to bottom, the panel shows:
      followed by a line holding its `description`, indented by 5 columns. The Other row's text is
      `Other: type your own answer` without a free-text answer, else `Other: <first line>`, the
      free-text answer's first line.
-   - In text entry (Section 3.5): an empty line, the line `Your answer:`, and 3 lines of the host's
+   - In text entry ([text entry](#text-entry)): an empty line, the line `Your answer:`, and 3 lines of the host's
      editor component.
 3. On the Submit tab: the line `Review your answers`, an empty line, one line per question in
    array order, `<header>: <summary>` with its answer summary or `(unanswered)`, an empty line,
@@ -255,7 +255,7 @@ Inside the border, from top to bottom, the panel shows:
 
 | Page                                      | Key-hint line                                                                          |
 | ----------------------------------------- | -------------------------------------------------------------------------------------- |
-| dismissal armed (Section 3.6)             | `Dismiss the questions? s skip, the agent continues · x stop the agent run · esc back` |
+| dismissal armed ([dismissal](#dismissal)) | `Dismiss the questions? s skip, the agent continues · x stop the agent run · esc back` |
 | text entry                                | `enter save · esc back`                                                                |
 | Submit tab                                | `enter submit · tab/←→ question · esc dismiss`                                         |
 | question page of a direct call            | `↑↓ move · enter choose · esc dismiss`                                                 |
@@ -275,7 +275,7 @@ every other key:
 | `enter`, `space`    | Act on the highlighted row (below).                                             | Submit the call when every question is answered; otherwise nothing. |
 | `tab`, `right`      | Move to the next tab; a direct call does nothing.                               | Move to the next tab.                                               |
 | `shift+tab`, `left` | Move to the previous tab; a direct call does nothing.                           | Move to the previous tab.                                           |
-| `escape`            | Arm dismissal (Section 3.6).                                                    | Arm dismissal.                                                      |
+| `escape`            | Arm dismissal ([dismissal](#dismissal)).                                        | Arm dismissal.                                                      |
 
 Acting on the highlighted row:
 
@@ -284,7 +284,7 @@ Acting on the highlighted row:
 - The Other row starts text entry.
 
 Advancing submits a direct call; otherwise it moves to the next tab. Submitting returns the
-answered result (Section 6.1) built from the answers at that moment and closes the panel.
+answered result ([answered result](#answered-result)) built from the answers at that moment and closes the panel.
 
 > Note (non-normative): `left` moves between tabs and never dismisses, unlike a browser's `left`,
 > so that a stray arrow key cannot throw away the user's answers.
@@ -300,21 +300,21 @@ MUST pass every key to the editor except these:
 
 - `escape` MUST leave text entry and leave the answer unchanged.
 - The editor's submit key, `enter` unless the host's keybindings say otherwise, MUST leave text
-  entry and record the editor's text as the free-text answer (Section 2.1). When it records none,
+  entry and record the editor's text as the free-text answer ([answers](#answers)). When it records none,
   any earlier free-text answer is removed, any chosen option stays, and the page stays. Otherwise,
-  on a single-select question the panel then advances (Section 3.4); on a multi-select question the
+  on a single-select question the panel then advances ([keys](#keys)); on a multi-select question the
   page stays.
 
 ### 3.6 Dismissal {#dismissal}
 
 `escape` outside text entry arms dismissal without changing any answer; the panel keeps its page
-and shows the armed key-hint line of Section 3.3. While dismissal is armed:
+and shows the armed key-hint line of [panel content](#panel-content). While dismissal is armed:
 
-- `s` MUST end the call with the dismissed result (Section 6.2): the user skips the questions and
+- `s` MUST end the call with the dismissed result ([other results](#other-results)): the user skips the questions and
   the agent continues its run.
 - `x` MUST end the call with the stopped result: the user stops the agent run.
 - `escape` MUST disarm dismissal.
-- Any other key MUST disarm dismissal and be handled per Section 3.4.
+- Any other key MUST disarm dismissal and be handled per [keys](#keys).
 
 ## 4. Dialog sequence {#dialog-sequence}
 
@@ -324,7 +324,7 @@ cancels, and `input`, which shows a title and a placeholder and returns the text
 nothing when the user cancels. The extension MUST pass every dialog an abort signal that aborts
 when the tool-call signal aborts or at `session_shutdown`, and MUST NOT pass a timeout. A value
 a dialog returns that is not one of the option strings it was given MUST make the extension show
-the same dialog again. Values of the call are cleaned as in Section 3.3.
+the same dialog again. Values of the call are cleaned as in [panel content](#panel-content).
 
 ### 4.1 Questions {#questions}
 
@@ -343,13 +343,13 @@ The questions are asked in array order. Question `<i>` is asked with a `select` 
 - Choosing an option of a multi-select question toggles it and shows the question again.
 - Choosing `Other` of a single-select question shows an `input` dialog titled like the question's
   `select` and with the placeholder `Type your answer`. Text that records a free-text answer
-  (Section 2.1) records it and moves to the next step; empty text and a cancelled `input` show
+  ([answers](#answers)) records it and moves to the next step; empty text and a cancelled `input` show
   the question again.
 - Choosing `Other` of a multi-select question removes its free-text answer when one is present,
   else shows that `input` dialog; either way the question is then shown again with the result.
 - Choosing `Done` moves to the next step when the question is answered; otherwise the question is
   shown again.
-- Cancelling the question's `select` starts the dismissal choice (Section 4.3).
+- Cancelling the question's `select` starts the dismissal choice ([dismissal choice](#dismissal-choice)).
 
 The step after question `<i>` is question `<i>` + 1; after the last question, it is submission for a
 direct call and the review otherwise.
@@ -358,8 +358,8 @@ direct call and the review otherwise.
 
 The review is a `select` dialog titled `Review your answers` with the option strings `Submit`, then
 `<i>. <header>: <summary>` per question in array order, with its answer summary. Choosing `Submit`
-submits the call with the answered result (Section 6.1). Choosing a question asks that question
-again (Section 4.1), whose next step is then the review. Cancelling the review starts the
+submits the call with the answered result ([answered result](#answered-result)). Choosing a question asks that question
+again ([questions](#questions)), whose next step is then the review. Cancelling the review starts the
 dismissal choice.
 
 ### 4.3 Dismissal choice {#dismissal-choice}
@@ -378,7 +378,7 @@ shows a title and a prefilled text and returns the text submitted or nothing whe
 cancels; it takes no abort signal and no timeout.
 
 The dialog's title is `AskUserQuestion`; its prefilled text is the form payload, the JSON text of
-an object with these fields, values cleaned as in Section 3.3:
+an object with these fields, values cleaned as in [panel content](#panel-content):
 
 | Field                               | Type     | Value                                                     |
 | ----------------------------------- | -------- | --------------------------------------------------------- |
@@ -394,31 +394,31 @@ an object with these fields, values cleaned as in Section 3.3:
 
 The text returned is the form answer, the JSON text of one of these objects:
 
-| Form answer                                                     | Result                             |
-| --------------------------------------------------------------- | ---------------------------------- |
-| `{ "outcome": "answered", "answers": [{ "options", "text" }] }` | the answered result (Section 6.1)  |
-| `{ "outcome": "dismissed" }`                                    | the dismissed result (Section 6.2) |
-| `{ "outcome": "stopped" }`                                      | the stopped result (Section 6.2)   |
+| Form answer                                                     | Result                                                    |
+| --------------------------------------------------------------- | --------------------------------------------------------- |
+| `{ "outcome": "answered", "answers": [{ "options", "text" }] }` | the answered result ([answered result](#answered-result)) |
+| `{ "outcome": "dismissed" }`                                    | the dismissed result ([other results](#other-results))    |
+| `{ "outcome": "stopped" }`                                      | the stopped result ([other results](#other-results))      |
 
 In an answered form answer, `answers` holds one object per question in array order: `options`,
 an array of the labels of the chosen options, each a `label` of that question and none twice;
-and `text`, a string or `null`, recorded as the free-text answer as in Section 2.1. The chosen
+and `text`, a string or `null`, recorded as the free-text answer as in [answers](#answers). The chosen
 options are taken in option order. The form answer is valid only when every question is answered
-(Section 2.1), a single-select question with exactly one of a chosen option and a free-text
+([answers](#answers)), a single-select question with exactly one of a chosen option and a free-text
 answer.
 
 - A returned text that is not a valid form answer MUST make the extension show the same dialog
   again.
-- Cancelling the dialog starts the dismissal choice (Section 4.3), whose `Back to the questions`
+- Cancelling the dialog starts the dismissal choice ([dismissal choice](#dismissal-choice)), whose `Back to the questions`
   shows the dialog again.
-- When Section 5 ends the call while the dialog is shown, the call returns at once; a text the
+- When [ending without answers](#no-answers) ends the call while the dialog is shown, the call returns at once; a text the
   dialog returns afterwards MUST be ignored.
 
 ## 5. Ending without answers {#no-answers}
 
 Each of these ends an open call, closes its question panel or its `select` or `input` dialog
 when one is shown, and removes it from the question queue. A question form request's editor
-dialog stays open (Section 4.4):
+dialog stays open ([question form request](#form-request)):
 
 | Event                                                                                 | Result              |
 | ------------------------------------------------------------------------------------- | ------------------- |
@@ -471,7 +471,7 @@ calls; the host does so only when every result of the batch asks it.
 ### 6.3 `details` {#details}
 
 Every result carries `details` `{ outcome, answers }`. `outcome` is `"answered"`, `"no-ui"`,
-`"dismissed"`, `"stopped"`, `"aborted"`, `"shutdown"`, or `"invalid"` (Section 1.2). For
+`"dismissed"`, `"stopped"`, `"aborted"`, `"shutdown"`, or `"invalid"` ([validation](#validation)). For
 `"answered"`, `answers` holds one object per question in array order:
 
 | Field      | Type             | Contract                                                          |
@@ -488,13 +488,13 @@ For every other outcome `answers` is `[]`.
 The host draws each call in its default tool shell. The components returned from `renderCall` and
 `renderResult` MUST carry no horizontal padding and no background of their own, and MUST show the
 same lines whether the host shows the call collapsed or expanded. Values are cleaned as in
-Section 3.3.
+[panel content](#panel-content).
 
 - `renderCall`: the line `AskUserQuestion`, then one line `<header>: <question>` per question in
   array order. While the host is still receiving the arguments, a question whose `header` or
   `question` is not a string is left out, and `renderCall` MUST NOT throw.
 - `renderResult` for `outcome` `"answered"`: one line `<header>: <summary>` per question, with its
-  answer summary (Section 2.1).
+  answer summary ([answers](#answers)).
 - `renderResult` for every other outcome: the result text.
 
 ## 8. Normative references {#references}
@@ -525,4 +525,4 @@ None.
 - The host's `editor` takes no abort signal and tells the RPC client nothing when a call ends
   without an answer; a client of the question form request learns it from the call's tool result,
   matched by `toolCallId`.
-- Whether and how the host shows the blocked-on-user report of Section 3 is the host's.
+- Whether and how the host shows the blocked-on-user report of [question panel](#question-panel) is the host's.

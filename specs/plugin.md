@@ -11,12 +11,12 @@ The plugin root is the plugin directory, the resolved `path` of its `plugins` en
 
 | Path                                   | Contract                                                                                            |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `plugin.json`                          | Required. JSON object; the plugin manifest of Section 2.                                            |
-| `context.md`                           | Optional. Plugin context per Section 10; not a resource.                                            |
+| `plugin.json`                          | Required. JSON object; the plugin manifest of [plugin manifest](#plugin-manifest).                  |
+| `context.md`                           | Optional. Plugin context per [plugin context](#plugin-context); not a resource.                     |
 | `commands/*.md`                        | Optional. Markdown resources, one file per resource, flat (no subdirectory traversal).              |
 | `agents/*.md`                          | Optional. Markdown resources, one file per resource, flat (no subdirectory traversal).              |
-| `skills/<name>/SKILL.md`               | Optional. Skill layout per [skill.md](skill.md), Section 1.                                         |
-| `skills/<name>/references/**/*.md`     | Optional. Skill references per [skill.md](skill.md), Section 1.                                     |
+| `skills/<name>/SKILL.md`               | Optional. Skill layout per [skill.md, skill files](skill.md#skill-files).                           |
+| `skills/<name>/references/**/*.md`     | Optional. Skill references per [skill.md, skill files](skill.md#skill-files).                       |
 | `scripts/**/*.{js,ts,mjs,mts,cjs,cts}` | Optional. JavaScript or TypeScript sources at any depth under `scripts/` (never part of a catalog). |
 
 The resource folders are `commands/`, `agents/`, and `skills/`. `scripts/` holds plugin scripts,
@@ -25,7 +25,7 @@ which are not plugin resources.
 - Every other entry MUST be ignored; discovery MUST NOT move, rename, or delete anything in a
   plugin directory.
 - `context.md` is not a plugin resource: it enters no catalog, and no tool, `Plugin` included,
-  serves it. Only Section 10 reads it.
+  serves it. Only [plugin context](#plugin-context) reads it.
 
 ## 2. Plugin manifest {#plugin-manifest}
 
@@ -41,9 +41,9 @@ which are not plugin resources.
 - A plugin manifest that fails to parse, or lacks a valid `name`, MUST cause the plugin to
   be skipped with one diagnostic naming the directory.
 - Unknown plugin manifest keys follow the unknown-key rule
-  ([config-file.md](config-file.md), Section 2).
+  ([config-file.md, format](config-file.md#format)).
 - An unknown key inside an `author` object follows the unknown-key rule
-  ([config-file.md](config-file.md), Section 2) as well; its diagnostic names the plugin manifest.
+  ([config-file.md, format](config-file.md#format)) as well; its diagnostic names the plugin manifest.
 - `mcpServers`, when present and not a plain JSON object, MUST be ignored with one warning
   diagnostic naming the plugin manifest. When it is a plain JSON object, its entries are checked
   in ascending UTF-16 code-unit order of their key `<name>`:
@@ -51,7 +51,7 @@ which are not plugin resources.
     JSON object; otherwise the entry MUST be skipped with one warning diagnostic naming the
     plugin manifest and `<name>`.
   - Unknown keys inside a server entry follow the unknown-key rule
-    ([config-file.md](config-file.md), Section 2); their diagnostic names the plugin manifest.
+    ([config-file.md, format](config-file.md#format)); their diagnostic names the plugin manifest.
   - `url` (required string) MUST contain no whitespace and MUST parse as an `https:` URL with a
     non-empty host (`http:`, `file:`, local commands, and sockets are forbidden); otherwise the
     entry MUST be skipped with one warning diagnostic.
@@ -64,12 +64,12 @@ which are not plugin resources.
     plain JSON object with `clientId` (required non-blank string), optional `scope` (non-blank
     string), and optional `callbackUrl` (string parsing as an `https:` URL or an `http:`
     `localhost`/`127.0.0.1`/`[::1]` URL with no whitespace, credentials, or fragment); unknown
-    keys inside `oauth` follow the unknown-key rule ([config-file.md](config-file.md), Section 2)
+    keys inside `oauth` follow the unknown-key rule ([config-file.md, format](config-file.md#format))
     naming the plugin manifest; any other value or missing `auth: "oauth"` MUST cause the entry
     to be skipped with one warning diagnostic.
   - `description` (optional string): a non-string value is ignored.
-- A plugin manifest declares no other capabilities: a plugin contributes only the Section 1
-  resources and Section 12 MCP servers.
+- A plugin manifest declares no other capabilities: a plugin contributes only the [plugin layout](#plugin-layout)
+  resources and [plugin MCP servers](#mcp-servers) MCP servers.
 
 ## 3. Identity and namespace {#identity-namespace}
 
@@ -84,13 +84,13 @@ which are not plugin resources.
   mapping an entry key to `{ "path": string }` (non-empty string naming a plugin directory on the
   local filesystem).
 - Merged `plugins` entries are read in lexicographic key order. A relative `path` resolves
-  against the layer directory ([config-file.md](config-file.md), Section 1) of the owning layer
-  ([config-file.md](config-file.md), Section 4) of `plugins.<key>.path`; `~` is not expanded, so
+  against the layer directory ([config-file.md, layers](config-file.md#layers)) of the owning layer
+  ([config-file.md, attribution](config-file.md#attribution)) of `plugins.<key>.path`; `~` is not expanded, so
   a `path` starting with it is relative.
 - A non-object `plugins` value, malformed entry, or resolved `path` that does not exist or is not
   a directory MUST be skipped with one diagnostic; each directory without a valid plugin manifest
-  is skipped per Section 2.
-- Unknown keys in a `plugins` entry follow the unknown-key rule ([config-file.md](config-file.md), Section 2).
+  is skipped per [plugin manifest](#plugin-manifest).
+- Unknown keys in a `plugins` entry follow the unknown-key rule ([config-file.md, format](config-file.md#format)).
 - Discovery MUST NOT follow a `path` outside the local filesystem (no remote or URL sources).
 - Plugin admission order is the order of admitted candidates in this key order.
 
@@ -98,22 +98,22 @@ which are not plugin resources.
 
 - A `commands/*.md` file defines one plugin command named by its basename without `.md`.
 - Frontmatter carries an optional string `description`; a non-string value is ignored. Unknown
-  frontmatter keys follow [config-file.md](config-file.md), Section 2. Non-mapping frontmatter
-  follows [skill.md](skill.md), Section 1.
-- The command body is the text after the frontmatter ([skill.md](skill.md), Section 1), with the
-  leading byte-order mark, the line endings and the trimming of [skill.md](skill.md), Section 2.
+  frontmatter keys follow [config-file.md, format](config-file.md#format). Non-mapping frontmatter
+  follows [skill.md, skill files](skill.md#skill-files).
+- The command body is the text after the frontmatter ([skill.md, skill files](skill.md#skill-files)), with the
+  leading byte-order mark, the line endings and the trimming of [skill.md, content rules](skill.md#content-rules).
 - Commands are registered once per boot window from the boot snapshot. A basename that is not a
-  valid name (per [agent.md](agent.md), Section 1) is skipped without a diagnostic. A command
+  valid name (per [agent.md, definition files](agent.md#definition-files)) is skipped without a diagnostic. A command
   file that cannot be read at boot, or whose frontmatter fails to parse, is still registered,
   without a `description` and without a diagnostic. A command file that cannot be resolved as a
-  contained path of the plugin root (Section 7) is skipped without a diagnostic. A `commands/`
+  contained path of the plugin root ([contained paths](#contained-paths)) is skipped without a diagnostic. A `commands/`
   directory that cannot be read MUST produce one diagnostic naming the directory.
-- Invocation argument splitting follows [slash-commands.md](slash-commands.md), Section 1.
-- The command body is read fresh at invocation and substituted per Section 6. If reading or
+- Invocation argument splitting follows [slash-commands.md, registration](slash-commands.md#registration).
+- The command body is read fresh at invocation and substituted per [argument substitution](#argument-substitution). If reading or
   parsing fails, the command MUST show an error notification
   `pi-dent: <namespace>:<command>: <message>` and send no message. Otherwise the substituted body
   MUST be sent as one user message to the current session with the host `deliverAs` option set
-  to `"followUp"` ([fleet-tool.md](fleet-tool.md), Section 3.2). The registered description is
+  to `"followUp"` ([fleet-tool.md, delivery modes](fleet-tool.md#delivery-modes)). The registered description is
   the frontmatter `description` when it is a string; otherwise the host default applies.
 
 > Note (non-normative): naming the delivery is what lets the host queue the message while the agent
@@ -126,7 +126,7 @@ which are not plugin resources.
 ## 6. Argument substitution {#argument-substitution}
 
 - The argument string—`args` of a `Plugin` call when present, or the argument string defined by
-  [slash-commands.md](slash-commands.md), Section 1—is tokenized as maximal runs of non-whitespace
+  [slash-commands.md, registration](slash-commands.md#registration)—is tokenized as maximal runs of non-whitespace
   characters, with no quoting and no escapes.
 - Substitution is a single pass over the file text:
 
@@ -157,35 +157,35 @@ A path that is not contained MUST be rejected.
   error naming the namespace and listing the namespaces in the plugin catalog, sorted in
   ascending ASCII order and joined by `", "` (`(none)` when the catalog is empty).
 - Resource file contents and plugin scripts are read fresh at call time when accessed through
-  Section 5, [plugin-tool.md](plugin-tool.md), or [script-tool.md](script-tool.md); a file reached
+  [slash commands](#slash-commands), [plugin-tool.md](plugin-tool.md), or [script-tool.md](script-tool.md); a file reached
   through `Plugin` is read fresh even when `Skill` serves the same file from the boot snapshot;
   cataloged `agents/*.md` and `skills/<name>/SKILL.md` entries follow the boot-snapshot rules of
   [agent.md](agent.md) and [skill.md](skill.md) when used through `Agent` and `Skill`; skill
-  references follow [skill-tool.md](skill-tool.md), Section 2.
+  references follow [skill-tool.md, execution contract](skill-tool.md#execution-contract).
 
 ## 9. Catalog composition {#catalog-composition}
 
 Plugin resources feed the agent and skill catalogs:
 
-| Resource                 | File contract                  | Catalog entry    |
-| ------------------------ | ------------------------------ | ---------------- |
-| `agents/*.md`            | [agent.md](agent.md) Section 1 | `namespace:name` |
-| `skills/<name>/SKILL.md` | [skill.md](skill.md) Section 1 | `namespace:name` |
+| Resource                 | File contract                                           | Catalog entry    |
+| ------------------------ | ------------------------------------------------------- | ---------------- |
+| `agents/*.md`            | [agent.md, definition files](agent.md#definition-files) | `namespace:name` |
+| `skills/<name>/SKILL.md` | [skill.md, skill files](skill.md#skill-files)           | `namespace:name` |
 
 - Plugin entries join both catalogs from the boot snapshot. Plugin agents and skills follow
-  plugin admission order (Section 4), files in lexicographic order within a plugin; skill ordering
-  otherwise follows [skill.md](skill.md), Section 1.
+  plugin admission order ([discovery](#discovery)), files in lexicographic order within a plugin; skill ordering
+  otherwise follows [skill.md, skill files](skill.md#skill-files).
 - Namespaced entries never shadow bare entries and vice versa; the key spaces are disjoint.
-- A duplicate `namespace:name` is skipped as a duplicate `name` is ([agent.md](agent.md), Section 1).
+- A duplicate `namespace:name` is skipped as a duplicate `name` is ([agent.md, definition files](agent.md#definition-files)).
 - Skill references are not catalog entries; they load through [skill-tool.md](skill-tool.md).
 
 ## 10. Plugin context {#plugin-context}
 
 A plugin's context is the text of its root `context.md` file, read once into the boot snapshot.
 
-- Only an admitted plugin (Sections 2–4) is read. A candidate that is skipped is not read and
+- Only an admitted plugin ([plugin manifest](#plugin-manifest), [identity and namespace](#identity-namespace), [discovery](#discovery)) is read. A candidate that is skipped is not read and
   contributes no context and no diagnostic about `context.md`.
-- The file is read as a contained path of the plugin root ([Section 7](#7-contained-paths)).
+- The file is read as a contained path of the plugin root ([contained paths](#contained-paths)).
   The outcome is:
 
 | Condition                                                                                | Plugin context      | Diagnostic           |
@@ -197,11 +197,11 @@ A plugin's context is the text of its root `context.md` file, read once into the
 | Otherwise                                                                                | the normalized text | none                 |
 
 - The normalized text is the decoded file with a leading byte-order mark removed, line endings
-  normalized to `\n`, and surrounding whitespace trimmed, as [skill.md](skill.md), Section 2
+  normalized to `\n`, and surrounding whitespace trimmed, as [skill.md, content rules](skill.md#content-rules)
   defines for skill bodies. There is no size limit; the text is used whole.
 - The plugin context is never substituted: no argument substitution applies to it.
 - Rendering: the plugin contexts of admitted plugins with a plugin context, in plugin admission
-  order (Section 4), are rendered as one block each, every block preceded by a blank line (`\n\n`).
+  order ([discovery](#discovery)), are rendered as one block each, every block preceded by a blank line (`\n\n`).
   A block is exactly:
 
   ```
@@ -214,38 +214,37 @@ A plugin's context is the text of its root `context.md` file, read once into the
   text is added.
 
 - Main session: on every turn, the blocks are appended to the system prompt after the
-  `<available_skills>` injection when the main session carries one ([skill-tool.md](skill-tool.md),
-  Section 1), and whether or not the main session binds `Skill`. With no blocks, the prompt is
+  `<available_skills>` injection when the main session carries one ([skill-tool.md, binding and catalog injection](skill-tool.md#binding)), and whether or not the main session binds `Skill`. With no blocks, the prompt is
   unchanged.
 - Child session: the blocks are appended to the child system prompt after the `<available_skills>`
-  injection and before the session rules ([agent-tool.md](agent-tool.md), Section 4.2). This holds for a
-  `resume` dispatch too ([agent-tool.md](agent-tool.md), Section 9).
+  injection and before the session rules ([agent-tool.md, child session](agent-tool.md#child-session)). This holds for a
+  `resume` dispatch too ([agent-tool.md, continuation (`resume`)](agent-tool.md#resume)).
 - A plugin context changes no tool surface and no `noContextFiles` setting: a child still receives
   no context file of its own.
-- A diagnostic of this section is reported per [config-file.md](config-file.md), Section 6, as a
+- A diagnostic of this section is reported per [config-file.md, diagnostics](config-file.md#diagnostics), as a
   plugin discovery diagnostic.
 
 ## 11. Plugin inventory {#plugin-inventory}
 
-A plugin candidate is one entry of the merged `plugins` object (Section 4), named by its entry
+A plugin candidate is one entry of the merged `plugins` object ([discovery](#discovery)), named by its entry
 key; discovery admits it as a plugin or skips it. The plugin inventory is the result of running
-the rules of Sections 1–10 for one working directory at the moment of a call: the layers, every
+the rules of [plugin layout](#plugin-layout), [plugin manifest](#plugin-manifest), [identity and namespace](#identity-namespace), [discovery](#discovery), [slash commands](#slash-commands), [argument substitution](#argument-substitution), [contained paths](#contained-paths), [plugin catalog](#plugin-catalog), [catalog composition](#catalog-composition), [plugin context](#plugin-context) for one working directory at the moment of a call: the layers, every
 plugin candidate with what it contributes or why it was skipped, and the diagnostics. It exists
 for a program other than the extension, such as a user interface that lists the plugins; nothing
 in the extension's own boot reads it.
 
 - The file `lib/plugin-inventory.ts` of the package MUST export the function
   `readPluginInventory(cwd)`, which takes one string and returns the plugin inventory of
-  Section 11.1 as its value, not as a promise.
-- `cwd` is the `<cwd>` of [config-file.md](config-file.md), Section 1, and the expansion of
-  `${project.root}` ([config-file.md](config-file.md), Section 7); `env.<NAME>` reads the
+  [shape](#shape) as its value, not as a promise.
+- `cwd` is the `<cwd>` of [config-file.md, layers](config-file.md#layers), and the expansion of
+  `${project.root}` ([config-file.md, value substitution](config-file.md#value-substitution)); `env.<NAME>` reads the
   environment of the calling process at the call. The function MUST throw an `Error` with the
   message `readPluginInventory: cwd must be an absolute path` when `cwd` is not a string naming
   an absolute path, and MUST throw in no other case: every other failure is a diagnostic of the
   inventory.
 - Every call MUST read the layers and the plugin directories anew. It MUST NOT read, create, or
-  change a boot snapshot ([config-file.md](config-file.md), Section 5), and MUST NOT report a
-  diagnostic through the host ([config-file.md](config-file.md), Section 6): its diagnostics
+  change a boot snapshot ([config-file.md, snapshot](config-file.md#snapshot)), and MUST NOT report a
+  diagnostic through the host ([config-file.md, diagnostics](config-file.md#diagnostics)): its diagnostics
   are returned and nowhere else.
 - A call MUST change nothing on disk, MUST register nothing with the host, and MUST NOT import
   or run a plugin's file.
@@ -253,9 +252,9 @@ in the extension's own boot reads it.
   the file system and the environment, the admitted plugins, their order, namespaces, plugin
   roots, registered commands with their descriptions, plugin contexts, and agent and skill
   catalog entries MUST be those a boot with the same `<cwd>` holds. Every diagnostic of that
-  boot that Section 11.1 assigns to the inventory or to a candidate MUST be in the inventory
+  boot that [shape](#shape) assigns to the inventory or to a candidate MUST be in the inventory
   exactly once, with the same message, and the inventory MUST hold no other diagnostic except
-  those of Section 11.2. The boot's diagnostics, their messages and their
+  those of [plugin script listing](#script-listing). The boot's diagnostics, their messages and their
   order MUST NOT change because the inventory exists.
 - Strings are returned whole: the inventory cuts nothing.
 
@@ -263,47 +262,47 @@ in the extension's own boot reads it.
 
 The plugin inventory is an object:
 
-| Field         | Type             | Value                                                                                                                                   |
-| ------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `cwd`         | string           | The `cwd` argument, verbatim.                                                                                                           |
-| `layers`      | array of layers  | The `global` layer, then the `project` layer, both always present.                                                                      |
-| `diagnostics` | array of strings | The messages of the diagnostics that belong to no candidate, in production order.                                                       |
-| `candidates`  | array            | One candidate per entry of the merged `plugins` object, in the key order of Section 4; empty when `plugins` is absent or not an object. |
+| Field         | Type             | Value                                                                                                                                                 |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cwd`         | string           | The `cwd` argument, verbatim.                                                                                                                         |
+| `layers`      | array of layers  | The `global` layer, then the `project` layer, both always present.                                                                                    |
+| `diagnostics` | array of strings | The messages of the diagnostics that belong to no candidate, in production order.                                                                     |
+| `candidates`  | array            | One candidate per entry of the merged `plugins` object, in the key order of [discovery](#discovery); empty when `plugins` is absent or not an object. |
 
 A layer is an object:
 
-| Field   | Type   | Value                                                                                                                                                                                |
-| ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `layer` | string | `global` or `project`.                                                                                                                                                               |
-| `file`  | string | The absolute path of the layer's `pi-dent.conf` ([config-file.md](config-file.md), Section 1).                                                                                       |
-| `state` | string | `missing` when the file is missing and contributes no layer; `dropped` when the layer was dropped with a diagnostic ([config-file.md](config-file.md), Section 2); `read` otherwise. |
+| Field   | Type   | Value                                                                                                                                                                                    |
+| ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `layer` | string | `global` or `project`.                                                                                                                                                                   |
+| `file`  | string | The absolute path of the layer's `pi-dent.conf` ([config-file.md, layers](config-file.md#layers)).                                                                                       |
+| `state` | string | `missing` when the file is missing and contributes no layer; `dropped` when the layer was dropped with a diagnostic ([config-file.md, format](config-file.md#format)); `read` otherwise. |
 
 A candidate is an object:
 
-| Field         | Type             | Value                                                                                                                                                                    |
-| ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `key`         | string           | The entry key.                                                                                                                                                           |
-| `layer`       | string           | `global` or `project`: the layer whose file [config-file.md](config-file.md), Section 4 names for `plugins.<key>.path`, the owning layer when one declares it.           |
-| `configFile`  | string           | The `file` of that layer.                                                                                                                                                |
-| `root`        | string or `null` | The absolute path the entry's `path` resolves to per Section 4, whether or not a directory is there; `null` when the entry is malformed or names a remote or URL source. |
-| `plugin`      | object or `null` | The admitted plugin, per the next table; `null` when the candidate was skipped.                                                                                          |
-| `skip`        | string or `null` | `null` when admitted; otherwise the message of the diagnostic that skipped the candidate (Sections 2–4), which is also the last of `diagnostics`.                        |
-| `diagnostics` | array of strings | The messages of the diagnostics that belong to this candidate, in the order below.                                                                                       |
+| Field         | Type             | Value                                                                                                                                                                                                                                            |
+| ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `key`         | string           | The entry key.                                                                                                                                                                                                                                   |
+| `layer`       | string           | `global` or `project`: the layer whose file [config-file.md, attribution](config-file.md#attribution) names for `plugins.<key>.path`, the owning layer when one declares it.                                                                     |
+| `configFile`  | string           | The `file` of that layer.                                                                                                                                                                                                                        |
+| `root`        | string or `null` | The absolute path the entry's `path` resolves to per [discovery](#discovery), whether or not a directory is there; `null` when the entry is malformed or names a remote or URL source.                                                           |
+| `plugin`      | object or `null` | The admitted plugin, per the next table; `null` when the candidate was skipped.                                                                                                                                                                  |
+| `skip`        | string or `null` | `null` when admitted; otherwise the message of the diagnostic that skipped the candidate ([plugin manifest](#plugin-manifest), [identity and namespace](#identity-namespace), [discovery](#discovery)), which is also the last of `diagnostics`. |
+| `diagnostics` | array of strings | The messages of the diagnostics that belong to this candidate, in the order below.                                                                                                                                                               |
 
 An admitted plugin is an object:
 
 | Field         | Type                     | Value                                                                                                                                                                                                            |
 | ------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `namespace`   | string                   | The namespace (Section 3).                                                                                                                                                                                       |
-| `description` | string or `null`         | The plugin manifest's `description` when it is a string (Section 2); `null` otherwise.                                                                                                                           |
+| `namespace`   | string                   | The namespace ([identity and namespace](#identity-namespace)).                                                                                                                                                   |
+| `description` | string or `null`         | The plugin manifest's `description` when it is a string ([plugin manifest](#plugin-manifest)); `null` otherwise.                                                                                                 |
 | `version`     | string or `null`         | The plugin manifest's `version` when it is a string; `null` otherwise.                                                                                                                                           |
 | `author`      | string, object or `null` | The plugin manifest's `author` when it is a string. When it is an object, an object with exactly `name` and `email`, each that key's value when it is a string and `null` otherwise. `null` in every other case. |
-| `context`     | boolean                  | `true` when the plugin has a plugin context (Section 10).                                                                                                                                                        |
-| `commands`    | array of resources       | The commands Section 5 registers, in lexicographic order of file name. `name` is the command's name, `file` is `commands/<name>.md`.                                                                             |
-| `agents`      | array of resources       | The plugin's entries of the agent catalog (Section 9), in catalog order. `name` is the definition's `name` without the namespace, `file` is `agents/<file name>`.                                                |
-| `skills`      | array of resources       | The plugin's entries of the skill catalog (Section 9), in catalog order. `name` is the skill's `name` without the namespace, `file` is `skills/<name>/SKILL.md`.                                                 |
-| `scripts`     | array of resources       | The plugin scripts Section 11.2 lists. `name` equals `file`; `description` is `null`.                                                                                                                            |
-| `mcpServers`  | array of MCP servers     | The valid `mcpServers` entries of Section 2, in ascending UTF-16 code-unit order of `name`.                                                                                                                      |
+| `context`     | boolean                  | `true` when the plugin has a plugin context ([plugin context](#plugin-context)).                                                                                                                                 |
+| `commands`    | array of resources       | The commands [slash commands](#slash-commands) registers, in lexicographic order of file name. `name` is the command's name, `file` is `commands/<name>.md`.                                                     |
+| `agents`      | array of resources       | The plugin's entries of the agent catalog ([catalog composition](#catalog-composition)), in catalog order. `name` is the definition's `name` without the namespace, `file` is `agents/<file name>`.              |
+| `skills`      | array of resources       | The plugin's entries of the skill catalog ([catalog composition](#catalog-composition)), in catalog order. `name` is the skill's `name` without the namespace, `file` is `skills/<name>/SKILL.md`.               |
+| `scripts`     | array of resources       | The plugin scripts [plugin script listing](#script-listing) lists. `name` equals `file`; `description` is `null`.                                                                                                |
+| `mcpServers`  | array of MCP servers     | The valid `mcpServers` entries of [plugin manifest](#plugin-manifest), in ascending UTF-16 code-unit order of `name`.                                                                                            |
 
 A resource is an object:
 
@@ -323,32 +322,32 @@ An MCP server is an object:
 | `auth`        | `"oauth"` or `null` | `"oauth"` when `auth` is `"oauth"`, else `null`.                                                                   |
 | `description` | string or `null`    | The server's `description` when it is a string, else `null`.                                                       |
 
-- A diagnostic belongs to a candidate when Sections 2–5, 9 or 10 produce it about that
+- A diagnostic belongs to a candidate when [plugin manifest](#plugin-manifest), [identity and namespace](#identity-namespace), [discovery](#discovery), [slash commands](#slash-commands), [catalog composition](#catalog-composition) or 10 produce it about that
   candidate's `plugins` entry, its directory, its plugin manifest, its `commands/`, `agents/` or
   `skills/` folder or a file in one, or its `context.md`. A candidate's `diagnostics` holds, in
-  this order: those of discovery (Sections 2–5 and 10), in the order discovery produces them;
-  those of catalog composition (Section 9), in the order composition produces them; those of
-  Section 11.2.
+  this order: those of discovery ([plugin manifest](#plugin-manifest), [identity and namespace](#identity-namespace), [discovery](#discovery), [slash commands](#slash-commands) and [plugin context](#plugin-context)), in the order discovery produces them;
+  those of catalog composition ([catalog composition](#catalog-composition)), in the order composition produces them; those of
+  [plugin script listing](#script-listing).
 - The inventory's `diagnostics` holds the diagnostics of reading each layer
-  ([config-file.md](config-file.md), Sections 2 and 7: a failed read or parse, a root that is no
+  ([config-file.md, format](config-file.md#format) and [config-file.md, value substitution](config-file.md#value-substitution): a failed read or parse, a root that is no
   object, unknown root keys, a failed substitution), then the diagnostic of a `plugins` value
-  that is not an object (Section 4). It holds no diagnostic about another root key's value, about
+  that is not an object ([discovery](#discovery)). It holds no diagnostic about another root key's value, about
   the layer directories' own agents and skills, about the `agents` override, or about an
   environment value.
 - A message is the diagnostic's message without the `pi-dent: ` of its host report
-  ([config-file.md](config-file.md), Section 6).
+  ([config-file.md, diagnostics](config-file.md#diagnostics)).
 - When both layers have the same `file`, as when `cwd` is the user's home directory, `layer` is
   `project`.
 
 ### 11.2 Plugin script listing {#script-listing}
 
 No catalog holds plugin scripts, and the `Script` tool lists none: it resolves the one path a
-call names ([script-tool.md](script-tool.md), Section 2). The plugin inventory lists them, and
+call names ([script-tool.md, validation](script-tool.md#validation)). The plugin inventory lists them, and
 only it does.
 
 - For an admitted plugin, `scripts` MUST hold exactly the files found by walking `scripts/` under the plugin root whose
-  path relative to the plugin root matches the plugin script path pattern of Section 1 and is a
-  contained path of the plugin root (Section 7), in lexicographic order of `file`. A test file
+  path relative to the plugin root matches the plugin script path pattern of [plugin layout](#plugin-layout) and is a
+  contained path of the plugin root ([contained paths](#contained-paths)), in lexicographic order of `file`. A test file
   or any other file the pattern matches is listed like any other.
 - The walk MUST NOT read a directory named `node_modules` and MUST NOT follow a symbolic link to
   a directory. When it leaves out `<n>` such directories, the candidate's `diagnostics` MUST end
@@ -364,7 +363,7 @@ only it does.
   has no code; the walk continues with the rest. A missing `scripts/`, or one that is not a
   directory, adds nothing.
 - A file the listing holds is one a `Script` call naming it would accept at that moment
-  ([script-tool.md](script-tool.md), Section 2); the reverse does not hold for a file the walk
+  ([script-tool.md, validation](script-tool.md#validation)); the reverse does not hold for a file the walk
   left out. A dangling symbolic link, and an entry whose name contains `\`, which a `Script`
   call resolves as a `/` and therefore as a different file, are left out without a diagnostic.
 
@@ -373,14 +372,14 @@ only it does.
 
 ## 12. Plugin MCP servers {#mcp-servers}
 
-An admitted plugin's valid `mcpServers` entries (Section 2) are registered with `pi-mcp-adapter` as
+An admitted plugin's valid `mcpServers` entries ([plugin manifest](#plugin-manifest)) are registered with `pi-mcp-adapter` as
 runtime MCP servers when the main session starts, and in every child session
-([agent-tool.md](agent-tool.md), Section 3.1) and plugin UI tool proxy session
-([plugin-ui.md](plugin-ui.md), Section 4.3) that inherits extensions.
+([agent-tool.md, tools](agent-tool.md#tools)) and plugin UI tool proxy session
+([plugin-ui.md, tool proxy](plugin-ui.md#tool-proxy)) that inherits extensions.
 
 - The qualified server name is `<namespace>:<name>`, where `<namespace>` is the plugin's
-  namespace (Section 3) and `<name>` is the server's key in `mcpServers`.
-- Registration runs in plugin admission order (Section 4), and within each plugin in ascending
+  namespace ([identity and namespace](#identity-namespace)) and `<name>` is the server's key in `mcpServers`.
+- Registration runs in plugin admission order ([discovery](#discovery)), and within each plugin in ascending
   UTF-16 code-unit order of `<name>`.
 - At `session_start`, once `pi-mcp-adapter` is loaded, the extension MUST register each server
   through the adapter's runtime registration event (`pi-mcp-adapter:runtime-register:v1`,
@@ -398,12 +397,12 @@ runtime MCP servers when the main session starts, and in every child session
 ## 13. Normative references {#references}
 
 - [RFC 8259] The JavaScript Object Notation (JSON) Data Interchange Format (STD 90),
-  T. Bray, Ed., 2017: the `plugin.json` syntax of Sections 1 and 2.
+  T. Bray, Ed., 2017: the `plugin.json` syntax of [plugin layout](#plugin-layout) and [plugin manifest](#plugin-manifest).
 
 ## 14. Specification gaps {#gaps}
 
 - A plugin command whose frontmatter fails to parse is registered without a description and
-  without a diagnostic (Section 5), so the plugin inventory cannot tell it from a command that
+  without a diagnostic ([slash commands](#slash-commands)), so the plugin inventory cannot tell it from a command that
   declares no description.
 - Whether `readPluginInventory` yields to the event loop is not specified: it returns its value
   directly, so a caller that must stay responsive runs it off its main thread.
@@ -412,4 +411,4 @@ runtime MCP servers when the main session starts, and in every child session
   not specified.
 - A plugin command invoked while the session's compaction is in progress: the host refuses the
   prompt whatever the delivery, and reports the refusal as its own extension error rather than the
-  notification of Section 5.
+  notification of [slash commands](#slash-commands).

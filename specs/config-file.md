@@ -31,39 +31,36 @@ The unknown-key rule covers the keys of an object this folder's specifications d
 from configuration, frontmatter, and plugin manifests; it does not cover the messages of
 external protocols (billing.md states its own rule for a billing reply). An object with unknown
 keys MUST produce exactly one diagnostic naming the object, all of its unknown keys, and, for
-each key, the file of its owning layer (Section 4); those keys are ignored while the rest of the
+each key, the file of its owning layer ([attribution](#attribution)); those keys are ignored while the rest of the
 object loads. For an object other than a layer's root, its text is
 `<file>: <object>: unknown keys <key>, <key> ignored` when one file owns every key, else
 `<object>: unknown keys <key> (<file>), <key> (<file>) ignored`. For the root keys of a layer,
 the diagnostic also names the file and the supported set.
 
-| Root key        | Contributing spec                                   |
-| --------------- | --------------------------------------------------- |
-| `modelClasses`  | [model-string.md](model-string.md), Section 3       |
-| `agentLiveness` | [agent-tool.md](agent-tool.md), Section 4.2         |
-| `agents`        | [agent.md](agent.md), Section 2                     |
-| `plugins`       | [plugin.md](plugin.md), Section 4                   |
-| `modelGuidance` | [model-guidance.md](model-guidance.md), Section 1   |
-| `taskBrowser`   | [task-browser.md](task-browser.md), Section 1.1     |
-| `footer`        | [footer.md](footer.md), Section 1.1                 |
-| `recapModel`    | This section                                        |
-| `script`        | [script-tool.md](script-tool.md), Section 7         |
-| `terms`         | pi-dent-terms `specs/terms-tool.md`, Section 4.2    |
-| `web`           | pi-dent-web-fetch `specs/web-fetch.md`, Section 8   |
-| `webSearch`     | pi-dent-web-search `specs/web-search.md`, Section 7 |
+| Root key        | Contributing spec                                                         |
+| --------------- | ------------------------------------------------------------------------- |
+| `modelClasses`  | [model-string.md, model classes](model-string.md#model-classes)           |
+| `agentLiveness` | [agent-tool.md, child session](agent-tool.md#child-session)               |
+| `agents`        | [agent.md, the `agents` configuration override](agent.md#agents-override) |
+| `plugins`       | [plugin.md, discovery](plugin.md#discovery)                               |
+| `modelGuidance` | [model-guidance.md, configuration](model-guidance.md#configuration)       |
+| `taskBrowser`   | [task-browser.md, configuration](task-browser.md#configuration)           |
+| `footer`        | [footer.md, configuration](footer.md#configuration)                       |
+| `recapModel`    | This section                                                              |
+| `script`        | [script-tool.md, configuration](script-tool.md#configuration)             |
+| `terms`         | pi-dent-terms `specs/terms-tool.md`, Section 4.2                          |
+| `web`           | pi-dent-web-fetch `specs/web-fetch.md`, Section 8                         |
+| `webSearch`     | pi-dent-web-search `specs/web-search.md`, Section 7                       |
 
 The root keys `terms`, `web` and `webSearch` are owned by the sibling packages `pi-dent-terms`,
 `pi-dent-web-fetch` and `pi-dent-web-search`.
 pi-dent MUST accept each as a root key, MUST NOT validate its value or the keys within it, and MUST
-NOT report an unknown key within it. Substitution (Section 7) applies to their string values like
-any value. Merge (Section 3) and attribution (Section 4) apply to them like any root key.
+NOT report an unknown key within it. Substitution ([value substitution](#value-substitution)) applies to their string values like
+any value. Merge ([merge](#merge)) and attribution ([attribution](#attribution)) apply to them like any root key.
 
-`recapModel` optionally selects the model for `/recap` ([slash-commands.md](slash-commands.md),
-Section 5). When present it MUST be a model string satisfying [model-string.md](model-string.md),
-Sections 1–2; surrounding whitespace MUST be trimmed. An invalid value MUST produce one boot
-diagnostic naming `recapModel` and its owning file (Section 4), and MUST be ignored. Inventory,
-class and authentication checks occur on invocation, with fallback per slash-commands.md,
-Section 5.1, not boot diagnostics.
+`recapModel` optionally selects the model for `/recap` ([slash-commands.md, `recap`](slash-commands.md#recap)). When present it MUST be a model string satisfying [model-string.md, grammar](model-string.md#grammar), [model-string.md, components](model-string.md#components); surrounding whitespace MUST be trimmed. An invalid value MUST produce one boot
+diagnostic naming `recapModel` and its owning file ([attribution](#attribution)), and MUST be ignored. Inventory,
+class and authentication checks occur on invocation, with fallback per [slash-commands.md, input and model](slash-commands.md#input), not boot diagnostics.
 
 ## 3. Merge {#merge}
 
@@ -98,9 +95,9 @@ reload — never mid-window, and change between windows is neither detected nor 
 window is bounded by boots, not sessions: one session can cross several windows through reload,
 and one window can serve many sessions. Replacing the session through the host's `new`, `resume`,
 or `fork` opens no window, though it starts a new extension instance
-([billing.md](billing.md), Section 4.1).
+([billing.md, extension instance and held billing](billing.md#held-billing)).
 
-The plugin inventory ([plugin.md](plugin.md), Section 11) is no consumer of the snapshot: each
+The plugin inventory ([plugin.md, plugin inventory](plugin.md#plugin-inventory)) is no consumer of the snapshot: each
 call reads the layers anew, and neither reads nor changes a window's image.
 
 ## 6. Diagnostics {#diagnostics}
@@ -111,17 +108,17 @@ plugin discovery, catalog composition, and environment values. The extension MUS
 diagnostic once per boot window, on `session_start`, through the host `notify` API as
 `pi-dent: <message>`. The host `notify` API takes the levels `info`, `warning`, and `error`; a
 session without a UI shows none. A diagnostic never fails the boot. The diagnostics of a plugin
-inventory are returned to its caller per [plugin.md](plugin.md), Section 11, and are not
+inventory are returned to its caller per [plugin.md, plugin inventory](plugin.md#plugin-inventory), and are not
 reported here.
 
 ## 7. Value substitution {#value-substitution}
 
 String values in a layer can contain placeholders of the form `${token}`. The token set is:
 
-| Token          | Expansion                                                                                                      |
-| -------------- | -------------------------------------------------------------------------------------------------------------- |
-| `env.<NAME>`   | The value of the environment variable `NAME`.                                                                  |
-| `project.root` | The process working directory at the boot read — the same `<cwd>` that resolves the project layer (Section 1). |
+| Token          | Expansion                                                                                                              |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `env.<NAME>`   | The value of the environment variable `NAME`.                                                                          |
+| `project.root` | The process working directory at the boot read — the same `<cwd>` that resolves the project layer ([layers](#layers)). |
 
 - Substitution runs at layer read time, before validation and merging; substituted values are
   part of the boot snapshot, so later environment or working-directory changes do not
@@ -146,4 +143,4 @@ String values in a layer can contain placeholders of the form `${token}`. The to
 ## 9. Specification gaps {#gaps}
 
 - Configuration-key diagnostic wording is open: any wording that names the file path selected by
-  Section 4 and the affected key is allowed.
+  [attribution](#attribution) and the affected key is allowed.

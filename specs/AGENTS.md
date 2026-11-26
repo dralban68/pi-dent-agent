@@ -18,7 +18,7 @@ Each file is `<name>.md`; a tool spec (`<name>-tool.md`) links its resource spec
 ## Differences
 
 - Identifiers are pi-dent's own: `pi-dent.conf`, `~/.pi/pi-dent/`, `PI_DENT_*`.
-- Root configuration keys go into `config-file.md`, the only configuration spec. Its Section 2 owns
+- Root configuration keys go into `config-file.md`, the only configuration spec. Its [config-file.md, format](config-file.md#format) owns
   the unknown-key policy.
 - A length in characters counts UTF-16 code units unless the spec names another unit; a duration
   in whole seconds rounds down.

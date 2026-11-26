@@ -2,12 +2,12 @@
 
 This document specifies the durable key-value state store for plugins: its on-disk layout and
 format, its Node module API for external callers such as Alpha, and the `dent.state` binding
-exposed to plugin scripts. Plugin namespaces are owned by [plugin.md](plugin.md), Section 3;
+exposed to plugin scripts. Plugin namespaces are owned by [plugin.md, identity and namespace](plugin.md#identity-namespace);
 script execution by [script-tool.md](script-tool.md).
 
 ## 1. Scopes, paths, and layout {#layout}
 
-A plugin state store belongs to one plugin namespace — valid per [plugin.md](plugin.md), Section 2,
+A plugin state store belongs to one plugin namespace — valid per [plugin.md, plugin manifest](plugin.md#plugin-manifest),
 and additionally neither `.` nor `..` and containing no `\` or U+0000 — and one scope: `workspace`
 or `user`.
 
@@ -37,7 +37,7 @@ or `user`.
 - A `state.json` that cannot be read, fails to parse as JSON, is not a plain object with
   `version === 1` and plain-object `entries`, or contains a non-JSON value MUST NOT be silently
   reset or overwritten; every read, list, write, or delete MUST reject with a `PluginStateError`
-  identifying the store by `<scope>/<namespace>` and cause (Section 5), never an absolute path.
+  identifying the store by `<scope>/<namespace>` and cause ([module API (`lib/plugin-state.ts`) and error texts](#module-api)), never an absolute path.
 - Per-key writes (`set` and `delete`) MUST serialize across processes using an exclusive lockfile
   `state.lock` in the store directory (with asynchronous retry up to 5,000 ms and stale-lock
   recovery after 30,000 ms), re-read `state.json` under the lock, apply the single-key change,
@@ -48,7 +48,7 @@ or `user`.
 
 ## 3. Limits and validation {#limits}
 
-A JSON value is a JSON-compatible value per [script-tool.md](script-tool.md), Section 5.
+A JSON value is a JSON-compatible value per [script-tool.md, result contract](script-tool.md#result-contract).
 
 - **Key**: a non-empty string of 1 to 256 UTF-16 code units containing no U+0000 (`\0`).
 - **Value**: a JSON value whose `JSON.stringify` text is at most 262,144 bytes in UTF-8.
@@ -123,8 +123,8 @@ or throw the host operating system `Error` with its native `code` rather than `P
 ## 6. The `dent.state` binding {#dent-state}
 
 - In every execution of a plugin script — both `Script` tool calls with `plugin` and `path`
-  ([script-tool.md](script-tool.md), Section 2) and plugin UI calls
-  ([plugin-ui.md](plugin-ui.md), Section 2) — `dent.state` MUST be a frozen object for the
+  ([script-tool.md, validation](script-tool.md#validation)) and plugin UI calls
+  ([plugin-ui.md, `run`](plugin-ui.md#run)) — `dent.state` MUST be a frozen object for the
   plugin's `workspace` scope (using the invoking session's working directory as `workspaceRoot`,
   ignoring any `Script` `cwd` parameter or `process.chdir`) with a frozen `dent.state.user`
   property for the plugin's `user` scope.
@@ -139,7 +139,7 @@ or throw the host operating system `Error` with its native `code` rather than `P
     on first access).
 - Active `onChange` watchers in a script MUST be closed automatically when the script settles and
   MUST NOT keep a finished script's worker alive.
-- When a plugin UI call's run override ([plugin-ui.md](plugin-ui.md), Section 7) supplies a
+- When a plugin UI call's run override ([plugin-ui.md, extension event seam](plugin-ui.md#extension-event-seam)) supplies a
   `stateDir`, `dent.state` MUST use `<stateDir>/workspace` as `workspaceRoot` and
   `dent.state.user` MUST use `<stateDir>/user` as `userStateRoot`, in the place of the session's
   working directory and of the user's state root.
@@ -150,5 +150,5 @@ or throw the host operating system `Error` with its native `code` rather than `P
   values into the latest state on disk.
 - No encryption or secret storage is provided; `state.json` is plain JSON on disk.
 - `dent.state.onChange` provides no error callback for corrupt or unreadable store files met
-  during watching; callers needing watch errors use `watchPluginState` (Section 5) or surface
+  during watching; callers needing watch errors use `watchPluginState` ([module API (`lib/plugin-state.ts`) and error texts](#module-api)) or surface
   corruption on `get`/`set`/`delete`/`keys`.

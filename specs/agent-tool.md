@@ -13,7 +13,7 @@ The extension MUST register the `Agent` tool through the host `registerTool` API
 | `label`       | `"Agent"`                                                                                                                                         |
 | `renderShell` | `"self"`                                                                                                                                          |
 | `description` | Base description text (+ `"\n\nAvailable agents:\n"` + the agent catalog when non-empty) (+ `"\n\nModels:\n"` + the model catalog when non-empty) |
-| `parameters`  | The parameter schema of Section 1.1                                                                                                               |
+| `parameters`  | The parameter schema of [parameter schema](#parameter-schema)                                                                                     |
 
 The base description MUST state the dispatch contract: the child session sees only its system
 prompt and `task` and returns its final answer; exactly one of a named definition or an inline
@@ -24,17 +24,17 @@ directory share its files.
 
 The agent catalog MUST be baked once from the boot snapshot and stay unchanged for the boot
 window; when non-empty, the agent catalog lists its entries in agent catalog order, each entry
-as stated in [agent.md](agent.md), Section 1. When the agent catalog is empty, the
+as stated in [agent.md, definition files](agent.md#definition-files). When the agent catalog is empty, the
 `"Available agents:"` suffix MUST be omitted.
 
 The model catalog is that of the configured models
-([model-guidance.md](model-guidance.md), Section 6); when it is empty, the `"Models:"` suffix
+([model-guidance.md, model catalog](model-guidance.md#model-catalog)); when it is empty, the `"Models:"` suffix
 MUST be omitted. In the main session, the extension registers `Agent` at load, without a model
 runtime, so with an empty model catalog; on each `session_start` it MUST compute the description
 against the configured models and, when the result differs from the registered description,
 register `Agent` again through `registerTool` with that description and every other field
 unchanged, before the handler returns. A child session's `Agent` description is computed once,
-when Section 4.2 creates the child session, a `resume` dispatch included; the dispatch's
+when [child session](#child-session) creates the child session, a `resume` dispatch included; the dispatch's
 recovery attempts keep it.
 
 > Note (non-normative): a model entry or authentication change mid-session reaches the
@@ -42,7 +42,7 @@ recovery attempts keep it.
 
 `renderCall` MUST show the agent identity and the definition's `description` when
 present, falling back to `task`. `renderResult` MUST stream intermediate assistant text as
-it is produced and replace it with the final result text (Section 7) at settlement. Visual
+it is produced and replace it with the final result text ([result contract](#result-contract)) at settlement. Visual
 layout is the renderer's own; only content is normative.
 
 ### 1.1 Parameter schema {#parameter-schema}
@@ -50,15 +50,15 @@ layout is the renderer's own; only content is normative.
 The parameter schema is a JSON object schema with `type: "object"` and
 `additionalProperties: false`:
 
-| Field        | Type              | Contract                                                                                                                                                                                                                 |
-| ------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `agent`      | string?           | The key of an agent definition in the agent catalog (static dispatch; [agent.md](agent.md)). Exactly one of `agent` or `prompt` MUST be provided.                                                                        |
-| `prompt`     | string?           | Inline system prompt defining the agent at call time (dynamic dispatch); exclusive with `agent`.                                                                                                                         |
-| `task`       | string (required) | Task instructions; becomes the child's user message.                                                                                                                                                                     |
-| `model`      | string?           | Model string ([model-string.md](model-string.md)) selecting the child's model and thinking; the call tier of Section 3.3.                                                                                                |
-| `resume`     | string?           | In-place continuation: an absolute path to a retained `Agent` session `.jsonl`, or a task ID naming a task of the invoking session's own task registry (Section 9).                                                      |
-| `cwd`        | string?           | Child working directory: the `cwd` parameter ([task.md](task.md), Section 1.1). Default: for a `resume` dispatch, the working directory recorded in the source session file (Section 9), else the dispatching session's. |
-| `background` | boolean?          | Background dispatch mode (default `false`).                                                                                                                                                                              |
+| Field        | Type              | Contract                                                                                                                                                                                                                                                                |
+| ------------ | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent`      | string?           | The key of an agent definition in the agent catalog (static dispatch; [agent.md](agent.md)). Exactly one of `agent` or `prompt` MUST be provided.                                                                                                                       |
+| `prompt`     | string?           | Inline system prompt defining the agent at call time (dynamic dispatch); exclusive with `agent`.                                                                                                                                                                        |
+| `task`       | string (required) | Task instructions; becomes the child's user message.                                                                                                                                                                                                                    |
+| `model`      | string?           | Model string ([model-string.md](model-string.md)) selecting the child's model and thinking; the call tier of [model and thinking](#model-thinking).                                                                                                                     |
+| `resume`     | string?           | In-place continuation: an absolute path to a retained `Agent` session `.jsonl`, or a task ID naming a task of the invoking session's own task registry ([continuation (`resume`)](#resume)).                                                                            |
+| `cwd`        | string?           | Child working directory: the `cwd` parameter ([task.md, the `cwd` parameter](task.md#cwd-parameter)). Default: for a `resume` dispatch, the working directory recorded in the source session file ([continuation (`resume`)](#resume)), else the dispatching session's. |
+| `background` | boolean?          | Background dispatch mode (default `false`).                                                                                                                                                                                                                             |
 
 The schema requires `task`, gives it `minLength: 1`, and gives `agent`, `prompt`, `model`, and
 `resume` the `pattern` `\S`: at least one character that is not white space. It constrains the
@@ -67,27 +67,27 @@ types of the table and the set of admitted properties, and nothing else; a white
 
 Validation has two stages. The host validates the call's arguments against the schema of this
 section before the dispatch begins, and rejects a call whose arguments do not satisfy it. That
-rejection is a schema rejection ([task.md](task.md), Section 1): it registers no task row and
+rejection is a schema rejection ([task.md, task kinds](task.md#task-kinds)): it registers no task row and
 creates no file.
 
-The checks the schema cannot express MUST reject the call as a pre-start rejection (Section 4.1;
+The checks the schema cannot express MUST reject the call as a pre-start rejection ([invocation lifecycle](#invocation-lifecycle);
 `failureCode: "invalid-plan"`), checked in this order, the first failure reported:
 
-- `resume` that is a task ID ([task-registry.md](task-registry.md), Section 2) naming no `agent`
+- `resume` that is a task ID ([task-registry.md, task row](task-registry.md#task-row)) naming no `agent`
   row of the invoking session's own task registry, or naming a row without `sessionPath`; the
-  failure MUST carry the received value (Section 9).
+  failure MUST carry the received value ([continuation (`resume`)](#resume)).
 - both `agent` and `prompt`, or neither.
 - `agent` that names no entry in the agent catalog; the failure MUST list the available agent
   names in agent catalog order, joined by `", "` (`(none)` when the agent catalog is empty).
 - `resume` that is not an absolute path; the failure MUST carry the received value.
 - `resume` whose path does not exist or cannot be examined; the failure text MUST name
-  `PI_DENT_SESSION_TTL_DAYS` and its effective value in days (Section 10), stating that the
+  `PI_DENT_SESSION_TTL_DAYS` and its effective value in days ([retention sweep](#retention-sweep)), stating that the
   retention sweep can have deleted the file.
 - `resume` whose path exists but is not a regular file; the failure text MUST name the path and
   state that it is not a regular file, and MUST NOT name `PI_DENT_SESSION_TTL_DAYS`.
 - `resume` whose real path equals the real path of a session file held by a running dispatch of
-  this process (Section 9), so a symbolic link or a `..` segment does not hide a held file.
-- The `cwd` check of [task.md](task.md), Section 1.1.
+  this process ([continuation (`resume`)](#resume)), so a symbolic link or a `..` segment does not hide a held file.
+- The `cwd` check of [task.md, the `cwd` parameter](task.md#cwd-parameter).
 
 ## 2. Agent definitions {#agent-definitions}
 
@@ -102,10 +102,10 @@ the `agents` configuration override — is owned by [agent.md](agent.md).
 One dispatch plan MUST be resolved once per invocation, before the child starts, and then frozen;
 every attempt uses the same plan. The plan carries: agent identity, resolved cwd, effective tool
 cap, skill catalog, resolved model and thinking, system prompt, session policy, the dispatching
-session's identity, and its agent directory (Section 4.2).
+session's identity, and its agent directory ([child session](#child-session)).
 
 Plan resolution failures are typed errors carrying `failurePhase: "plan-resolution"` and a
-`failureCode` from the plan-resolution codes of Section 7.
+`failureCode` from the plan-resolution codes of [result contract](#result-contract).
 
 ### 3.1 Tools {#tools}
 
@@ -118,7 +118,7 @@ Plan resolution failures are typed errors carrying `failurePhase: "plan-resoluti
   tool of the effective tool cap, including extension-provided tools and MCP gateways and proxies.
   A tool outside the tool cap or named `Schedule`, `AskUserQuestion`, or `bash` MUST NOT be bound.
   The tool-cap name `bash` is dropped, not read as `Bash`: a child's shell tool is `Bash`
-  ([bash-tool.md](bash-tool.md), Section 7), bound only when the tool cap names `Bash`.
+  ([bash-tool.md, suppression of the built-in tool](bash-tool.md#builtin-suppression)), bound only when the tool cap names `Bash`.
 - The child's active tools are the tools its model requests declare; an extension can change them.
   Once the child's extensions are bound, and again once every extension has handled the start of
   the child's first run, the child MUST set its active tools to the registered tools of the
@@ -168,7 +168,7 @@ Plan resolution failures are typed errors carrying `failurePhase: "plan-resoluti
 - A tool cap without `Agent` MUST fail the plan (`missing-tool-authority`); the check MUST run on
   every dispatch path, including recovery attempts. A dispatch with no live dispatching session
   has no tool cap and fails the same way. A `Fleet` query dispatch is exempt, MUST NOT load
-  inherited extension sources, and takes the tool cap of [fleet-tool.md](fleet-tool.md), Section 4.
+  inherited extension sources, and takes the tool cap of [fleet-tool.md, action `query`](fleet-tool.md#query).
 - The resolved tool cap MUST reach the child in-process; the child MUST NOT select from a
   global inventory.
 
@@ -188,12 +188,12 @@ call  >  agent model (static only)  >  persisted (resume source)  >  dispatching
 
 - A tier supplies a model when it declares one. The call tier is the call's `model` parameter.
   The agent-model tier is the definition's `model` field and exists only on a static dispatch.
-  The persisted tier is the persisted model of the `resume` source (Section 9), serialized as
+  The persisted tier is the persisted model of the `resume` source ([continuation (`resume`)](#resume)), serialized as
   `<provider>/<modelId>` with no thinking suffix, and exists only on a `resume` dispatch with a
   persisted model. The dispatching-session tier is the dispatching session's current model.
 - The highest tier that supplies a model is selected. A model string of the call, agent-model, or
   persisted tier that fails to resolve MUST fail plan resolution with its error code
-  ([model-string.md](model-string.md), Section 6); it never falls through to a lower tier. When no
+  ([model-string.md, error codes](model-string.md#error-codes)); it never falls through to a lower tier. When no
   tier supplies a model, or the dispatching session's model is absent from the inventory, plan
   resolution MUST fail with `missing-model`.
 - A model string is parsed and resolved against the inventory per
@@ -201,16 +201,15 @@ call  >  agent model (static only)  >  persisted (resume source)  >  dispatching
   class references resolving through the active `modelClasses` mapping. Every inventory model
   is dispatchable, not only the configured models, except as bounded by model guidance below.
 - Thinking precedence: the selected tier's resolved descriptor thinking
-  ([model-string.md](model-string.md), Section 4.4) > the persisted thinking (when the selected
+  ([model-string.md, thinking precedence](model-string.md#thinking-precedence)) > the persisted thinking (when the selected
   model matches the persisted `provider/id`) > the dispatching session's thinking (when the
   selected model matches its `provider/id`) > absent (the run sets no level; a continuation
-  records it as `off`, Section 9). The result is the effective thinking level. Support for the level is checked when a model string resolves
-  ([model-string.md](model-string.md), Section 4.4); a level taken from the persisted
+  records it as `off`, [continuation (`resume`)](#resume)). The result is the effective thinking level. Support for the level is checked when a model string resolves
+  ([model-string.md, thinking precedence](model-string.md#thinking-precedence)); a level taken from the persisted
   thinking or the dispatching session is not checked.
 - While model guidance is active, plan resolution applies the dispatch restriction of
-  [model-guidance.md](model-guidance.md), Section 3.
-- The `model` value MUST be the canonical serialization ([model-string.md](model-string.md),
-  Section 5) of the resolved model with its effective thinking level. The result MUST record
+  [model-guidance.md, dispatch restriction](model-guidance.md#dispatch-restriction).
+- The `model` value MUST be the canonical serialization ([model-string.md, canonical serialization](model-string.md#serialization)) of the resolved model with its effective thinking level. The result MUST record
   `model`, `modelSource` (`call|agent|persisted|inherited`, where `inherited` is the
   dispatching-session tier), and `previousModel`, as `<provider>/<modelId>` with no thinking
   suffix, when a continuation's persisted model was superseded.
@@ -224,7 +223,7 @@ call  >  agent model (static only)  >  persisted (resume source)  >  dispatching
   warning naming each such file.
 - Session policy: `persistent` (fresh session) unless the call gives `resume`, which reopens and
   continues the source session file. The child's working directory is the `cwd` parameter
-  (Section 1.1 default included); a `resume` call that gives `cwd` continues the session in that
+  ([parameter schema](#parameter-schema) default included); a `resume` call that gives `cwd` continues the session in that
   resolved working directory.
 
 ## 4. Execution model {#execution-model}
@@ -236,8 +235,8 @@ foreground or background delivery.
 
 Invocation registration MUST create the task row (`kind: "agent"`) first, before parameter
 validation, per [task.md](task.md): every invocation — foreground, background, resumed, or
-rejected — has exactly one row, except as [task.md](task.md), Section 1 states, and groups into a
-cohort per [task-registry.md](task-registry.md) Section 5. Its initial `label` is
+rejected — has exactly one row, except as [task.md, task kinds](task.md#task-kinds) states, and groups into a
+cohort per [task-registry.md, cohorts and completion notification](task-registry.md#cohorts). Its initial `label` is
 `<agent> — <summary>` when the `agent` parameter is present, else `<summary>`, where `<summary>`
 is the named definition's `description` when the agent catalog has that agent and it carries one,
 else the first line of `task` when that line is not empty, else the literal `task`. The row is
@@ -246,19 +245,19 @@ amended with `agent` set to the plan's agent identity, `model` set to the canoni
 of the plan's model, and `label` rebuilt the same way from the plan's agent identity (omitting
 `<agent> — ` when the plan's agent identity is `dynamic`); once an attempt's child session file
 path is fixed, with `sessionPath`. The row settles with the `status` of the last result record
-(Section 7).
+([result contract](#result-contract)).
 
-A parameter validation failure (Section 1.1), a concurrent-`resume` rejection (Section 9), a
-dispatch with no live dispatching session, and a plan-resolution failure (Section 3; includes an
-agent-directory creation failure (Section 4.2)) detected before delivery are pre-start rejections:
-the row MUST be consumed ([task-registry.md](task-registry.md), Section 5) and settle `failed`, and
+A parameter validation failure ([parameter schema](#parameter-schema)), a concurrent-`resume` rejection ([continuation (`resume`)](#resume)), a
+dispatch with no live dispatching session, and a plan-resolution failure ([dispatch plan](#dispatch-plan); includes an
+agent-directory creation failure ([child session](#child-session))) detected before delivery are pre-start rejections:
+the row MUST be consumed ([task-registry.md, cohorts and completion notification](task-registry.md#cohorts)) and settle `failed`, and
 the tool call MUST return the error result of
-Section 7 in either delivery mode.
+[result contract](#result-contract) in either delivery mode.
 
 A plan-resolution failure detected during delivery — the dispatch-authority check that runs inside
-every attempt (Section 3.1), for example — MUST NOT be a pre-start rejection: the row MUST NOT be
+every attempt ([tools](#tools)), for example — MUST NOT be a pre-start rejection: the row MUST NOT be
 consumed by the failure, and the row MUST settle through `settle`
-([task-registry.md](task-registry.md), Section 5).
+([task-registry.md, cohorts and completion notification](task-registry.md#cohorts)).
 
 ### 4.2 Child session {#child-session}
 
@@ -273,12 +272,12 @@ The child MUST run in-process on the pi SDK:
   it at that moment: its configuration (including its authentication and stream handlers) or its
   provider object. An extension provider is a provider an extension registered, by provider ID. A
   model of such a provider then runs in the child with the stored credentials of the dispatching
-  session, even when no inherited extension source (Section 3.1) registers the provider in the
+  session, even when no inherited extension source ([tools](#tools)) registers the provider in the
   child. An extension provider that an earlier dispatch added and the dispatching session no longer
   holds MUST be removed from the child's model runtime, unless an inherited extension has
   registered that provider there since. A provider that cannot be added MUST produce the warning
   `pi-dent: provider <id> could not be registered for the child: <error>` through the warning
-  channel of Section 3.1, `<id>` being the provider ID and `<error>` the error's message, and the
+  channel of [tools](#tools), `<id>` being the provider ID and `<error>` the error's message, and the
   dispatch MUST continue. This applies to every dispatch, a `Fleet` query dispatch included.
 - A virtual model is an inventory model that routes each request to another model. The host exposes no
   definition of a virtual model, so none is copied to the child. When the plan's model is a virtual
@@ -288,13 +287,13 @@ The child MUST run in-process on the pi SDK:
   `virtual model <provider>/<modelId> is not available to the child: virtual models are not inherited`.
 - Each dispatch MUST run one in-process SDK child session created with explicit boundaries:
   the plan's resolved model and thinking, the effective tool cap, the skill binding and
-  injection of Section 3.2, and the resolved cwd. The system prompt is the agent `prompt`, then
+  injection of [skills](#skills), and the resolved cwd. The system prompt is the agent `prompt`, then
   for a dynamic dispatch the session notes (below), then
-  the `<available_skills>` injection (Section 3.2), then the plugin context blocks
-  ([plugin.md](plugin.md), Section 10), then the session rules for the resolved model,
+  the `<available_skills>` injection ([skills](#skills)), then the plugin context blocks
+  ([plugin.md, plugin context](plugin.md#plugin-context)), then the session rules for the resolved model,
   when the effective tool cap includes `Agent`, the child guidance
-  ([model-guidance.md](model-guidance.md), Section 4), and finally the session mode line
-  ([session-tool.md](session-tool.md), Section 3.2); the non-empty parts MUST be joined by
+  ([model-guidance.md, session rules](model-guidance.md#session-rules)), and finally the session mode line
+  ([session-tool.md, system prompt mode line](session-tool.md#prompt-mode)); the non-empty parts MUST be joined by
   `"\n\n"`, and the plugin context blocks form one part, each block separated from the next by
   `"\n\n"`. The session MUST mint a fresh session ID for `persistent` (a `resume` dispatch
   continues under the source session's ID). Every attempt is one prompt of that session,
@@ -302,14 +301,14 @@ The child MUST run in-process on the pi SDK:
   and the tool calls it leads to, as the host counts turns.
 - An `Agent` dispatch's attempt MUST NOT end while its task registry holds a running row. When a
   model turn of the attempt ends with `stopReason` `stop` and such a row exists, the attempt
-  waits; the completion notification of [task-registry.md](task-registry.md) Section 5 then
+  waits; the completion notification of [task-registry.md, cohorts and completion notification](task-registry.md#cohorts) then
   triggers a further model turn of the child session, a notification turn, which belongs to the
   same attempt. The attempt ends when a model turn ends with no running row and no completion
   notification awaiting a model turn. A model turn that ends with any other `stopReason`, a
-  cancellation (Section 11), and a liveness expiry end the attempt at once. A `Fleet` query
+  cancellation ([cancellation](#cancellation)), and a liveness expiry end the attempt at once. A `Fleet` query
   dispatch's attempt never waits.
 - A dispatch MUST NOT settle, and a recovery attempt MUST NOT prompt, while a turn a Fleet delivery
-  ([fleet-tool.md](fleet-tool.md), Section 3.2) started is starting or running. While an attempt
+  ([fleet-tool.md, delivery modes](fleet-tool.md#delivery-modes)) started is starting or running. While an attempt
   waits for such a turn, the turn is the attempt's: its model turns' usage, trace and terminal
   candidate count toward that attempt, whose result is the last assistant message of the child's
   last turn, whichever turn started it. A turn that runs between attempts, while a recovery attempt
@@ -317,13 +316,13 @@ The child MUST run in-process on the pi SDK:
   `stop` ends the attempt at once, even while such a turn is in flight; the attempt then aborts the
   child's run and waits for that turn to settle before the dispatch settles. A Fleet `send` with
   `abort: true` and the `abort` host command both abort the child's running turn
-  ([fleet-tool.md](fleet-tool.md), Section 3.2). The message of such a `send` starts the next turn
+  ([fleet-tool.md, delivery modes](fleet-tool.md#delivery-modes)). The message of such a `send` starts the next turn
   after the abort, and that turn supplies the dispatch's result like the child's last turn under
   this section. The `abort` host command carries no message: a dispatch whose last turn was aborted
-  that way settles `cancelled` (Section 4.3).
+  that way settles `cancelled` ([terminal candidate](#terminal-candidate)).
 - Each attempt owns its own task registry, attached to the dispatching task row as `children` per
-  [task-registry.md](task-registry.md) Section 6; it ends with the attempt and its running and
-  unconsumed rows follow [task-registry.md](task-registry.md) Section 4 (adoption, else
+  [task-registry.md, nesting](task-registry.md#nesting); it ends with the attempt and its running and
+  unconsumed rows follow [task-registry.md, registry end and adoption](task-registry.md#registry-end) (adoption, else
   cancellation).
 - Every session has an agent directory: `<sessionDir>/<sessionStem>.agents/`, or
   `<tmpdir>/pi-dent-sessions/<sessionId>/` when it has no session file. `<sessionDir>` is the session
@@ -332,7 +331,7 @@ The child MUST run in-process on the pi SDK:
   directory is the one named after its own session file, so it lies inside the agent directory of
   the session that dispatched it. pi-dent MUST create a session's agent directory at the main
   session's start, including after a reload, and before the first prompt of a child session's
-  first attempt, and MUST NOT delete it; only the retention sweep (Section 10) removes one.
+  first attempt, and MUST NOT delete it; only the retention sweep ([retention sweep](#retention-sweep)) removes one.
 - `Agent` session files MUST be stored in the dispatching session's agent directory:
   `persistent` attempts write `<safeAgent>-<taskId>.jsonl`; `resume` attempts continue the
   source session file in place wherever it resides — nothing is copied and no new file is
@@ -340,15 +339,15 @@ The child MUST run in-process on the pi SDK:
   and `-` replaced by `_`; `<safeAgent>` is the safe name of the agent identity, and `<taskId>`
   is the task row's task ID.
 - The dispatching boot window MUST register the child session of a dispatch in the local session
-  store as its child session record ([session-store.md](session-store.md), Section 4), once the
+  store as its child session record ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)), once the
   child session exists and before its first prompt; that section owns the record, its `agents_dir`
-  and its lifecycle. A `Fleet` query child ([fleet-tool.md](fleet-tool.md), Section 4) registers
+  and its lifecycle. A `Fleet` query child ([fleet-tool.md, action `query`](fleet-tool.md#query)) registers
   none. The endpoint that delivers into the child's conversation is held for the record's life
-  ([fleet-tool.md](fleet-tool.md), Sections 3.2 and 4). The child stays a child session: it is a
-  target only for the session that dispatched it ([fleet-tool.md](fleet-tool.md), Section 1), and
-  its own `query` is a waited query ([fleet-tool.md](fleet-tool.md), Section 4.1).
+  ([fleet-tool.md, delivery modes](fleet-tool.md#delivery-modes) and [fleet-tool.md, action `query`](fleet-tool.md#query)). The child stays a child session: it is a
+  target only for the session that dispatched it ([fleet-tool.md, parameter schema](fleet-tool.md#parameter-schema)), and
+  its own `query` is a waited query ([fleet-tool.md, waited query](fleet-tool.md#waited-query)).
 - The child session's Fleet record and its delivery are reported to the dispatching session through
-  the warning channel of Section 3.1, with these texts, where `<sessionId>` is the child session's
+  the warning channel of [tools](#tools), with these texts, where `<sessionId>` is the child session's
   ID, `<name>` a host command's name, and `<message>` an error's message:
 
   | Situation                                            | Warning text                                                                                                            |
@@ -363,7 +362,7 @@ The child MUST run in-process on the pi SDK:
   | the record cannot be removed at settlement           | `pi-dent: Fleet child cleanup failed: <message>`                                                                        |
 
 - For a background dispatch, the dispatching session MUST write, rewrite, and delete the task's
-  task record in its own agent directory, per [task-record.md](task-record.md), Section 2.
+  task record in its own agent directory, per [task-record.md, lifecycle](task-record.md#lifecycle).
 - The task text is the child's user message.
 - A session's agent directory is the folder for the files its tools write, and pi-dent MUST expose
   its path as `PI_DENT_SESSION_DIR`. The main session's agent directory MUST be set as
@@ -372,7 +371,7 @@ The child MUST run in-process on the pi SDK:
   not fail the session. A child's `PI_DENT_SESSION_DIR` MUST be the child session's own agent
   directory, visible to the child's tools only, without mutating shared `process.env`; a child's
   tools MUST NOT see the dispatching session's value. Likewise, a child's `PI_DENT_SESSION_KIND`
-  is `"agent"` per [session-tool.md](session-tool.md), Section 3.1. A `resume` attempt and every recovery
+  is `"agent"` per [session-tool.md, environment variable](session-tool.md#environment-variable). A `resume` attempt and every recovery
   attempt use the same agent directory as the child session's earlier attempts, with its files
   intact. A failure to create an agent directory fails the dispatch with
   `failureCode: "invalid-plan"` and `failurePhase: "plan-resolution"`, before any prompt is sent.
@@ -405,16 +404,16 @@ The child MUST run in-process on the pi SDK:
   (`{ idleTimeoutMs?, absoluteTimeoutMs? }`, integers from 0 to 2147483647 inclusive) and the
   environment overrides `PI_DENT_AGENT_IDLE_TIMEOUT_MS` and `PI_DENT_AGENT_ABSOLUTE_TIMEOUT_MS`. Per
   field, precedence is the environment override, then the merged configuration value
-  ([config-file.md](config-file.md), Section 3), then `0` = disabled. An environment value MUST be
+  ([config-file.md, merge](config-file.md#merge)), then `0` = disabled. An environment value MUST be
   an integer from 0 to 2147483647 written in decimal digits only; any other value MUST produce one
   diagnostic and be ignored, so the merged configuration value applies. A configuration field that
   is not an integer from 0 to 2147483647 MUST produce one diagnostic and be ignored, so `0` applies
   to it unless an environment override is valid. An unknown `agentLiveness` key follows the
-  unknown-key rule ([config-file.md](config-file.md), Section 2). The idle deadline expires when the
+  unknown-key rule ([config-file.md, format](config-file.md#format)). The idle deadline expires when the
   child session emits no event for `idleTimeoutMs`, and MUST NOT run while the attempt waits for a
   running row; the absolute deadline bounds the whole attempt, waiting included. Expiry MUST yield
   `stopReason: "timeout"` and `failureCode: "timeout"`, cancel the child, and is never recovered
-  (Section 8).
+  ([recovery](#recovery)).
 
   > Note (non-normative): the idle deadline pauses while the attempt waits because a wait for
   > running rows emits no child-session event by design; counting it would expire every
@@ -450,14 +449,14 @@ attempt that ends with no committed error and no terminal candidate is a protoco
 
 Foreground delivery blocks the tool call:
 
-- Aborting the tool-call signal cancels the dispatch (Section 11).
+- Aborting the tool-call signal cancels the dispatch ([cancellation](#cancellation)).
 - Every settled dispatch — success or failure — MUST return the formatted final result of
-  Section 7 (`isError: true` on failure, with `details.results` preserved).
+  [result contract](#result-contract) (`isError: true` on failure, with `details.results` preserved).
 
 ## 6. Background contract {#background-contract}
 
 `background: true` requests background delivery: unless the call is a pre-start rejection
-(Section 4.1), the dispatch MUST keep running after the tool call returns, and the call MUST
+([invocation lifecycle](#invocation-lifecycle)), the dispatch MUST keep running after the tool call returns, and the call MUST
 return immediately with:
 
 ```text
@@ -467,10 +466,10 @@ Session: <sessionPath>
 
 and details `{ background: true, taskId, agent, sessionPath }`, where `<agent>` / `agent` is the
 plan's agent identity and `<sessionPath>` / `sessionPath` is the child session file path of
-Section 4.2 (for a `resume` dispatch, the source path).
+[child session](#child-session) (for a `resume` dispatch, the source path).
 
 Task lifetime, cohort completion notification, and consumption follow
-[task-registry.md](task-registry.md) Sections 4–5; tasks are inspected or cancelled through the
+[task-registry.md, registry end and adoption](task-registry.md#registry-end), [task-registry.md, cohorts and completion notification](task-registry.md#cohorts); tasks are inspected or cancelled through the
 `Task` tool ([task-tool.md](task-tool.md)).
 
 ## 7. Result contract {#result-contract}
@@ -497,7 +496,7 @@ one record with no attempt (`status: "failed"`, `stopReason: "error"`, empty usa
 | `"startup"`         | `missing-runtime`, `missing-model`                                                                                                            |
 | `"execution"`       | `invalid-turn`, `timeout`, `aborted`, `execution-error`                                                                                       |
 
-Malformed `modelClasses` definitions follow [model-string.md](model-string.md), Section 3.
+Malformed `modelClasses` definitions follow [model-string.md, model classes](model-string.md#model-classes).
 
 | Outcome                                 | `status`    | `stopReason` | `failurePhase` / `failureCode`           |
 | --------------------------------------- | ----------- | ------------ | ---------------------------------------- |
@@ -510,17 +509,17 @@ Malformed `modelClasses` definitions follow [model-string.md](model-string.md), 
 
 Details are immediate-caller-private; ancestors see only the projected content-free events.
 Per-attempt usage is recorded on the attempt record; the task row's usage and the session-wide
-usage tally are those of Section 13.
+usage tally are those of [usage](#usage).
 
 The task row's `result` MUST hold the full settled result text of this section at settlement;
-a rebuilt row carries none ([task-record.md](task-record.md), Section 3). A background
+a rebuilt row carries none ([task-record.md, rebuild](task-record.md#rebuild)). A background
 result text longer than 8000 characters is additionally spilled: the tool MUST write the full
 text verbatim, once at settlement, to a result spill file `<safeTaskId>.result.md` (the safe name
-of Section 4.2 applied to the task ID) in the dispatching session's agent directory, and record
+of [child session](#child-session) applied to the task ID) in the dispatching session's agent directory, and record
 `resultPath` on the task row. A spill write failure MUST leave the row without `resultPath`; no
 failure is reported.
-Foreground results never spill: the Section 5 tool result is always the full text. `Task` `read`
-renders the preview ([task-tool.md](task-tool.md), Section 2.1).
+Foreground results never spill: the [foreground contract](#foreground-contract) tool result is always the full text. `Task` `read`
+renders the preview ([task-tool.md, `read`](task-tool.md#read)).
 
 > Note (non-normative): the spill keeps long background results out of the model's context
 > until it asks for them; `result` stays complete so that a failed spill loses nothing.
@@ -533,7 +532,7 @@ attempts of one dispatch, of both classes together, is bounded by `PI_DENT_AGENT
 and the default applies).
 
 1. A settled attempt MUST be classified, first match winning:
-   1. A cancellation or a liveness expiry (Section 4.2) is never recovered.
+   1. A cancellation or a liveness expiry ([child session](#child-session)) is never recovered.
    2. Refusal (`ask-why`): the text of the attempt's terminal candidate matches the ECMAScript
       regular expression `/cannot assist with that request/i` ([ECMA-262]), that text with
       leading and trailing white space removed is at most 300 UTF-16 code units long, and the
@@ -542,7 +541,7 @@ and the default applies).
       blank line, then the line `Why did you previously decline? Explain, then complete the task if
       you legitimately can.`
    3. Transient error (`auto-resume`): the attempt ended in an error and the error message —
-      the error raised by the attempt's prompt, else its committed error (Section 4.3) — matches
+      the error raised by the attempt's prompt, else its committed error ([terminal candidate](#terminal-candidate)) — matches
       `/(\b429\b|\b(500|502|503|504|52\d)\b|rate.?limit|overload|quota|service unavailable|network|timeout|timed out|econn|fetch failed|etimedout|eai_again|retryable)/i`
       and does not match
       `/(\b401\b|\b403\b|unauthorized|forbidden|api key|authentication|invalid request|missing model|not found)/i`.
@@ -560,7 +559,7 @@ and the default applies).
 4. Usage aggregates across one attempt's model turns; superseded terminal candidates MUST be discarded.
 5. Cancellation MUST NOT authorize a recovery attempt. Recovery is caller-owned; there is no
    supervisor restart, and containment follows the task lifetime rule
-   ([task.md](task.md), Section 2).
+   ([task.md, lifecycle](task.md#lifecycle)).
 
 ## 9. Continuation (`resume`) {#resume}
 
@@ -568,15 +567,13 @@ and the default applies).
 name `agent` or `prompt`; the continued session takes its system prompt, tool cap, and skills from
 this call's plan, and the named agent can differ from the agent that created the source session.
 
-`resume` MAY instead be a task ID, whose form is owned by [task-registry.md](task-registry.md),
-Section 2. A task ID MUST resolve to the `sessionPath` of the `agent` row of the invoking
+`resume` MAY instead be a task ID, whose form is owned by [task-registry.md, task row](task-registry.md#task-row). A task ID MUST resolve to the `sessionPath` of the `agent` row of the invoking
 session's own task registry with that `taskId`; a resolved row that is `running` is left unchanged
 and the dispatch is subject to the concurrent-`resume` rejection of this section. The resolved
 `sessionPath` is then the source session file, continued exactly as the path form.
 
-A settled row that a `resume` continues MUST be `consume`d ([task-registry.md](task-registry.md),
-Section 3), and its task record deleted per [task-record.md](task-record.md), Section 2, once the
-dispatch has passed its pre-start checks (Section 4.1) and not before:
+A settled row that a `resume` continues MUST be `consume`d ([task-registry.md, operations](task-registry.md#operations)), and its task record deleted per [task-record.md, lifecycle](task-record.md#lifecycle), once the
+dispatch has passed its pre-start checks ([invocation lifecycle](#invocation-lifecycle)) and not before:
 
 - The row a task ID resolved, when that row is settled.
 - Every `agent` row of the invoking session's own task registry that is settled, whose `consumed`
@@ -584,10 +581,10 @@ dispatch has passed its pre-start checks (Section 4.1) and not before:
   equal, so symbolic links and `..` segments do not distinguish them, and a path that does not
   exist compares as resolved. Several rows can name one file, and all of them are consumed.
 
-A call whose `resume` the host rejects through the schema of Section 1.1, or that is a pre-start
-rejection (Section 4.1), consumes no row, in either form. An adopted row of that task registry
-([task-registry.md](task-registry.md), Section 4) matches as any other; a row of an attached
-`children` task registry ([task-registry.md](task-registry.md), Section 6) matches only after
+A call whose `resume` the host rejects through the schema of [parameter schema](#parameter-schema), or that is a pre-start
+rejection ([invocation lifecycle](#invocation-lifecycle)), consumes no row, in either form. An adopted row of that task registry
+([task-registry.md, registry end and adoption](task-registry.md#registry-end)) matches as any other; a row of an attached
+`children` task registry ([task-registry.md, nesting](task-registry.md#nesting)) matches only after
 adoption has moved it into that registry.
 
 The source session file records, as lines of JSON objects, the facts a continuation reads:
@@ -599,21 +596,21 @@ The source session file records, as lines of JSON objects, the facts a continuat
 | recorded working directory | `cwd` of the last entry of `type` `session` that carries a string `cwd`.                   |
 
 A line that is not a JSON object is skipped. The persisted model becomes a precedence tier
-(Section 3.3) unless superseded. Before the first prompt of a `resume` dispatch, when the plan's
+([model and thinking](#model-thinking)) unless superseded. Before the first prompt of a `resume` dispatch, when the plan's
 model differs from the persisted model, or the source has none, pi-dent MUST append a `model_change`
 entry for the plan's model to the source session file; when the plan's thinking differs from the
 persisted thinking, a `thinking_level_change` entry for it, `off` when the plan's thinking is
 absent. A later `resume` so continues with the model and thinking the session last ran with. The
 continuation appends to the source session file in place
 under its existing session ID: history is never copied and never rewritten, and later `resume`
-calls on the same path continue the same lineage. A concurrent `resume` check MUST follow Section 1.1. The `cwd` override
+calls on the same path continue the same lineage. A concurrent `resume` check MUST follow [parameter schema](#parameter-schema). The `cwd` override
 rebinds execution without rewriting source history.
 
 ## 10. Retention sweep {#retention-sweep}
 
 The retention sweep runs at most once per boot window: at the window's first `session_start`,
-after the starting session's agent directory has been created (Section 4.2) and the session has
-registered in the local session store ([session-store.md](session-store.md), Section 4). No timers
+after the starting session's agent directory has been created ([child session](#child-session)) and the session has
+registered in the local session store ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)). No timers
 run and nothing is deleted at any other time. It MUST delete, with everything in it, each agent
 directory found directly under a project directory of the host session store as
 `<sessionStem>.agents`, or as a directory directly under `<tmpdir>/pi-dent-sessions/`, whose last
@@ -623,8 +620,7 @@ inside it at any depth (agent directories of child sessions included), and, for 
 `<sessionStem>.agents` directory, the session file `<sessionStem>.jsonl` beside it when it
 exists. An agent directory nested in another is never deleted on its own.
 
-The protected agent directories are the non-null `agents_dir` values ([session-store.md](session-store.md),
-Section 2) of visible records of live sessions ([session-store.md](session-store.md), Section 4),
+The protected agent directories are the non-null `agents_dir` values ([session-store.md, session records](session-store.md#session-records)) of visible records of live sessions ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)),
 whatever their `state`, those of other processes and of this one alike. Hidden records do not block the sweep.
 The sweep MUST NOT delete an agent directory that is, or contains, a protected one, however old
 its contents; so a live session protects its child sessions' agent directories nested in its
@@ -635,11 +631,11 @@ failure. An agent directory whose last activity is not older MUST be left whole,
 it is deleted. An agent directory the sweep cannot delete MUST be left in place; no failure is
 reported.
 
-`Script` output files ([script-tool.md](script-tool.md), Section 6) and `Bash`
-output files ([bash-tool.md](bash-tool.md), Section 4) live inside an agent directory, so they are
+`Script` output files ([script-tool.md, timeout and delivery](script-tool.md#timeout-delivery)) and `Bash`
+output files ([bash-tool.md, output capture](bash-tool.md#output-capture)) live inside an agent directory, so they are
 deleted with it and have no sweep of their own. Nothing else is swept. When the sweep has
 finished, whether or not it deleted anything, and at no other time, pi-dent MUST run the index prune
-([session-index.md](session-index.md), Section 6), which removes the session index rows of
+([session-index.md, index prune](session-index.md#index-prune)), which removes the session index rows of
 session files that no longer exist. When a session ends,
 or on reload, pi-dent MUST set the modification time of its agent directory to the current time when
 it exists, before the session's record is deleted or released, so the directory's age counts from
@@ -657,7 +653,7 @@ Cancellation is cooperative, not an OS hard kill:
 - A cancellation request — the aborted tool-call signal of a foreground dispatch, the task row's
   cancellation handler (`Task` `kill`, [task-tool.md](task-tool.md)), or the end of the
   dispatching session's task registry when no live attaching registry exists to adopt the row
-  ([task-registry.md](task-registry.md), Section 4) — MUST abort the current attempt's child
+  ([task-registry.md, registry end and adoption](task-registry.md#registry-end)) — MUST abort the current attempt's child
   session, end the attempt's task registry, release its resources, and settle the dispatch
   `cancelled` unless the task row has already settled; a request after settlement MUST NOT
   rewrite the outcome.
@@ -666,8 +662,8 @@ Cancellation is cooperative, not an OS hard kill:
 
 - Intermediate assistant text (its first line, cut to at most 120 characters, no marker) and
   projected content-free tool events (`<kind> <toolName>` from `kind`, `agent`, `toolCallId`,
-  `toolName`, `isError` — never tool payloads) MUST feed `renderResult` (Section 1) and the task
-  row's progress projection ([task-registry.md](task-registry.md), Section 2). The `renderResult`
+  `toolName`, `isError` — never tool payloads) MUST feed `renderResult` ([tool registration surface](#registration)) and the task
+  row's progress projection ([task-registry.md, task row](task-registry.md#task-row)). The `renderResult`
   projection MUST keep the ten latest lines, the oldest dropped; no failure is reported.
 - The child's session file is the inspection source and the single content source for
   transcript reads (tool arguments, results, assistant text).
@@ -695,25 +691,25 @@ none. They are no field of a usage sum.
 
 - For every assistant message that ends in the child session of a dispatch while its task row is
   `running` — in any attempt, and in a turn between two attempts — the tool MUST add the message
-  to the task row's `usage` ([task-registry.md](task-registry.md), Section 2) through `amend`,
+  to the task row's `usage` ([task-registry.md, task row](task-registry.md#task-row)) through `amend`,
   the row's `usage` being a zero usage sum while absent, and in the same `amend` add the number
   of the message's tool calls to the row's `toolCalls`. Unlike the attempt record's `usage`
-  (Section 7), the row's `usage` and `toolCalls` are never reset. Each such addition is written
-  to the task ledger ([task-ledger.md](task-ledger.md), Section 3.2).
+  ([result contract](#result-contract)), the row's `usage` and `toolCalls` are never reset. Each such addition is written
+  to the task ledger ([task-ledger.md, write rules](task-ledger.md#write-rules)).
 - The usage tally is one count `tasks` and one usage sum, kept in memory per main session and
   seeded from the task ledger. At every `session_start` of the main session, a reload included,
   `tasks` is 0 and the usage sum is zero, and before the handler returns the extension MUST issue
-  a read of the agent figures of the session's ID ([task-ledger.md](task-ledger.md), Section 6).
+  a read of the agent figures of the session's ID ([task-ledger.md, derived figures](task-ledger.md#derived-figures)).
   When the read completes, its count MUST be added to `tasks` and its usage sum to the usage sum.
-  The read is applied in the process's ledger order ([task-ledger.md](task-ledger.md), Section 5),
+  The read is applied in the process's ledger order ([task-ledger.md, concurrent access](task-ledger.md#concurrent-access)),
   so it counts the dispatches of earlier extension instances and processes of the session and
   none of the dispatches that follow it. A session ID the ledger holds no row of, a read that
   fails, and an unusable ledger add nothing.
 - The usage tally is partial from `session_start` until its seed read completes. A seed read that
   fails, that is not made because the task ledger is unusable, or that is dropped because the
-  ledger becomes unusable before it is applied ([task-ledger.md](task-ledger.md), Section 7)
+  ledger becomes unusable before it is applied ([task-ledger.md, failures](task-ledger.md#failures))
   leaves the usage tally partial until the next `session_start`. A seed read has no deadline: it
-  waits for a busy ledger ([task-ledger.md](task-ledger.md), Section 5), and the tally stays
+  waits for a busy ledger ([task-ledger.md, concurrent access](task-ledger.md#concurrent-access)), and the tally stays
   partial meanwhile. A ledger that becomes unusable after the seed read completed does not make
   the tally partial.
 - `tasks` MUST increase by 1 for every dispatch that is not a pre-start rejection, once its
@@ -725,8 +721,7 @@ none. They are no field of a usage sum.
   their rows, never in the row of the dispatch that started the child session, so the tally
   counts each message once.
 
-While pi-dent draws the footer, the footer shows the usage tally ([footer.md](footer.md),
-Section 2.2) and the key `pi-dent-agents` MUST NOT be set. While the main session has an interactive
+While pi-dent draws the footer, the footer shows the usage tally ([footer.md, stats line](footer.md#stats-line)) and the key `pi-dent-agents` MUST NOT be set. While the main session has an interactive
 terminal UI, pi-dent does not draw the footer, and the usage tally's `tasks` is at least 1, the
 extension MUST show the usage status line through the host `setStatus` API under the key
 `pi-dent-agents`:
@@ -768,7 +763,7 @@ Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
 
 ## 15. Specification gaps {#gaps}
 
-- Inheritance of extensions that register only hooks, flags, commands, or providers (Section 4.2
+- Inheritance of extensions that register only hooks, flags, commands, or providers ([child session](#child-session)
   copies the providers, not the extension); inline `-e` factories;
   and tools without an absolute file or `builtin:<name>` extension source path. The host's public
   tool inventory does not expose reloadable extension sources for these cases.
@@ -776,21 +771,21 @@ Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
   handler remains unresolved.
 - Cleanup of extension factory side effects when SDK session creation fails before session start.
 - The base description's wording is open: any wording that states every dispatch-contract fact
-  listed in Section 1 is allowed.
+  listed in [tool registration surface](#registration) is allowed.
 - A `resume` of a session file held by a running dispatch of another process is not detected:
-  only this process's running dispatches are checked (Section 1.1).
+  only this process's running dispatches are checked ([parameter schema](#parameter-schema)).
 - Behavior when `resume` names a regular file that is not an `Agent` session file.
 - A record whose owner process ID was reused by another live process is judged live, so its
   agent directory is kept; the store cannot tell the two processes apart.
 - Behavior when the recorded working directory of a `resume` source no longer exists or is not a
   directory; it is not validated.
-- Whether the host, when it validates against the schema of Section 1.1, first coerces an
+- Whether the host, when it validates against the schema of [parameter schema](#parameter-schema), first coerces an
   argument to the type the schema names, and so whether a convertible value of the wrong type is
   admitted rather than rejected as a schema rejection, is the host's.
 - A per-model compaction override (`compaction.modelOverrides`) of the child's working directory is
-  outside Section 3.4, which names the three fields: the settings layer merge can carry it into the
+  outside [compaction and session policy](#compaction), which names the three fields: the settings layer merge can carry it into the
   child session.
 - After a reload, usage that the ended extension instance's dispatches add after the seed read
-  of Section 13 is in the task ledger but not in the usage tally.
+  of [usage](#usage) is in the task ledger but not in the usage tally.
 - Usage the host charges a child session outside its assistant messages (a compaction or branch
   summary) is in no usage sum.

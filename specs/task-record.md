@@ -11,21 +11,21 @@ session-file naming by [agent-tool.md](agent-tool.md); the meaning of a task's s
 ## 1. Format {#format}
 
 A task record is one file named `<taskId>.task.json` in the dispatching session's agent directory
-([agent-tool.md](agent-tool.md), Section 4.2), where `<taskId>` is the task's task ID. It is a
+([agent-tool.md, child session](agent-tool.md#child-session)), where `<taskId>` is the task's task ID. It is a
 JSON object:
 
-| Field         | Type                                                  | Contract                                                                                                                                            |
-| ------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `taskId`      | string                                                | Task ID; MUST equal the record file's `<taskId>`.                                                                                                   |
-| `agent`       | string                                                | Agent identity of the dispatch.                                                                                                                     |
-| `label`       | string                                                | The task row's `label`.                                                                                                                             |
-| `model`       | string?                                               | Canonical serialization of the dispatch plan's model, when the row records one.                                                                     |
-| `cohort`      | string                                                | The task row's cohort ID.                                                                                                                           |
-| `startedAt`   | number                                                | Registration time, milliseconds since the Unix epoch.                                                                                               |
-| `sessionPath` | string                                                | Absolute path of the child session file.                                                                                                            |
-| `status`      | `"running" \| "completed" \| "failed" \| "cancelled"` | `running` until the task settles; the terminal value once settled. A task record's `status` is never `interrupted` ([task.md](task.md), Section 2). |
-| `settledAt`   | number?                                               | Settlement time, milliseconds since the Unix epoch; present once settled.                                                                           |
-| `resultPath`  | string?                                               | Present once settled with a result spill ([agent-tool.md](agent-tool.md), Section 7).                                                               |
+| Field         | Type                                                  | Contract                                                                                                                                                      |
+| ------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `taskId`      | string                                                | Task ID; MUST equal the record file's `<taskId>`.                                                                                                             |
+| `agent`       | string                                                | Agent identity of the dispatch.                                                                                                                               |
+| `label`       | string                                                | The task row's `label`.                                                                                                                                       |
+| `model`       | string?                                               | Canonical serialization of the dispatch plan's model, when the row records one.                                                                               |
+| `cohort`      | string                                                | The task row's cohort ID.                                                                                                                                     |
+| `startedAt`   | number                                                | Registration time, milliseconds since the Unix epoch.                                                                                                         |
+| `sessionPath` | string                                                | Absolute path of the child session file.                                                                                                                      |
+| `status`      | `"running" \| "completed" \| "failed" \| "cancelled"` | `running` until the task settles; the terminal value once settled. A task record's `status` is never `interrupted` ([task.md, lifecycle](task.md#lifecycle)). |
+| `settledAt`   | number?                                               | Settlement time, milliseconds since the Unix epoch; present once settled.                                                                                     |
+| `resultPath`  | string?                                               | Present once settled with a result spill ([agent-tool.md, result contract](agent-tool.md#result-contract)).                                                   |
 
 A record MUST NOT carry the task text or the settled result text.
 
@@ -33,7 +33,7 @@ A record MUST NOT carry the task text or the settled result text.
 
 - A session MUST write one task record for every background `agent` task it dispatches, in the
   session's own agent directory, once the attempt's child session file path is fixed and before
-  the first prompt of the first attempt, with `status: "running"` and every field of Section 1
+  the first prompt of the first attempt, with `status: "running"` and every field of [format](#format)
   except `settledAt` and `resultPath`. A foreground task, a `script` task, and a `bash` task MUST
   NOT have a record. A recovery attempt continues the same session file and writes no record.
 
@@ -44,9 +44,9 @@ A record MUST NOT carry the task text or the settled result text.
 - The session MUST rewrite the record when the task settles, setting `status` to the terminal
   value, `settledAt`, and `resultPath` when present.
 - A task that settles `cancelled` because its task registry ended with no live attaching task
-  registry to adopt its row ([task-registry.md](task-registry.md), Section 4) MUST NOT have its
+  registry to adopt its row ([task-registry.md, registry end and adoption](task-registry.md#registry-end)) MUST NOT have its
   record rewritten: the record keeps `status: "running"`, so the next start of the same session
-  rebuilds the task as `interrupted` (Section 3) whether that settlement came before or after the
+  rebuilds the task as `interrupted` ([rebuild](#rebuild)) whether that settlement came before or after the
   rebuild. Every other settlement, `completed` and `failed` included, follows the rewrite rule
   above.
 
@@ -54,10 +54,10 @@ A record MUST NOT carry the task text or the settled result text.
   > registry ends, and the interrupted row is the one the user can resume.
 
 - The session MUST delete the record when `Task` `read` or `kill` consumes the task row
-  ([task-tool.md](task-tool.md), Section 2) and when a `resume` consumes it
-  ([agent-tool.md](agent-tool.md), Section 9). A `consume` of a row that is `running` MUST NOT
+  ([task-tool.md, operations](task-tool.md#operations)) and when a `resume` consumes it
+  ([agent-tool.md, continuation (`resume`)](agent-tool.md#resume)). A `consume` of a row that is `running` MUST NOT
   delete the record; the row settles later and its record then follows the rewrite rule above.
-  A completion notification ([task-registry.md](task-registry.md), Section 5) leaves the records
+  A completion notification ([task-registry.md, cohorts and completion notification](task-registry.md#cohorts)) leaves the records
   of the rows it consumes in place.
 
   > Note (non-normative): a settled task can still be rebuilt and resumed after a reload.
@@ -67,15 +67,14 @@ A record MUST NOT carry the task text or the settled result text.
 ## 3. Rebuild {#rebuild}
 
 - At the main session's start, after its agent directory is created
-  ([agent-tool.md](agent-tool.md), Section 4.2), the extension MUST rebuild: scan the session's
+  ([agent-tool.md, child session](agent-tool.md#child-session)), the extension MUST rebuild: scan the session's
   own agent directory for files named `<taskId>.task.json` and `insert` one task row per record
-  ([task-registry.md](task-registry.md), Section 3). A record inside a child session's agent
+  ([task-registry.md, operations](task-registry.md#operations)). A record inside a child session's agent
   directory is never read; the interrupted task that dispatched that child is the resumable unit.
-- The rebuild happens only when this boot window owns the session ([session-store.md](session-store.md),
-  Section 4): a boot window whose registration was refused inserts no row and changes no record.
+- The rebuild happens only when this boot window owns the session ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)): a boot window whose registration was refused inserts no row and changes no record.
 - A rebuild whose agent directory cannot be read MUST report the failure as one `warning` notice
   naming the directory and the error, `pi-dent: cannot read the task record directory <dir>: <error>`,
-  through the host `notify` API ([config-file.md](config-file.md), Section 6), and MUST insert no
+  through the host `notify` API ([config-file.md, diagnostics](config-file.md#diagnostics)), and MUST insert no
   row from it. A directory that does not exist is not a failure.
 - For a record with `status: "running"`, the inserted row MUST have `status` `"interrupted"`,
   `kind` `"agent"`, `background` `true`, `settledAt` the rebuild time, `consumed` `false`,
@@ -93,9 +92,9 @@ A record MUST NOT carry the task text or the settled result text.
 - A rebuild MUST skip a record whose `taskId` is already a row of the task registry.
 - The interrupted notification MUST list only the `interrupted` rows the current rebuild inserted,
   never a row an earlier rebuild inserted into the same task registry.
-- A rebuild changes the task ledger per [task-ledger.md](task-ledger.md), Section 4.2.
+- A rebuild changes the task ledger per [task-ledger.md, rebuild](task-ledger.md#rebuild).
 - Inserted `interrupted` rows trigger the interrupted notification of
-  [task-registry.md](task-registry.md), Section 5; a rebuilt row never triggers the completion
+  [task-registry.md, cohorts and completion notification](task-registry.md#cohorts); a rebuilt row never triggers the completion
   notification.
 
 ## 4. Specification gaps {#gaps}

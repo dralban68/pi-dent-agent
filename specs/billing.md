@@ -1,19 +1,19 @@
 # Billing specification
 
 This document specifies how pi-dent consumes the billing service, the bundled pi-dent-purse extension
-([package.md](package.md), Section 2): the subset of its protocol pi-dent
+([package.md, entry list](package.md#entry-list)): the subset of its protocol pi-dent
 relies on, when pi-dent queries it, the held billing it keeps, how billing entries map to guided
 models, and the billing text placed in the guidance message
-([model-guidance.md](model-guidance.md), Section 5) and in the `Session` tool's billing report
+([model-guidance.md, guidance message](model-guidance.md#guidance-message)) and in the `Session` tool's billing report
 ([session-tool.md](session-tool.md)). pi-dent MUST NOT contact a vendor, read a credential, or
 derive billing data itself; everything in this document comes from billing query replies.
 
 ## 1. Enablement {#enablement}
 
 Billing is enabled unless `modelGuidance.billing` is `false`
-([model-guidance.md](model-guidance.md), Section 1). While billing is disabled, the extension
-MUST NOT emit on or subscribe to the channels of Section 2, holds no billing, and every billing
-text of Sections 6 and 7 is absent.
+([model-guidance.md, configuration](model-guidance.md#configuration)). While billing is disabled, the extension
+MUST NOT emit on or subscribe to the channels of [billing service protocol](#service-protocol), holds no billing, and every billing
+text of [guidance billing text](#guidance-billing) and [billing report](#billing-report) is absent.
 
 ## 2. Billing service protocol {#service-protocol}
 
@@ -21,21 +21,21 @@ The billing service answers on the event bus of the extension instance:
 the host's inter-extension bus, which delivers an emitted event synchronously to every listener
 during `emit`. pi-dent relies on the following and nothing else.
 
-| Channel            | Direction         | Payload                              |
-| ------------------ | ----------------- | ------------------------------------ |
-| `purse:query:v1`   | pi-dent → service | A request (Section 2.1).             |
-| `purse:changed:v1` | service → pi-dent | A change notification (Section 2.3). |
+| Channel            | Direction         | Payload                                                              |
+| ------------------ | ----------------- | -------------------------------------------------------------------- |
+| `purse:query:v1`   | pi-dent → service | A request ([request and outcome](#request-outcome)).                 |
+| `purse:changed:v1` | service → pi-dent | A change notification ([change notification](#change-notification)). |
 
 ### 2.1 Request and outcome {#request-outcome}
 
 A billing query emits one request object on `purse:query:v1`:
 
-| Field       | Value                                                                                        |
-| ----------- | -------------------------------------------------------------------------------------------- |
-| `providers` | The billing providers of the query (Section 3), non-empty.                                   |
-| `mode`      | `"cached"` or `"auto"` (Section 4); pi-dent MUST NOT send `"refresh"`.                       |
-| `maxWaitMs` | `5000` for a report query (Section 4.4); absent for every other billing query.               |
-| `respond`   | A function returning `true` on its first call during `emit` and `false` on every other call. |
+| Field       | Value                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| `providers` | The billing providers of the query ([billing providers and mapping](#providers)), non-empty.     |
+| `mode`      | `"cached"` or `"auto"` ([queries](#queries)); pi-dent MUST NOT send `"refresh"`.                 |
+| `maxWaitMs` | `5000` for a report query ([report query](#report-query)); absent for every other billing query. |
+| `respond`   | A function returning `true` on its first call during `emit` and `false` on every other call.     |
 
 pi-dent MUST NOT emit a request whose `providers` is empty and MUST NOT set any other field. The
 argument of the first `respond` call is a promise; what it settles to is the billing reply. The
@@ -52,16 +52,16 @@ A billing reply is valid when it is an object whose `protocol` is `1`, whose `st
 `not-ready`, `bad-request`, `cancelled`, whose `generatedAt` is a finite number, and whose
 `providers` is a non-array object. A settlement after `timeout` MUST be ignored. A field of a
 billing reply that this specification does not name MUST be ignored at every level and MUST NOT
-produce a diagnostic; the unknown-key rule ([config-file.md](config-file.md), Section 2) does not
+produce a diagnostic; the unknown-key rule ([config-file.md, format](config-file.md#format)) does not
 apply to a billing reply.
 
 > Note (non-normative): the service settles every billing reply within 20 s of the offer, or within
 > `maxWaitMs` when that is less, so the 25 s deadline cuts off only a service that breaks that
 > promise, and the protocol asks consumers for a deadline of at least 20 s.
 
-Only an `ok` outcome changes held billing (Section 4.1). No outcome produces a diagnostic, a
-notification, or a session message, and billing queries start only by the rules of Section 4. A
-failure that is not a query outcome is reported per Section 4.5.
+Only an `ok` outcome changes held billing ([extension instance and held billing](#held-billing)). No outcome produces a diagnostic, a
+notification, or a session message, and billing queries start only by the rules of [queries](#queries). A
+failure that is not a query outcome is reported per [diagnostics](#diagnostics).
 
 ### 2.2 Billing entry {#billing-entry}
 
@@ -125,7 +125,7 @@ array; its named providers are the array's string elements. Any other payload MU
 ## 3. Billing providers and mapping {#providers}
 
 A billing entry is keyed by provider id; a guided model's identifier
-([model-guidance.md](model-guidance.md), Section 2) parses to a descriptor whose `provider` is
+([model-guidance.md, guided models](model-guidance.md#guided-models)) parses to a descriptor whose `provider` is
 that key and whose `id` keys its model record within the entry. The thinking level of the
 identifier MUST be ignored: every thinking level of one `provider/id` maps to the same entry
 and model record.
@@ -135,13 +135,13 @@ models, in ascending ASCII order. A provider id the billing service does not ser
 in the billing reply, and so no billing text.
 
 - The guidance billing providers are the billing providers of the guided models for the
-  configured models ([model-guidance.md](model-guidance.md), Section 2) while model guidance
+  configured models ([model-guidance.md, guided models](model-guidance.md#guided-models)) while model guidance
   is active for them, and none otherwise.
 - The report billing providers of a `Session` call are the billing providers of its `models`
-  ([session-tool.md](session-tool.md), Section 2).
+  ([session-tool.md, result](session-tool.md#result)).
 
 A guided model whose provider has no held billing entry has an empty billing annotation
-(Section 6.2). For its billing annotation, a guided model
+([billing annotation](#billing-annotation)). For its billing annotation, a guided model
 whose `id` has no model record in the held entry is treated as having one with every rate and
 `source` `null` and no price schedule.
 
@@ -188,19 +188,19 @@ handler, and MUST NOT impose a minimum time between polls of its own.
 
 A cached query is a billing query with `mode` `"cached"`. Each extension instance keeps a
 waiting set of providers, initially empty. Providers join the waiting set on two occasions: on a
-change notification (Section 2.3), the providers it names that are guidance billing providers;
+change notification ([change notification](#change-notification)), the providers it names that are guidance billing providers;
 and, while billing is enabled and the guidance billing providers are non-empty, every guidance
 billing provider that no pending cached query of the extension instance names, immediately before
 guidance content is computed on `session_compact` and `model_select`
-([model-guidance.md](model-guidance.md), Section 5) and before a child guidance is computed
-([model-guidance.md](model-guidance.md), Section 4). When the waiting set is non-empty
+([model-guidance.md, guidance message](model-guidance.md#guidance-message)) and before a child guidance is computed
+([model-guidance.md, session rules](model-guidance.md#session-rules)). When the waiting set is non-empty
 and no cached query of the extension instance is pending, the extension MUST start a cached query
 for the waiting set and empty it; when a cached query settles and the waiting set is non-empty, it
 MUST start the next one the same way.
 
 Such a guidance computation MUST then wait, for at most 500 ms from that moment,
 until no cached query of the extension instance is pending, and then proceed with held billing as
-it stands; an outcome arriving later still applies per Section 4.1. For a child guidance, at any
+it stands; an outcome arriving later still applies per [extension instance and held billing](#held-billing). For a child guidance, at any
 dispatch depth, the waiting set, the query, and held billing are those of the main session's
 extension instance.
 
@@ -212,22 +212,22 @@ extension instance.
 
 While billing is enabled, a `Session` call with non-empty report billing providers MUST make
 one billing query with `mode` `"auto"` for them and wait for its outcome before returning,
-unless the tool call is aborted first, in which case it stops waiting and Section 7 uses held
-billing alone. Its `ok` outcome updates held billing per Section 4.1. Whichever session invokes
+unless the tool call is aborted first, in which case it stops waiting and [billing report](#billing-report) uses held
+billing alone. Its `ok` outcome updates held billing per [extension instance and held billing](#held-billing). Whichever session invokes
 `Session`, the report query uses the event bus of the main session's extension instance, and
-Section 7 reads that instance's held billing.
+[billing report](#billing-report) reads that instance's held billing.
 
 ### 4.5 Diagnostics {#diagnostics}
 
 Each of these failures MUST produce one diagnostic naming the failure: one message with level
 `warning`, reported through the host `notify` API as `pi-dent: <message>`
-([config-file.md](config-file.md), Section 6).
+([config-file.md, diagnostics](config-file.md#diagnostics)).
 
 - subscribing to `purse:changed:v1` throwing, or cancelling that subscription throwing
-  (Section 4.1);
-- the guidance billing providers (Section 3) being unreadable;
+  ([extension instance and held billing](#held-billing));
+- the guidance billing providers ([billing providers and mapping](#providers)) being unreadable;
 - injecting a deferred `session_start` guidance message
-  ([model-guidance.md](model-guidance.md), Section 5) throwing.
+  ([model-guidance.md, guidance message](model-guidance.md#guidance-message)) throwing.
 
 The diagnostic is reported at once while a session of the extension instance is open, and
 otherwise at that instance's next `session_start`. The extension instance then holds what it
@@ -237,15 +237,15 @@ handler, timer, or promise callback that runs it.
 
 ## 5. Billing text {#billing-text}
 
-Every text of Sections 6 and 7 is composed by pi-dent from the fields of Section 2.2. The only
+Every text of [guidance billing text](#guidance-billing) and [billing report](#billing-report) is composed by pi-dent from the fields of [billing entry](#billing-entry). The only
 strings copied from a billing entry are sanitized text, `status` as read, and the values
-Section 7 admits by pattern; provider ids and model ids come from pi-dent's own model list.
+[billing report](#billing-report) admits by pattern; provider ids and model ids come from pi-dent's own model list.
 
 - Sanitized text: a string with every match of `[^\p{L}\p{N} ._\-/+()]` ([ECMA-262], `u`
   flag) removed, runs of spaces collapsed to one, trimmed, cut to its first 64 characters, and a
   trailing lone surrogate, then trailing spaces, removed; an empty result is `null`. Only `plan` and
   limit window `label` are sanitized text, and they appear only in the billing report
-  (Section 7).
+  ([billing report](#billing-report)).
 - Decimal rendering to `n` places: the result of `Number.prototype.toFixed(n)` on the value,
   converted back to a Number and written by Number::toString ([ECMA-262]); a positive value
   whose result is 0 renders as the smallest positive multiple of 10⁻ⁿ.
@@ -294,10 +294,10 @@ Section 7 admits by pattern; provider ids and model ids come from pi-dent's own 
 ### 6.1 Presence {#presence}
 
 Guidance billing text is present while billing is enabled, model guidance is active for the
-configured models ([model-guidance.md](model-guidance.md), Section 2), and held billing has an
+configured models ([model-guidance.md, guided models](model-guidance.md#guided-models)), and held billing has an
 entry for at least one guidance billing provider. It
 is computed from held billing at the moment guidance content or a child guidance is computed
-([model-guidance.md](model-guidance.md), Sections 4 and 5). Without it — billing disabled, the
+([model-guidance.md, session rules](model-guidance.md#session-rules) and [model-guidance.md, guidance message](model-guidance.md#guidance-message)). Without it — billing disabled, the
 billing service absent, or no `ok` outcome yet — the guidance message has no billing lines.
 
 ### 6.2 Billing annotation {#billing-annotation}
@@ -308,7 +308,7 @@ entry's model record for its `id`. Its parts, in order:
 1. the price, when the provider state is `free` or the record's `price.source` is `free`:
    `free`; otherwise, when `input` or `output` is not `null`, the rate pair below; otherwise no
    part;
-2. the provider state (Section 5), when it is `untracked`, `unknown`, `low`, `critical`, or
+2. the provider state ([billing text](#billing-text)), when it is `untracked`, `unknown`, `low`, `critical`, or
    `exhausted`;
 3. when the entry's `status` is `ok` or `partial`: the first 2 window clauses, in window-clause
    order, of its counted limit windows whose `models` is `null` and whose severity is `low`,
@@ -328,8 +328,7 @@ The rate pair is `$<input>/$<output>`, each rate in decimal rendering to 3 place
 
 `<m>` is in decimal rendering to 3 places. With at least one part, the annotation is a space,
 `[`, the parts joined by `; `, and `]`; with none, it is empty. The annotation follows `<model>:`
-on the guided model's line of the guidance message ([model-guidance.md](model-guidance.md),
-Section 5).
+on the guided model's line of the guidance message ([model-guidance.md, guidance message](model-guidance.md#guidance-message)).
 
 > Note (non-normative): `active` and `changesAt` change only when the schedule crosses into or
 > out of a window, and a weekly schedule always has its next crossing within the billing
@@ -337,7 +336,7 @@ Section 5).
 
 ### 6.3 Billing note {#billing-note}
 
-The billing note is the following line, `<zone>` being the local zone (Section 5):
+The billing note is the following line, `<zone>` being the local zone ([billing text](#billing-text)):
 
 ```text
 Choose by stated use first; among models suited to a task, prefer the cheaper, counting a discount (×) while it lasts. Prices are USD per million input/output tokens; times UTC, local <zone> in parentheses. Requests to an exhausted provider or model fail until its reset. Providers without limit data are marked unknown or untracked.
@@ -358,16 +357,16 @@ Choose by stated use first; among models suited to a task, prefer the cheaper, c
 ## 7. Billing report {#billing-report}
 
 The billing report of a `Session` call is `null` while billing is disabled or when it would hold
-no record; otherwise it is `{ timeZone, providers }`: `timeZone` the local zone (Section 5), and
+no record; otherwise it is `{ timeZone, providers }`: `timeZone` the local zone ([billing text](#billing-text)), and
 `providers` one record per report billing provider with an entry in held billing once the report
-query's outcome is known or waiting for it stopped (Section 4.4), in ascending ASCII order of
+query's outcome is known or waiting for it stopped ([report query](#report-query)), in ascending ASCII order of
 provider:
 
 | Field        | Type             | Contract                                                                                                                                                                                                                                                                                |
 | ------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `provider`   | string           | The provider id.                                                                                                                                                                                                                                                                        |
-| `state`      | string           | The provider state (Section 5).                                                                                                                                                                                                                                                         |
-| `status`     | string           | `status` as read (Section 2.2).                                                                                                                                                                                                                                                         |
+| `state`      | string           | The provider state ([billing text](#billing-text)).                                                                                                                                                                                                                                     |
+| `status`     | string           | `status` as read ([billing entry](#billing-entry)).                                                                                                                                                                                                                                     |
 | `reason`     | string \| `null` | `reason` when it matches `^[a-z0-9][a-z0-9-]{0,63}$` ([ECMA-262], `u` flag); else `null`.                                                                                                                                                                                               |
 | `capturedAt` | number \| `null` | As read.                                                                                                                                                                                                                                                                                |
 | `stale`      | boolean          | As read.                                                                                                                                                                                                                                                                                |
@@ -403,17 +402,17 @@ Its text is one block per record, blocks in record order:
   Regular Expressions (pattern syntax and the `u` flag), Number::toString and
   `Number.prototype.toFixed` (decimal rendering).
 - [ECMA-402] ECMAScript Internationalization API Specification, 10th edition (June 2023), Ecma
-  International: `Intl.DateTimeFormat.prototype.resolvedOptions` (the local zone of Section 5).
+  International: `Intl.DateTimeFormat.prototype.resolvedOptions` (the local zone of [billing text](#billing-text)).
 - [IANA TZ] IANA Time Zone Database, any release supported by the host runtime's `Intl` API: the
-  zone names and UTC offsets of Section 5.
+  zone names and UTC offsets of [billing text](#billing-text).
 
 ## 9. Specification gaps {#gaps}
 
-- Whether the host's `emit` propagates an exception thrown by a listener; Section 2.1 treats a
+- Whether the host's `emit` propagates an exception thrown by a listener; [request and outcome](#request-outcome) treats a
   throw before `respond` as `no-service` either way.
 - The billing service keeps captures per process, so with several main sessions on one machine
-  the vendor requests of Section 4.2 scale with the number of processes; a capture shared per
+  the vendor requests of [billing poll](#billing-poll) scale with the number of processes; a capture shared per
   machine would bound them, and pi-dent takes no measure of its own.
 - Whether a vendor model name in a limit window's `models` that equals a guided model's `id`
-  denotes that model; Section 6.2 treats it as the model.
-- Section 4.5 diagnostic wording is open: any wording that names the failure is allowed.
+  denotes that model; [billing annotation](#billing-annotation) treats it as the model.
+- [Diagnostics](#diagnostics) diagnostic wording is open: any wording that names the failure is allowed.

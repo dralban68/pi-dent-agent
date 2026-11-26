@@ -5,8 +5,8 @@ machine keep a permanent history of every task and of each main session's own us
 ledger's location, format and version, its two tables, when rows are written, how rows of ended
 processes are settled, concurrent access, failures, and the figures derived from the rows. The
 task row and task registry are owned by [task-registry.md](task-registry.md); the usage sum by
-[agent-tool.md](agent-tool.md), Section 13; the surfaces that show ledger figures by
-[task-tool.md](task-tool.md), Section 2.3, and [session-tool.md](session-tool.md), Section 2.
+[agent-tool.md, usage](agent-tool.md#usage); the surfaces that show ledger figures by
+[task-tool.md, `list`](task-tool.md#list), and [session-tool.md, result](session-tool.md#result).
 
 The task ledger is not derived data: no other file holds its rows, so pi-dent never deletes,
 resets, or rewrites the file. It is neither a task record ([task-record.md](task-record.md)),
@@ -25,18 +25,18 @@ instance MUST open the ledger once, at the first `session_start` of its main ses
 in this order:
 
 1. When the ledger path and the path of the local session store
-   ([session-store.md](session-store.md), Section 1) or of the session index
-   ([session-index.md](session-index.md), Section 1) name the same file — when both exist, they
+   ([session-store.md, location and format](session-store.md#location)) or of the session index
+   ([session-index.md, location and format](session-index.md#location)) name the same file — when both exist, they
    have the same device and inode; otherwise their resolved paths are equal — make the ledger
-   unusable (Section 7) without opening the file.
+   unusable ([failures](#failures)) without opening the file.
 2. Create the file's directory and the file when absent.
-3. When `user_version` is `0` and the database holds no table: create the schema of Section 2
+3. When `user_version` is `0` and the database holds no table: create the schema of [schema](#schema)
    and set `user_version` to `1`, inside one transaction begun with `BEGIN IMMEDIATE`, so that of
    two processes opening an absent file the second finds the first's schema; a creation that
    fails is rolled back whole.
 4. When `user_version` is `1`: use the database.
-5. Otherwise: leave the file unchanged; the ledger is unusable (Section 7).
-6. Run the sweep of Section 4.1.
+5. Otherwise: leave the file unchanged; the ledger is unusable ([failures](#failures)).
+6. Run the sweep of [sweep](#sweep).
 
 A ledger file of another format version (`tasks-v<n>.sqlite`) MUST NOT be read, changed, or
 deleted. No row is ever deleted: the ledger keeps every row for as long as the file exists.
@@ -104,19 +104,19 @@ and for a child session the ledger session ID of the session that dispatched it,
 
 One per main session, holding the main session's own usage, never that of its tasks:
 
-| Column                                                 | Contract                                                                                                                                                                                                             |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session_id`                                           | The main session's ID.                                                                                                                                                                                               |
-| `session_file`                                         | Absolute path of the main session's session file; null when the session has none (`--no-session`).                                                                                                                   |
-| `cwd`                                                  | The main session's working directory.                                                                                                                                                                                |
-| `started_at`                                           | Time of the row's insertion; never changed afterwards.                                                                                                                                                               |
-| `updated_at`                                           | Time of the row's latest write.                                                                                                                                                                                      |
-| `input`, `output`, `cache_read`, `cache_write`, `cost` | The sums of the input, output, cache-read, and cache-write token counts and of the cost of the counted entries' host `usage`, as [footer.md](footer.md), Section 2.2, sums its session totals; `cost` in US dollars. |
-| `turns`                                                | The number of assistant-message entries of the session, on every branch, with or without a host `usage`, that are not entries copied by a fork (below).                                                              |
-| `tool_calls`                                           | The number of tool calls ([agent-tool.md](agent-tool.md), Section 13) of the assistant messages of the entries `turns` counts.                                                                                       |
+| Column                                                 | Contract                                                                                                                                                                                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `session_id`                                           | The main session's ID.                                                                                                                                                                                                         |
+| `session_file`                                         | Absolute path of the main session's session file; null when the session has none (`--no-session`).                                                                                                                             |
+| `cwd`                                                  | The main session's working directory.                                                                                                                                                                                          |
+| `started_at`                                           | Time of the row's insertion; never changed afterwards.                                                                                                                                                                         |
+| `updated_at`                                           | Time of the row's latest write.                                                                                                                                                                                                |
+| `input`, `output`, `cache_read`, `cache_write`, `cost` | The sums of the input, output, cache-read, and cache-write token counts and of the cost of the counted entries' host `usage`, as [footer.md, stats line](footer.md#stats-line), sums its session totals; `cost` in US dollars. |
+| `turns`                                                | The number of assistant-message entries of the session, on every branch, with or without a host `usage`, that are not entries copied by a fork (below).                                                                        |
+| `tool_calls`                                           | The number of tool calls ([agent-tool.md, usage](agent-tool.md#usage)) of the assistant messages of the entries `turns` counts.                                                                                                |
 
 The counted entries are the entries of the session, on every branch, as the host holds them,
-that [footer.md](footer.md), Section 2.2, sums into its session totals, except:
+that [footer.md, stats line](footer.md#stats-line), sums into its session totals, except:
 
 - A tool result message whose tool name is `Agent`. The usage of an `Agent` dispatch is in its
   ledger row; any host `usage` on its tool result was put there by another extension.
@@ -131,65 +131,65 @@ the tool result message of the call that made it, so with this rule a `Script` r
 `Agent` calls add nothing to the run's tool result.
 
 > Note (non-normative): the host totals that the footer shows count both exceptions; the ledger
-> session row leaves them out so that the session usage of Section 6 counts each message once.
+> session row leaves them out so that the session usage of [derived figures](#derived-figures) counts each message once.
 
-The six usage columns form a usage sum ([agent-tool.md](agent-tool.md), Section 13) whose fields
+The six usage columns form a usage sum ([agent-tool.md, usage](agent-tool.md#usage)) whose fields
 `input`, `output`, `cacheRead`, `cacheWrite`, `cost`, and `turns` are the columns of those names,
 `cache_read` being `cacheRead` and `cache_write` being `cacheWrite`. `tool_calls` is not a field
 of the usage sum.
 
 ### 2.2 Ledger row {#ledger-row}
 
-One per task row ([task-registry.md](task-registry.md), Section 2) of every task kind,
+One per task row ([task-registry.md, task row](task-registry.md#task-row)) of every task kind,
 foreground and background, at any depth of the task tree, a `Fleet` query dispatch's row
-included ([task-registry.md](task-registry.md), Section 1). An invocation that registers no task
-row ([task.md](task.md), Section 1) has no ledger row; a pre-start rejection, which registers
+included ([task-registry.md, ownership](task-registry.md#ownership)). An invocation that registers no task
+row ([task.md, task kinds](task.md#task-kinds)) has no ledger row; a pre-start rejection, which registers
 one, has one.
 
-| Column                                                          | Contract                                                                                                                                                                                                                                                                                                            |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `row_id`                                                        | A random UUID, version 4 ([RFC 9562], Section 5.4), in its lowercase hyphenated text form, drawn when the task row is registered.                                                                                                                                                                                   |
-| `session_id`                                                    | The ledger session ID of the invoking session ([task.md](task.md), Section 5); for a `Fleet` query dispatch, that of the target session, its dispatching session.                                                                                                                                                   |
-| `task_id`                                                       | The task row's task ID. It is not unique: task IDs are unique only within one task tree, and a session's task trees across reloads and processes can repeat one.                                                                                                                                                    |
-| `parent_id`                                                     | The `row_id` of the parent row (Section 3.1), else null.                                                                                                                                                                                                                                                            |
-| `resumes_id`                                                    | For an `agent` row of a `resume` dispatch, the `row_id` of the row it continues (Section 3.2), else null.                                                                                                                                                                                                           |
-| `fleet_query`                                                   | `1` for a `Fleet` query dispatch's row, else `0`.                                                                                                                                                                                                                                                                   |
-| `kind`                                                          | The task kind: `agent`, `script`, or `bash`.                                                                                                                                                                                                                                                                        |
-| `background`                                                    | `1` when the row's `background` is `true`, else `0`.                                                                                                                                                                                                                                                                |
-| `cwd`                                                           | The invoking session's working directory until `dispatched` becomes `1`; then the working directory the task runs in: the dispatch plan's resolved cwd for an `agent` row ([agent-tool.md](agent-tool.md), Section 3), the call's working directory ([task.md](task.md), Section 1.1) for a `script` or `bash` row. |
-| `agent`                                                         | The row's agent identity for an `agent` row once set; else null.                                                                                                                                                                                                                                                    |
-| `label`                                                         | The row's `label`, unchanged: not the display label.                                                                                                                                                                                                                                                                |
-| `model`                                                         | The row's `model` for an `agent` row once set; else null.                                                                                                                                                                                                                                                           |
-| `status`                                                        | `running`, `completed`, `failed`, `cancelled`, or `interrupted` (Sections 3.2 and 4).                                                                                                                                                                                                                               |
-| `dispatched`                                                    | `0` until the task's pre-start checks have passed, then `1`; a pre-start rejection's row keeps `0`.                                                                                                                                                                                                                 |
-| `started_at`                                                    | The row's `startedAt`.                                                                                                                                                                                                                                                                                              |
-| `settled_at`                                                    | Null while `status` is `running`; then the settlement time of Sections 3.2 and 4.                                                                                                                                                                                                                                   |
-| `updated_at`                                                    | Time of the row's latest write.                                                                                                                                                                                                                                                                                     |
-| `owner_pid`                                                     | Process ID of the process that inserted the row.                                                                                                                                                                                                                                                                    |
-| `owner_started`                                                 | That process's start time: the current time less the process's uptime, computed once per process.                                                                                                                                                                                                                   |
-| `session_path`                                                  | For an `agent` row, its `sessionPath` once set: the session file of the dispatch's child session, the source file of a `resume`. For a `script` row, its tool log path ([script-tool.md](script-tool.md), Section 8.4) once the tool log is created. Else null.                                                     |
-| `result_path`                                                   | The row's `resultPath` once settled with one: a result spill ([agent-tool.md](agent-tool.md), Section 7) or an output file ([script-tool.md](script-tool.md), Section 6; [bash-tool.md](bash-tool.md), Section 4). Else null.                                                                                       |
-| `input`, `output`, `cache_read`, `cache_write`, `cost`, `turns` | For an `agent` row, the row's usage sum ([agent-tool.md](agent-tool.md), Section 13), mapped to columns as in Section 2.1, a zero usage sum while the row's `usage` is absent; null for a `script` or `bash` row.                                                                                                   |
-| `tool_calls`                                                    | For an `agent` or `script` row, the row's `toolCalls` ([task-registry.md](task-registry.md), Section 2); null for a `bash` row.                                                                                                                                                                                     |
+| Column                                                          | Contract                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `row_id`                                                        | A random UUID, version 4 ([RFC 9562], Section 5.4), in its lowercase hyphenated text form, drawn when the task row is registered.                                                                                                                                                                                                                           |
+| `session_id`                                                    | The ledger session ID of the invoking session ([task.md, host terms](task.md#host-terms)); for a `Fleet` query dispatch, that of the target session, its dispatching session.                                                                                                                                                                               |
+| `task_id`                                                       | The task row's task ID. It is not unique: task IDs are unique only within one task tree, and a session's task trees across reloads and processes can repeat one.                                                                                                                                                                                            |
+| `parent_id`                                                     | The `row_id` of the parent row ([parent row](#parent-row)), else null.                                                                                                                                                                                                                                                                                      |
+| `resumes_id`                                                    | For an `agent` row of a `resume` dispatch, the `row_id` of the row it continues ([write rules](#write-rules)), else null.                                                                                                                                                                                                                                   |
+| `fleet_query`                                                   | `1` for a `Fleet` query dispatch's row, else `0`.                                                                                                                                                                                                                                                                                                           |
+| `kind`                                                          | The task kind: `agent`, `script`, or `bash`.                                                                                                                                                                                                                                                                                                                |
+| `background`                                                    | `1` when the row's `background` is `true`, else `0`.                                                                                                                                                                                                                                                                                                        |
+| `cwd`                                                           | The invoking session's working directory until `dispatched` becomes `1`; then the working directory the task runs in: the dispatch plan's resolved cwd for an `agent` row ([agent-tool.md, dispatch plan](agent-tool.md#dispatch-plan)), the call's working directory ([task.md, the `cwd` parameter](task.md#cwd-parameter)) for a `script` or `bash` row. |
+| `agent`                                                         | The row's agent identity for an `agent` row once set; else null.                                                                                                                                                                                                                                                                                            |
+| `label`                                                         | The row's `label`, unchanged: not the display label.                                                                                                                                                                                                                                                                                                        |
+| `model`                                                         | The row's `model` for an `agent` row once set; else null.                                                                                                                                                                                                                                                                                                   |
+| `status`                                                        | `running`, `completed`, `failed`, `cancelled`, or `interrupted` ([write rules](#write-rules) and [settling rows of ended processes](#settling)).                                                                                                                                                                                                            |
+| `dispatched`                                                    | `0` until the task's pre-start checks have passed, then `1`; a pre-start rejection's row keeps `0`.                                                                                                                                                                                                                                                         |
+| `started_at`                                                    | The row's `startedAt`.                                                                                                                                                                                                                                                                                                                                      |
+| `settled_at`                                                    | Null while `status` is `running`; then the settlement time of [write rules](#write-rules) and [settling rows of ended processes](#settling).                                                                                                                                                                                                                |
+| `updated_at`                                                    | Time of the row's latest write.                                                                                                                                                                                                                                                                                                                             |
+| `owner_pid`                                                     | Process ID of the process that inserted the row.                                                                                                                                                                                                                                                                                                            |
+| `owner_started`                                                 | That process's start time: the current time less the process's uptime, computed once per process.                                                                                                                                                                                                                                                           |
+| `session_path`                                                  | For an `agent` row, its `sessionPath` once set: the session file of the dispatch's child session, the source file of a `resume`. For a `script` row, its tool log path ([script-tool.md, tool log](script-tool.md#tool-log)) once the tool log is created. Else null.                                                                                       |
+| `result_path`                                                   | The row's `resultPath` once settled with one: a result spill ([agent-tool.md, result contract](agent-tool.md#result-contract)) or an output file ([script-tool.md, timeout and delivery](script-tool.md#timeout-delivery); [bash-tool.md, output capture](bash-tool.md#output-capture)). Else null.                                                         |
+| `input`, `output`, `cache_read`, `cache_write`, `cost`, `turns` | For an `agent` row, the row's usage sum ([agent-tool.md, usage](agent-tool.md#usage)), mapped to columns as in [ledger session row](#session-row), a zero usage sum while the row's `usage` is absent; null for a `script` or `bash` row.                                                                                                                   |
+| `tool_calls`                                                    | For an `agent` or `script` row, the row's `toolCalls` ([task-registry.md, task row](task-registry.md#task-row)); null for a `bash` row.                                                                                                                                                                                                                     |
 
-A task row's ledger row is the one inserted for it (Section 3.2), or, for a row a rebuild inserts,
-the one Section 4.2 finds; a task row registered while the ledger was unusable has none.
+A task row's ledger row is the one inserted for it ([write rules](#write-rules)), or, for a row a rebuild inserts,
+the one [rebuild](#rebuild) finds; a task row registered while the ledger was unusable has none.
 
 The task's pre-start checks have passed: for an `agent` row, when the usage tally counts the
-dispatch ([agent-tool.md](agent-tool.md), Section 13); for a `script` row, when the call has
-passed the checks of [script-tool.md](script-tool.md), Section 2; for a `bash` row, when it has
-passed those of [bash-tool.md](bash-tool.md), Section 2.
+dispatch ([agent-tool.md, usage](agent-tool.md#usage)); for a `script` row, when the call has
+passed the checks of [script-tool.md, validation](script-tool.md#validation); for a `bash` row, when it has
+passed those of [bash-tool.md, validation](bash-tool.md#validation).
 
 ## 3. Writes {#writes}
 
-Writes are applied in the process's ledger order (Section 5); a ledger write MUST NOT change the
+Writes are applied in the process's ledger order ([concurrent access](#concurrent-access)); a ledger write MUST NOT change the
 outcome of any task.
 
 ### 3.1 Parent row {#parent-row}
 
 The parent row of a task row is, the first rule that applies winning:
 
-1. For a task row registered by a nested call ([script-tool.md](script-tool.md), Section 8) of a
+1. For a task row registered by a nested call ([script-tool.md, tool functions](script-tool.md#tool-functions)) of a
    `Script` run: the run's ledger row. The host reports, for each tool execution started through
    its nested-call function, the tool call ID of the call that started it; pi-dent maps that ID
    to the `Script` row it registered.
@@ -198,9 +198,9 @@ The parent row of a task row is, the first rule that applies winning:
 3. Otherwise, none.
 
 Rule 2 covers the rows of an attempt's task registry, whose parent is the row the registry is
-attached to ([task-registry.md](task-registry.md), Section 6), and a `Fleet` query dispatch whose
+attached to ([task-registry.md, nesting](task-registry.md#nesting)), and a `Fleet` query dispatch whose
 target is a child session. A row's `parent_id` MUST NOT change after insertion: adoption
-([task-registry.md](task-registry.md), Section 4) moves the task row, not its ledger row.
+([task-registry.md, registry end and adoption](task-registry.md#registry-end)) moves the task row, not its ledger row.
 
 ### 3.2 Write rules {#write-rules}
 
@@ -209,14 +209,14 @@ each setting `updated_at` to the time it is issued:
 
 | Moment                                                                                                                   | Write                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `register` ([task-registry.md](task-registry.md), Section 3)                                                             | Insert the ledger row with the columns of Section 2.2, `status` `running`, `dispatched` `0`, and `resumes_id`, `settled_at`, and `result_path` null.                                                                                                                                                                                                                                                                  |
+| `register` ([task-registry.md, operations](task-registry.md#operations))                                                 | Insert the ledger row with the columns of [ledger row](#ledger-row), `status` `running`, `dispatched` `0`, and `resumes_id`, `settled_at`, and `result_path` null.                                                                                                                                                                                                                                                    |
 | An `amend` that changes the row's `label`, `agent`, `model`, or `sessionPath`; the creation of a `script` row's tool log | Set `label`, `agent`, `model`, and `session_path` to their new values.                                                                                                                                                                                                                                                                                                                                                |
-| The task's pre-start checks pass (Section 2.2)                                                                           | Set `dispatched` to `1` and `cwd` to the working directory the task runs in; for a `resume` dispatch, set `resumes_id`: for a `resume` given as a task ID, the `row_id` of the resolved row; for a path, the `row_id` of the ledger row, other than this one, with the latest `started_at` among those whose `session_path` equals, as text, the session file path the `resume` resolves to. Null when there is none. |
-| An assistant message is added to the row's `usage` ([agent-tool.md](agent-tool.md), Section 13)                          | Set the six usage columns to the row's usage sum and `tool_calls` to the row's `toolCalls`, whatever the ledger row's `status`.                                                                                                                                                                                                                                                                                       |
-| A `script` row's run starts a nested call ([script-tool.md](script-tool.md), Section 8.4)                                | Set `tool_calls` to the row's `toolCalls`, whatever the ledger row's `status`.                                                                                                                                                                                                                                                                                                                                        |
+| The task's pre-start checks pass ([ledger row](#ledger-row))                                                             | Set `dispatched` to `1` and `cwd` to the working directory the task runs in; for a `resume` dispatch, set `resumes_id`: for a `resume` given as a task ID, the `row_id` of the resolved row; for a path, the `row_id` of the ledger row, other than this one, with the latest `started_at` among those whose `session_path` equals, as text, the session file path the `resume` resolves to. Null when there is none. |
+| An assistant message is added to the row's `usage` ([agent-tool.md, usage](agent-tool.md#usage))                         | Set the six usage columns to the row's usage sum and `tool_calls` to the row's `toolCalls`, whatever the ledger row's `status`.                                                                                                                                                                                                                                                                                       |
+| A `script` row's run starts a nested call ([script-tool.md, tool log](script-tool.md#tool-log))                          | Set `tool_calls` to the row's `toolCalls`, whatever the ledger row's `status`.                                                                                                                                                                                                                                                                                                                                        |
 | `settle`                                                                                                                 | When the ledger row's `status` is `running`: set `status` to the row's terminal `status`, `settled_at` to its `settledAt`, and `result_path` to its `resultPath`. Otherwise change nothing.                                                                                                                                                                                                                           |
 
-Recovery attempts ([agent-tool.md](agent-tool.md), Section 8) are part of their dispatch's row and
+Recovery attempts ([agent-tool.md, recovery](agent-tool.md#recovery)) are part of their dispatch's row and
 add no ledger row. A `resume` is a new dispatch with its own task ID and ledger row.
 
 > Note (non-normative): a `settle` never overwrites a row the sweep or a rebuild has already made
@@ -228,7 +228,7 @@ add no ledger row. A `resume` is a new dispatch with its own task ID and ledger 
 For its main session, the extension MUST write the ledger session row: insert it at
 `session_start`, a reload included, when the ledger holds none with that `session_id`, else
 update it; and set `session_file`, `cwd`, the six usage columns, and `tool_calls` to their values
-of Section 2.1 at `session_start`, at `session_shutdown`, and each time the host reports the end
+of [ledger session row](#session-row) at `session_start`, at `session_shutdown`, and each time the host reports the end
 of a message or a compaction or branch summary of the main session, issuing the write at that
 report. A child session has no ledger session row.
 
@@ -243,7 +243,7 @@ differs from the checking process's start time by more than 1000 ms.
 The sweep MUST set, for every ledger row whose `status` is `running` and whose owner is gone,
 `status` to `interrupted`, `settled_at` to the row's `updated_at`, and then `updated_at` to the
 time of the sweep, in one transaction. It runs
-when the ledger is opened (Section 1), so a row left `running` by a process that ended is settled
+when the ledger is opened ([location and format](#location)), so a row left `running` by a process that ended is settled
 by the next opening of the ledger by any pi-dent process, whether or not its session starts again.
 
 > Note (non-normative): `updated_at` is the last moment the row is known to have been running;
@@ -251,7 +251,7 @@ by the next opening of the ledger by any pi-dent process, whether or not its ses
 
 ### 4.2 Rebuild {#rebuild}
 
-For each row a rebuild inserts ([task-record.md](task-record.md), Section 3), the extension MUST
+For each row a rebuild inserts ([task-record.md, rebuild](task-record.md#rebuild)), the extension MUST
 find its ledger row: the one with the session's ledger session ID, the record's `taskId` as
 `task_id`, and the record's `startedAt` as `started_at`. When the inserted row is `interrupted`
 and the ledger row's `status` is `running` or `cancelled`, the extension MUST set `status` to
@@ -259,14 +259,14 @@ and the ledger row's `status` is `running` or `cancelled`, the extension MUST se
 `updated_at`, and then setting `updated_at` to the time of the write. A rebuild inserts no ledger row: a record with no matching ledger row has none.
 
 > Note (non-normative): a reload settles a running background task `cancelled` as its task
-> registry ends ([task-record.md](task-record.md), Section 2); the rebuild that follows makes it
+> registry ends ([task-record.md, lifecycle](task-record.md#lifecycle)); the rebuild that follows makes it
 > `interrupted`, as the user sees it.
 
 ### 4.3 Session end and reload {#session-end}
 
 A reload, a session replacement, and a host shutdown end the task registry, whose running rows
-settle per [task-registry.md](task-registry.md), Section 4; each settlement writes per
-Section 3.2. Writes the process's ledger order still holds when the process ends are lost, with no
+settle per [task-registry.md, registry end and adoption](task-registry.md#registry-end); each settlement writes per
+[write rules](#write-rules). Writes the process's ledger order still holds when the process ends are lost, with no
 failure reported, and the rows they would have settled are settled by the sweep.
 
 ## 5. Concurrent access {#concurrent-access}
@@ -279,11 +279,11 @@ gone processes.
 - The process's ledger order: the extension MUST apply the ledger reads and writes of one
   process in the order they are issued, across every extension instance of the process, so that
   a read sees every write issued before it. A write issued by an extension instance that has
-  since ended is still applied. An extension instance's opening (Section 1) precedes its other
+  since ended is still applied. An extension instance's opening ([location and format](#location)) precedes its other
   operations in that order.
 - No task waits for the ledger: registration, every task registry operation, a dispatch, and the
   tool call that starts a task MUST proceed without waiting for a ledger read or write. Only the
-  reads of Section 6 by a surface wait, for at most the read deadline below.
+  reads of [derived figures](#derived-figures) by a surface wait, for at most the read deadline below.
 - Every write MUST be made in a transaction begun with `BEGIN IMMEDIATE`. Consecutive writes MAY
   share a transaction. Each write MUST be committed within 1000 ms of being issued, unless it or
   an operation before it in the process's ledger order waits for a transaction that cannot begin
@@ -333,20 +333,20 @@ rounds down. A sum of `cost` values is the floating-point sum of the stored valu
 
 The ledger becomes unusable for an extension instance when, in that instance:
 
-| Condition                                                                                                                                  | Reason                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| The ledger path names the local session store's file (Section 1, step 1)                                                                   | `the task ledger file is the local session store file`                           |
-| The ledger path names the session index's file (Section 1, step 1)                                                                         | `the task ledger file is the session index file`                                 |
-| The directory or the file cannot be created or opened                                                                                      | The error's message.                                                             |
-| `user_version` is neither `0` with no table nor `1`                                                                                        | `unsupported task ledger version <user_version>`                                 |
-| SQLite reports that the file is not a database or is malformed, at opening or in any statement                                             | `task ledger file is corrupt: <message>`, `<message>` being the error's message. |
-| Any other SQLite error, at opening, in creating the schema, in the sweep, in a read, or in a write, other than a busy database (Section 5) | The error's message.                                                             |
+| Condition                                                                                                                                                                | Reason                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| The ledger path names the local session store's file ([location and format](#location), step 1)                                                                          | `the task ledger file is the local session store file`                           |
+| The ledger path names the session index's file ([location and format](#location), step 1)                                                                                | `the task ledger file is the session index file`                                 |
+| The directory or the file cannot be created or opened                                                                                                                    | The error's message.                                                             |
+| `user_version` is neither `0` with no table nor `1`                                                                                                                      | `unsupported task ledger version <user_version>`                                 |
+| SQLite reports that the file is not a database or is malformed, at opening or in any statement                                                                           | `task ledger file is corrupt: <message>`, `<message>` being the error's message. |
+| Any other SQLite error, at opening, in creating the schema, in the sweep, in a read, or in a write, other than a busy database ([concurrent access](#concurrent-access)) | The error's message.                                                             |
 
 - The extension MUST NOT delete or replace a file that is corrupt or of another version, and
   MUST NOT execute a statement that writes to it; a write that fails is rolled back.
 - The first time the ledger becomes unusable in an extension instance, the extension MUST show
   one `warning` notice `pi-dent: task ledger unavailable: <reason>` through the host `notify` API
-  ([config-file.md](config-file.md), Section 6), and none again in that instance.
+  ([config-file.md, diagnostics](config-file.md#diagnostics)), and none again in that instance.
 - An unusable ledger stays unusable for the rest of the extension instance: the instance makes
   no further ledger read or write, its queued reads and writes are dropped, and its surfaces show the ledger as
   unavailable, in the text their specs give, never zero figures. The next extension instance
@@ -384,15 +384,15 @@ The ledger becomes unusable for an extension instance when, in that instance:
 - A `resume` given as a path matches earlier rows by the path's text only: a symbolic link or a
   `..` segment leaves `resumes_id` null.
 - Usage a child session's host charges outside its assistant messages, a host `usage` on its tool
-  results included, is in no ledger row ([agent-tool.md](agent-tool.md), Section 15).
+  results included, is in no ledger row ([agent-tool.md, specification gaps](agent-tool.md#gaps)).
 - `session_path` and `result_path` can name files the retention sweep
-  ([agent-tool.md](agent-tool.md), Section 10) has since deleted, and the file grows without
+  ([agent-tool.md, retention sweep](agent-tool.md#retention-sweep)) has since deleted, and the file grows without
   bound.
 - No surface lists ledger rows of ended sessions or of other sessions; they are read with SQL.
 - The task browser ([task-browser.md](task-browser.md)) and the task feeds
-  ([task.md](task.md), Section 4) show no ledger figure.
+  ([task.md, task tree widget](task.md#task-tree-widget)) show no ledger figure.
 - Whether the host reports the calling tool call of a nested call that a background `Script` run
-  makes after its tool call has returned is the host's; without it, rule 1 of Section 3.1 does not
+  makes after its tool call has returned is the host's; without it, rule 1 of [parent row](#parent-row) does not
   apply to the row that call registers.
 - Opening a file that is corrupt or of another version lets SQLite do its own housekeeping on
   it: roll back a journal a crashed writer left, and create `-wal` and `-shm` companions for a

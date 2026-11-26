@@ -6,8 +6,8 @@ the transcript item and its kinds, the current lineage, the session tree and its
 project, the item address, and the transcript order. The `Search` tool
 ([search-tool.md](search-tool.md)) is the surface over it, and the session index
 ([session-index.md](session-index.md)) stores what this document derives. The location and naming of session files and agent directories are owned by
-[agent-tool.md](agent-tool.md), Section 4.2; the facts a `resume` reads from a session file by
-[agent-tool.md](agent-tool.md), Section 9.
+[agent-tool.md, child session](agent-tool.md#child-session); the facts a `resume` reads from a session file by
+[agent-tool.md, continuation (`resume`)](agent-tool.md#resume).
 
 The session file format is the host's. This document relies on the subset stated here and on
 nothing else; a reader MUST ignore every field and every entry type it does not name.
@@ -32,15 +32,15 @@ the call when it reads that file.
 The session header is the first line of a file when that line is a session entry with `type`
 `"session"` and a string `id`; a session entry of that `type` on any later line is an entry of
 an unused type. A file is readable as a session file only when its first line is a session
-header. A session entry whose `type` is not a string is an entry of an unused type (Section 2).
+header. A session entry whose `type` is not a string is an entry of an unused type ([transcript items](#transcript-items)).
 Every other session entry this document uses carries:
 
-| Field       | Type           | Contract                                                  |
-| ----------- | -------------- | --------------------------------------------------------- |
-| `type`      | string         | The entry type (Section 2).                               |
-| `id`        | string         | The entry ID.                                             |
-| `parentId`  | string \| null | The entry ID of the entry this one continues (Section 3). |
-| `timestamp` | string         | The time the entry was recorded (Section 2, `time`).      |
+| Field       | Type           | Contract                                                                            |
+| ----------- | -------------- | ----------------------------------------------------------------------------------- |
+| `type`      | string         | The entry type ([transcript items](#transcript-items)).                             |
+| `id`        | string         | The entry ID.                                                                       |
+| `parentId`  | string \| null | The entry ID of the entry this one continues ([current lineage](#current-lineage)). |
+| `timestamp` | string         | The time the entry was recorded ([transcript items](#transcript-items), `time`).    |
 
 An entry ID is usable when it is a non-empty string of the characters `A–Z`, `a–z`, `0–9`, `_`,
 and `-`. An entry whose `id` is not usable, and an entry whose `id` equals that of an entry with
@@ -109,7 +109,7 @@ that is not an array yields no element item.
 - An item's length is the length of its text in characters. Its match text is the first 100000
   characters of its text.
 - The `time` of a session entry, the session header included, is the instant its `timestamp`
-  names when that is a date-time ([schedule-tool.md](schedule-tool.md), Section 2.2); otherwise
+  names when that is a date-time ([schedule-tool.md, time values](schedule-tool.md#time-values)); otherwise
   the instant named by the `timestamp` of the nearest entry with a lower line number in the same
   file whose `timestamp` is a date-time; otherwise the Unix epoch. An item's `time` is its
   entry's.
@@ -135,10 +135,10 @@ The session tree of a session is that session and, recursively, every session wh
 lies in the agent directory of a session of the tree.
 
 - The children of a session are the files directly in its agent directory
-  ([agent-tool.md](agent-tool.md), Section 4.2) that are regular files, not symbolic links, named
+  ([agent-tool.md, child session](agent-tool.md#child-session)) that are regular files, not symbolic links, named
   `<stem>.jsonl` where `<stem>` is non-empty, consists only of safe-name characters
-  ([agent-tool.md](agent-tool.md), Section 4.2), and is not `self`, and that are readable as a
-  session file (Section 1). A child's agent directory is `<stem>.agents` beside its file,
+  ([agent-tool.md, child session](agent-tool.md#child-session)), and is not `self`, and that are readable as a
+  session file ([reading a session file](#reading)). A child's agent directory is `<stem>.agents` beside its file,
   entered only when it is a directory and not a symbolic link; the agent directory of the root
   is entered on the same condition. No other directory is entered.
 - A session file an `Agent` `resume` continued from outside the dispatching session's agent
@@ -149,8 +149,8 @@ lies in the agent directory of a session of the tree.
   the root's child down to the member, joined by `/`. The session key names a member relative to
   the root: `self` for the root, and the stem path for any other member. The last `<stem>` of a
   key ends, for a session file an `Agent` dispatch created, with `-` and the dispatch's task ID
-  ([agent-tool.md](agent-tool.md), Section 4.2), and for the tool log of a `Script` run, with `-`
-  and the run's task ID ([script-tool.md](script-tool.md), Section 8.4).
+  ([agent-tool.md, child session](agent-tool.md#child-session)), and for the tool log of a `Script` run, with `-`
+  and the run's task ID ([script-tool.md, tool log](script-tool.md#tool-log)).
 - A root that has no session file is a member with no session entries; its agent directory is
   still read for children.
 
@@ -160,14 +160,14 @@ lies in the agent directory of a session of the tree.
 ### 4.1 Project {#project}
 
 The sessions directory of a main session is the directory that holds its session file
-(`<sessionDir>` of [agent-tool.md](agent-tool.md), Section 4.2). A child session, and a main
+(`<sessionDir>` of [agent-tool.md, child session](agent-tool.md#child-session)). A child session, and a main
 session without a session file, has none. The project of a main session is that session and its
 project members, with their session trees.
 
 - The project members of a main session are the files directly in its sessions directory, other
   than its own session file, that are regular files, not symbolic links, named `<stem>.jsonl`
-  with a `<stem>` as Section 4 requires of a child, that are readable as a session file
-  (Section 1), and whose session ID — the session header's `id` — is non-empty and consists only
+  with a `<stem>` as [session tree](#session-tree) requires of a child, that are readable as a session file
+  ([reading a session file](#reading)), and whose session ID — the session header's `id` — is non-empty and consists only
   of safe-name characters. Each is the session file of another session of the same project, and
   the root of a session tree of its own.
 - The session key of a project member is `~` followed by the first 13 characters of its session
@@ -201,7 +201,7 @@ part        = "0" / ( %x31-39 *DIGIT ) / "error"
 ```
 
 The address of an item is its session's key, `:`, its entry's `id`, and, exactly when the item
-has a part (Section 2), `.` and the part. An address is case-sensitive — the grammar's quoted
+has a part ([transcript items](#transcript-items)), `.` and the part. An address is case-sensitive — the grammar's quoted
 strings match only as written, unlike in [RFC 5234] — and resolves to the item
 it is the address of, or to none. An address is meaningful only to the session it is relative
 to: the same item has another address for a child session and for another main session of the
@@ -210,7 +210,7 @@ project. It stays valid for that session while the session file keeps its name a
 ## 6. Transcript order {#transcript-order}
 
 Transcript order is the total order of a set of items, each with a session key relative to one
-session, by ascending `time` (Section 2); among equal times by ascending session key, compared
+session, by ascending `time` ([transcript items](#transcript-items)); among equal times by ascending session key, compared
 by UTF-16 code units; among equal keys of different sessions by ascending session file path with
 symbolic links resolved, compared the same way; within one session by ascending line number; within one entry by ascending part, compared as numbers, the
 part `error` last. File order is the order of one session's items by line number, then part the
@@ -222,11 +222,11 @@ same way.
   Regular Expressions (the character class escape `\s`), the property order `Object.keys` gives
   for an ordinary object, and `JSON.stringify`.
 - [RFC 5234] Augmented BNF for Syntax Specifications: ABNF (STD 68), D. Crocker, Ed., and
-  P. Overell, 2008: the grammar notation of Section 5 and its core rules `ALPHA` and `DIGIT`.
+  P. Overell, 2008: the grammar notation of [item address](#item-address) and its core rules `ALPHA` and `DIGIT`.
 
 ## 8. Specification gaps {#gaps}
 
-- The host's session file format beyond the subset of Sections 1 and 2 is the host's: other
+- The host's session file format beyond the subset of [reading a session file](#reading) and [transcript items](#transcript-items) is the host's: other
   entry types, other fields, other `message.content` element types, and the header's `version`,
   which is not checked. A host release that changes the subset is not detected.
 - That entry IDs are unique within a file, that every entry other than the first carries the
@@ -238,7 +238,7 @@ same way.
   directory is a project member.
 - An entry the host holds in memory and has not yet written to the session file is not read.
 - After the host moves a session to an earlier entry and before it appends the next entry, the
-  leaf of Section 3 is still the abandoned path's last entry.
+  leaf of [current lineage](#current-lineage) is still the abandoned path's last entry.
 - An entry the host has excluded from the model's context without removing it from the file is
   read like any other.
 - What one read of a session file returns when the file is truncated, replaced, or deleted

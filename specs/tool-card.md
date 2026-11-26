@@ -7,13 +7,13 @@ This document specifies the tool card: what the host's conversation view shows f
 ## 1. Shell {#shell}
 
 `Bash` and `Script` MUST be registered without `renderShell`, so that the host draws each call in
-its default shell: one box per call, holding the call section (Section 2) and, once the call has a
-result, the result section (Section 3), with the host's background for a pending, a successful,
+its default shell: one box per call, holding the call section ([call section](#call-section)) and, once the call has a
+result, the result section ([result section](#result-section)), with the host's background for a pending, a successful,
 and a failed call, and the host's horizontal padding. The components the two tools return from
 `renderCall` and `renderResult` MUST carry no horizontal padding and no background of their own.
 
-The text, colours, and emphasis of Sections 2 and 3 are normative. Path substitution in Sections 2
-and 3 follows [agent-tool.md](agent-tool.md), Section 4.2. ANSI escape sequences and control
+The text, colours, and emphasis of [call section](#call-section) and [result section](#result-section) are normative. Path substitution in [call section](#call-section)
+and [result section](#result-section) follows [agent-tool.md, child session](agent-tool.md#child-session). ANSI escape sequences and control
 characters other than line feeds and tabs MUST be removed from the `description` argument, the
 source, and the result text before they are rendered.
 
@@ -29,11 +29,11 @@ removal, is not present.
 
 The source is:
 
-| Call                    | Source                                                                                                          |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `Bash`                  | `$ ` followed by the `command` text                                                                             |
-| `Script` (plugin shape) | `<plugin>:<path>` when [script-tool.md](script-tool.md), Section 1 treats neither `plugin` nor `path` as absent |
-| `Script` (otherwise)    | the `code` text                                                                                                 |
+| Call                    | Source                                                                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `Bash`                  | `$ ` followed by the `command` text                                                                                                     |
+| `Script` (plugin shape) | `<plugin>:<path>` when [script-tool.md, parameter schema](script-tool.md#parameter-schema) treats neither `plugin` nor `path` as absent |
+| `Script` (otherwise)    | the `code` text                                                                                                                         |
 
 The source lines are the source split at line feeds, after its trailing white space is removed.
 A collapsed card MUST show the first 5 source lines; when the source has more, the line

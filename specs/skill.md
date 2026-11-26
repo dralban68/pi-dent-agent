@@ -18,32 +18,29 @@ non-empty.
 | `global`  | `skills/` in the global layer directory  |
 | `project` | `skills/` in the project layer directory |
 
-Plugin skills are the `skills/` folder of each plugin root ([plugin.md](plugin.md), Section 1).
+Plugin skills are the `skills/` folder of each plugin root ([plugin.md, plugin layout](plugin.md#plugin-layout)).
 
-| Frontmatter   | Contract                                                                                                                                                                                                                        |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`        | Required. The skill's name; MUST equal the directory name `<name>`, be non-empty, and contain no whitespace, `:`, or `/`.                                                                                                       |
-| `description` | Required. A non-empty string (whitespace-only and multi-line values are accepted), the only selection surface in the skill catalog: the catalog injection renders it on one line per [skill-tool.md](skill-tool.md), Section 1. |
+| Frontmatter   | Contract                                                                                                                                                                                                                                                    |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | Required. The skill's name; MUST equal the directory name `<name>`, be non-empty, and contain no whitespace, `:`, or `/`.                                                                                                                                   |
+| `description` | Required. A non-empty string (whitespace-only and multi-line values are accepted), the only selection surface in the skill catalog: the catalog injection renders it on one line per [skill-tool.md, binding and catalog injection](skill-tool.md#binding). |
 
 - Frontmatter is a YAML block opened by a first line `---` and closed by the next line `---`; a
   file without one has empty frontmatter. The frontmatter of a skill, agent definition
-  ([agent.md](agent.md), Section 1), and plugin command ([plugin.md](plugin.md), Section 5)
+  ([agent.md, definition files](agent.md#definition-files)), and plugin command ([plugin.md, slash commands](plugin.md#slash-commands))
   MUST be a mapping; one that is not MUST produce one diagnostic naming the file and MUST be
   read as empty. Parse failure MUST produce one diagnostic naming the file and skip a skill.
 - A `SKILL.md` that cannot be read MUST be skipped with one diagnostic naming the file. A skill
   whose frontmatter lacks valid `name` or `description`, whose `name` differs from `<name>`, or
   whose body is empty MUST be skipped with one diagnostic. A skills directory that cannot be read
   MUST produce one diagnostic naming the directory.
-- Unknown frontmatter keys follow the unknown-key rule ([config-file.md](config-file.md),
-  Section 2).
+- Unknown frontmatter keys follow the unknown-key rule ([config-file.md, format](config-file.md#format)).
 - Skill references are `.md` files under `<name>/references/`, at any depth; a skill can have
-  none ([skill-tool.md](skill-tool.md), Section 2).
+  none ([skill-tool.md, execution contract](skill-tool.md#execution-contract)).
 - The skill catalog lists layer skills in lexicographic order of `<name>`, whatever their layer;
   a `project` skill shadows a `global` skill of the same `name`. Plugin skills follow layer
-  skills, ordered per [plugin.md](plugin.md), Section 9.
-- Plugin skill files join the skill catalog as `namespace:name` ([plugin.md](plugin.md),
-  Section 9). Shadowing between bare and namespaced catalog entries follows [plugin.md](plugin.md),
-  Section 9.
+  skills, ordered per [plugin.md, catalog composition](plugin.md#catalog-composition).
+- Plugin skill files join the skill catalog as `namespace:name` ([plugin.md, catalog composition](plugin.md#catalog-composition)). Shadowing between bare and namespaced catalog entries follows [plugin.md, catalog composition](plugin.md#catalog-composition).
 - The skill catalog MUST be built from the boot snapshot.
 
 ## 2. Content rules {#content-rules}

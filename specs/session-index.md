@@ -26,10 +26,10 @@ The format version is `3` and is recorded as the database's `user_version`. Open
 MUST, in this order:
 
 1. Create the file's directory and the file when absent.
-2. When `user_version` is `0` and the database holds no table: create the schema of Section 2 and
+2. When `user_version` is `0` and the database holds no table: create the schema of [schema](#schema) and
    set `user_version` to `3`.
 3. When `user_version` is `3`: use the database.
-4. Otherwise: leave the file unchanged; the index is unusable (Section 5).
+4. Otherwise: leave the file unchanged; the index is unusable ([failures](#failures)).
 
 The check of step 2 and the creation MUST happen inside one transaction begun with
 `BEGIN IMMEDIATE`, so that of two processes opening an absent file the second finds the first's
@@ -99,46 +99,45 @@ A `files` row describes the consumed bytes of one session file: its first `consu
 which always end just after a line feed. Times are milliseconds since the Unix epoch, rounded
 down; offsets and lengths are in bytes.
 
-| Table       | Column               | Contract                                                                                                                                             |
-| ----------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `files`     | `file_id`            | Assigned by the database at insertion.                                                                                                               |
-| `files`     | `path`               | The session file's absolute path with symbolic links resolved.                                                                                       |
-| `files`     | `session_id`         | The `id` of the session header.                                                                                                                      |
-| `files`     | `started`            | The `time` of the session header.                                                                                                                    |
-| `files`     | `consumed`           | The number of consumed bytes.                                                                                                                        |
-| `files`     | `lines`              | The number of lines in the consumed bytes.                                                                                                           |
-| `files`     | `last_time`          | The `time` of the last session entry in the consumed bytes.                                                                                          |
-| `files`     | `mtime`              | The file's modification time as observed by the catch-up that last changed the row (Section 3).                                                      |
-| `files`     | `tail_offset`        | The offset of the first byte of the last line of the consumed bytes.                                                                                 |
-| `files`     | `tail_hash`          | The SHA-256 digest ([FIPS 180-4]), in lowercase hexadecimal, of the bytes from `tail_offset` up to, not including, `consumed`.                       |
-| `files`     | `session_name`       | The session name of the consumed bytes, else null.                                                                                                   |
-| `files`     | `first_user_message` | The first user line of the consumed bytes, else null.                                                                                                |
-| `entries`   | (row)                | One per session entry in the consumed bytes that is not the session header and has a usable entry ID that no entry with a lower line number carries. |
-| `entries`   | `line`               | The entry's line number.                                                                                                                             |
-| `entries`   | `offset`             | The offset of the first byte of the entry's line.                                                                                                    |
-| `entries`   | `bytes`              | The length of the entry's line, its line feed not counted.                                                                                           |
-| `entries`   | `entry_id`           | The entry ID.                                                                                                                                        |
-| `entries`   | `parent_id`          | `parentId` when a string, else null.                                                                                                                 |
-| `entries`   | `time`               | The entry's `time`.                                                                                                                                  |
-| `entries`   | `lineage`            | `1` when the entry is on the current lineage of the consumed bytes taken as a whole session file, else `0`.                                          |
-| `items`     | (row)                | One per transcript item of an `entries` row.                                                                                                         |
-| `items`     | `item_id`            | Assigned by the database at insertion.                                                                                                               |
-| `items`     | `line`               | The line number of the item's entry.                                                                                                                 |
-| `items`     | `part`               | The item's part, or the empty string when it has none.                                                                                               |
-| `items`     | `kind`               | The item kind.                                                                                                                                       |
-| `items`     | `tool`               | For a `tool_call` or `tool_result` item with a tool name, that name with the letters `A–Z` converted to lowercase; else null.                        |
-| `items`     | `is_error`           | `1` for a `tool_result` item that records a tool error, else `0`.                                                                                    |
-| `items`     | `call_id`            | The item's tool-call ID, else null.                                                                                                                  |
-| `items`     | `time`               | The item's `time`.                                                                                                                                   |
-| `item_text` | (row)                | One per `items` row, its `rowid` the `item_id` and its `text` the item's match text ([session-transcript.md](session-transcript.md), Section 2).     |
+| Table       | Column               | Contract                                                                                                                                                                 |
+| ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `files`     | `file_id`            | Assigned by the database at insertion.                                                                                                                                   |
+| `files`     | `path`               | The session file's absolute path with symbolic links resolved.                                                                                                           |
+| `files`     | `session_id`         | The `id` of the session header.                                                                                                                                          |
+| `files`     | `started`            | The `time` of the session header.                                                                                                                                        |
+| `files`     | `consumed`           | The number of consumed bytes.                                                                                                                                            |
+| `files`     | `lines`              | The number of lines in the consumed bytes.                                                                                                                               |
+| `files`     | `last_time`          | The `time` of the last session entry in the consumed bytes.                                                                                                              |
+| `files`     | `mtime`              | The file's modification time as observed by the catch-up that last changed the row ([catch-up](#catch-up)).                                                              |
+| `files`     | `tail_offset`        | The offset of the first byte of the last line of the consumed bytes.                                                                                                     |
+| `files`     | `tail_hash`          | The SHA-256 digest ([FIPS 180-4]), in lowercase hexadecimal, of the bytes from `tail_offset` up to, not including, `consumed`.                                           |
+| `files`     | `session_name`       | The session name of the consumed bytes, else null.                                                                                                                       |
+| `files`     | `first_user_message` | The first user line of the consumed bytes, else null.                                                                                                                    |
+| `entries`   | (row)                | One per session entry in the consumed bytes that is not the session header and has a usable entry ID that no entry with a lower line number carries.                     |
+| `entries`   | `line`               | The entry's line number.                                                                                                                                                 |
+| `entries`   | `offset`             | The offset of the first byte of the entry's line.                                                                                                                        |
+| `entries`   | `bytes`              | The length of the entry's line, its line feed not counted.                                                                                                               |
+| `entries`   | `entry_id`           | The entry ID.                                                                                                                                                            |
+| `entries`   | `parent_id`          | `parentId` when a string, else null.                                                                                                                                     |
+| `entries`   | `time`               | The entry's `time`.                                                                                                                                                      |
+| `entries`   | `lineage`            | `1` when the entry is on the current lineage of the consumed bytes taken as a whole session file, else `0`.                                                              |
+| `items`     | (row)                | One per transcript item of an `entries` row.                                                                                                                             |
+| `items`     | `item_id`            | Assigned by the database at insertion.                                                                                                                                   |
+| `items`     | `line`               | The line number of the item's entry.                                                                                                                                     |
+| `items`     | `part`               | The item's part, or the empty string when it has none.                                                                                                                   |
+| `items`     | `kind`               | The item kind.                                                                                                                                                           |
+| `items`     | `tool`               | For a `tool_call` or `tool_result` item with a tool name, that name with the letters `A–Z` converted to lowercase; else null.                                            |
+| `items`     | `is_error`           | `1` for a `tool_result` item that records a tool error, else `0`.                                                                                                        |
+| `items`     | `call_id`            | The item's tool-call ID, else null.                                                                                                                                      |
+| `items`     | `time`               | The item's `time`.                                                                                                                                                       |
+| `item_text` | (row)                | One per `items` row, its `rowid` the `item_id` and its `text` the item's match text ([session-transcript.md, transcript items](session-transcript.md#transcript-items)). |
 
 The terms of the table — session header, usable entry ID, line number, `time`, part, tool name,
-and tool-call ID — are those of [session-transcript.md](session-transcript.md), Sections 1 and 2;
-tool error is that of [task.md](task.md), Section 5. `file_id` in `entries` and `items` is the
+and tool-call ID — are those of [session-transcript.md, reading a session file](session-transcript.md#reading) and [session-transcript.md, transcript items](session-transcript.md#transcript-items);
+tool error is that of [task.md, host terms](task.md#host-terms). `file_id` in `entries` and `items` is the
 `file_id` of the `files` row.
 
-In the rules below, white space is that of [session-transcript.md](session-transcript.md),
-Section 2, and a session entry counts whatever its `id`, also when that is not usable or repeats
+In the rules below, white space is that of [session-transcript.md, transcript items](session-transcript.md#transcript-items), and a session entry counts whatever its `id`, also when that is not usable or repeats
 an earlier one.
 
 - The session name of the consumed bytes is taken from their last session entry with `type`
@@ -167,7 +166,7 @@ and returns none.
 ## 3. Catch-up {#catch-up}
 
 A catch-up brings the rows of one session file up to the file. It applies to a file readable as
-a session file ([session-transcript.md](session-transcript.md), Section 1) and MUST proceed as
+a session file ([session-transcript.md, reading a session file](session-transcript.md#reading)) and MUST proceed as
 follows, `<size>` and `<mtime>` being the file's size and modification time read once, before
 any other step:
 
@@ -180,7 +179,7 @@ any other step:
    every row of its `file_id` — and continue as with no row.
 4. Extend the consumed bytes by the lines that follow them and end with a line feed at or before
    offset `<size>`, in order, and set `mtime` to `<mtime>`. A line that
-   [session-transcript.md](session-transcript.md), Section 1, skips is consumed and yields no
+   [session-transcript.md, reading a session file](session-transcript.md#reading), skips is consumed and yields no
    row. A transaction MUST derive `session_name` and `first_user_message` from the row's values
    and the lines it adds, without reading bytes consumed before.
 
@@ -196,12 +195,12 @@ any other step:
   or is not a JSON object whose `id` equals the row's `entry_id`. An `items` row is stale when
   its `entries` row is, and when the line read back, though it is that entry, does not yield a
   transcript item with the row's `part` and `kind`. A reader that finds a stale
-  row and may still write the index ([search-tool.md](search-tool.md), Section 2.2) MUST reset
+  row and may still write the index ([search-tool.md, coverage](search-tool.md#coverage)) MUST reset
   the file as in step 3, in one transaction, when the file's `files` row still has the
   `consumed` and `tail_hash` the reader read, and MUST change nothing when the row is gone, has
   another `consumed` or `tail_hash`, or the reader may no longer write the index. Either way the
   file's catch-up is not complete for that reader; what its tool call then returns is owned by
-  [search-tool.md](search-tool.md), Section 2.2.
+  [search-tool.md, coverage](search-tool.md#coverage).
 
   > Note (non-normative): a reader works from a snapshot; the condition keeps it from deleting
   > rows that another process rebuilt after the snapshot was taken.
@@ -223,50 +222,49 @@ Several processes, and several sessions of one process, read and write the index
   deadline, an abort, or the end of the boot window. Between two attempts, and between two
   transactions of one catch-up, the writer MUST yield to the process's event loop, so that an
   abort is observed and other work of the process proceeds. The transaction that creates the
-  schema is not attempted again (Section 5).
+  schema is not attempted again ([failures](#failures)).
 - A reader MUST take what it uses of one session file — the `files` row, the `entries` and
   `items` rows, and the `item_text` matches — from one read transaction, or from several when
   each later one finds the `files` row with the same `path` and a `consumed` no smaller, and the
   same items under the `item_id`s it uses, so that each such read sees the file's rows as one
   committed transaction left them. A reader that finds the `files` row gone,
   or its `consumed` smaller than the reader's own catch-up of the file left, MUST NOT use the
-  file's rows; what its tool call then returns is owned by [search-tool.md](search-tool.md),
-  Section 2.2.
+  file's rows; what its tool call then returns is owned by [search-tool.md, coverage](search-tool.md#coverage).
 - A reader MUST NOT hold a read transaction open after its tool call returns.
 
 ## 5. Failures {#failures}
 
-| Condition                                                                                                                                                                  | Outcome                                                                                                                                                                                                                                                                  |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| The file is absent                                                                                                                                                         | It is created (Section 1); every session file then awaits its first catch-up.                                                                                                                                                                                            |
-| SQLite reports that the file is not a database or is malformed, at opening or in any statement                                                                             | The process MUST delete the file and its `-wal` and `-shm` companions and open the index anew, once per tool call; a second such report in the call makes the index unusable, with the reason `index file is corrupt: <message>`, `<message>` being the error's message. |
-| `user_version` is neither `0` with no table nor `3`                                                                                                                        | The index is unusable, with the reason `unsupported index version <user_version>`; the file MUST NOT be changed.                                                                                                                                                         |
-| The file cannot be opened or created                                                                                                                                       | The index is unusable, with the reason the error's message.                                                                                                                                                                                                              |
-| The index path and local session store path name the same file (Section 1): when both exist, they have the same device and inode; otherwise their resolved paths are equal | The index is unusable, with the reason `the index file is the session store file`; the file MUST NOT be opened.                                                                                                                                                          |
-| A catch-up or reset transaction cannot begin within the busy timeout                                                                                                       | It is attempted again (Section 4).                                                                                                                                                                                                                                       |
-| A write transaction fails otherwise (a full disk, a read-only file)                                                                                                        | A failed write, with the reason the error's message: the transaction is rolled back and that catch-up stops, not complete; reading the index continues.                                                                                                                  |
-| Any other SQLite error, at opening, in creating the schema, or in a read, a busy error on a read included                                                                  | The index is unusable, with the reason the error's message.                                                                                                                                                                                                              |
+| Condition                                                                                                                                                                                         | Outcome                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The file is absent                                                                                                                                                                                | It is created ([location and format](#location)); every session file then awaits its first catch-up.                                                                                                                                                                     |
+| SQLite reports that the file is not a database or is malformed, at opening or in any statement                                                                                                    | The process MUST delete the file and its `-wal` and `-shm` companions and open the index anew, once per tool call; a second such report in the call makes the index unusable, with the reason `index file is corrupt: <message>`, `<message>` being the error's message. |
+| `user_version` is neither `0` with no table nor `3`                                                                                                                                               | The index is unusable, with the reason `unsupported index version <user_version>`; the file MUST NOT be changed.                                                                                                                                                         |
+| The file cannot be opened or created                                                                                                                                                              | The index is unusable, with the reason the error's message.                                                                                                                                                                                                              |
+| The index path and local session store path name the same file ([location and format](#location)): when both exist, they have the same device and inode; otherwise their resolved paths are equal | The index is unusable, with the reason `the index file is the session store file`; the file MUST NOT be opened.                                                                                                                                                          |
+| A catch-up or reset transaction cannot begin within the busy timeout                                                                                                                              | It is attempted again ([concurrent access](#concurrent-access)).                                                                                                                                                                                                         |
+| A write transaction fails otherwise (a full disk, a read-only file)                                                                                                                               | A failed write, with the reason the error's message: the transaction is rolled back and that catch-up stops, not complete; reading the index continues.                                                                                                                  |
+| Any other SQLite error, at opening, in creating the schema, or in a read, a busy error on a read included                                                                                         | The index is unusable, with the reason the error's message.                                                                                                                                                                                                              |
 
 An unusable index is unusable for the tool call that found it so and is opened anew by the next.
 No failure of the index is a tool error by itself: what a call returns without a complete
-catch-up is owned by [search-tool.md](search-tool.md), Section 2.2.
+catch-up is owned by [search-tool.md, coverage](search-tool.md#coverage).
 
 ## 6. Index prune {#index-prune}
 
 The index prune deletes, for every `files` row whose `path` is not an existing regular file,
 the row and every row of its `file_id`, in transactions of at most 100 `files` rows each. The
-prune runs when [agent-tool.md](agent-tool.md), Section 10 says. A prune that fails, cannot
+prune runs when [agent-tool.md, retention sweep](agent-tool.md#retention-sweep) says. A prune that fails, cannot
 begin a transaction within the busy timeout, or finds the index unusable or its file not a
 database or malformed MUST stop without reporting a failure and without deleting the file. The
 prune MUST NOT create the index file when it is absent.
 
 A session file deleted between prunes keeps its rows until the next prune; they are never
 returned, because a search takes its sessions from the file system
-([search-tool.md](search-tool.md), Section 2.1).
+([search-tool.md, reach and session resolution](search-tool.md#reach)).
 
 ## 7. Session titles {#session-titles}
 
-The session title of a session file is its session name and first user line (Section 2) as its
+The session title of a session file is its session name and first user line ([schema](#schema)) as its
 `files` row holds them. The index provides a batch read of session titles, for applications other
 than pi-dent, as this method of `SessionIndex`:
 
@@ -286,12 +284,12 @@ titles(paths: readonly string[]): ReadOutcome<Map<string, SessionTitle>>;
   order of its first occurrence. Its value holds the row's `session_name` as `sessionName` and
   its `first_user_message` as `firstUserMessage`. `complete` is `true` when the row's `consumed`
   equals the file's current size and its `mtime` the file's current modification time, read as
-  in Section 3, and `false` otherwise, a file whose size cannot be read included.
+  in [catch-up](#catch-up), and `false` otherwise, a file whose size cannot be read included.
 - The read MUST take every row from one read transaction, MUST NOT catch up or otherwise
   change the index, and MUST look rows up through the `path` index, so that its cost grows with
   the number of paths given, not with the number of rows.
 - A failure of the index is returned as `{ ok: false, reason }`, `reason` being the reason of
-  Section 5, and is not thrown.
+  [failures](#failures), and is not thrown.
 
 ## 8. Normative references {#references}
 

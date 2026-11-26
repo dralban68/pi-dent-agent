@@ -7,7 +7,7 @@ row, its storage, and completion notification are owned by
 belong to the tool that starts it ([agent-tool.md](agent-tool.md),
 [script-tool.md](script-tool.md), [bash-tool.md](bash-tool.md), [fleet-tool.md](fleet-tool.md)).
 The inspection and cancellation surface is [task-tool.md](task-tool.md); the task browser's
-kill key cancels through the same path ([task-browser.md](task-browser.md), Section 4.4). The
+kill key cancels through the same path ([task-browser.md, kill key](task-browser.md#kill-key)). The
 permanent history of tasks is the task ledger ([task-ledger.md](task-ledger.md)).
 
 ## 1. Task kinds {#task-kinds}
@@ -15,9 +15,8 @@ permanent history of tasks is the task ledger ([task-ledger.md](task-ledger.md))
 Every `Agent`, `Script`, and `Bash` invocation, foreground or background, including a pre-start
 rejection, MUST register exactly one task row before execution begins, except three cases: a
 schema rejection, which registers none; a `Script` call whose arguments carry no source shape,
-which is checked before the row and fails without one ([script-tool.md](script-tool.md),
-Section 2); and an invocation whose task registry is not live, which fails without a row
-([task-registry.md](task-registry.md), Section 1). The row's kind is:
+which is checked before the row and fails without one ([script-tool.md, validation](script-tool.md#validation)); and an invocation whose task registry is not live, which fails without a row
+([task-registry.md, ownership](task-registry.md#ownership)). The row's kind is:
 
 | Task kind | Started by                        | Owning contract                                                                             |
 | --------- | --------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -26,14 +25,13 @@ Section 2); and an invocation whose task registry is not live, which fails witho
 | `bash`    | `Bash`                            | [bash-tool.md](bash-tool.md)                                                                |
 
 A schema rejection is a call the host rejects because its arguments do not satisfy the tool's
-parameter schema ([bash-tool.md](bash-tool.md), Section 1; [script-tool.md](script-tool.md),
-Section 1; [agent-tool.md](agent-tool.md), Section 1.1). The host rejects it before the tool
+parameter schema ([bash-tool.md, parameter schema](bash-tool.md#parameter-schema); [script-tool.md, parameter schema](script-tool.md#parameter-schema); [agent-tool.md, parameter schema](agent-tool.md#parameter-schema)). The host rejects it before the tool
 runs: no task row is registered, no file is created, and the call returns a tool error whose text is the host's.
 The tool's own checks run after the host's, and their failures are pre-start rejections
-([bash-tool.md](bash-tool.md), Section 2; [script-tool.md](script-tool.md), Section 2;
-[agent-tool.md](agent-tool.md), Section 1.1), except the `Script` source-shape check, which
+([bash-tool.md, validation](bash-tool.md#validation); [script-tool.md, validation](script-tool.md#validation);
+[agent-tool.md, parameter schema](agent-tool.md#parameter-schema)), except the `Script` source-shape check, which
 runs before its row is registered and returns the tool's own text without a row
-([script-tool.md](script-tool.md), Section 2).
+([script-tool.md, validation](script-tool.md#validation)).
 
 ### 1.1 The `cwd` parameter {#cwd-parameter}
 
@@ -60,11 +58,11 @@ A tool's spec states only what the working directory is used for and any default
   The terminal values are `completed`, `failed`, `cancelled`, and `interrupted`; a task is
   settled when its `status` is terminal. The owning contract sets its `label` and maps its
   outcome to `completed`, `failed`, or `cancelled`. A task is `interrupted` only by a rebuild
-  ([task-record.md](task-record.md), Section 3) that finds its task record `running`. A task's
+  ([task-record.md, rebuild](task-record.md#rebuild)) that finds its task record `running`. A task's
   ledger row in the task ledger can also become `interrupted` when the process that ran the task
-  ends first ([task-ledger.md](task-ledger.md), Section 4); that changes no task row.
+  ends first ([task-ledger.md, settling rows of ended processes](task-ledger.md#settling)); that changes no task row.
 - A task belongs to one task registry at a time; when that registry ends, the task follows
-  [task-registry.md](task-registry.md), Section 4.
+  [task-registry.md, registry end and adoption](task-registry.md#registry-end).
 
 ## 3. Task tree {#task-tree}
 
@@ -72,12 +70,12 @@ The task tree of a session is the set of its task rows:
 
 - Roots: the task rows of the session's task registry.
 - Children of a task: the task rows of its attached `children` task registry
-  ([task-registry.md](task-registry.md), Section 6), recursively.
+  ([task-registry.md, nesting](task-registry.md#nesting)), recursively.
 - Siblings are ordered by registration.
-- An adopted task ([task-registry.md](task-registry.md), Section 4) is a root of the adopting
+- An adopted task ([task-registry.md, registry end and adoption](task-registry.md#registry-end)) is a root of the adopting
   task registry, after its existing rows in registration order.
 - A row of an ended task registry other than an adopted row is not a member, and a `Fleet`
-  query dispatch's row ([task-registry.md](task-registry.md), Section 1) is a member of no task
+  query dispatch's row ([task-registry.md, ownership](task-registry.md#ownership)) is a member of no task
   tree.
 
 ## 4. Task tree widget {#task-tree-widget}
@@ -87,11 +85,11 @@ under the key `pi-dent-tasks`, placed above the editor. The task tree widget MUS
 when the session has an interactive terminal UI.
 
 - Content: every member of the task tree whose `status` is `running`, or whose `status` is
-  `interrupted` and whose `consumed` is `false` ([task-registry.md](task-registry.md), Section 2),
+  `interrupted` and whose `consumed` is `false` ([task-registry.md, task row](task-registry.md#task-row)),
   one line per task, depth-first, siblings in registration order.
 - Line format: `<prefix><taskId> · <kind> · <delivery> · <status> · <elapsed> · <label>`, with
   `orphan · ` inserted after `<delivery>` for an adopted task row
-  ([task-registry.md](task-registry.md), Section 4) and `<detail> · ` inserted before `<label>`
+  ([task-registry.md, registry end and adoption](task-registry.md#registry-end)) and `<detail> · ` inserted before `<label>`
   when `<detail>` is non-empty, where:
   - `<prefix>` is empty for a root; for any other task it is one column per ancestor below the
     root — `│  ` when that ancestor has a later sibling, else three spaces — followed by `├─ `
@@ -102,7 +100,7 @@ when the session has an interactive terminal UI.
     for an interrupted task, in whole seconds rounded down (never negative), rendered as `<s>s`
     below 60 seconds,
     `<m>m<ss>s` below one hour, else `<h>h<mm>m` (`<ss>` and `<mm>` zero-padded to two digits).
-  - `<label>` is the task row's display label ([task-registry.md](task-registry.md), Section 2).
+  - `<label>` is the task row's display label ([task-registry.md, task row](task-registry.md#task-row)).
   - `<detail>` is owned by the task kind: for `agent` the row's `model` when present, else
     empty; for `script` and `bash` empty. ANSI escape sequences and control characters are removed.
 - Each line MUST be plain text colored only through the host theme — `<status>`: `accent` for
@@ -112,7 +110,7 @@ when the session has an interactive terminal UI.
   followed by `… <n> more`, `<n>` being the number of lines not rendered.
 - When the task tree has no member of the content, the widget MUST be cleared
   (absent, not empty).
-- The widget MUST follow the refresh rule of [task-registry.md](task-registry.md), Section 7.
+- The widget MUST follow the refresh rule of [task-registry.md, registry changes](task-registry.md#registry-changes).
 - Ending the main session MUST clear the widget.
 - A widget update that fails MUST clear the widget and end its refresh timer; no failure is
   reported.
@@ -125,26 +123,26 @@ and announces that by setting the environment variable `PI_DENT_FEEDS` to `1`. W
 session runs in pi's RPC mode and `PI_DENT_FEEDS` is `1` at session start, the extension MUST set
 the widget `pi-dent-tasks` through the host widget surface as an array of one string: the JSON text
 of `{ "piDent": "tasks/2", "tasks": [<task>…] }`, one `<task>` per member of the task tree
-(Section 3), whatever its `status` and `consumed`, depth-first, siblings in registration order,
+([task tree](#task-tree)), whatever its `status` and `consumed`, depth-first, siblings in registration order,
 with no limit on their number:
 
-| Field        | Type    | Value                                                                                                                                                                                           |
-| ------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `taskId`     | string  | The task ID.                                                                                                                                                                                    |
-| `depth`      | number  | 0 for a root, else one more than its parent's.                                                                                                                                                  |
-| `kind`       | string  | `agent`, `script`, or `bash`.                                                                                                                                                                   |
-| `background` | boolean | The row's `background`.                                                                                                                                                                         |
-| `status`     | string  | The row's `status`.                                                                                                                                                                             |
-| `orphan`     | boolean | `true` for an adopted task row.                                                                                                                                                                 |
-| `startedAt`  | number  | The row's `startedAt`, milliseconds since the Unix epoch.                                                                                                                                       |
-| `settledAt`  | number? | The row's `settledAt`, present once the task has settled.                                                                                                                                       |
-| `detail`     | string  | `<detail>` of Section 4.                                                                                                                                                                        |
-| `label`      | string  | The display label, with the agent-directory substitution of [agent-tool.md](agent-tool.md), Section 4.2.                                                                                        |
-| `usage`      | object? | The row's `usage` ([agent-tool.md](agent-tool.md), Section 13) — `{ input, output, cacheRead, cacheWrite, cost, turns }`, own usage only — when present; absent for a row without usage.        |
-| `toolCalls`  | number? | The row's `toolCalls` ([task-registry.md](task-registry.md), Section 2), own calls only, when present; absent for a `bash` row and for a rebuilt row, which has none, never `0` in their place. |
+| Field        | Type    | Value                                                                                                                                                                                                   |
+| ------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `taskId`     | string  | The task ID.                                                                                                                                                                                            |
+| `depth`      | number  | 0 for a root, else one more than its parent's.                                                                                                                                                          |
+| `kind`       | string  | `agent`, `script`, or `bash`.                                                                                                                                                                           |
+| `background` | boolean | The row's `background`.                                                                                                                                                                                 |
+| `status`     | string  | The row's `status`.                                                                                                                                                                                     |
+| `orphan`     | boolean | `true` for an adopted task row.                                                                                                                                                                         |
+| `startedAt`  | number  | The row's `startedAt`, milliseconds since the Unix epoch.                                                                                                                                               |
+| `settledAt`  | number? | The row's `settledAt`, present once the task has settled.                                                                                                                                               |
+| `detail`     | string  | `<detail>` of [task tree widget](#task-tree-widget).                                                                                                                                                    |
+| `label`      | string  | The display label, with the agent-directory substitution of [agent-tool.md, child session](agent-tool.md#child-session).                                                                                |
+| `usage`      | object? | The row's `usage` ([agent-tool.md, usage](agent-tool.md#usage)) — `{ input, output, cacheRead, cacheWrite, cost, turns }`, own usage only — when present; absent for a row without usage.               |
+| `toolCalls`  | number? | The row's `toolCalls` ([task-registry.md, task row](task-registry.md#task-row)), own calls only, when present; absent for a `bash` row and for a rebuilt row, which has none, never `0` in their place. |
 
 - The client computes elapsed times itself: the feed MUST be set on a registry change
-  ([task-registry.md](task-registry.md), Section 7) that changes its text, and MUST NOT be set
+  ([task-registry.md, registry changes](task-registry.md#registry-changes)) that changes its text, and MUST NOT be set
   again with an unchanged text nor on a timer.
 - While the task tree has no member the widget MUST NOT be set, and when it comes to have none
   the widget MUST be cleared; ending the main session MUST clear it.
@@ -156,39 +154,37 @@ with no limit on their number:
 
 ### 4.2 Task detail feed {#task-detail-feed}
 
-The task detail feed carries the details page of one task ([task-browser.md](task-browser.md),
-Section 4) to an RPC client, under the same announcement as the task feed (Section 4.1). The
-watched task is the one the command `tasks` names ([slash-commands.md](slash-commands.md),
-Section 3); there is at most one. While there is one, the extension MUST set the widget
+The task detail feed carries the details page of one task ([task-browser.md, details page](task-browser.md#details-page)) to an RPC client, under the same announcement as the task feed ([task feed](#task-feed)). The
+watched task is the one the command `tasks` names ([slash-commands.md, `tasks`](slash-commands.md#tasks)); there is at most one. While there is one, the extension MUST set the widget
 `pi-dent-task` through the host widget surface as an array of one string: the JSON text of an object
 with these fields, every string with ANSI escape sequences and control characters other than line
 breaks and tabs removed:
 
-| Field        | Type     | Value                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `piDent`     | string   | `"task/1"`.                                                                                                                                                                                                                                                                                                                                                              |
-| `taskId`     | string   | The task ID.                                                                                                                                                                                                                                                                                                                                                             |
-| `found`      | boolean  | `false` when no row of the task tree, nor a row the task tree once held, has the task ID; every field below is then absent.                                                                                                                                                                                                                                              |
-| `kind`       | string   | `agent`, `script`, or `bash`.                                                                                                                                                                                                                                                                                                                                            |
-| `background` | boolean  | The row's `background`.                                                                                                                                                                                                                                                                                                                                                  |
-| `orphan`     | boolean  | The row's `orphan`.                                                                                                                                                                                                                                                                                                                                                      |
-| `status`     | string   | The row's `status`.                                                                                                                                                                                                                                                                                                                                                      |
-| `startedAt`  | number   | The row's `startedAt`.                                                                                                                                                                                                                                                                                                                                                   |
-| `settledAt`  | number?  | The row's `settledAt`, when present.                                                                                                                                                                                                                                                                                                                                     |
-| `label`      | string   | The `label` field of Section 4.1.                                                                                                                                                                                                                                                                                                                                        |
-| `usage`      | object?  | The `usage` field of Section 4.1, when present.                                                                                                                                                                                                                                                                                                                          |
-| `toolCalls`  | number?  | The `toolCalls` field of Section 4.1, when present.                                                                                                                                                                                                                                                                                                                      |
-| `killable`   | boolean  | Whether the kill key applies to the row ([task-browser.md](task-browser.md), Section 4.4).                                                                                                                                                                                                                                                                               |
-| `fields`     | object[] | One `{ name, value }` per line of the `Agent`, `Script`, or `Bash` section of its details page, in order, other than `delivery`.                                                                                                                                                                                                                                         |
-| `error`      | string?  | The `Error` section's text of an `agent` row, when present.                                                                                                                                                                                                                                                                                                              |
-| `task`       | string?  | The `Task` section's text of an `agent` row, when present.                                                                                                                                                                                                                                                                                                               |
-| `command`    | string?  | The `Command` section's text of a `bash` row ([task-browser.md](task-browser.md), Section 4.2); absent for a row of another kind.                                                                                                                                                                                                                                        |
-| `output`     | string[] | The `Output` section's lines of a `script` or `bash` row, at most the latest 500; empty for an `agent` row.                                                                                                                                                                                                                                                              |
-| `events`     | object[] | For an `agent` row, its session events (task-browser.md, Section 4.3), at most the latest 200, each `{ time, kind, summary, content, error }`: `time` is the session entry's timestamp as read; `content` is its expanded content, the first 200 unwrapped lines with no omission marker; `error` `true` for a `toolResult` with `isError` `true`; empty for other rows. |
+| Field        | Type     | Value                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `piDent`     | string   | `"task/1"`.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `taskId`     | string   | The task ID.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `found`      | boolean  | `false` when no row of the task tree, nor a row the task tree once held, has the task ID; every field below is then absent.                                                                                                                                                                                                                                                                                   |
+| `kind`       | string   | `agent`, `script`, or `bash`.                                                                                                                                                                                                                                                                                                                                                                                 |
+| `background` | boolean  | The row's `background`.                                                                                                                                                                                                                                                                                                                                                                                       |
+| `orphan`     | boolean  | The row's `orphan`.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `status`     | string   | The row's `status`.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `startedAt`  | number   | The row's `startedAt`.                                                                                                                                                                                                                                                                                                                                                                                        |
+| `settledAt`  | number?  | The row's `settledAt`, when present.                                                                                                                                                                                                                                                                                                                                                                          |
+| `label`      | string   | The `label` field of [task feed](#task-feed).                                                                                                                                                                                                                                                                                                                                                                 |
+| `usage`      | object?  | The `usage` field of [task feed](#task-feed), when present.                                                                                                                                                                                                                                                                                                                                                   |
+| `toolCalls`  | number?  | The `toolCalls` field of [task feed](#task-feed), when present.                                                                                                                                                                                                                                                                                                                                               |
+| `killable`   | boolean  | Whether the kill key applies to the row ([task-browser.md, kill key](task-browser.md#kill-key)).                                                                                                                                                                                                                                                                                                              |
+| `fields`     | object[] | One `{ name, value }` per line of the `Agent`, `Script`, or `Bash` section of its details page, in order, other than `delivery`.                                                                                                                                                                                                                                                                              |
+| `error`      | string?  | The `Error` section's text of an `agent` row, when present.                                                                                                                                                                                                                                                                                                                                                   |
+| `task`       | string?  | The `Task` section's text of an `agent` row, when present.                                                                                                                                                                                                                                                                                                                                                    |
+| `command`    | string?  | The `Command` section's text of a `bash` row ([task-browser.md, `script` and `bash`](task-browser.md#script-bash)); absent for a row of another kind.                                                                                                                                                                                                                                                         |
+| `output`     | string[] | The `Output` section's lines of a `script` or `bash` row, at most the latest 500; empty for an `agent` row.                                                                                                                                                                                                                                                                                                   |
+| `events`     | object[] | For an `agent` row, its session events ([task-browser.md, session events](task-browser.md#session-events)), at most the latest 200, each `{ time, kind, summary, content, error }`: `time` is the session entry's timestamp as read; `content` is its expanded content, the first 200 unwrapped lines with no omission marker; `error` `true` for a `toolResult` with `isError` `true`; empty for other rows. |
 
 - The feed MUST be set when the task is watched, on a registry change that changes its text, and,
   for a running `agent` row, after each read of the session file, which follows the reading rule
-  of task-browser.md, Section 4.3; it MUST NOT be set again with an unchanged text.
+  of [task-browser.md, session events](task-browser.md#session-events); it MUST NOT be set again with an unchanged text.
 - Ending the watch MUST clear the widget; closing the boot window and ending the main session
   MUST end it.
 - Without the announcement, or outside RPC mode, `pi-dent-task` MUST NOT be set.
