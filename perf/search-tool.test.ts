@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   cleanupRoots,
@@ -65,6 +66,31 @@ test("a session-scope find does not depend on the other sessions of the index", 
   assert.equal(elapsed < 500, true, `session-scope find took ${elapsed} ms`);
 });
 
+// specs/search-tool.md#abort: a project-wide find with no hit over 2000 sessions returns within 1000 ms.
+test("a project-wide find with no hit over 2000 sessions returns within 1000 ms", async (t) => {
+  // The invoking session, one other, and 1998 tiny ones: 2000 sessions of at most 2 items.
+  const made = crowded(1998);
+  // Catch every session up first, so the call meets a full index.
+  const sessions = join(made.root, "sessions");
+  const files = readdirSync(sessions).filter((name) => name.endsWith(".jsonl"));
+  await seed(
+    made.db,
+    files.map((name) => join(sessions, name)),
+  );
+  const h = harness({ db: made.db });
+  const started = Date.now();
+  const outcome = await h.call(made.host, {
+    action: "find",
+    query: "zzzzabsent",
+    scope: "project",
+  });
+  const elapsed = Date.now() - started;
+  t.diagnostic(`project-wide find with no hit over 2000 sessions: ${elapsed} ms (bound 1000 ms)`);
+  assert.equal(outcome.text, "(no hits)");
+  assert.equal(outcome.details.sessions, 2000);
+  assert.equal(elapsed < 1000, true, `the project-wide find took ${elapsed} ms`);
+});
+
 // specs/search-tool.md#abort: an abort after covering ends the call within 100 ms.
 test("an abort after covering is observed within 100 ms", async (t) => {
   const made = crowded(2000);
@@ -75,7 +101,8 @@ test("an abort after covering is observed within 100 ms", async (t) => {
   const controller = new AbortController();
   let covered = 0;
   let abortedAt: number | undefined;
-  // 200 ms after the last of the 2002 sessions is covered, while the call reads their rows.
+  // 50 ms after the last of the 2002 sessions is covered, while the call reads their rows
+  // (about 220 ms on a developer machine).
   h.hook((event) => {
     if (event.phase !== "cover") return;
     covered += 1;
@@ -83,7 +110,7 @@ test("an abort after covering is observed within 100 ms", async (t) => {
     setTimeout(() => {
       abortedAt = Date.now();
       controller.abort();
-    }, 200);
+    }, 50);
   });
   const outcome = await h.call(
     made.host,

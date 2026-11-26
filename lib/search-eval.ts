@@ -2283,20 +2283,36 @@ export type FindOutcome = Extract<FindEvaluation, { kind: "evaluation" }>;
  * call loads row by row is loaded only when its time bound can still reach the
  * head of the merge, so a call that shows its first hits at once never loads the
  * sessions below them.
+ *
+ * The loaded sources wait in a heap ordered by their heads, so that each slot
+ * costs the logarithm of the sources loaded, and a source is set aside once it is
+ * exhausted: a call over thousands of sessions costs about linearly in their
+ * number (specs/search-tool.md#abort). A source's head only moves later in the
+ * call's order or goes away while it waits, so an entry's head is checked again
+ * when it reaches the top.
  */
 class Merger {
-  private readonly sources: readonly Source[];
   private readonly newest: boolean;
-  /** The sources not loaded yet, with the time each can reach, in call order. */
+  /** The sources not loaded yet, with the time each can reach, in call order, from `pendingAt` on. */
   private readonly pending: { source: Source; reach: number }[];
-  private readonly loaded: Source[] = [];
+  private pendingAt = 0;
+  /** The loaded sources with a head, as a binary heap in the call's order of the heads. */
+  private readonly heap: MergeEntry[] = [];
+  /** The load order of the next source, which breaks ties of equal heads. */
+  private loads = 0;
+  /**
+   * The exhausted scan, which is still asked at each step: its `peek` sees the
+   * abort and the budget (specs/search-tool.md#abort, specs/search-tool.md#evaluation).
+   */
+  private readonly polled: Source[] = [];
   /** True when the abort or the time budget ended the merge before it loaded every source it needed. */
   private halted = false;
+  /** True once a source stopped for the budget or the abort. */
+  private sourceStopped = false;
   /** True when the call is aborted or its time budget has expired (specs/search-tool.md#abort, specs/search-tool.md#evaluation). */
   private readonly halt: () => boolean;
 
   constructor(sources: readonly Source[], newest: boolean, halt: () => boolean) {
-    this.sources = sources;
     this.newest = newest;
     this.halt = halt;
     this.pending = sources
@@ -2306,52 +2322,138 @@ class Merger {
 
   /** The next slot of the call's order, or undefined when every source is exhausted. */
   async next(): Promise<Slot | undefined> {
+    for (const source of this.polled) await this.peekOf(source);
+    if (this.sourceStopped) return;
     for (;;) {
-      let best: Source | undefined;
-      let bestSlot: Slot | undefined;
-      let stopped = false;
-      for (const source of this.loaded) {
-        if (source.stopped) stopped = true;
-        if (source.dropped) continue;
-        const slot = await source.peek();
-        if (slot === undefined) continue;
-        if (bestSlot === undefined || compareCallOrder(slot, bestSlot, this.newest) < 0) {
-          best = source;
-          bestSlot = slot;
-        }
-      }
-      if (stopped) return;
-      const next = this.pending[0];
-      if (next === undefined) {
-        if (best === undefined) return;
-        return best.take();
-      }
+      const top = await this.validTop();
+      if (this.sourceStopped) return;
+      const next = this.pending[this.pendingAt];
+      if (next === undefined) return this.takeTop(top);
       const reach = next.reach;
-      const head = bestSlot === undefined ? undefined : bestSlot.time;
+      const head = top === undefined ? undefined : top.slot.time;
       const matters = head === undefined || (this.newest ? reach >= head : reach <= head);
-      if (matters) {
-        // Loading the sources one by one can take seconds over thousands of
-        // sessions: each load first sees the abort and the budget (specs/search-tool.md#abort).
-        if (this.halt()) {
-          this.halted = true;
-          return;
-        }
-        this.pending.shift();
-        if (next.source.dropped || next.source.stopped) continue;
-        this.loaded.push(next.source);
-        continue;
+      if (!matters) return this.takeTop(top);
+      // Loading the sources one by one can take seconds over thousands of
+      // sessions: each load first sees the abort and the budget (specs/search-tool.md#abort).
+      if (this.halt()) {
+        this.halted = true;
+        return;
       }
-      if (best === undefined) return;
-      return best.take();
+      this.pendingAt += 1;
+      const source = next.source;
+      if (source.dropped || source.stopped) continue;
+      const slot = await this.peekOf(source);
+      if (this.sourceStopped) return;
+      if (slot !== undefined) {
+        this.push({ source, slot, order: this.loads });
+        this.loads += 1;
+      } else if (!source.dropped) {
+        this.setAside(source);
+      }
     }
   }
 
   /** True when any source stopped for the budget or the abort (specs/search-tool.md#evaluation). */
   get stopped(): boolean {
-    if (this.halted) return true;
-    for (const source of this.loaded) if (source.stopped) return true;
-    return false;
+    return this.halted || this.sourceStopped;
   }
+
+  /** A source's head, noting a stop. */
+  private async peekOf(source: Source): Promise<Slot | undefined> {
+    if (source.stopped) {
+      this.sourceStopped = true;
+      return;
+    }
+    if (source.dropped) return;
+    const slot = await source.peek();
+    if (source.stopped) this.sourceStopped = true;
+    return slot;
+  }
+
+  /** An exhausted source is asked again only when it is a scan, for its stop. */
+  private setAside(source: Source): void {
+    if (source instanceof ScanSource) this.polled.push(source);
+  }
+
+  /** The heap's top with its head checked again, or undefined when no loaded source has one. */
+  private async validTop(): Promise<MergeEntry | undefined> {
+    for (;;) {
+      const top = this.heap[0];
+      if (top === undefined) return;
+      const slot = await this.peekOf(top.source);
+      if (this.sourceStopped) return;
+      if (slot === top.slot) return top;
+      if (slot === undefined) {
+        this.pop();
+        if (!top.source.dropped) this.setAside(top.source);
+        continue;
+      }
+      top.slot = slot;
+      this.siftDown(0);
+    }
+  }
+
+  /** Take the top's head: the source's next head is read when it reaches the top again. */
+  private takeTop(top: MergeEntry | undefined): Slot | undefined {
+    if (top === undefined) return;
+    return top.source.take();
+  }
+
+  private before(one: MergeEntry, other: MergeEntry): boolean {
+    const order = compareCallOrder(one.slot, other.slot, this.newest);
+    return order === 0 ? one.order < other.order : order < 0;
+  }
+
+  private push(entry: MergeEntry): void {
+    const heap = this.heap;
+    heap.push(entry);
+    let at = heap.length - 1;
+    while (at > 0) {
+      const parentAt = (at - 1) >> 1;
+      const parent = heap[parentAt];
+      if (parent === undefined || !this.before(entry, parent)) break;
+      heap[at] = parent;
+      heap[parentAt] = entry;
+      at = parentAt;
+    }
+  }
+
+  private pop(): void {
+    const heap = this.heap;
+    const last = heap.pop();
+    if (last === undefined || heap.length === 0) return;
+    heap[0] = last;
+    this.siftDown(0);
+  }
+
+  private siftDown(start: number): void {
+    const heap = this.heap;
+    let at = start;
+    for (;;) {
+      const entry = heap[at];
+      if (entry === undefined) return;
+      let least = at;
+      let leastEntry = entry;
+      for (const childAt of [2 * at + 1, 2 * at + 2]) {
+        const child = heap[childAt];
+        if (child !== undefined && this.before(child, leastEntry)) {
+          least = childAt;
+          leastEntry = child;
+        }
+      }
+      if (least === at) return;
+      heap[least] = entry;
+      heap[at] = leastEntry;
+      at = least;
+    }
+  }
+}
+
+/** A loaded source of the merge with its head when it was last read. */
+interface MergeEntry {
+  source: Source;
+  slot: Slot;
+  order: number;
 }
 
 /** Evaluate the call's hits in the call's order (specs/search-tool.md#evaluation). */
@@ -2539,14 +2641,21 @@ export async function recoverAfterSession(
   sources.push(source);
 }
 
+/** The covers of a call by session key and path, built once per covers list (specs/search-tool.md#abort). */
+const coversBySession = new WeakMap<readonly Cover[], Map<string, Cover>>();
+
 /** The cover a slot belongs to, when its session is a session of the call. */
 function coverOfSlot(call: Call, slot: Slot): Cover | undefined {
-  for (const cover of call.covers) {
-    if (cover.session.key !== slot.sessionKey) continue;
-    if (cover.session.resolvedPath !== slot.sessionPath) continue;
-    return cover;
+  let byKey = coversBySession.get(call.covers);
+  if (byKey === undefined) {
+    byKey = new Map();
+    for (const cover of call.covers) {
+      const key = `${cover.session.key}\u0000${cover.session.resolvedPath}`;
+      if (!byKey.has(key)) byKey.set(key, cover);
+    }
+    coversBySession.set(call.covers, byKey);
   }
-  return;
+  return byKey.get(`${slot.sessionKey}\u0000${slot.sessionPath}`);
 }
 
 /** A session loses its cover for the rest of a `find` call (specs/search-tool.md#coverage). */
