@@ -7,6 +7,7 @@ import {
   harness,
   headerLine,
   hitAddresses,
+  SMALL_LIMITS,
   userLine,
   writeSession,
 } from "./support.ts";
@@ -31,15 +32,16 @@ import {
 
 after(cleanupRoots);
 
-test("the oracle holds where the first trigram lookup overflows (more than 2001 matches)", async () => {
+// specs/search-tool.md#step-limits: `firstLookupMatches`, lowered through the test seam.
+test("the oracle holds where the first trigram lookup overflows (more than firstLookupMatches)", async () => {
   const made = layoutOf("search-tool-oracle-overflow-");
-  // A session whose 2100 items all contain the trigram, just past the 2000 matches
-  // the first lookup admits, 100 of them at one time.
+  // A session whose 25 items all contain the trigram, with the fixture's other
+  // needles just past the matches the first lookup admits, 10 of them at one time.
   const lines: string[] = [headerLine("bulk-session-0006")];
   let parent: string | null = null;
-  for (let index = 0; index < 2100; index += 1) {
+  for (let index = 0; index < 25; index += 1) {
     const id = `n${index}`;
-    lines.push(userLine(id, parent, `needle item ${index}`, index < 100 ? 1 : 2 + index));
+    lines.push(userLine(id, parent, `needle item ${index}`, index < 10 ? 1 : 2 + index));
     parent = id;
   }
   const bulkPath = join(made.sessions, "m3.jsonl");
@@ -51,12 +53,12 @@ test("the oracle holds where the first trigram lookup overflows (more than 2001 
   for (const scope of ["session", "project", "project-trees"]) {
     for (const order of ["newest", "oldest"] as const) {
       for (const db of [made.db, unusableDb(made.db)]) {
-        const h = harness({ db });
+        const h = harness({ db, limits: SMALL_LIMITS });
         const actual = await paged(
           h,
           made.host,
           { action: "find", query: "needle", scope, order },
-          100,
+          7,
         );
         const expected = oracle(layout, scope, { query: "needle", order }, Number.MAX_SAFE_INTEGER);
         assert.deepEqual(

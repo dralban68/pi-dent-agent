@@ -10,6 +10,7 @@ import {
   headerLine,
   hitAddresses,
   seed,
+  SMALL_LIMITS,
   testClock,
   threadCpuMs,
   userLine,
@@ -19,7 +20,7 @@ import type { SearchHost } from "../../lib/search-tool.ts";
 
 /**
  * specs/search-tool.md#abort, specs/search-tool.md#candidates and specs/search-tool.md#evaluation: how a call pages through
- * candidate rows — deep paging, a time group above the row cap, the filters a direct read
+ * candidate rows — deep paging, a time group above `groupRows`, the filters a direct read
  * applies, and the bounds a page, a direct read, and a covering under a replaced index keep.
  * The time bounds on a crowded index are in perf/search-tool.test.ts.
  */
@@ -137,11 +138,13 @@ test("a direct read applies every filter of specs/search-tool.md#candidates", as
   );
 });
 
-test("a time group above the row cap is walked in the call's order without repeats", async () => {
+// specs/search-tool.md#step-limits: `groupRows` and `groupChunkRows`, lowered through the test
+// seam, with `fileModeLines` just below the fixture so that the call scans.
+test("a time group above groupRows is walked in the call's order without repeats", async () => {
   const made = fixture("search-tool-fixes-group-");
   const lines: string[] = [headerLine("main-session-0001")];
   let parent: string | null = null;
-  for (let index = 0; index < 50100; index += 1) {
+  for (let index = 0; index < 290; index += 1) {
     const id = `h${index}`;
     lines.push(userLine(id, parent, `alpha huge ${index}`, 1));
     parent = id;
@@ -152,7 +155,16 @@ test("a time group above the row cap is walked in the call's order without repea
     agentDirectory: made.agentDir,
     main: true,
   };
-  const h = harness({ db: made.db });
+  const h = harness({
+    db: made.db,
+    limits: {
+      ...SMALL_LIMITS,
+      groupRows: 260,
+      windowRows: 270,
+      fileModeLines: 280,
+      collectionChunkItems: 280,
+    },
+  });
   const outcome = await h.call(host, {
     action: "find",
     query: "alpha",

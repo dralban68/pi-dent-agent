@@ -411,11 +411,13 @@ export async function continued(
 }
 
 /**
- * A fixture for the paths that are easy to leave uncovered: a main session above
- * 200000 items whose times cycle (every time group spans more than one page), and
- * five project members with one time group above the 50000-row cap. Above 200000
- * lines in total, so `project-trees` runs on the scan path while `tree` loads the
- * one session row by row.
+ * A fixture for the paths that are easy to leave uncovered, sized just past the
+ * step limits of `SMALL_LIMITS` (specs/search-tool.md#step-limits): a main session of
+ * more items than `fileModeLines` in fewer lines, whose times cycle so that every
+ * time group spans more than `pageRows` and less than `groupRows`, and five project
+ * members with one time group above `groupRows`, each member's part above
+ * `groupChunkRows`. Over `fileModeLines` lines in total, so `project-trees` scans
+ * while `tree` loads the one session row by row.
  */
 export function bigLayout(prefix = "search-tool-oracle-big-"): {
   layout: Layout;
@@ -424,25 +426,27 @@ export function bigLayout(prefix = "search-tool-oracle-big-"): {
   sessions: string;
 } {
   const made = fixture(prefix);
-  const SELF_ENTRIES = 100050;
-  const MEMBER_ENTRIES = 21000;
+  const SELF_ENTRIES = 700;
+  const MEMBER_ENTRIES = 110;
   const MEMBER_COUNT = 5;
   const T = 100;
   const U = 600;
-  // The main session: 100050 assistant entries of two text parts each — 200100
-  // items — entry i recorded at second T + (i % 400).
+  // The main session: 700 assistant entries of two text parts each — 1400 items in
+  // 701 lines — entry i recorded at second T + (i % 5), 280 items per second. Every
+  // 49th entry is a hit of `needle special`: 15, fewer than `firstLookupMatches`,
+  // spread over the five seconds.
   const selfLines: string[] = [headerLine("main-session-0001")];
   let parent: string | null = null;
   for (let index = 0; index < SELF_ENTRIES; index += 1) {
     const id = `s${index}`;
-    const first = index % 500 === 0 ? `needle special ${index}` : `filler row ${index} alpha beta`;
+    const first = index % 49 === 0 ? `needle special ${index}` : `filler row ${index} alpha beta`;
     const second = `filler part one ${index}`;
     selfLines.push(
       JSON.stringify({
         type: "message",
         id,
         parentId: parent,
-        timestamp: stamp(T + (index % 400)),
+        timestamp: stamp(T + (index % 5)),
         message: {
           role: "assistant",
           content: [
@@ -460,10 +464,13 @@ export function bigLayout(prefix = "search-tool-oracle-big-"): {
     const path = join(made.sessions, `p${member}.jsonl`);
     const lines: string[] = [headerLine(`mem${member}-session-000${member}`)];
     let kidParent: string | null = null;
+    // Every entry at second U: 550 rows in all. Every 16th is a user entry, 35 in
+    // all, fewer than `collectionRows`; three of each member's carry `zq`. The rest
+    // are injected, a kind dense past `collectionRows`.
     for (let index = 0; index < MEMBER_ENTRIES; index += 1) {
       const id = `m${member}x${index}`;
-      if (index % 100 === 0) {
-        const text = index % 10000 === 0 ? `zq filler ${index}` : `plain filler ${index}`;
+      if (index % 16 === 0) {
+        const text = index % 48 === 0 ? `zq filler ${index}` : `plain filler ${index}`;
         lines.push(userLine(id, kidParent, text, U));
       } else {
         lines.push(injectedLine(id, kidParent, "note", `quiet filler ${index}`, U));

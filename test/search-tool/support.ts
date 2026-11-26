@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   searchRuntime,
+  type LoweredStepLimits,
   type SearchHost,
   type SearchProgress,
   type SearchRuntime,
@@ -226,12 +227,30 @@ export interface Harness {
   call(host: SearchHost, params: Record<string, unknown>, signal?: AbortSignal): Promise<Outcome>;
 }
 
+/**
+ * The step limits the fixtures sized to them use, lowered through the test seam
+ * (specs/search-tool.md#test-seam) in the order its rules keep, so that a
+ * fixture of hundreds of rows takes the paths the real limits take at tens of
+ * thousands.
+ */
+export const SMALL_LIMITS = {
+  fileModeLines: 1200,
+  windowRows: 600,
+  groupRows: 300,
+  groupChunkRows: 50,
+  collectionRows: 40,
+  collectionChunkItems: 1200,
+  firstLookupMatches: 20,
+  probeByIdRows: 10,
+} as const satisfies LoweredStepLimits;
+
 export function harness(options: {
   db: string;
   clock?: TestClock;
   bootDeadline?: number;
   busyTimeoutMs?: number;
   onItemRead?: () => void;
+  limits?: LoweredStepLimits;
 }): Harness {
   const clock = options.clock ?? testClock();
   const events: SearchProgress[] = [];
@@ -247,6 +266,7 @@ export function harness(options: {
     ...(options.bootDeadline === undefined ? {} : { bootDeadline: options.bootDeadline }),
     ...(options.busyTimeoutMs === undefined ? {} : { busyTimeoutMs: options.busyTimeoutMs }),
     ...(options.onItemRead === undefined ? {} : { onItemRead: options.onItemRead }),
+    ...(options.limits === undefined ? {} : { limits: options.limits }),
   });
   return {
     runtime,

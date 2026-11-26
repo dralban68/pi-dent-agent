@@ -7,6 +7,7 @@ import {
   harness,
   headerLine,
   hitAddresses,
+  SMALL_LIMITS,
   toolResultLine,
   userLine,
   writeSession,
@@ -14,11 +15,13 @@ import {
 import { bigLayout, continued, oracle, paged, unusableDb } from "./oracle-support.ts";
 
 /**
- * specs/search-tool.md#evaluation, equivalence on the paths a small fixture cannot reach: a
- * session of 200100 items loaded row by row, the index-wide scan a call over more than 200000
- * lines takes, a time group above the 50000-row cap, a filter dense past the 20000-row
- * collection cap. The fixture is just past those caps of `lib/search-eval.ts`; the tests share
- * it and the index it is caught up into, which the first test's duration includes.
+ * specs/search-tool.md#evaluation, equivalence on the paths past the step limits of
+ * specs/search-tool.md#step-limits, lowered to `SMALL_LIMITS` through the test seam
+ * (specs/search-tool.md#test-seam): a session of more items than `fileModeLines` loaded row by
+ * row, the scan a call over more lines takes, in several windows, a time group above `groupRows`
+ * walked in chunks, a filter dense past `collectionRows`, and a collection over more than one
+ * `item_id` chunk, probed by range. The fixture is just past those limits; the tests share it
+ * and the index it is caught up into.
  */
 
 after(cleanupRoots);
@@ -35,7 +38,7 @@ before(async () => {
   sharedBig = bigLayout();
   // Warm the index over every session (the clock does not advance, so covering
   // finishes however long it takes).
-  const h = harness({ db: sharedBig.db });
+  const h = harness({ db: sharedBig.db, limits: SMALL_LIMITS });
   await h.call(sharedBig.host, {
     action: "find",
     query: "warmup",
@@ -45,15 +48,15 @@ before(async () => {
   await h.runtime.backgroundDone();
 });
 
-test("the oracle holds on a session above 200000 items loaded row by row (tree and session scope)", async () => {
+test("the oracle holds on a session of more items than fileModeLines, loaded row by row", async () => {
   const made = big();
   let reads = 0;
-  const h = harness({ db: made.db, onItemRead: () => (reads += 1) });
+  const h = harness({ db: made.db, limits: SMALL_LIMITS, onItemRead: () => (reads += 1) });
   // Warm the index over every session (the clock does not advance, so covering
   // finishes however long it takes).
   await h.call(made.host, { action: "find", query: "warmup", scope: "project-trees", limit: 1 });
   await h.runtime.backgroundDone();
-  // An absent word narrows: no item of the 200100-item session is read back.
+  // An absent word narrows: no item of the 1400-item session is read back.
   const absent = await h.call(made.host, { action: "find", query: "zqxjv", scope: "session" });
   assert.equal(absent.isError, false, absent.text);
   assert.deepEqual(
@@ -62,13 +65,13 @@ test("the oracle holds on a session above 200000 items loaded row by row (tree a
   );
   const absentReads = reads;
   assert.equal(absentReads, 0, `${absentReads} items were read back for an absent word`);
-  // A query with hits pages to the last hit of the 200100-item session.
+  // A query with hits pages to the last hit of the 1400-item session.
   for (const order of ["newest", "oldest"] as const) {
     const actual = await paged(
       h,
       made.host,
       { action: "find", query: "needle special", scope: "session", order },
-      100,
+      5,
     );
     const expected = oracle(
       made.layout,
@@ -77,7 +80,7 @@ test("the oracle holds on a session above 200000 items loaded row by row (tree a
       Number.MAX_SAFE_INTEGER,
     );
     assert.deepEqual(actual, expected, order);
-    assert.equal(expected.length, 201);
+    assert.equal(expected.length, 15);
   }
   // A time bound that leaves only the oldest entries: none may be lost.
   const until = await paged(
@@ -87,40 +90,40 @@ test("the oracle holds on a session above 200000 items loaded row by row (tree a
       action: "find",
       query: "needle special",
       scope: "session",
-      until: "2026-01-01T00:02:30.000Z",
+      until: "2026-01-01T00:01:42.000Z",
     },
-    100,
+    5,
   );
   const untilExpected = oracle(
     made.layout,
     "session",
-    { query: "needle special", until: "2026-01-01T00:02:30.000Z" },
+    { query: "needle special", until: "2026-01-01T00:01:42.000Z" },
     Number.MAX_SAFE_INTEGER,
   );
   assert.deepEqual(until, untilExpected);
-  assert.ok(untilExpected.length > 0 && untilExpected.length < 201);
+  assert.ok(untilExpected.length > 0 && untilExpected.length < 15);
   // The same session read directly, without the index: one page, since each page reads
   // the whole file and paging by direct read is the matrix's.
-  const direct = await harness({ db: unusableDb(made.db) }).call(made.host, {
+  const direct = await harness({ db: unusableDb(made.db), limits: SMALL_LIMITS }).call(made.host, {
     action: "find",
     query: "needle special",
     scope: "session",
-    limit: 100,
+    limit: 10,
   });
   assert.deepEqual(
     hitAddresses(direct),
-    oracle(made.layout, "session", { query: "needle special" }, 100),
+    oracle(made.layout, "session", { query: "needle special" }, 10),
   );
   assert.equal(direct.details.more, true, direct.text);
 });
 
-test("the oracle holds on the scan path: a time group above the row cap, filters, both orders, deep pages", async () => {
+test("the oracle holds on the scan path: a time group above groupRows, filters, both orders, deep pages", async () => {
   const made = big();
-  const h = harness({ db: made.db });
+  const h = harness({ db: made.db, limits: SMALL_LIMITS });
   await h.call(made.host, { action: "find", query: "warmup", scope: "project-trees", limit: 1 });
   await h.runtime.backgroundDone();
   // No query: the first pages of `newest` sit inside the members' single time
-  // group of 105000 items, above the 50000-row cap. Three pages of 100 suffice:
+  // group of 550 items, above `groupRows`. Three pages of 100 suffice:
   // what they must not do is reorder or repeat the group's items.
   for (const order of ["newest", "oldest"] as const) {
     const prefix: string[] = [];
@@ -189,6 +192,7 @@ test("the oracle holds on the scan path: a time group above the row cap, filters
   let reads = 0;
   const absentHarness = harness({
     db: made.db,
+    limits: SMALL_LIMITS,
     onItemRead: () => (reads += 1),
   });
   const absent = await absentHarness.call(made.host, {
@@ -205,10 +209,10 @@ test("the oracle holds on the scan path: a time group above the row cap, filters
 });
 
 for (const order of ["newest", "oldest"] as const) {
-  test(`the oracle holds on the scan path with a filter dense past the collection cap, ${order} first`, async () => {
+  test(`the oracle holds on the scan path with a filter dense past collectionRows, ${order} first`, async () => {
     const made = big();
-    const h = harness({ db: made.db });
-    // A filter dense past the collection cap (104790 injected items) falls back to
+    const h = harness({ db: made.db, limits: SMALL_LIMITS });
+    // A filter dense past `collectionRows` (515 injected items) falls back to
     // the windowed pages, alone and with a query whose trigrams overflow; a sparse
     // kind with that query is collected and probed. First 300 of each order.
     for (const filters of [
@@ -245,7 +249,7 @@ for (const order of ["newest", "oldest"] as const) {
 
 test("a stopped windowed scan continues by after and loses nothing (scan path)", async () => {
   const made = big();
-  const h = harness({ db: made.db });
+  const h = harness({ db: made.db, limits: SMALL_LIMITS });
   await h.call(made.host, { action: "find", query: "warmup", scope: "project-trees", limit: 1 });
   await h.runtime.backgroundDone();
   let decided = 0;
@@ -263,7 +267,9 @@ test("a stopped windowed scan continues by after and loses nothing (scan path)",
       query: "zq",
       kinds: ["user"],
       scope: "project-trees",
-      limit: 5,
+      // More than the hits of the first window of 32 items, so the budget, not the
+      // limit, ends the first page.
+      limit: 20,
     };
     if (cursor !== undefined) params.after = cursor;
     const outcome = await h.call(made.host, params);
@@ -317,13 +323,13 @@ test("the scan path restricted to the call's files, when they are a small part o
     }
     writeSession(join(elsewhere.sessions, `e${index}.jsonl`), ...lines);
   }
-  const other = harness({ db: made.db });
+  const other = harness({ db: made.db, limits: SMALL_LIMITS });
   await other.call(
     { sessionFile: elsewhere.mainFile, agentDirectory: elsewhere.agentDir, main: true },
     { action: "find", query: "warmup", scope: "project-trees", limit: 1 },
   );
   await other.runtime.backgroundDone();
-  const h = harness({ db: made.db });
+  const h = harness({ db: made.db, limits: SMALL_LIMITS });
   await h.call(made.host, { action: "find", query: "warmup", scope: "project-trees", limit: 1 });
   await h.runtime.backgroundDone();
   for (const order of ["newest", "oldest"] as const) {
