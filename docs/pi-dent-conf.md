@@ -11,14 +11,14 @@ in the [README](../README.md#configure-pi-dent-in-pi).
 {
   // Named classes usable inside any model string ("fast", "fast:high").
   // A value is a concrete provider-qualified model, never a class (no chaining).
-  // "fallback" is a reserved class name (specs/model-string.md, Section 4.3).
+  // "fallback" is a reserved class name (specs/model-string.md#fallback).
   "modelClasses": {
     "fast": "deepseek/deepseek-flash",
     "review": { "provider": "anthropic", "id": "claude-opus-5-5", "thinking": "high" },
   },
 
   // Which model to dispatch to when, and rules injected into matching sessions
-  // (specs/model-guidance.md, Section 1). Keys are concrete provider/id strings,
+  // (specs/model-guidance.md#configuration). Keys are concrete provider/id strings,
   // with an optional thinking level; a keyed level guides that level only.
   "modelGuidance": {
     "models": {
@@ -31,29 +31,29 @@ in the [README](../README.md#configure-pi-dent-in-pi).
 
   // Liveness deadlines for an Agent dispatch, in milliseconds, 0–2147483647;
   // 0 disables. Environment PI_DENT_AGENT_IDLE_TIMEOUT_MS and
-  // PI_DENT_AGENT_ABSOLUTE_TIMEOUT_MS override these (specs/agent-tool.md, Section 4.2).
+  // PI_DENT_AGENT_ABSOLUTE_TIMEOUT_MS override these (specs/agent-tool.md#child-session).
   "agentLiveness": { "idleTimeoutMs": 600000, "absoluteTimeoutMs": 3600000 },
 
   // Prompt overrides for entries of the agent catalog, by name or
-  // "namespace:name" (specs/agent.md, Section 2).
+  // "namespace:name" (specs/agent.md#agents-override).
   "agents": {
     "reviewer": { "prompt": "Review the change and report only real defects." },
   },
 
   // Plugin directories; a relative path resolves against the directory of the
-  // layer that declares it (specs/plugin.md, Section 4).
+  // layer that declares it (specs/plugin.md#discovery).
   "plugins": {
     "site": { "path": "./tools/site" },
   },
 
   // The key that opens the task browser; default "shift+right"
-  // (specs/task-browser.md, Section 1.1).
+  // (specs/task-browser.md#configuration).
   "taskBrowser": { "shortcut": "ctrl+t" },
 
-  // Whether pi-dent draws the footer; default true (specs/footer.md, Section 1.1).
+  // Whether pi-dent draws the footer; default true (specs/footer.md#configuration).
   "footer": { "enabled": true },
 
-  // The model /recap uses; a model string (specs/model-string.md, Sections 1–2).
+  // The model /recap uses; a model string (specs/model-string.md#grammar, specs/model-string.md#components).
   "recapModel": "zai/glm-5.3-flash",
 
   // The terms extension's settings (pi-dent-terms, specs/terms-tool.md, Section 4.2).
@@ -75,13 +75,13 @@ in the [README](../README.md#configure-pi-dent-in-pi).
 A value can use `${env.NAME}` for an environment variable and `${project.root}` for the working
 directory of the boot read; `$$` writes a literal `$`. An undefined variable produces a
 diagnostic and the value is absent, so a lower layer's value can stand in
-([specs/config-file.md](../specs/config-file.md), Section 7).
+([config-file.md, value substitution](../specs/config-file.md#value-substitution)).
 
 `<repo>/.pi/pi-dent/pi-dent.conf` is the project layer and wins every conflict; put what only one
 repository needs there, and keep the rest here. The layer directories also hold `agents/` and
 `skills/` folders. Diagnostics appear once per boot as `pi-dent: …` notifications; configuration
 changes take effect at the next boot or `/reload`, never mid-window
-([specs/config-file.md](../specs/config-file.md), Sections 5–6).
+([config-file.md, snapshot](../specs/config-file.md#snapshot), [config-file.md, diagnostics](../specs/config-file.md#diagnostics)).
 
 ## The configuration pi-dent is developed with
 
@@ -94,9 +94,9 @@ its skills would then be listed twice, once without the `dev:` namespace.
 
 ```jsonc
 {
-  // Plugins: shared skills, commands, scripts (plugin.md Section 4).
+  // Plugins: shared skills, commands, scripts (specs/plugin.md#discovery).
   "plugins": {
-    // An absolute path: plugin paths do not expand `~` (plugin.md Section 4).
+    // An absolute path: plugin paths do not expand `~` (specs/plugin.md#discovery).
     "dev": { "path": "<absolute path of the dev plugin checkout>" },
   },
   // Model guidance: which models an Agent call may name, and when to pick each.

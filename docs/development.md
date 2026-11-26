@@ -19,14 +19,14 @@ pi. Verify with `pnpm typecheck`.
 
 ## UI surfaces (via `ctx.ui`)
 
-| Surface                  | Call                                                 | Placement                                                                                                                                                               |
-| ------------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sticky widget            | `setWidget(id, string[] \| undefined)`               | Above the editor — renders **above the working row**; pass `undefined` to clear                                                                                         |
-| Widget, custom placement | `setWidget(id, lines, { placement: "belowEditor" })` | Below the editor                                                                                                                                                        |
-| Overlay screen           | `custom(factory, { overlay: true, overlayOptions })` | Fullscreen/anchored overlay; factory `(tui, theme, keybindings, done)` returns a pi-tui component; `done()` closes                                                      |
-| Command                  | `pi.registerCommand(name, { description, handler })` | Shows in `/` command list                                                                                                                                               |
-| Notification             | `notify(message, "info" \| "warning" \| "error")`    | Toast above editor                                                                                                                                                      |
-| Footer status            | `setStatus(id, text)`                                | Bottom-most footer line, below the model line — avoid; use a widget instead, except the schedule status line ([schedule-tool.md](../specs/schedule-tool.md), Section 6) |
+| Surface                  | Call                                                 | Placement                                                                                                                                                                                               |
+| ------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sticky widget            | `setWidget(id, string[] \| undefined)`               | Above the editor — renders **above the working row**; pass `undefined` to clear                                                                                                                         |
+| Widget, custom placement | `setWidget(id, lines, { placement: "belowEditor" })` | Below the editor                                                                                                                                                                                        |
+| Overlay screen           | `custom(factory, { overlay: true, overlayOptions })` | Fullscreen/anchored overlay; factory `(tui, theme, keybindings, done)` returns a pi-tui component; `done()` closes                                                                                      |
+| Command                  | `pi.registerCommand(name, { description, handler })` | Shows in `/` command list                                                                                                                                                                               |
+| Notification             | `notify(message, "info" \| "warning" \| "error")`    | Toast above editor                                                                                                                                                                                      |
+| Footer status            | `setStatus(id, text)`                                | Bottom-most footer line, below the model line — avoid; use a widget instead, except the schedule status line ([schedule-tool.md, schedule status line](../specs/schedule-tool.md#schedule-status-line)) |
 
 Component contract (pi-tui): `render(width): string[]` (cache by width),
 `invalidate()` (drop cache), `handleInput(data)` (consume keys), optional

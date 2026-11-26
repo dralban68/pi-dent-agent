@@ -25,11 +25,11 @@ are in the term registry, [.pi/pi-dent/terms.yaml](../.pi/pi-dent/terms.yaml).
 - Navigate and restructure a Markdown file by its sections: `Markdown`, beside the host's `read`,
   `edit`, and `write`. Its edits join the host's per-file mutation queue, need the file's
   revision from an earlier `Markdown` result, and keep numbered headings in sequence.
-- Invoking session: the session whose model made a tool call ([task.md](../specs/task.md), Section 5).
+- Invoking session: the session whose model made a tool call ([task.md, host terms](../specs/task.md#host-terms)).
 - Tool-call signal: the abort signal the host passes to one tool execution.
 - Tool error: a tool result with `isError` `true`.
 
-Specs: one `<name>-tool.md` per tool; shared rules in [task.md](../specs/task.md), Section 1.
+Specs: one `<name>-tool.md` per tool; shared rules in [task.md, task kinds](../specs/task.md#task-kinds).
 
 ## Host, boot, and configuration
 
@@ -45,9 +45,9 @@ host (pi) ── boot (process start or reload) ── opens ──> boot window
 - A boot window is bounded by boots, not by sessions: a reload keeps the session and replaces the
   boot window, and one boot window can serve several sessions.
 - An extension instance is a separate unit: a reload starts a new one, and so does replacing the
-  session ([billing.md](../specs/billing.md), Section 4.1).
+  session ([billing.md, extension instance and held billing](../specs/billing.md#held-billing)).
 
-Specs: [config-file.md](../specs/config-file.md), Sections 1, 3, 5, and 6.
+Specs: [config-file.md, layers](../specs/config-file.md#layers), [config-file.md, merge](../specs/config-file.md#merge), [config-file.md, snapshot](../specs/config-file.md#snapshot), and [config-file.md, diagnostics](../specs/config-file.md#diagnostics).
 
 ## Models
 
@@ -67,8 +67,8 @@ model string ─┬─ concrete selector ─────────────
 - Session rules are the guidance rules whose `match` matches the session's model; they go into the
   guidance message (main session) or the child's system prompt (child session).
 
-Specs: [model-string.md](../specs/model-string.md), Section 4;
-[model-guidance.md](../specs/model-guidance.md), Sections 2–6.
+Specs: [model-string.md, resolution](../specs/model-string.md#resolution);
+[model-guidance.md, guided models](../specs/model-guidance.md#guided-models), [model-guidance.md, dispatch restriction](../specs/model-guidance.md#dispatch-restriction), [model-guidance.md, session rules](../specs/model-guidance.md#session-rules), [model-guidance.md, guidance message](../specs/model-guidance.md#guidance-message), [model-guidance.md, model catalog](../specs/model-guidance.md#model-catalog).
 
 ## Dispatch and sessions
 
@@ -84,8 +84,8 @@ dispatch (one `Agent` call of the dispatching session, itself a main session or 
 - The tool cap is the dispatching session's; the child binds the effective tool cap, a subset.
   Child extensions come from file and built-in extension sources in the parent's configured tool
   inventory; pi-dent itself stays in-process rather than loading its entry extension again
-  (agent-tool.md, Section 3.1). The child's model runtime gets the dispatching session's extension
-  providers as copies, not by loading their extensions (agent-tool.md, Section 4.2).
+  ([agent-tool.md, tools](../specs/agent-tool.md#tools)). The child's model runtime gets the dispatching session's extension
+  providers as copies, not by loading their extensions ([agent-tool.md, child session](../specs/agent-tool.md#child-session)).
 - Recovery re-prompts inside one dispatch. `resume` is a new dispatch that continues a retained
   session file, named by path or by task ID.
 - Every session is either a user session (a main session with a user interface: terminal or RPC
@@ -107,11 +107,10 @@ dispatch (one `Agent` call of the dispatching session, itself a main session or 
   session's entries from the index once its catch-up is complete, and otherwise reads the file.
 - The consumed bytes of a session file are the leading bytes that the index has read and describes.
 
-Specs: [agent-tool.md](../specs/agent-tool.md), Sections 3, 4.2, 8, 9, and 10;
-[agent.md](../specs/agent.md); [session-tool.md](../specs/session-tool.md), Section 3;
+Specs: [agent-tool.md, dispatch plan](../specs/agent-tool.md#dispatch-plan), [agent-tool.md, child session](../specs/agent-tool.md#child-session), [agent-tool.md, recovery](../specs/agent-tool.md#recovery), [agent-tool.md, continuation (`resume`)](../specs/agent-tool.md#resume), and [agent-tool.md, retention sweep](../specs/agent-tool.md#retention-sweep);
+[agent.md](../specs/agent.md); [session-tool.md, session kind](../specs/session-tool.md#session-kind);
 [session-transcript.md](../specs/session-transcript.md);
-[session-index.md](../specs/session-index.md); [search-tool.md](../specs/search-tool.md),
-Section 2.
+[session-index.md](../specs/session-index.md); [search-tool.md, scope](../specs/search-tool.md#scope).
 
 ## Tasks and the task registry
 
@@ -155,8 +154,7 @@ session (main or child)
 - The watched task is the one task that the `tasks` command names; its details page is the one the
   task detail feed carries.
 
-Specs: [task.md](../specs/task.md), Sections 1–3; [task-registry.md](../specs/task-registry.md),
-Sections 1 and 4–6; [task-record.md](../specs/task-record.md);
+Specs: [task.md, task kinds](../specs/task.md#task-kinds), [task.md, lifecycle](../specs/task.md#lifecycle), [task.md, task tree](../specs/task.md#task-tree); [task-registry.md, ownership](../specs/task-registry.md#ownership) and [task-registry.md, registry end and adoption](../specs/task-registry.md#registry-end), [task-registry.md, cohorts and completion notification](../specs/task-registry.md#cohorts), [task-registry.md, nesting](../specs/task-registry.md#nesting); [task-record.md](../specs/task-record.md);
 [task-ledger.md](../specs/task-ledger.md);
 [task-tool.md](../specs/task-tool.md); [task-browser.md](../specs/task-browser.md).
 
@@ -187,8 +185,8 @@ main session ── registers ──> session records, messages <── register
   turn, holds one or more.
 - An agent run is one host agent loop, from a prompt until the agent is idle.
 
-Specs: [fleet-tool.md](../specs/fleet-tool.md), Sections 1, 3, and 4;
-[session-store.md](../specs/session-store.md), Sections 4 and 5.
+Specs: [fleet-tool.md, parameter schema](../specs/fleet-tool.md#parameter-schema), [fleet-tool.md, action `send`](../specs/fleet-tool.md#send), and [fleet-tool.md, action `query`](../specs/fleet-tool.md#query);
+[session-store.md, membership and lifecycle](../specs/session-store.md#membership-lifecycle) and [session-store.md, delivery](../specs/session-store.md#delivery).
 
 ## Billing
 
@@ -203,7 +201,7 @@ billing service ── billing reply ──> held billing (per extension instanc
   line in the guidance message, and the model guidance configuration can switch billing off.
 - A child session uses the held billing of the main session's extension instance.
 
-Specs: [billing.md](../specs/billing.md), Sections 3, 4, 6, and 7.
+Specs: [billing.md, billing providers and mapping](../specs/billing.md#providers), [billing.md, queries](../specs/billing.md#queries), [billing.md, guidance billing text](../specs/billing.md#guidance-billing), and [billing.md, billing report](../specs/billing.md#billing-report).
 
 ## Plugins, skills, and commands
 
@@ -226,11 +224,11 @@ plugin
   skills and other plugin contributions.
 - A skill's body is the `SKILL.md` text after its frontmatter, which `Skill` returns.
 - Catalogs are fixed for the boot window, but not every file is: which reads come from the boot
-  snapshot and which are fresh is in [plugin.md](../specs/plugin.md), Section 8.
+  snapshot and which are fresh is in [plugin.md, plugin catalog](../specs/plugin.md#plugin-catalog).
 - A slash command is a host command, an extension command (pi-dent's own), or a plugin command.
 - The plugin inventory is the same discovery run on request for another program: every plugin
   candidate (a `plugins` entry, admitted or skipped), its resources and plugin scripts, and the
   diagnostics, read from disk at the call and independent of the boot snapshot.
 
-Specs: [plugin.md](../specs/plugin.md), Sections 1, 5, 8, 9, and 11; [skill.md](../specs/skill.md);
+Specs: [plugin.md, plugin layout](../specs/plugin.md#plugin-layout), [plugin.md, slash commands](../specs/plugin.md#slash-commands), [plugin.md, plugin catalog](../specs/plugin.md#plugin-catalog), [plugin.md, catalog composition](../specs/plugin.md#catalog-composition), and [plugin.md, plugin inventory](../specs/plugin.md#plugin-inventory); [skill.md](../specs/skill.md);
 [skill-tool.md](../specs/skill-tool.md); [slash-commands.md](../specs/slash-commands.md).

@@ -23,13 +23,13 @@ adds to the dev repo standard (`dev:repo-setup`). pi-dent's own manifest rules a
   exports.
 - A sibling package is consumed from npm at an exact version. pi-dent loads bundled extensions
   from `./node_modules/<package>/…` entries and imports libraries; it never imports an extension
-  entry ([specs/package.md](../specs/package.md), Section 4).
+  entry ([package.md, bundled extensions](../specs/package.md#bundled-extensions)).
 - After changing a sibling, publish it, bump its version in the consumer and run `pnpm install`;
   restart pi or `/reload` to load it. To try the change before publishing, use a local link.
 
 ## Local links
 
-Rules: [specs/package.md](../specs/package.md), Section 5.
+Rules: [package.md, local links](../specs/package.md#local-links).
 
 - Create `.local-links` in the consumer's root (gitignored), one `<package name>=<absolute path>`
   per line, for example `pi-dent-terms=<absolute path of the pi-dent-terms checkout>`; `#` starts a comment line.
