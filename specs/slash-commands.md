@@ -88,8 +88,9 @@ refuses.
 
 ## 5. `recap`
 
-The command MUST run only on explicit invocation. Outside an interactive terminal UI it MUST
-be a no-op. In order, it MUST refuse a non-idle session or an already running recap with the
+The command MUST run only on explicit invocation, and only in host modes `tui` and `rpc`. In
+another mode, or without a UI, it MUST change nothing and fail the command with the error
+`/recap needs the tui or rpc mode.`, which the host reports. In order, it MUST then refuse a non-idle session or an already running recap with the
 `info` notification `Recap unavailable while busy.`, then refuse empty input (Section 5.1) with
 `Nothing to recap.` at `info` level. Previous recap entries MUST remain unchanged.
 
@@ -146,6 +147,10 @@ custom message or a widget. The host persists custom entries in the session file
 them from model context. Each successful invocation adds an entry; earlier entries remain.
 Session start/shutdown MUST abort an in-flight recap and suppress its late appends and
 notifications. Every completion outcome MUST release the busy state.
+
+> Note (non-normative): in `rpc` mode the client receives the entry through the host's
+> `entry_appended` event and the notifications as `notify` UI requests; the renderer of Section
+> 5.3 applies to `tui` only.
 
 ### 5.3 Rendering and readers
 

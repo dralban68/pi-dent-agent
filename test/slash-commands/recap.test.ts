@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildRecapInput,
+  RECAP_MODE_ERROR,
   recapRuntime,
   trimRecapOutput,
   type RecapContext,
@@ -136,11 +137,29 @@ test("recap output preserves labelled lines and bullets while stripping controls
   assert.equal(trimRecapOutput("x".repeat(1201)), `${"x".repeat(1199)}…`);
 });
 
-test("recap does nothing outside the terminal and reports empty or busy sessions", async () => {
+test("recap fails the command outside tui and rpc, changing nothing", async () => {
   const h = harness();
-  await h.runtime.run({ ...h.ctx, hasUI: false });
-  await h.runtime.run({ ...h.ctx, mode: "rpc" });
+  for (const ctx of [
+    { ...h.ctx, hasUI: false },
+    { ...h.ctx, mode: "print" as const },
+    { ...h.ctx, mode: "json" as const },
+  ]) {
+    await assert.rejects(h.runtime.run(ctx), { message: RECAP_MODE_ERROR });
+  }
   assert.deepEqual(h.notices, []);
+  assert.equal(h.request(), undefined);
+  assert.deepEqual(h.entries, []);
+});
+
+test("recap runs in rpc mode: notifies and appends the entry", async () => {
+  const h = harness();
+  await h.runtime.run({ ...h.ctx, mode: "rpc" });
+  assert.deepEqual(h.notices, [["Generating recap…", "info"]]);
+  assert.deepEqual(h.entries, [{ text: "Goal: ship\nDone: code\nOpen: tests\nNext: verify" }]);
+});
+
+test("recap reports empty or busy sessions", async () => {
+  const h = harness();
   await h.runtime.run({ ...h.ctx, isIdle: () => false });
   await h.runtime.run({ ...h.ctx, sessionManager: { buildContextEntries: () => [] } });
   assert.deepEqual(h.notices, [
