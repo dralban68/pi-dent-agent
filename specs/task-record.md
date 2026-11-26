@@ -8,7 +8,7 @@ session-file naming by [agent-tool.md](agent-tool.md); the meaning of a task's s
 [task.md](task.md). A task record is not the task's history: that is the task ledger
 ([task-ledger.md](task-ledger.md)).
 
-## 1. Format
+## 1. Format {#format}
 
 A task record is one file named `<taskId>.task.json` in the dispatching session's agent directory
 ([agent-tool.md](agent-tool.md), Section 4.2), where `<taskId>` is the task's task ID. It is a
@@ -29,7 +29,7 @@ JSON object:
 
 A record MUST NOT carry the task text or the settled result text.
 
-## 2. Lifecycle
+## 2. Lifecycle {#lifecycle}
 
 - A session MUST write one task record for every background `agent` task it dispatches, in the
   session's own agent directory, once the attempt's child session file path is fixed and before
@@ -64,7 +64,7 @@ A record MUST NOT carry the task text or the settled result text.
 
 - A write, rewrite, or delete failure MUST NOT fail the dispatch, and no failure is reported.
 
-## 3. Rebuild
+## 3. Rebuild {#rebuild}
 
 - At the main session's start, after its agent directory is created
   ([agent-tool.md](agent-tool.md), Section 4.2), the extension MUST rebuild: scan the session's
@@ -98,7 +98,7 @@ A record MUST NOT carry the task text or the settled result text.
   [task-registry.md](task-registry.md), Section 5; a rebuilt row never triggers the completion
   notification.
 
-## 4. Specification gaps
+## 4. Specification gaps {#gaps}
 
 - No rule reconciles a record whose child session file was never created or was deleted while
   the record remained.

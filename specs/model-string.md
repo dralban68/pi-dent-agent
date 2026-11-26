@@ -6,7 +6,7 @@ values, `modelGuidance` keys, and persisted sessions. It covers the grammar, com
 validation, model-class configuration, inventory resolution, thinking precedence, and
 canonical serialization.
 
-## 1. Grammar
+## 1. Grammar {#grammar}
 
 The grammar is ABNF ([RFC 5234]); its quoted strings are matched case-sensitively.
 
@@ -49,9 +49,9 @@ MUST be rejected with `invalid-plan`.
 | `balanced:fast`                        | Rejected with `invalid-plan` (class name contains `:`).                   |
 | `openrouter/qwen/qwen3:free`           | Concrete; id `qwen/qwen3:free`; the colon is model identity, no thinking. |
 
-## 2. Components
+## 2. Components {#components}
 
-### 2.1 Concrete selector
+### 2.1 Concrete selector {#concrete-selector}
 
 The provider is the substring before the first `/`; the model id is the remainder. A model id
 can itself contain `/` (gateway-qualified selectors) and `:` (identity).
@@ -64,14 +64,14 @@ can itself contain `/` (gateway-qualified selectors) and `:` (identity).
   of these MUST be rejected with `invalid-plan` ("empty provider, model, or thinking
   component", or "reserved thinking suffix").
 
-### 2.2 Thinking suffix
+### 2.2 Thinking suffix {#thinking-suffix}
 
 The thinking suffix is the segment after the last `:` of the model string when that segment is
 a `thinking-level`. Any other segment after the last `:` is not a suffix; the colon is part of
 the model identity. Exactly one suffix is parsed; after stripping it, the Section 2.1 rules
 apply to the remainder.
 
-## 3. Model classes
+## 3. Model classes {#model-classes}
 
 Class names are dynamic: the `modelClasses` configuration object defines them, mapping each
 class name to a concrete model. `fallback` is one reserved class name with special resolution
@@ -91,7 +91,7 @@ semantics (Section 4.3).
   [configuration file specification](config-file.md). The active mapping is that specification's
   boot snapshot, so changes take effect only after a restart or reload.
 
-## 4. Resolution
+## 4. Resolution {#resolution}
 
 Resolution turns a model string into a descriptor `{ provider, id, thinking? }` against the
 inventory: the host pi runtime's registered model list. The inventory is always a list and can
@@ -100,7 +100,7 @@ models itself — and membership implies nothing about credentials or provider e
 Resolution has no authorization policy; dispatch can be bounded by model guidance
 ([model-guidance.md](model-guidance.md), Section 3).
 
-### 4.1 Exact inventory match
+### 4.1 Exact inventory match {#exact-match}
 
 A parsed concrete selector MUST match the inventory exactly on `provider/id`. Exactly one
 match is required: zero matches MUST fail with `missing-model` ("does not exactly match the
@@ -108,7 +108,7 @@ available model inventory"); more than one MUST fail with `ambiguous-model`, lis
 candidates as `provider/id` pairs. There is no bare-id, prefix, or fuzzy matching, and no
 special case for ids that contain `:`.
 
-### 4.2 Class resolution
+### 4.2 Class resolution {#class-resolution}
 
 - A class reference MUST resolve through the active `modelClasses` mapping. A class with no
   mapping is a no-match (Section 4.3), naming `modelClasses.<class>`.
@@ -118,7 +118,7 @@ special case for ids that contain `:`.
   block the selection.
 - A thinking suffix on the class reference MUST override the mapping's configured thinking.
 
-### 4.3 Fallback
+### 4.3 Fallback {#fallback}
 
 When resolution of a model string ends in a no-match — no inventory match (`missing-model`) or
 an unmapped class (`missing-model-class`) — and the `fallback` class is defined, resolution
@@ -133,7 +133,7 @@ MUST proceed through the fallback mapping exactly as if `fallback` had been refe
 - Fallback applies to no-match outcomes only: grammar violations (`invalid-plan`) and ambiguity
   (`ambiguous-model`) MUST fail without fallback.
 
-### 4.4 Thinking precedence
+### 4.4 Thinking precedence {#thinking-precedence}
 
 Within one model string: explicit string suffix > class mapping's configured thinking > absent
 (the level falls to the model default).
@@ -152,13 +152,13 @@ resolved model string that carries a level, whether explicit, from a class mappi
 Precedence across a caller's selection tiers is owned by [agent-tool.md](agent-tool.md),
 Section 3.3; this specification fixes precedence only inside one string.
 
-## 5. Canonical serialization
+## 5. Canonical serialization {#serialization}
 
 A descriptor MUST serialize as `` `${provider}/${id}` ``, appending `:${level}` when
 thinking is present. Parsing a canonical serialization MUST yield the identical
 descriptor (round-trip).
 
-## 6. Error codes
+## 6. Error codes {#error-codes}
 
 | Code                   | Condition                                                                                                                                           |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -168,14 +168,14 @@ descriptor (round-trip).
 | `missing-model-class`  | Referenced class has no configuration mapping — after the fallback rule of Section 4.3.                                                             |
 | `unsupported-thinking` | The resolved model does not support the requested thinking level (Section 4.4).                                                                     |
 
-## 7. Normative references
+## 7. Normative references {#references}
 
 - [ECMA-262] ECMAScript Language Specification, 14th edition (June 2023), Ecma International:
   Regular Expressions (the `\s` class), for whitespace in Section 1.
 - [RFC 5234] Augmented BNF for Syntax Specifications: ABNF (STD 68), D. Crocker, P. Overell,
   2008: the grammar notation of Section 1.
 
-## 8. Specification gaps
+## 8. Specification gaps {#gaps}
 
 - Malformed model-class diagnostic wording is open: any wording that names the owning file per
   [config-file.md](config-file.md), Section 4, and the affected `modelClasses` key is allowed.

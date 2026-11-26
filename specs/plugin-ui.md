@@ -5,7 +5,7 @@ command, plugin UI calls, the `dent.ui.send` script binding, and the `pi-dent-ui
 boot snapshot's plugin catalog and plugin script path rules are owned by [plugin.md](plugin.md);
 script execution and termination by [script-tool.md](script-tool.md).
 
-## 1. Registration and gating
+## 1. Registration and gating {#registration-gating}
 
 - The extension MUST register the extension command `dent-ui` ([slash-commands.md](slash-commands.md),
   Section 1) with description `Run and cancel plugin UI script calls`.
@@ -17,7 +17,7 @@ script execution and termination by [script-tool.md](script-tool.md).
   whitespace character (ECMAScript `\s`) into `<subcommand>` and `<json>` (trimmed). Any
   subcommand other than `run` or `cancel` MUST be a no-op.
 
-## 2. `run`
+## 2. `run` {#run}
 
 `/dent-ui run <json>` starts one plugin UI call for a plugin script.
 
@@ -52,7 +52,7 @@ script execution and termination by [script-tool.md](script-tool.md).
     file or tool log.
 - Standard output and standard error of a plugin UI call MUST NOT be sent on the UI feed.
 
-## 3. `cancel`
+## 3. `cancel` {#cancel}
 
 `/dent-ui cancel <json>` cancels executing plugin UI calls.
 
@@ -62,9 +62,9 @@ script execution and termination by [script-tool.md](script-tool.md).
   spawned process tree).
 - The command answers nothing directly. An unknown `id`, or a malformed `<json>`, changes nothing.
 
-## 4. Bindings
+## 4. Bindings {#bindings}
 
-### 4.1 The `dent.ui` binding
+### 4.1 The `dent.ui` binding {#dent-ui}
 
 A JSON value is a JSON-compatible value per [script-tool.md](script-tool.md), Section 5. Its size
 is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,144 bytes.
@@ -79,7 +79,7 @@ is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,14
   one `message` record on the UI feed (Section 5), in the order `send` was called, before the
   call's `reply`.
 
-### 4.2 Tool functions
+### 4.2 Tool functions {#tool-functions}
 
 - This section binds the tools of a plugin UI call unless a run override (Section 7) supplies a
   replacement `tools` object.
@@ -112,7 +112,7 @@ is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,14
   foreground `Agent` or `Bash` call aborts with that signal; a task dispatched with
   `background: true` survives `/dent-ui cancel` and is ended by `session_shutdown`.
 
-### 4.3 Tool proxy
+### 4.3 Tool proxy {#tool-proxy}
 
 - Proxied tools execute in one lazily created, long-lived in-memory proxy session per parent
   session, started on the first proxied tool call. The proxy uses an in-memory session manager and
@@ -135,7 +135,7 @@ is the UTF-8 byte length of its `JSON.stringify` text. The payload cap is 262,14
   complete `session_shutdown`, and dispose its proxy session so inherited extensions (including
   MCP server connections) shut down cleanly.
 
-## 5. UI feed
+## 5. UI feed {#ui-feed}
 
 The UI feed uses the widget key `pi-dent-ui`. Each UI message and each reply MUST be emitted as
 one host `setWidget("pi-dent-ui", [line])` call, where `line` is the JSON text of one of:
@@ -161,14 +161,14 @@ one host `setWidget("pi-dent-ui", [line])` call, where `line` is the JSON text o
 
 - A failed `setWidget` call reports no failure (per `specs/AGENTS.md`).
 
-## 6. Lifecycle
+## 6. Lifecycle {#lifecycle}
 
 On `session_start` (when a prior session's calls or proxy remain) and on `session_shutdown`
 (session switch, reload, or quit), every executing plugin UI call MUST be cancelled as in
 Section 3, and any active tool proxy MUST be disposed as in Section 4.3. Each cancelled plugin UI
 call settles with `ok: false` and an `error` naming the session shutdown.
 
-## 7. Extension event seam
+## 7. Extension event seam {#extension-event-seam}
 
 Other extensions loaded in the same Pi instance MAY integrate with plugin UI script calls and the
 boot plugin catalog through three synchronous `pi.events` channels:
@@ -185,7 +185,7 @@ boot plugin catalog through three synchronous `pi.events` channels:
   with `Array<{ namespace, root }>` from the boot snapshot's admitted plugins
   ([plugin.md](plugin.md), Section 8).
 
-## 8. Specification gaps
+## 8. Specification gaps {#gaps}
 
 - Exact wording of `reply` `error` strings is not specified beyond naming the cause and
   distinguishing non-JSON from over-cap return values.

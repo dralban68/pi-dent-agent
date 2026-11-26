@@ -4,7 +4,7 @@ This document specifies the tool card: what the host's conversation view shows f
 `Bash` tool ([bash-tool.md](bash-tool.md)) or the `Script` tool
 ([script-tool.md](script-tool.md)).
 
-## 1. Shell
+## 1. Shell {#shell}
 
 `Bash` and `Script` MUST be registered without `renderShell`, so that the host draws each call in
 its default shell: one box per call, holding the call section (Section 2) and, once the call has a
@@ -17,7 +17,7 @@ and 3 follows [agent-tool.md](agent-tool.md), Section 4.2. ANSI escape sequences
 characters other than line feeds and tabs MUST be removed from the `description` argument, the
 source, and the result text before they are rendered.
 
-## 2. Call section
+## 2. Call section {#call-section}
 
 The call section is a title line followed by the source lines.
 
@@ -47,7 +47,7 @@ string is treated as an empty string; a source that is then empty has no source 
 The title line is drawn in the host theme colour `toolTitle`, bold. Every source line, including the
 `... (<n> more lines)` line, is drawn in `toolOutput`.
 
-## 3. Result section
+## 3. Result section {#result-section}
 
 The result text is the text of the result's first content item when that item is a text item,
 else empty, with its trailing white space removed. A partial result of a running foreground call
@@ -63,7 +63,7 @@ is shown by the same rules as the final one.
   are drawn in `muted`, with `<hint>` between them; the card does not recolour `<hint>`.
 - The result section is separated from the call section by one blank line.
 
-## 4. Specification gaps
+## 4. Specification gaps {#gaps}
 
 - Whether a card is collapsed or expanded, and what toggles it, is the host's.
 - The rendering of a card in the host's HTML export is the host's.

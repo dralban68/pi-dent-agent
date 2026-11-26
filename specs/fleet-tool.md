@@ -7,7 +7,7 @@ which every pi-dent process on the machine shares; there is no network transport
 discovery. The extension MUST register the tool through the host `registerTool` API with `name` and
 `label` `"Fleet"` and `renderShell` `"self"`.
 
-## 1. Parameter schema
+## 1. Parameter schema {#parameter-schema}
 
 The parameter schema is a JSON object schema with `type: "object"` and
 `additionalProperties: false`, with one required field: `action`, one of `list`, `send`, `query`,
@@ -73,7 +73,7 @@ identity as above, then the action-specific checks in this order, reporting the 
 | `query`  | Non-empty `body`; non-empty `target`; target resolution above                                                 | `body is required and must be a non-empty string for action "query"`; `target must be a non-empty string`; resolution error above                                                                                     |
 | `status` | Present integer `messageId`                                                                                   | `messageId is required and must be an integer for action "status"`                                                                                                                                                    |
 
-## 2. Action `list`
+## 2. Action `list` {#list}
 
 - `list` is read-only: a call MUST NOT change fleet state.
 - `list` MUST list only live sessions ([session-store.md](session-store.md), Section 4): it
@@ -120,9 +120,9 @@ identity as above, then the action-specific checks in this order, reporting the 
 - Every listed session is a valid target for `send`.
 - A listing is a discovery snapshot, not durable presence: it carries no authoritative session age.
 
-## 3. Action `send`
+## 3. Action `send` {#send}
 
-### 3.1 Result
+### 3.1 Result {#result}
 
 - A unicast enqueues one message and returns its `messageId` (the handle for `status`), the resolved
   target session ID (`target`), the target state at enqueue time (`state`, per
@@ -161,7 +161,7 @@ identity as above, then the action-specific checks in this order, reporting the 
   - `details`: `{ action: "send", deliver, recipients: [{ target, messageId, state, status }…],
     failed: [{ target, messageId?, error }…] }`.
 
-### 3.2 Delivery modes
+### 3.2 Delivery modes {#delivery-modes}
 
 | Mode       | Contract                                                                                                                                                                                                                                                                                                                                    |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -203,7 +203,7 @@ attempt delivers.
   window that runs the child, which is the dispatching session's. The dispatch's wait for such a
   turn, and what a Fleet abort does to it, follow [agent-tool.md](agent-tool.md), Section 4.2.
 
-## 4. Action `query`
+## 4. Action `query` {#query}
 
 `query` is request/reply over one sibling session — or over a child session of the calling session
 — executed by a dispatch on the target:
@@ -257,7 +257,7 @@ attempt delivers.
   `<sessionId>` being the querying session's ID and `<message>` the error's message, and MUST NOT
   resend the reply.
 
-### 4.1 Waited query
+### 4.1 Waited query {#waited-query}
 
 A `query` whose calling session is a child session is a waited query. It differs from Section 4 only as follows:
 
@@ -291,7 +291,7 @@ A `query` whose calling session is a child session is a waited query. It differs
   takes its other messages as a session does — its boot window delivers them to its conversation —
   and only the query reply settles the wait.
 
-## 5. Action `status`
+## 5. Action `status` {#status}
 
 `status` is transport-level only. The call returns, as text, `messageId=<messageId>
 status=<status>` followed, for each of the following that is present, by ` target=<target>`,
@@ -312,7 +312,7 @@ sent by the calling session in the caller's current boot window: a
 from the session keep their delivery contract; a child session record's lifetime follows
 [session-store.md](session-store.md), Section 4.
 
-## 6. Fleet feed
+## 6. Fleet feed {#fleet-feed}
 
 The fleet feed carries a `list` to an RPC client that shows the fleet itself, under the same
 announcement as the task feed ([task.md](task.md), Section 4.1): when the main session runs in
@@ -331,7 +331,7 @@ non-empty, else `null`.
 - A failure computing the feed MUST leave the widget as it is and MUST NOT be reported.
 - Reading the feed is not a `Fleet` call: it MUST NOT change fleet state.
 
-## 7. Specification gaps
+## 7. Specification gaps {#gaps}
 
 - The conversation rendering associated with `renderShell: "self"` is unspecified.
 

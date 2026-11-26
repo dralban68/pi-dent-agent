@@ -12,7 +12,7 @@ project, the item address, and the transcript order. The `Search` tool
 The session file format is the host's. This document relies on the subset stated here and on
 nothing else; a reader MUST ignore every field and every entry type it does not name.
 
-## 1. Reading a session file
+## 1. Reading a session file {#reading}
 
 A session file is UTF-8 text, read as lines separated by the line feed character (U+000A). A
 line's line number counts from 1. A read belongs to one tool call. For each file, its read bound is the file size first observed by
@@ -46,7 +46,7 @@ An entry ID is usable when it is a non-empty string of the characters `A–Z`, `
 and `-`. An entry whose `id` is not usable, and an entry whose `id` equals that of an entry with
 a lower line number in the same file, yields no transcript item and is no member of a lineage.
 
-## 2. Transcript items
+## 2. Transcript items {#transcript-items}
 
 A transcript item is one searchable piece of a session entry. An entry yields the items of this
 table and no other; an entry of any other `type`, and a `message` entry of any other
@@ -114,7 +114,7 @@ that is not an array yields no element item.
   file whose `timestamp` is a date-time; otherwise the Unix epoch. An item's `time` is its
   entry's.
 
-## 3. Current lineage
+## 3. Current lineage {#current-lineage}
 
 The entries of a session file form a tree through `parentId`; one path of it is the conversation
 the session last continued.
@@ -129,7 +129,7 @@ the session last continued.
 An entry a compaction summarized stays on the current lineage: compaction appends an entry and
 removes none.
 
-## 4. Session tree
+## 4. Session tree {#session-tree}
 
 The session tree of a session is that session and, recursively, every session whose session file
 lies in the agent directory of a session of the tree.
@@ -157,7 +157,7 @@ lies in the agent directory of a session of the tree.
 > Note (non-normative): the first-line check keeps a `.jsonl` data file that a tool wrote into
 > the agent directory out of the tree.
 
-### 4.1 Project
+### 4.1 Project {#project}
 
 The sessions directory of a main session is the directory that holds its session file
 (`<sessionDir>` of [agent-tool.md](agent-tool.md), Section 4.2). A child session, and a main
@@ -184,7 +184,7 @@ project members, with their session trees.
 > directory together in one directory; the 13 characters are the part of a session ID that
 > differs between sessions started a millisecond apart.
 
-## 5. Item address
+## 5. Item address {#item-address}
 
 An item address names one transcript item relative to a session — the root of a session tree,
 and for a project member's items the main session whose project it belongs to — in the
@@ -207,7 +207,7 @@ it is the address of, or to none. An address is meaningful only to the session i
 to: the same item has another address for a child session and for another main session of the
 project. It stays valid for that session while the session file keeps its name and the entry.
 
-## 6. Transcript order
+## 6. Transcript order {#transcript-order}
 
 Transcript order is the total order of a set of items, each with a session key relative to one
 session, by ascending `time` (Section 2); among equal times by ascending session key, compared
@@ -216,7 +216,7 @@ symbolic links resolved, compared the same way; within one session by ascending 
 part `error` last. File order is the order of one session's items by line number, then part the
 same way.
 
-## 7. Normative references
+## 7. Normative references {#references}
 
 - [ECMA-262] ECMAScript Language Specification, 14th edition (June 2023), Ecma International:
   Regular Expressions (the character class escape `\s`), the property order `Object.keys` gives
@@ -224,7 +224,7 @@ same way.
 - [RFC 5234] Augmented BNF for Syntax Specifications: ABNF (STD 68), D. Crocker, Ed., and
   P. Overell, 2008: the grammar notation of Section 5 and its core rules `ALPHA` and `DIGIT`.
 
-## 8. Specification gaps
+## 8. Specification gaps {#gaps}
 
 - The host's session file format beyond the subset of Sections 1 and 2 is the host's: other
   entry types, other fields, other `message.content` element types, and the header's `version`,

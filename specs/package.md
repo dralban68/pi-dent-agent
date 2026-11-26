@@ -4,7 +4,7 @@ This document specifies the pi-dent package: the manifest that declares which ex
 loads, and the bundled extensions installed with pi-dent. Each bundled extension is owned by its
 own package; only its membership and entry path are specified here.
 
-## 1. Package manifest
+## 1. Package manifest {#package-manifest}
 
 The package name is `pi-dent-agent`. The `pi` key of `package.json` holds the package manifest, whose
 `extensions` array is the entry list of Section 2.
@@ -25,7 +25,7 @@ The package name is `pi-dent-agent`. The `pi` key of `package.json` holds the pa
 
 > Note (non-normative): the host installs the package with its development dependencies omitted.
 
-## 2. Entry list
+## 2. Entry list {#entry-list}
 
 | Order | Extension          | Entry                                            |
 | ----- | ------------------ | ------------------------------------------------ |
@@ -37,7 +37,7 @@ The package name is `pi-dent-agent`. The `pi` key of `package.json` holds the pa
 | 6     | pi-mcp-adapter     | `./node_modules/pi-mcp-adapter/index.ts`         |
 | 7     | pi-anthropic-oauth | `./node_modules/pi-anthropic-oauth/src/index.ts` |
 
-## 3. Installation
+## 3. Installation {#installation}
 
 - One installation of the package, and one entry for it in the host's package list, loads every
   entry of Section 2 and no further extension of its own.
@@ -46,7 +46,7 @@ The package name is `pi-dent-agent`. The `pi` key of `package.json` holds the pa
   worker thread the package or its library dependencies start MUST still load its TypeScript
   modules, with the types stripped as Node strips them elsewhere.
 
-## 4. Bundled extensions
+## 4. Bundled extensions {#bundled-extensions}
 
 - A bundled extension MUST be loaded from its own entry of Section 2, never imported by another
   entry.
@@ -56,14 +56,14 @@ The package name is `pi-dent-agent`. The `pi` key of `package.json` holds the pa
 - A library imported by an entry, such as `pi-dent-markdown`, MUST be a `dependencies` entry and
   MUST NOT have a row in Section 2 or a `pi.extensions` entry.
 
-## 5. Local links
+## 5. Local links {#local-links}
 
 A local link is a symbolic link `node_modules/<name>` under the package root that points at a
 development checkout of the package `<name>`, in place of its installed version. Local links are
 declared in the file `.local-links` in the package root. The repository MUST ignore `.local-links`
 in git, and nothing in this section writes a file outside `node_modules/`.
 
-### 5.1 File format
+### 5.1 File format {#file-format}
 
 `.local-links` is UTF-8 text read line by line; a line ends at LF or CRLF. Each line is trimmed of
 leading and trailing whitespace. An empty line and a line starting with `#` declare nothing. Every
@@ -86,7 +86,7 @@ An npm package name here matches `^(@[a-z0-9~-][a-z0-9._~-]*/)?[a-z0-9~-][a-z0-9
 A local link is in place when `node_modules/<name>` and `<path>` resolve, symbolic links followed,
 to the same existing directory.
 
-### 5.2 Link script
+### 5.2 Link script {#link-script}
 
 `node scripts/link-local.ts`, run from any directory, acts on the package root that holds it. The
 `prepare` script of `package.json` MUST be exactly that command.
@@ -102,7 +102,7 @@ to the same existing directory.
 - A filesystem operation that fails MUST end the script with a non-zero status and the host's
   error on standard error; links made before it stay.
 
-### 5.3 Load-time check
+### 5.3 Load-time check {#load-time-check}
 
 Each time the host calls the factory of `./index.ts`, pi-dent checks the `.local-links` of its own
 package root and reports the outcome as a host UI notification of the level below, the message
@@ -123,7 +123,7 @@ or change a link.
 > Note (non-normative): a package manager command can reset a link to the installed version
 > without running `prepare`, so the load-time check is what tells the user.
 
-## 6. Specification gaps
+## 6. Specification gaps {#gaps}
 
 The behavior of `pi update --extensions` on the package's dependencies is not specified, and
 neither is the effect of a bundled extension failing to load on the remaining entries.

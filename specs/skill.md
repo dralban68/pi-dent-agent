@@ -4,7 +4,7 @@ This document specifies the skill resource: the skill file format, discovery, th
 catalog, and content rules. The load tool and prompt injection are owned by
 [skill-tool.md](skill-tool.md).
 
-## 1. Skill files
+## 1. Skill files {#skill-files}
 
 A skill is a directory `<name>/` containing `SKILL.md`, with an optional `references/` folder.
 Discovery reads each immediate subdirectory `<name>/` that contains `SKILL.md`, in lexicographic
@@ -46,13 +46,13 @@ Plugin skills are the `skills/` folder of each plugin root ([plugin.md](plugin.m
   Section 9.
 - The skill catalog MUST be built from the boot snapshot.
 
-## 2. Content rules
+## 2. Content rules {#content-rules}
 
 Skill references are plain Markdown loaded verbatim. A skill file's leading byte-order mark is
 removed before parsing; the skill body is then the text after the frontmatter with line endings
 normalized to `\n` and surrounding whitespace trimmed. There is no substitution, no parametrization, and no
 configuration inside a skill; a skill is instruction text only.
 
-## 3. Specification gaps
+## 3. Specification gaps {#gaps}
 
 None.

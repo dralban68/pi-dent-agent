@@ -13,7 +13,7 @@ resets, or rewrites the file. It is neither a task record ([task-record.md](task
 which serves only rebuild and `resume` and is deleted on consume, nor the local session store
 ([session-store.md](session-store.md)), nor the session index ([session-index.md](session-index.md)).
 
-## 1. Location and format
+## 1. Location and format {#location}
 
 The task ledger is one SQLite database file in write-ahead-log journal mode, opened with a busy
 timeout of 10 ms. Its path is the value of the environment variable `PI_DENT_TASKS_DB`, used as
@@ -41,7 +41,7 @@ in this order:
 A ledger file of another format version (`tasks-v<n>.sqlite`) MUST NOT be read, changed, or
 deleted. No row is ever deleted: the ledger keeps every row for as long as the file exists.
 
-## 2. Schema
+## 2. Schema {#schema}
 
 The schema is exactly these statements; the table, column, and index names are normative:
 
@@ -100,7 +100,7 @@ Times are milliseconds since the Unix epoch. A `tasks` row is a ledger row; a `s
 ledger session row. The ledger session ID of a session is its own session ID for a main session,
 and for a child session the ledger session ID of the session that dispatched it, recursively.
 
-### 2.1 Ledger session row
+### 2.1 Ledger session row {#session-row}
 
 One per main session, holding the main session's own usage, never that of its tasks:
 
@@ -138,7 +138,7 @@ The six usage columns form a usage sum ([agent-tool.md](agent-tool.md), Section 
 `cache_read` being `cacheRead` and `cache_write` being `cacheWrite`. `tool_calls` is not a field
 of the usage sum.
 
-### 2.2 Ledger row
+### 2.2 Ledger row {#ledger-row}
 
 One per task row ([task-registry.md](task-registry.md), Section 2) of every task kind,
 foreground and background, at any depth of the task tree, a `Fleet` query dispatch's row
@@ -180,12 +180,12 @@ dispatch ([agent-tool.md](agent-tool.md), Section 13); for a `script` row, when 
 passed the checks of [script-tool.md](script-tool.md), Section 2; for a `bash` row, when it has
 passed those of [bash-tool.md](bash-tool.md), Section 2.
 
-## 3. Writes
+## 3. Writes {#writes}
 
 Writes are applied in the process's ledger order (Section 5); a ledger write MUST NOT change the
 outcome of any task.
 
-### 3.1 Parent row
+### 3.1 Parent row {#parent-row}
 
 The parent row of a task row is, the first rule that applies winning:
 
@@ -202,7 +202,7 @@ attached to ([task-registry.md](task-registry.md), Section 6), and a `Fleet` que
 target is a child session. A row's `parent_id` MUST NOT change after insertion: adoption
 ([task-registry.md](task-registry.md), Section 4) moves the task row, not its ledger row.
 
-### 3.2 Write rules
+### 3.2 Write rules {#write-rules}
 
 For every task row registered while the ledger is usable, the extension MUST make these writes,
 each setting `updated_at` to the time it is issued:
@@ -223,7 +223,7 @@ add no ledger row. A `resume` is a new dispatch with its own task ID and ledger 
 > `interrupted`, so the order in which an old process's settlement and a new one's rebuild reach
 > the file does not matter.
 
-### 3.3 Ledger session row writes
+### 3.3 Ledger session row writes {#session-row-writes}
 
 For its main session, the extension MUST write the ledger session row: insert it at
 `session_start`, a reload included, when the ledger holds none with that `session_id`, else
@@ -232,9 +232,9 @@ of Section 2.1 at `session_start`, at `session_shutdown`, and each time the host
 of a message or a compaction or branch summary of the main session, issuing the write at that
 report. A child session has no ledger session row.
 
-## 4. Settling rows of ended processes
+## 4. Settling rows of ended processes {#settling}
 
-### 4.1 Sweep
+### 4.1 Sweep {#sweep}
 
 The owner of a ledger row is gone when no process with `owner_pid` exists (a permission-denied
 probe counts as existing), or when `owner_pid` is the checking process's own and `owner_started`
@@ -249,7 +249,7 @@ by the next opening of the ledger by any pi-dent process, whether or not its ses
 > Note (non-normative): `updated_at` is the last moment the row is known to have been running;
 > the time of the sweep would count the time no process ran.
 
-### 4.2 Rebuild
+### 4.2 Rebuild {#rebuild}
 
 For each row a rebuild inserts ([task-record.md](task-record.md), Section 3), the extension MUST
 find its ledger row: the one with the session's ledger session ID, the record's `taskId` as
@@ -262,14 +262,14 @@ and the ledger row's `status` is `running` or `cancelled`, the extension MUST se
 > registry ends ([task-record.md](task-record.md), Section 2); the rebuild that follows makes it
 > `interrupted`, as the user sees it.
 
-### 4.3 Session end and reload
+### 4.3 Session end and reload {#session-end}
 
 A reload, a session replacement, and a host shutdown end the task registry, whose running rows
 settle per [task-registry.md](task-registry.md), Section 4; each settlement writes per
 Section 3.2. Writes the process's ledger order still holds when the process ends are lost, with no
 failure reported, and the rows they would have settled are settled by the sweep.
 
-## 5. Concurrent access
+## 5. Concurrent access {#concurrent-access}
 
 Several processes, and several extension instances of one process, read and write the ledger at
 once. Child sessions run in the process of their main session, so a process writes the rows of
@@ -298,7 +298,7 @@ gone processes.
 - The read deadline is 2000 ms: a surface's read that has not completed 2000 ms after it is
   issued is abandoned, and the surface shows the ledger as busy, in the text its spec gives.
 
-## 6. Derived figures
+## 6. Derived figures {#derived-figures}
 
 Totals are derived when read and never stored. For a ledger row `R`:
 
@@ -329,7 +329,7 @@ For a ledger session ID `S`:
 Times read from the ledger are in milliseconds; a surface that renders one in whole seconds
 rounds down. A sum of `cost` values is the floating-point sum of the stored values.
 
-## 7. Failures
+## 7. Failures {#failures}
 
 The ledger becomes unusable for an extension instance when, in that instance:
 
@@ -353,7 +353,7 @@ The ledger becomes unusable for an extension instance when, in that instance:
   opens the ledger anew.
 - No ledger failure fails, cancels, or delays a task or a tool call.
 
-## 8. Normative references
+## 8. Normative references {#references}
 
 - [RFC 3339] Date and Time on the Internet: Timestamps, G. Klyne, C. Newman, July 2002:
   Section 5.6, the date-time form of a session header's and a session entry's `timestamp`.
@@ -361,7 +361,7 @@ The ledger becomes unusable for an extension instance when, in that instance:
 - [RFC 9562] Universally Unique IDentifiers (UUIDs), K. Davis, B. Peabody, P. Leach, May 2024:
   Section 5.4, UUID version 4, and its text form.
 
-## 9. Specification gaps
+## 9. Specification gaps {#gaps}
 
 - An `owner_pid` reused by another live process makes a dead owner look alive, so its `running`
   rows stay `running` until that process ends.

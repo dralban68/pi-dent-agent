@@ -4,7 +4,7 @@ This document specifies the `Plugin` tool: the surface through which a session r
 resource file. The plugin resource itself — layout, manifest, identity, discovery, and the plugin
 catalog — is owned by [plugin.md](plugin.md).
 
-## 1. Parameter schema
+## 1. Parameter schema {#parameter-schema}
 
 The extension MUST register `Plugin` through the host `registerTool` API with label `Plugin` and
 this parameter schema. The parameter schema is a JSON object schema with `type: "object"` and
@@ -20,7 +20,7 @@ The schema requires `plugin` and `path` as strings and admits no other property.
 MUST reject, in order, as a tool error: empty or whitespace-only `plugin`; unknown `plugin`;
 empty or whitespace-only `path`; then invalid path per Section 2.
 
-## 2. Path rules
+## 2. Path rules {#path-rules}
 
 The root is the plugin root; the first path segment MUST be `commands`, `agents`, or `skills`.
 A path matches a resource when it names one of the resource files of [plugin.md](plugin.md),
@@ -31,7 +31,7 @@ Section 1: `commands/*.md`, `agents/*.md`, `skills/<name>/SKILL.md` or
 - is not a contained path of the plugin root ([plugin.md](plugin.md), Section 7),
 - matches no resource.
 
-## 3. Execution contract
+## 3. Execution contract {#execution-contract}
 
 - One call reads one resource in the named namespace from the boot-snapshot plugin catalog.
 - After parameter validation, an unknown `plugin` MUST fail as a tool error.
@@ -46,6 +46,6 @@ Section 1: `commands/*.md`, `agents/*.md`, `skills/<name>/SKILL.md` or
 - The tool returns text only; further tool calls are gated by session tools and never executed
   by this tool.
 
-## 4. Specification gaps
+## 4. Specification gaps {#gaps}
 
 None.

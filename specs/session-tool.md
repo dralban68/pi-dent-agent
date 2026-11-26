@@ -7,7 +7,7 @@ variable, and system prompt mode line. Model strings and the inventory are owned
 [model-string.md](model-string.md); the billing report by [billing.md](billing.md); the usage
 figures by [task-ledger.md](task-ledger.md).
 
-## 1. Registration surface
+## 1. Registration surface {#registration}
 
 | Field        | Value                                                             |
 | ------------ | ----------------------------------------------------------------- |
@@ -18,7 +18,7 @@ figures by [task-ledger.md](task-ledger.md).
 Any supplied parameter MUST be rejected by the schema, before the tool runs ([task.md](task.md),
 Section 1).
 
-## 2. Result
+## 2. Result {#result}
 
 The report describes the invoking session: the main session, or the child session whose tool
 call invoked it — never its dispatching session. If the call has no session ID, it MUST
@@ -82,7 +82,7 @@ it is 1, else `agents`. Otherwise they are the single line `usage: ledger unavai
 `usage: ledger busy`, or `usage: no ledger row`, for `ledger` `"unavailable"`, `"busy"`, and
 `"missing"`.
 
-## 3. Session kind
+## 3. Session kind {#session-kind}
 
 Every session is either a user session or an agent session:
 
@@ -93,7 +93,7 @@ Every session is either a user session or an agent session:
   the host reports no user interface (print mode or JSON mode). Its `sessionKind` is `"agent"` and
   its `userInput` is `false`.
 
-### 3.1 Environment variable
+### 3.1 Environment variable {#environment-variable}
 
 pi-dent MUST expose the invoking session's kind as `PI_DENT_SESSION_KIND`, with value `"user"` for
 a user session and `"agent"` for an agent session:
@@ -105,7 +105,7 @@ a user session and `"agent"` for an agent session:
   without mutating shared `process.env`; a child's tools MUST NOT see the dispatching session's
   value.
 
-### 3.2 System prompt mode line
+### 3.2 System prompt mode line {#prompt-mode}
 
 Every session's system prompt MUST include its session mode line as its final part, joined to any
 preceding text by `"\n\n"`:
@@ -120,6 +120,6 @@ catalog ([skill-tool.md](skill-tool.md), Section 1) and plugin context blocks
 ([plugin.md](plugin.md), Section 10). For a child session, the mode line is the final part of the
 child's system prompt ([agent-tool.md](agent-tool.md), Section 4.2).
 
-## 4. Specification gaps
+## 4. Specification gaps {#gaps}
 
 None.

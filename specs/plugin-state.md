@@ -5,7 +5,7 @@ format, its Node module API for external callers such as Alpha, and the `dent.st
 exposed to plugin scripts. Plugin namespaces are owned by [plugin.md](plugin.md), Section 3;
 script execution by [script-tool.md](script-tool.md).
 
-## 1. Scopes, paths, and layout
+## 1. Scopes, paths, and layout {#layout}
 
 A plugin state store belongs to one plugin namespace — valid per [plugin.md](plugin.md), Section 2,
 and additionally neither `.` nor `..` and containing no `\` or U+0000 — and one scope: `workspace`
@@ -29,7 +29,7 @@ or `user`.
   missing parent directories lazily and MUST reject or throw the operating system error when the
   target cannot be created (for example on a read-only workspace).
 
-## 2. File format and atomicity
+## 2. File format and atomicity {#file-format}
 
 - `state.json` is plain UTF-8 JSON (not intended for secrets) with the shape:
   `{"version":1,"entries":{"<key>":<JSON value>}}`.
@@ -46,7 +46,7 @@ or `user`.
   not blocked. Two concurrent writers updating different keys MUST NOT lose each other's write;
   two concurrent writers updating the same key MUST leave one whole value.
 
-## 3. Limits and validation
+## 3. Limits and validation {#limits}
 
 A JSON value is a JSON-compatible value per [script-tool.md](script-tool.md), Section 5.
 
@@ -56,7 +56,7 @@ A JSON value is a JSON-compatible value per [script-tool.md](script-tool.md), Se
 - **Scope total**: the serialized `state.json` text MUST be at most 5,242,880 bytes (5 MiB) in
   UTF-8.
 
-## 4. Watching and change notifications
+## 4. Watching and change notifications {#watching}
 
 - `watchPluginState(target, listener, onError?)` watches a plugin state store across processes,
   including before `<workspaceRoot>/.pi` exists.
@@ -82,7 +82,7 @@ A JSON value is a JSON-compatible value per [script-tool.md](script-tool.md), Se
 - When `state.json` is corrupt or unreadable during a watch read, the watcher MUST invoke
   `onError(error)` if provided and MUST keep its previous snapshot without resetting it.
 
-## 5. Module API (`lib/plugin-state.ts`) and error texts
+## 5. Module API (`lib/plugin-state.ts`) and error texts {#module-api}
 
 `lib/plugin-state.ts` MUST export:
 
@@ -120,7 +120,7 @@ these exact `code` and `message` values (`<store>` is `<scope>/<namespace>`):
 Operating system failures during write or directory creation (such as `EACCES` or `EROFS`) reject
 or throw the host operating system `Error` with its native `code` rather than `PluginStateError`.
 
-## 6. The `dent.state` binding
+## 6. The `dent.state` binding {#dent-state}
 
 - In every execution of a plugin script — both `Script` tool calls with `plugin` and `path`
   ([script-tool.md](script-tool.md), Section 2) and plugin UI calls
@@ -144,7 +144,7 @@ or throw the host operating system `Error` with its native `code` rather than `P
   `dent.state.user` MUST use `<stateDir>/user` as `userStateRoot`, in the place of the session's
   working directory and of the user's state root.
 
-## 7. Specification gaps
+## 7. Specification gaps {#gaps}
 
 - Rapid cross-process writes faster than file-system watch delivery may coalesce intermediate
   values into the latest state on disk.

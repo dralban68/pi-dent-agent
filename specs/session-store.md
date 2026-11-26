@@ -5,7 +5,7 @@ of one machine share session records and messages. It covers the store's locatio
 its two tables, a session's membership and lifecycle, and message delivery. The `Fleet` tool
 ([fleet-tool.md](fleet-tool.md)) is the surface over it.
 
-## 1. Location and format
+## 1. Location and format {#location}
 
 The local session store is one SQLite database file in write-ahead-log journal mode with a busy
 timeout of 5000 ms. Its path is the value of the environment variable `PI_DENT_FLEET_DB` when set and
@@ -30,7 +30,7 @@ tables; a creation that fails is rolled back whole. A file of another format ver
 > version starts from an empty file; sessions of processes that use another file are not in this
 > one's fleet.
 
-## 2. Session records
+## 2. Session records {#session-records}
 
 Table `fleet_sessions`, one row per session in the fleet, one per child session record, and one per
 hidden record (Section 4):
@@ -74,7 +74,7 @@ until its turn starts; a delivered `query` ([fleet-tool.md](fleet-tool.md), Sect
 A turn is a user message that arrives while no turn is in progress, the user messages that
 arrive during it, and the agent run that follows; it ends when that agent run ends.
 
-## 3. Messages
+## 3. Messages {#messages}
 
 Table `fleet_messages`, one row per `Fleet` `send` and `query` request
 ([fleet-tool.md](fleet-tool.md), Sections 3 and 4); the parameter and result names below are that
@@ -104,7 +104,7 @@ the delivery), `target session does not support built-in commands` (a host comma
 cannot apply), and `target session does not support queries` (the target's host offers no query
 dispatch).
 
-## 4. Membership and lifecycle
+## 4. Membership and lifecycle {#membership-lifecycle}
 
 A main session registers when it starts in a boot window; a child session registers no record
 of its own: the boot window that runs its dispatch writes its child session record (Section 4),
@@ -181,7 +181,7 @@ registration that finds that owner live is refused, and its boot window shows th
   When a boot window with no remaining session closes through quit, every row it sent (`boot_id`)
   is deleted; through reload, those not `pending` are deleted.
 
-## 5. Delivery
+## 5. Delivery {#delivery}
 
 A boot window delivers only the messages of sessions it owns. It delivers the messages of a child
 session record it wrote into the child's own conversation, under the delivery modes of
@@ -204,7 +204,7 @@ reported.
 > Note (non-normative): deliveries are processed by the owning boot window rather than by the
 > sender because only the owner holds the live session to inject into.
 
-## 6. Specification gaps
+## 6. Specification gaps {#gaps}
 
 - Behavior when the local session store cannot be opened, and store write failures other than
   those before a waited query is enqueued.

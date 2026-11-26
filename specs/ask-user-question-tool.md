@@ -5,7 +5,7 @@ session asks the user one to four multiple-choice questions during an agent run 
 answers as the tool result. A call registers no task row ([task.md](task.md), Section 1); `Task`
 neither lists nor cancels it. A call is open from its start until it returns.
 
-## 1. Tool registration surface
+## 1. Tool registration surface {#registration}
 
 The extension MUST register the tool in the main session through the host `registerTool` API,
 when the extension loads and in every run mode:
@@ -27,7 +27,7 @@ the tool ([agent-tool.md](agent-tool.md), Section 3.1).
 > Note (non-normative): a child session has no terminal of its own; the child returns what it
 > needs decided in its final answer, and the session that dispatched it asks.
 
-### 1.1 Parameter schema
+### 1.1 Parameter schema {#parameter-schema}
 
 The parameter schema is a JSON object schema; every object in it has `additionalProperties: false`.
 
@@ -50,7 +50,7 @@ questions, `<j>` an option's 1-based position in its question's `options`, and `
 question's option count. A string is one line when it contains neither a line feed nor a carriage
 return.
 
-### 1.2 Validation
+### 1.2 Validation {#validation}
 
 Execution-time validation MUST reject the call as a tool error (`isError: true`) whose text is the
 error text of the first failing check, with `details` `{ outcome: "invalid", answers: [] }`, before
@@ -73,7 +73,7 @@ question.
 | 11  | `description` is empty or not one line                                                                                   | `question <i> option <j>: description must be a non-empty single line`     |
 | 12  | `question` equals the `question` of an earlier question of the call, compared exactly                                    | `question <i>: duplicate question`                                         |
 
-### 1.3 Prompt texts
+### 1.3 Prompt texts {#prompt-texts}
 
 Each text of this section MUST be registered verbatim; a model reads them to choose and fill a
 call.
@@ -102,7 +102,7 @@ Each schema property carries this `description`:
 | `questions[].options[].description` | `One line on what choosing this option means.`                       |
 | `questions[].multiSelect`           | `true lets the user choose several options. Default false.`          |
 
-### 1.4 Activation
+### 1.4 Activation {#activation}
 
 A main session is a user session when the host reports a user interface for it, and an agent
 session otherwise ([session-tool.md](session-tool.md), Section 3). At every `session_start`,
@@ -118,7 +118,7 @@ decides the same. A call that reaches an agent session all the same — the tool
 by the user or another extension — MUST return the no-UI result (Section 6.2) after validation,
 showing nothing.
 
-## 2. Asking
+## 2. Asking {#asking}
 
 After validation passes, in this order:
 
@@ -139,7 +139,7 @@ Section 5 ends it.
 > Note (non-normative): a `Bash` or `Script` timeout guards against a process that hangs; a
 > question waits for a person, and expiring it would answer for them or discard what they typed.
 
-### 2.1 Answers
+### 2.1 Answers {#answers}
 
 A question's answer consists of its chosen options and its free-text answer, the text the user
 wrote in place of an option; each part can be empty.
@@ -159,7 +159,7 @@ free-text answer's first line, ` …` when it has more lines, and `"`.
 
 A call is direct when it has exactly one question and that question is single-select.
 
-## 3. Question panel
+## 3. Question panel {#question-panel}
 
 The question panel is the interactive view through which the user answers one call in terminal
 mode. The panel is drawn inside a border, and its size is fixed while it is open. It MUST be shown
@@ -173,7 +173,7 @@ of the navigation keys. When it opens while a browser is open it is drawn above 
 when it closes, input MUST return to the top browser, else to the editor, whose text is
 unchanged.
 
-### 3.1 Size and border
+### 3.1 Size and border {#size-border}
 
 With `W` the terminal width in columns when the panel opens, the panel's width is
 `min(100, max(40, W − 4), W)` columns: 100 columns or the terminal width minus 4, whichever is
@@ -212,7 +212,7 @@ line. On the Submit tab the body does not scroll and starts at its first line. T
 the key-hint line never scroll. When the tab bar and the key-hint line alone do not fit the
 panel, the lines beyond the panel's height are dropped from the bottom.
 
-### 3.2 Rows and tabs
+### 3.2 Rows and tabs {#rows-tabs}
 
 A question's rows are its options in array order, numbered 1 to `<n>`, followed by the Other row,
 numbered `<n>` + 1, through which the user writes a free-text answer.
@@ -224,7 +224,7 @@ first question's is the Submit tab.
 
 Each question has one highlighted row, initially row 1, kept while the panel is open.
 
-### 3.3 Panel content
+### 3.3 Panel content {#panel-content}
 
 Colors and emphasis are the renderer's own; the text of this section is normative. Every value of
 the call and every free-text answer MUST have ANSI escape sequences and control characters other
@@ -262,7 +262,7 @@ Inside the border, from top to bottom, the panel shows:
 | question page of a single-select question | `↑↓ move · enter choose · tab/←→ question · esc dismiss`                               |
 | question page of a multi-select question  | `↑↓ move · space toggle · tab/←→ question · esc dismiss`                               |
 
-### 3.4 Keys
+### 3.4 Keys {#keys}
 
 Outside text entry and while dismissal is not armed, the panel MUST answer these keys and ignore
 every other key:
@@ -289,7 +289,7 @@ answered result (Section 6.1) built from the answers at that moment and closes t
 > Note (non-normative): `left` moves between tabs and never dismisses, unlike a browser's `left`,
 > so that a stray arrow key cannot throw away the user's answers.
 
-### 3.5 Text entry
+### 3.5 Text entry {#text-entry}
 
 Text entry edits the free-text answer of the current question in the host's editor component,
 which opens holding the current free-text answer, or empty. The panel shows 3 lines of the editor:
@@ -305,7 +305,7 @@ MUST pass every key to the editor except these:
   on a single-select question the panel then advances (Section 3.4); on a multi-select question the
   page stays.
 
-### 3.6 Dismissal
+### 3.6 Dismissal {#dismissal}
 
 `escape` outside text entry arms dismissal without changing any answer; the panel keeps its page
 and shows the armed key-hint line of Section 3.3. While dismissal is armed:
@@ -316,7 +316,7 @@ and shows the armed key-hint line of Section 3.3. While dismissal is armed:
 - `escape` MUST disarm dismissal.
 - Any other key MUST disarm dismissal and be handled per Section 3.4.
 
-## 4. Dialog sequence
+## 4. Dialog sequence {#dialog-sequence}
 
 The dialog sequence asks one call in RPC mode through the host's dialog methods: `select`, which
 shows a title and a list of option strings and returns the string chosen or nothing when the user
@@ -326,7 +326,7 @@ when the tool-call signal aborts or at `session_shutdown`, and MUST NOT pass a t
 a dialog returns that is not one of the option strings it was given MUST make the extension show
 the same dialog again. Values of the call are cleaned as in Section 3.3.
 
-### 4.1 Questions
+### 4.1 Questions {#questions}
 
 The questions are asked in array order. Question `<i>` is asked with a `select` dialog titled
 `<header> (<i> of <m>): <question>`, followed for a multi-select question by
@@ -354,7 +354,7 @@ The questions are asked in array order. Question `<i>` is asked with a `select` 
 The step after question `<i>` is question `<i>` + 1; after the last question, it is submission for a
 direct call and the review otherwise.
 
-### 4.2 Review
+### 4.2 Review {#review}
 
 The review is a `select` dialog titled `Review your answers` with the option strings `Submit`, then
 `<i>. <header>: <summary>` per question in array order, with its answer summary. Choosing `Submit`
@@ -362,7 +362,7 @@ submits the call with the answered result (Section 6.1). Choosing a question ask
 again (Section 4.1), whose next step is then the review. Cancelling the review starts the
 dismissal choice.
 
-### 4.3 Dismissal choice
+### 4.3 Dismissal choice {#dismissal-choice}
 
 The dismissal choice is a `select` dialog titled `Dismiss the questions?` with the option strings
 `Skip: let the agent continue without answers`, `Stop: end the agent run`, and
@@ -370,7 +370,7 @@ The dismissal choice is a `select` dialog titled `Dismiss the questions?` with t
 stopped result; choosing `Back to the questions` or cancelling shows again the dialog whose
 cancellation started the choice, with the answers unchanged.
 
-### 4.4 Question form request
+### 4.4 Question form request {#form-request}
 
 The question form request asks the whole call with one `editor` dialog, for an RPC client that
 draws a form of its own and announces it by setting `PI_DENT_ASK_FORM` to `1`. The host's `editor`
@@ -414,7 +414,7 @@ answer.
 - When Section 5 ends the call while the dialog is shown, the call returns at once; a text the
   dialog returns afterwards MUST be ignored.
 
-## 5. Ending without answers
+## 5. Ending without answers {#no-answers}
 
 Each of these ends an open call, closes its question panel or its `select` or `input` dialog
 when one is shown, and removes it from the question queue. A question form request's editor
@@ -428,9 +428,9 @@ dialog stays open (Section 4.4):
 The next queued call is asked after a dismissed, a stopped, or an aborted result; after
 `session_shutdown` none is.
 
-## 6. Results
+## 6. Results {#results}
 
-### 6.1 Answered result
+### 6.1 Answered result {#answered-result}
 
 The text is the line `The user answered your questions:`, then, for each question in array order:
 
@@ -455,7 +455,7 @@ The user answered your questions:
    > if cheap
 ```
 
-### 6.2 Other results
+### 6.2 Other results {#other-results}
 
 | Result    | `isError` | `terminate` | Text                                                                                                                                 |
 | --------- | --------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -468,7 +468,7 @@ The user answered your questions:
 `terminate: true` asks the host to skip the next model request after the current batch of tool
 calls; the host does so only when every result of the batch asks it.
 
-### 6.3 `details`
+### 6.3 `details` {#details}
 
 Every result carries `details` `{ outcome, answers }`. `outcome` is `"answered"`, `"no-ui"`,
 `"dismissed"`, `"stopped"`, `"aborted"`, `"shutdown"`, or `"invalid"` (Section 1.2). For
@@ -483,7 +483,7 @@ Every result carries `details` `{ outcome, answers }`. `outcome` is `"answered"`
 
 For every other outcome `answers` is `[]`.
 
-## 7. Rendering in the conversation
+## 7. Rendering in the conversation {#rendering}
 
 The host draws each call in its default tool shell. The components returned from `renderCall` and
 `renderResult` MUST carry no horizontal padding and no background of their own, and MUST show the
@@ -497,11 +497,11 @@ Section 3.3.
   answer summary (Section 2.1).
 - `renderResult` for every other outcome: the result text.
 
-## 8. Normative references
+## 8. Normative references {#references}
 
 None.
 
-## 9. Specification gaps
+## 9. Specification gaps {#gaps}
 
 - Whether the host records the result of a call that returns after its agent run was aborted, or
   after `session_shutdown`, and what it records instead, is the host's.

@@ -4,7 +4,7 @@ This document specifies the task browser: the full-screen terminal UI listing th
 the main session and showing one task's details. The task row is owned by
 [task-registry.md](task-registry.md); the task tree by [task.md](task.md), Section 3.
 
-## 1. Activation
+## 1. Activation {#activation}
 
 - The extension MUST register the task browser shortcut through the host `registerShortcut` API.
   The shortcut is the `taskBrowser.shortcut` configuration value (Section 1.1).
@@ -22,7 +22,7 @@ the main session and showing one task's details. The task row is owned by
 - A failure of the browser's own refresh or tick MUST be shown once per opened browser through the
   host `notify` API at level `error`, with the text `pi-dent: task browser: <message>`.
 
-### 1.1 Configuration
+### 1.1 Configuration {#configuration}
 
 The root key `taskBrowser` of the configuration file ([config-file.md](config-file.md)) is an
 object:
@@ -50,7 +50,7 @@ host key identifier MUST produce one diagnostic naming its layer file ([config-f
 Section 4) and the default applies; its text is
 `config: <file>: taskBrowser.shortcut must be a host key identifier; ignored`.
 
-## 2. Common rendering
+## 2. Common rendering {#common-rendering}
 
 - Every page renders exactly the terminal height: one title line, the body, one key-hint line.
   A body shorter than its area is padded with empty lines; a longer one scrolls.
@@ -68,7 +68,7 @@ Section 4) and the default applies; its text is
 - An open page MUST follow the refresh rule of [task-registry.md](task-registry.md), Section 7,
   and MUST NOT run a refresh timer while the task browser is closed.
 
-## 3. List page
+## 3. List page {#list-page}
 
 - The list page has a filter, `all` or `running`. It is `all` whenever the task browser opens,
   and it is kept while the details page is shown.
@@ -108,7 +108,7 @@ row that stays in the content stays selected.
 
 Key-hint line: `↑↓ select · g/G top/bottom · f running/all · enter details · esc close`.
 
-## 4. Details page
+## 4. Details page {#details-page}
 
 The details page renders one task row. It MUST keep rendering that row after the row leaves the
 task tree.
@@ -119,7 +119,7 @@ task tree.
   is absent is omitted; a section with no line renders `(none)`.
 - `escape`, `backspace`, and `q` return to the list page, selection unchanged.
 
-### 4.1 `agent`
+### 4.1 `agent` {#agent-details}
 
 | Section  | Lines                                                                                                                                             |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -184,7 +184,7 @@ Key-hint line, per the state of the kill key (Section 4.4):
 The armed line has no `g/G top/bottom` segment, so that every key-hint line of the task browser
 fits 80 columns.
 
-### 4.2 `script` and `bash`
+### 4.2 `script` and `bash` {#script-bash}
 
 | Section                           | Lines                                                                                                                                                                                                                                                                                                                          |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -216,7 +216,7 @@ Key-hint line, per the state of the kill key (Section 4.4):
 | kill key armed            | `↑↓ scroll · g/G top/bottom · ctrl+k again to confirm kill · esc back` |
 | otherwise                 | `↑↓ scroll · g/G top/bottom · esc back`                                |
 
-### 4.3 Session events
+### 4.3 Session events {#session-events}
 
 The session events of a session file are derived from its lines in file order. Each line is one
 JSON object, an entry, with `type` and a `timestamp` in the date-time format of [ISO 8601]; a line
@@ -253,7 +253,7 @@ reported for them. Each remaining entry yields:
   absent `sessionPath` yields no session events, and no failure is reported for it. The task
   browser MUST NOT write a session file.
 
-### 4.4 Kill key
+### 4.4 Kill key {#kill-key}
 
 The kill key of every details page is `ctrl+k`.
 
@@ -284,12 +284,12 @@ The kill key of every details page is `ctrl+k`.
 - After the cancelling press, the page MUST show the row's new status through the refresh rule
   of Section 2, with no further key press.
 
-## 5. Normative references
+## 5. Normative references {#references}
 
 - [ISO 8601] Date and time — Representations for information interchange (ISO 8601-1): the
   date-time format of an entry's `timestamp`.
 
-## 6. Specification gaps
+## 6. Specification gaps {#gaps}
 
 - The marker, if any, and the handling of wide characters when a line is truncated to the render
   width are the terminal toolkit's.

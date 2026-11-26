@@ -7,7 +7,7 @@ with `name` and `label` `"Bash"`; the host shows a call as a tool card
 ([tool-card.md](tool-card.md)). The host's built-in `powershell` tool and the host's
 user-entered shell commands are not suppressed and register no task.
 
-## 1. Parameter schema
+## 1. Parameter schema {#parameter-schema}
 
 The parameter schema is a JSON object schema with `type: "object"` and
 `additionalProperties: false`:
@@ -36,7 +36,7 @@ It MUST also contain the sentence
 > ([script-tool.md](script-tool.md), Section 1), without its upper bound, not the seconds of the
 > suppressed built-in tool.
 
-## 2. Validation
+## 2. Validation {#validation}
 
 Validation has two stages. The host validates the call's arguments against the schema of
 Section 1 before the tool runs, and rejects a call whose arguments do not satisfy it. That
@@ -54,7 +54,7 @@ checked in this order, the first failure reported:
 - The `cwd` check of [task.md](task.md), Section 1.1.
 - A shell that cannot be resolved (Section 3).
 
-## 3. Execution model
+## 3. Execution model {#execution-model}
 
 - Every call MUST start one new shell process and run `command` in it; no shell state (working
   directory, variables, functions) carries from one call to another. Concurrent calls run
@@ -124,7 +124,7 @@ checked in this order, the first failure reported:
   > supervised by the task; terminating it keeps every process a call starts inside the task's
   > lifetime. `background: true` is the supported way to keep a command running.
 
-## 4. Output capture
+## 4. Output capture {#output-capture}
 
 - The shell's standard output and standard error MUST each be read through a pipe; output MUST
   NOT reach the host process's own standard output or standard error.
@@ -197,7 +197,7 @@ checked in this order, the first failure reported:
 > Note (non-normative): the tail is kept because the end of a run usually carries the result; the
 > header names the file that holds the rest.
 
-## 5. Result contract
+## 5. Result contract {#result-contract}
 
 - `exitReason` is the first of these outcomes to occur; a later one MUST NOT change it:
 
@@ -246,7 +246,7 @@ checked in this order, the first failure reported:
   down, from the run's start to its end (`0` when no run started), and `background` is present,
   `true`, only in the initial background return.
 
-## 6. Timeout, termination, and delivery
+## 6. Timeout, termination, and delivery {#timeout-delivery}
 
 - Except where [task.md](task.md), Section 1 registers no row, every call registers one task
   row (`kind: "bash"`) after the host has accepted its arguments and before the checks of
@@ -289,7 +289,7 @@ checked in this order, the first failure reported:
 - When the task registry holding a running row ends, the row follows
   [task-registry.md](task-registry.md), Section 4; the shell of an adopted row keeps running.
 
-## 7. Suppression of the built-in tool
+## 7. Suppression of the built-in tool {#builtin-suppression}
 
 The host offers a tool to the model only while the tool's name is in the session's active tool
 set, and it ships a built-in tool named `bash`, active by default. `Bash` and `bash` are
@@ -324,7 +324,7 @@ different names to the host, which compares tool names exactly.
   session's working directory and environment values (Section 3).
 - `Script` keeps its own child-process rules ([script-tool.md](script-tool.md), Section 6).
 
-## 8. Specification gaps
+## 8. Specification gaps {#gaps}
 
 - On Windows, shell resolution is unverified: whether `%ProgramFiles%\Git\bin\bash.exe`,
   `%ProgramFiles(x86)%\Git\bin\bash.exe`, or the first `bash.exe` on `PATH` is found, and what

@@ -4,7 +4,7 @@ This document specifies the agent definition resource: the definition file forma
 the agent catalog, and the `agents` configuration override. The dispatch tool itself is owned
 by [agent-tool.md](agent-tool.md).
 
-## 1. Definition files
+## 1. Definition files {#definition-files}
 
 An agent definition is a top-level `*.md` Markdown file discovered in `agents/` inside each
 layer directory ([config-file.md](config-file.md), Section 1); it serves static dispatches.
@@ -46,7 +46,7 @@ MUST be non-empty.
   ([plugin.md](plugin.md), Section 9); namespaced entries never shadow bare names.
 - The agent catalog MUST be built from the boot snapshot.
 
-## 2. The `agents` configuration override
+## 2. The `agents` configuration override {#agents-override}
 
 The `agents` configuration key overrides definitions at boot: it maps an agent catalog key (`name`
 or `namespace:name`) to `{ "prompt": string }` (non-empty string), replacing the definition's
@@ -55,6 +55,6 @@ MUST produce one diagnostic and be ignored. An unknown key in an entry follows t
 rule ([config-file.md](config-file.md), Section 2). The key loads and merges per the
 [configuration file specification](config-file.md).
 
-## 3. Specification gaps
+## 3. Specification gaps {#gaps}
 
 None.

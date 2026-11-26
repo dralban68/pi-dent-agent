@@ -11,7 +11,7 @@ lineage are owned by [session-transcript.md](session-transcript.md); the `Search
 The session index is derived data: every row can be rebuilt from session files, and no behavior
 other than timing depends on its presence.
 
-## 1. Location and format
+## 1. Location and format {#location}
 
 The session index is one SQLite database file in write-ahead-log journal mode, opened with a
 busy timeout of 1000 ms. Its path is the value of the environment variable `PI_DENT_SEARCH_DB` when
@@ -45,7 +45,7 @@ system.
 > Note (non-normative): no file of an earlier version is migrated: version `3` adds
 > `session_name` and `first_user_message`, which bytes consumed under version `2` never recorded.
 
-## 2. Schema
+## 2. Schema {#schema}
 
 The schema is exactly these statements; the index and table names are normative:
 
@@ -164,7 +164,7 @@ and returns none.
 > index stays near a quarter of the transcripts' size instead of exceeding it; `detail = none`
 > drops token positions, which a search that verifies every candidate does not need.
 
-## 3. Catch-up
+## 3. Catch-up {#catch-up}
 
 A catch-up brings the rows of one session file up to the file. It applies to a file readable as
 a session file ([session-transcript.md](session-transcript.md), Section 1) and MUST proceed as
@@ -210,7 +210,7 @@ any other step:
 > the digest of one line is enough to tell an appended file from a replaced or truncated one
 > without reading the consumed bytes again.
 
-## 4. Concurrent access
+## 4. Concurrent access {#concurrent-access}
 
 Several processes, and several sessions of one process, read and write the index at once.
 
@@ -234,7 +234,7 @@ Several processes, and several sessions of one process, read and write the index
   Section 2.2.
 - A reader MUST NOT hold a read transaction open after its tool call returns.
 
-## 5. Failures
+## 5. Failures {#failures}
 
 | Condition                                                                                                                                                                  | Outcome                                                                                                                                                                                                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -251,7 +251,7 @@ An unusable index is unusable for the tool call that found it so and is opened a
 No failure of the index is a tool error by itself: what a call returns without a complete
 catch-up is owned by [search-tool.md](search-tool.md), Section 2.2.
 
-## 6. Index prune
+## 6. Index prune {#index-prune}
 
 The index prune deletes, for every `files` row whose `path` is not an existing regular file,
 the row and every row of its `file_id`, in transactions of at most 100 `files` rows each. The
@@ -264,7 +264,7 @@ A session file deleted between prunes keeps its rows until the next prune; they 
 returned, because a search takes its sessions from the file system
 ([search-tool.md](search-tool.md), Section 2.1).
 
-## 7. Session titles
+## 7. Session titles {#session-titles}
 
 The session title of a session file is its session name and first user line (Section 2) as its
 `files` row holds them. The index provides a batch read of session titles, for applications other
@@ -293,12 +293,12 @@ titles(paths: readonly string[]): ReadOutcome<Map<string, SessionTitle>>;
 - A failure of the index is returned as `{ ok: false, reason }`, `reason` being the reason of
   Section 5, and is not thrown.
 
-## 8. Normative references
+## 8. Normative references {#references}
 
 - [FIPS 180-4] Secure Hash Standard (SHS), National Institute of Standards and Technology,
   August 2015: the SHA-256 algorithm.
 
-## 9. Specification gaps
+## 9. Specification gaps {#gaps}
 
 - The SQLite file format, the FTS5 extension, its `trigram` tokenizer and that tokenizer's case
   folding are SQLite's.

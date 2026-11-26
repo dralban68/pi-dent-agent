@@ -3,7 +3,7 @@
 This document specifies the layered configuration file: which files are read, in what order,
 how they merge, and how failures behave.
 
-## 1. Layers
+## 1. Layers {#layers}
 
 `<cwd>` is the process working directory at the time of the boot read; the resulting snapshot
 is shared by every consumer in the boot window regardless of a consumer's own working directory.
@@ -20,7 +20,7 @@ A missing file contributes no layer, silently. One layer alone stands as the who
 pi-dent ignores project trust and trusts the workspace: it reads the project layer whether or not
 the host marks the project as trusted.
 
-## 2. Format
+## 2. Format {#format}
 
 Each layer is a JSONC document ([JSONC]): JSON ([RFC 8259]) with comments and trailing commas. Its root MUST be an
 object. A layer whose parse fails or whose root is not an object MUST produce one diagnostic and
@@ -65,7 +65,7 @@ diagnostic naming `recapModel` and its owning file (Section 4), and MUST be igno
 class and authentication checks occur on invocation, with fallback per slash-commands.md,
 Section 5.1, not boot diagnostics.
 
-## 3. Merge
+## 3. Merge {#merge}
 
 Layers merge before any consumer validation or defaulting, on raw parsed values:
 
@@ -76,14 +76,14 @@ Layers merge before any consumer validation or defaulting, on raw parsed values:
 The project layer wins every conflict; the global layer supplies only what the project layer
 does not declare.
 
-## 4. Attribution
+## 4. Attribution {#attribution}
 
 For any configuration key, the owning layer is the highest-priority layer that declares that
 key as an own property (its path in the layer's root object). Diagnostics for a key MUST name
 the owning layer's file path; when no layer declares the key, diagnostics MUST name the
 highest-priority existing layer (or `<cwd>/.pi/pi-dent/pi-dent.conf` when neither file exists).
 
-## 5. Snapshot
+## 5. Snapshot {#snapshot}
 
 The merged configuration is part of the boot snapshot (alongside the agent catalog, skill
 catalog, and plugin catalog). A boot — process start or reload — reads the layers once, and
@@ -103,7 +103,7 @@ or `fork` opens no window, though it starts a new extension instance
 The plugin inventory ([plugin.md](plugin.md), Section 11) is no consumer of the snapshot: each
 call reads the layers anew, and neither reads nor changes a window's image.
 
-## 6. Diagnostics
+## 6. Diagnostics {#diagnostics}
 
 A diagnostic is one message with level `warning`. Reading the boot snapshot collects
 diagnostics from configuration, model classes, model guidance, agent and skill discovery,
@@ -114,7 +114,7 @@ session without a UI shows none. A diagnostic never fails the boot. The diagnost
 inventory are returned to its caller per [plugin.md](plugin.md), Section 11, and are not
 reported here.
 
-## 7. Value substitution
+## 7. Value substitution {#value-substitution}
 
 String values in a layer can contain placeholders of the form `${token}`. The token set is:
 
@@ -137,13 +137,13 @@ String values in a layer can contain placeholders of the form `${token}`. The to
 - A substitution diagnostic MUST name the path of the value in the layer's root object — dotted
   keys, array indices in brackets — and the file path of the layer whose value failed.
 
-## 8. Normative references
+## 8. Normative references {#references}
 
 - [JSONC] JSON with Comments (<https://jsonc.org/>): the document syntax of a layer.
 - [RFC 8259] The JavaScript Object Notation (JSON) Data Interchange Format (STD 90),
   T. Bray, Ed., 2017.
 
-## 9. Specification gaps
+## 9. Specification gaps {#gaps}
 
 - Configuration-key diagnostic wording is open: any wording that names the file path selected by
   Section 4 and the affected key is allowed.

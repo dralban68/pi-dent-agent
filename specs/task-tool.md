@@ -8,7 +8,7 @@ owned by the tool that registered it ([agent-tool.md](agent-tool.md),
 [script-tool.md](script-tool.md), [bash-tool.md](bash-tool.md)); the usage and time figures
 of `list` by [task-ledger.md](task-ledger.md).
 
-## 1. Tool registration surface
+## 1. Tool registration surface {#registration}
 
 The extension MUST register the `Task` tool through the host `registerTool` API:
 
@@ -19,7 +19,7 @@ The extension MUST register the `Task` tool through the host `registerTool` API:
 | `renderShell` | `"self"`                            |
 | `parameters`  | The parameter schema of Section 1.1 |
 
-### 1.1 Parameter schema
+### 1.1 Parameter schema {#parameter-schema}
 
 The parameter schema is a JSON object schema with `type: "object"` and
 `additionalProperties: false`:
@@ -45,14 +45,14 @@ checked in this order, the first failure reported:
 - `timeout` provided when `action` is not `"wait"`.
 - `taskId` naming no task owned by the invoking session.
 
-## 2. Operations
+## 2. Operations {#operations}
 
 Every operation is scoped strictly to the task registry of the invoking session
 ([task-registry.md](task-registry.md), Section 1). Every operation except the blocking `wait` of
 Section 2.4 is non-blocking, except that `list` waits for its task ledger read for at most the
 read deadline ([task-ledger.md](task-ledger.md), Section 5).
 
-### 2.1 `read`
+### 2.1 `read` {#read}
 
 Returns a point-in-time snapshot of `taskId`:
 
@@ -83,7 +83,7 @@ Returns a point-in-time snapshot of `taskId`:
   A read of a settled and not `interrupted` row that returns the row's text MUST also `consume` the
   row.
 
-### 2.2 `kill`
+### 2.2 `kill` {#kill}
 
 Invokes the task row's cancellation handler and MUST `consume` the row, whatever its status:
 
@@ -96,7 +96,7 @@ Invokes the task row's cancellation handler and MUST `consume` the row, whatever
   the call returns.
 - `details` MUST carry `{ action: "kill", taskId, status }`.
 
-### 2.3 `list`
+### 2.3 `list` {#list}
 
 Returns all task rows owned by the invoking session in registration order.
 
@@ -138,7 +138,7 @@ notifications use it ([task-registry.md](task-registry.md), Section 5).
 
 Example: `a1b2c3d4 · completed · 2m05s · 12 turns · $0.042 · total $0.118 · reviewer — Review the diff`.
 
-### 2.4 `wait`
+### 2.4 `wait` {#wait}
 
 Blocks until `taskId` is no longer `running` and returns what a `read` of the row returns at
 that moment (Section 2.1), including that section's consuming rule and result-file error; every
@@ -153,7 +153,7 @@ wait that is not an error MUST carry `details` `{ action: "wait", taskId, status
 - A tool-call signal that aborts the call ends the wait; the call returns the host's abort
   result, and the row is left as a deadline expiry leaves it.
 
-## 3. Specification gaps
+## 3. Specification gaps {#gaps}
 
 - Whether the host, when it validates against the schema of Section 1.1, first coerces an
   argument to the type the schema names, and so whether a convertible value of the wrong type is

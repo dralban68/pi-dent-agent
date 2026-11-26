@@ -16,7 +16,7 @@ Sections 1 and 5). An implementation MAY keep data derived from
 session files in memory between calls; every call's result MUST still be the one Sections 3 to 5
 define.
 
-## 1. Tool registration surface
+## 1. Tool registration surface {#registration}
 
 The extension MUST register the `Search` tool through the host `registerTool` API:
 
@@ -30,7 +30,7 @@ The extension MUST register the `Search` tool through the host `registerTool` AP
 
 A child session binds `Search` under the rule of [agent-tool.md](agent-tool.md), Section 3.1.
 
-### 1.1 Parameter schema
+### 1.1 Parameter schema {#parameter-schema}
 
 The parameter schema is a JSON object schema with `type: "object"` and
 `additionalProperties: false`, with one required field, `action`; every other field is optional
@@ -63,7 +63,7 @@ elements of `kinds`, the minimum length of `kinds`, and the set of admitted prop
 nothing else. The host validates a call's arguments against it before the tool runs; a call it
 rejects is a schema rejection ([task.md](task.md), Section 1).
 
-### 1.2 Validation
+### 1.2 Validation {#validation}
 
 Execution-time validation MUST reject the call as a tool error (`isError: true`) whose text is
 the error text of the first failing check, in this order:
@@ -97,7 +97,7 @@ item address when it matches the `address` production of
 4, which read the file system, run after these, in the order those sections give. The numbers in the
 error texts of checks 13, 14, 17, and 18 are those of the `limit` and `context` rows of Section 1.1.
 
-### 1.3 Model-facing texts
+### 1.3 Model-facing texts {#model-texts}
 
 The texts of this section are what a model reads to choose and fill a call; each MUST be
 registered verbatim, and none cites a specification.
@@ -141,9 +141,9 @@ The schema of an element of `kinds`, and of an alternative inside a property, ca
 `description`. The numbers in the `limit` and `context` descriptions are those of the `limit` and
 `context` rows of Section 1.1.
 
-## 2. Scope
+## 2. Scope {#scope}
 
-### 2.1 Reach and session resolution
+### 2.1 Reach and session resolution {#reach}
 
 The invoking session of a call made in a child session is that child session; its session file is
 the `sessionFile` of [session-tool.md](session-tool.md), Section 2. A call reaches:
@@ -221,7 +221,7 @@ the call MUST read the file's first line for the header.
 A call MAY reuse an earlier call's discovery while no directory that discovery listed has changed
 since, and no file it passed over has become readable as a session file.
 
-### 2.2 Coverage
+### 2.2 Coverage {#coverage}
 
 `find` and `get` answer from the session index where they can and from the session files where
 they cannot; the result is the same either way.
@@ -290,7 +290,7 @@ they cannot; the result is the same either way.
   is never silently stale: every entry terminated at or before the file's read bound is in a
   covered session's part of the result.
 
-### 2.3 Abort and responsiveness
+### 2.3 Abort and responsiveness {#abort}
 
 When the tool-call signal aborts, a call of any action MUST end within 1000 ms as a tool error
 with the text `Search aborted`, including while the evaluation of one regular expression on one
@@ -313,9 +313,9 @@ of the query on one item is not excepted.
 > all scale with the sessions searched; without the yield one call freezes the session's user
 > interface and every other tool of the process for seconds, and an abort is not seen.
 
-## 3. Action `find`
+## 3. Action `find` {#find}
 
-### 3.1 Candidates
+### 3.1 Candidates {#candidates}
 
 The candidates are the transcript items of the call's covered sessions that pass every filter:
 
@@ -344,7 +344,7 @@ A `since` or `until` value is, after trimming, a date-time
 decimal digits followed by one of `s`, `m`, `h`, or `d`, naming the instant that many seconds,
 minutes (60 s), hours (3600 s), or days (86400 s) before the call started.
 
-### 3.2 Matching
+### 3.2 Matching {#matching}
 
 A `query` is matched as an ECMAScript regular expression ([ECMA-262]) built from a pattern with
 the flag `m`, and the flag `i` unless `caseSensitive` is `true`, and no other flag. With `regex`
@@ -356,7 +356,7 @@ An item matches when the regular expression matches its match text
 the first character of the first match found searching from index `0`. A match of length zero is
 a match. Text beyond the match text is never matched.
 
-### 3.3 Evaluation
+### 3.3 Evaluation {#evaluation}
 
 The call's order is the reverse of transcript order
 ([session-transcript.md](session-transcript.md), Section 6) when `order` is `newest`, and
@@ -410,7 +410,7 @@ item when `after` is given (Section 3.4).
 > over. A stopped call hands back the place it reached, so the next call goes on from there
 > instead of starting over.
 
-### 3.4 Result
+### 3.4 Result {#result}
 
 When `after` is given and the session its key names is not a session of the call, or the trimmed
 `after` resolves to no transcript item of that session — any item, whether or not it passes the
@@ -495,7 +495,7 @@ shown hit in order,
 `session` the session key, `isError` present on `tool_result` items, `offLineage` a boolean,
 `time` in milliseconds since the Unix epoch, `at` the match position, present with `query`.
 
-## 4. Action `get`
+## 4. Action `get` {#get}
 
 The call MUST be rejected as a tool error, the first failure reported, when the session key of
 the trimmed `address` does not resolve (Section 2.1), with that section's error; when the address
@@ -534,7 +534,7 @@ with start position `0`.
 `end` is `<end>`, `paired` the address of step 2 when there is one, and `before` and `after`
 the neighbours as `<hit>` objects of Section 3.4 without `at`, empty when `context` is `0`.
 
-## 5. Action `sessions`
+## 5. Action `sessions` {#sessions}
 
 The call lists the sessions of Section 2.1 for its `scope` whose session file's modification
 time is at or after the instant of `since` and before the instant of `until`, when those are
@@ -572,13 +572,13 @@ for the listed sessions: `total` the number of sessions to list, `path` the sess
 absolute path, times in milliseconds since the Unix epoch, and `path`, `startedAt`, `bytes`,
 `modifiedAt`, and `preview` `null` for a session without a session file.
 
-## 6. Normative references
+## 6. Normative references {#references}
 
 - [ECMA-262] ECMAScript Language Specification, 14th edition (June 2023), Ecma International:
   Regular Expressions (pattern syntax, including Annex B.1.2, the `i` and `m` flags, and the error
   an invalid pattern raises), and `Number.isInteger`.
 
-## 7. Specification gaps
+## 7. Specification gaps {#gaps}
 
 - No time budget bounds `get` or `sessions`; only the abort of Section 2.3 ends one early. A
   `get` answered from the index reads one line; one answered by direct read reads one session

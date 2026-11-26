@@ -5,7 +5,7 @@ rows, its operations, ordering, settlement, completion notification, interrupted
 nesting, and registry changes. Task kinds, status meaning, and the task tree are owned by
 [task.md](task.md); the inspection surface by [task-tool.md](task-tool.md).
 
-## 1. Ownership
+## 1. Ownership {#ownership}
 
 - A main session MUST own exactly one live task registry at a time, created with the session. A
   child session MUST own exactly one while an attempt runs in it, created for that attempt
@@ -25,7 +25,7 @@ nesting, and registry changes. Task kinds, status meaning, and the task tree are
   That task registry MUST end when the dispatch settles, when the target session ends, or on
   reload (Section 4); a running row is then cancelled.
 
-## 2. Task row
+## 2. Task row {#task-row}
 
 | Field         | Type                                                                   | Contract                                                                                                                                                        |
 | ------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -67,7 +67,7 @@ MUST render the display label, never the raw `label`.
 Rows MUST be kept in registration order and MUST NOT be removed while the task registry
 exists; `end` moves running and unconsumed rows out by adoption (Section 4).
 
-## 3. Operations
+## 3. Operations {#operations}
 
 | Operation   | Contract                                                                                                                                                                                                                                                                                                   |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -88,7 +88,7 @@ exists; `end` moves running and unconsumed rows out by adoption (Section 4).
 `settle` is the only operation that changes `status`, and it MUST change it at most once: the
 first committed outcome is preserved.
 
-## 4. Registry end and adoption
+## 4. Registry end and adoption {#registry-end}
 
 - `end` stops the task registry from being live. Every running row and every unconsumed row is
   adopted: it moves, in registration order, into the nearest live task registry among its own attaching task registry,
@@ -104,7 +104,7 @@ first committed outcome is preserved.
   row are registry changes of the adopting registry; the completion notification of its cohort is
   governed by the adopting registry (Section 5).
 
-## 5. Cohorts and completion notification
+## 5. Cohorts and completion notification {#cohorts}
 
 - Every row registered from one assistant message MUST carry that message's first tool-call ID
   as its cohort ID; a registration with no originating assistant message MUST get a fresh
@@ -145,7 +145,7 @@ first committed outcome is preserved.
 - A `Task` `read` or `kill` follows [task-tool.md](task-tool.md), Section 2. A browser kill follows
   [task-browser.md](task-browser.md), Section 4.4.
 
-## 6. Nesting
+## 6. Nesting {#nesting}
 
 - While an `agent` row's attempt runs, its `children` MUST be the task registry of that
   attempt's child session, which attaches to the row's task registry; each attempt attaches its
@@ -156,7 +156,7 @@ first committed outcome is preserved.
   attempt leaves rows to adopt.
 - `script` and `bash` rows MUST NOT have `children`.
 
-## 7. Registry changes
+## 7. Registry changes {#registry-changes}
 
 A registry change is any `register`, `insert`, `settle`, `progress`, `amend`, `attach`, a `consume` that
 changes `consumed`, or adoption, and any registry change in an attached `children` task
@@ -168,7 +168,7 @@ A surface that renders task rows MUST reflect every registry change and advance 
 duration within 1000 ms, and MUST NOT run a refresh timer while no row of its content is
 running.
 
-## 8. Specification gaps
+## 8. Specification gaps {#gaps}
 
 - No rule removes an interrupted row that neither `Task` `kill` nor a `resume` of its session file
   acts on, so the row can stay in the task tree widget for the session's whole life.

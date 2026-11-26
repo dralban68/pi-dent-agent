@@ -4,7 +4,7 @@ This document specifies the footer: the lines pi-dent draws below the editor in 
 built-in footer, so that every extension status is set apart from the next and the usage tally
 ([agent-tool.md](agent-tool.md), Section 13) sits beside the context segment.
 
-## 1. Activation
+## 1. Activation {#activation}
 
 - At every `session_start` of the main session, when the session has an interactive terminal UI
   and `footer.enabled` (Section 1.1) is `true`, the extension MUST set the footer through the host
@@ -19,7 +19,7 @@ built-in footer, so that every extension status is set apart from the next and t
   next `session_start`.
 - Execution MUST NOT depend on the footer.
 
-### 1.1 Configuration
+### 1.1 Configuration {#configuration}
 
 The root key `footer` of the configuration file ([config-file.md](config-file.md)) is an object:
 
@@ -32,7 +32,7 @@ diagnostic naming its layer file ([config-file.md](config-file.md), Section 4) a
 applies; the texts are `config: <file>: footer must be an object; ignored` and
 `config: <file>: footer.enabled must be a boolean; ignored`.
 
-## 2. Lines
+## 2. Lines {#lines}
 
 The footer renders, in order, the path line, the stats line, and, when it is not empty, the
 status line. Every line is truncated to the render width, never wrapped, with `...` as the
@@ -43,7 +43,7 @@ The footer MUST reflect a change of any value it shows — a session entry, the 
 thinking level, the Git branch, the usage tally and the end of its partial state, an extension
 status — within 1000 ms.
 
-### 2.1 Path line
+### 2.1 Path line {#path-line}
 
 `<cwd><branch><name>`:
 
@@ -52,7 +52,7 @@ status — within 1000 ms.
 - `<branch>` is ` (<branch name>)` when the host reports a Git branch, else empty.
 - `<name>` is ` • <session name>` when the session has a name, else empty.
 
-### 2.2 Stats line
+### 2.2 Stats line {#stats-line}
 
 `<left>`, then padding, then `<right>` ending at the render width.
 
@@ -89,7 +89,7 @@ fails:
   is dropped; then `<right>` is truncated, with no marker, to the columns left after `<left>` and
   2 columns of padding, and omitted when none is left.
 
-### 2.3 Status line
+### 2.3 Status line {#status-line}
 
 The status line is the statuses of the host's extension status map, in ascending order of their
 keys, each with every line break and tab replaced by a space, runs of spaces collapsed to one,
@@ -97,11 +97,11 @@ and leading and trailing spaces removed; a status that is then empty is left out
 line dropped the `│ <agents><partial>` segment, `<agents><partial>` is the first status. The statuses are joined by
 `│`. With no status the line is absent.
 
-## 3. Normative references
+## 3. Normative references {#references}
 
 None.
 
-## 4. Specification gaps
+## 4. Specification gaps {#gaps}
 
 - The host's built-in footer also shows the model a virtual model routed the latest request to,
   and an experimental-features mark; the host exposes neither to an extension, and the footer

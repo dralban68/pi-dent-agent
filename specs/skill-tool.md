@@ -5,7 +5,7 @@ surface through which a session discovers and reads a skill body. The skill
 resource itself — file format, discovery, and the skill catalog — is owned by
 [skill.md](skill.md).
 
-## 1. Binding and catalog injection
+## 1. Binding and catalog injection {#binding}
 
 Selection is progressive: the model selects from a catalog of names and descriptions, and a
 body loads only on demand.
@@ -29,7 +29,7 @@ body loads only on demand.
 - When the skill catalog is empty, a session MUST carry no `<available_skills>` injection and
   `Skill` MUST NOT be bound.
 
-### 1.1 Parameter schema
+### 1.1 Parameter schema {#parameter-schema}
 
 The parameter schema is a JSON object schema with `type: "object"` and
 `additionalProperties: false`:
@@ -45,7 +45,7 @@ The tool's own checks MUST reject, as a tool error and in this order: an empty o
 `name`; a `name` absent from the catalog; and, when provided, an empty or whitespace-only
 `reference`.
 
-## 2. Execution contract
+## 2. Execution contract {#execution-contract}
 
 - One call loads one skill: the result is the skill body as `content[0].text`, verbatim per
   [skill.md](skill.md), Section 2; `isError` unset.
@@ -63,6 +63,6 @@ The tool's own checks MUST reject, as a tool error and in this order: an empty o
 - The skill body is the boot-snapshot body, identical for every load within one boot window; a
   skill reference is read fresh at call time.
 
-## 3. Specification gaps
+## 3. Specification gaps {#gaps}
 
 - The exact text and behavior of diagnostics returned by the host when it rejects a tool call are host-defined.

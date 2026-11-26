@@ -7,7 +7,7 @@ match. Its effect on the `Session` tool is owned by
 [session-tool.md](session-tool.md); billing data in the guidance message by
 [billing.md](billing.md).
 
-## 1. Configuration
+## 1. Configuration {#configuration}
 
 The `modelGuidance` root key loads and merges per the
 [configuration file specification](config-file.md). Its value MUST be a non-array object:
@@ -62,7 +62,7 @@ The `modelGuidance` root key loads and merges per the
 Model guidance is active for a model list when it has at least one guided model (Section 2).
 Guidance rules apply whether or not model guidance is active.
 
-## 2. Guided models
+## 2. Guided models {#guided-models}
 
 The guided models of a model list are the model entries whose keyed `provider/id` is the
 `provider/id` of at least one model of the list and, when the key carries a thinking level, at
@@ -82,7 +82,7 @@ model the runtime does not report as available is in the inventory but is not a 
 > Note (non-normative): a model entry can therefore restrict dispatch while an unauthenticated
 > provider keeps it out of the model catalog.
 
-## 3. Dispatch restriction
+## 3. Dispatch restriction {#dispatch-restriction}
 
 While model guidance is active for the inventory, a dispatch is guided when its selected model and effective
 thinking level ([agent-tool.md](agent-tool.md), Section 3.3) match a guided model:
@@ -103,7 +103,7 @@ dispatching session ([agent-tool.md](agent-tool.md), Section 3.3) MUST NOT fail 
 > `Fleet` query dispatch relies on that tier, so exempting it keeps queries working on a main
 > model that is not guided.
 
-## 4. Session rules
+## 4. Session rules {#session-rules}
 
 A session's rules are the `rule` texts, in `rules` order, of the guidance rules whose `match`
 matches the session's model as canonical `provider/id`. A session without a model has none.
@@ -124,7 +124,7 @@ matches the session's model as canonical `provider/id`. A session without a mode
   blank line; otherwise nothing is appended. Later billing changes reach the child only through
   its `Session` tool ([session-tool.md](session-tool.md)).
 
-## 5. Guidance message
+## 5. Guidance message {#guidance-message}
 
 The guidance message is the main session's model guidance. Its content is the following
 sections, joined by a blank line, each present only when non-empty:
@@ -171,7 +171,7 @@ it renders a custom message without a renderer.
 > most once per event above; comparing with the latest message only re-injects content that
 > returns to an earlier state, such as the rules after a model change from A to B and back.
 
-## 6. Model catalog
+## 6. Model catalog {#model-catalog}
 
 The model catalog of a model list is, while model guidance is active for it, one line per guided
 model in the order of Section 2, `- <model>: <when>`, the lines joined by `"\n"`; otherwise it
@@ -181,11 +181,11 @@ is empty. It carries no billing annotation.
 > authenticated providers, so it can sit in a tool description without breaking the prompt
 > cache; billing, which changes during a session, stays in the guidance message.
 
-## 7. Normative references
+## 7. Normative references {#references}
 
 - [ECMA-262] ECMAScript Language Specification, 14th edition (June 2023), Ecma International:
   Regular Expressions (pattern syntax and the `u` flag).
 
-## 8. Specification gaps
+## 8. Specification gaps {#gaps}
 
 None.

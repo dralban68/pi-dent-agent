@@ -3,7 +3,7 @@
 This document specifies the extension commands: the slash commands pi-dent registers itself.
 Plugin commands are owned by [plugin.md](plugin.md), Section 5.
 
-## 1. Registration
+## 1. Registration {#registration}
 
 - The extension MUST register each extension command through the host `registerCommand` API under
   its name, with its description; it is invoked in the pi console as `/<name>`.
@@ -24,14 +24,14 @@ Plugin commands are owned by [plugin.md](plugin.md), Section 5.
 | `recap`   | `Recap the current session`               | Ignored                  | 5                            |
 | `dent-ui` | `Run and cancel plugin UI script calls`   | `<run \| cancel> <json>` | [plugin-ui.md](plugin-ui.md) |
 
-## 2. `dent`
+## 2. `dent` {#dent}
 
 The command MUST show the `info` notification
 `pi-dent extension is loaded (<a> agents, <s> skills, <p> plugins, <d> boot diagnostics)`, the
 counts being those of the boot snapshot; `<d>` counts the diagnostics collected while reading
 the boot snapshot, per [config-file.md](config-file.md), Section 6.
 
-## 3. `tasks`
+## 3. `tasks` {#tasks}
 
 Without arguments, the command MUST act exactly as the task browser shortcut
 ([task-browser.md](task-browser.md), Section 1).
@@ -48,7 +48,7 @@ with arguments is a no-op, including otherwise invalid arguments.
 
 Any other arguments in RPC mode MUST show `Usage: /tasks [watch <taskId> | unwatch | kill <taskId>]` as an error notification.
 
-## 4. `fleet`
+## 4. `fleet` {#fleet}
 
 The sibling sessions of the command are the sessions a `Fleet` `list` of scope `machine`
 ([fleet-tool.md](fleet-tool.md), Section 2) returns, in its order, without the current session.
@@ -56,7 +56,7 @@ A current session that a `Fleet` call from it refuses ([fleet-tool.md](fleet-too
 has no siblings and no sender: the command is a no-op, so it refuses exactly what that call
 refuses.
 
-### 4.1 No arguments
+### 4.1 No arguments {#no-arguments}
 
 - Without an interactive terminal UI the command is a no-op.
 - With no sibling session it MUST show the `info` notification `No sibling sessions.`
@@ -67,7 +67,7 @@ refuses.
   entering only whitespace ends the command; any other entry, trimmed, is sent as a query
   (Section 4.3) to that session.
 
-### 4.2 `<target> <query>`
+### 4.2 `<target> <query>` {#target-query}
 
 - `<target>` is the argument string up to its first whitespace; `<query>` is the rest, trimmed.
 - An empty `<query>` MUST show `Usage: /fleet [<target> <query>]` as an error notification.
@@ -76,7 +76,7 @@ refuses.
   current session follows [fleet-tool.md](fleet-tool.md), Section 1.
 - Otherwise `<query>` is sent as a query (Section 4.3) to the resolved session.
 
-### 4.3 Query
+### 4.3 Query {#query}
 
 - The query MUST be enqueued exactly as a `Fleet` `query` ([fleet-tool.md](fleet-tool.md),
   Section 4) from the current session with that target, `body` the query text, and no `subject`.
@@ -86,7 +86,7 @@ refuses.
 - The reply arrives as [fleet-tool.md](fleet-tool.md), Section 4 specifies: a `followUp` message
   in the current session's conversation.
 
-## 5. `recap`
+## 5. `recap` {#recap}
 
 The command MUST run only on explicit invocation, and only in host modes `tui` and `rpc`. In
 another mode, or without a UI, it MUST change nothing and fail the command with the error
@@ -94,7 +94,7 @@ another mode, or without a UI, it MUST change nothing and fail the command with 
 `info` notification `Recap unavailable while busy.`, then refuse empty input (Section 5.1) with
 `Nothing to recap.` at `info` level. Previous recap entries MUST remain unchanged.
 
-### 5.1 Input and model
+### 5.1 Input and model {#input}
 
 The input MUST be the host's active, compaction-aware context entries at invocation, in their
 existing order. Only user and assistant message text blocks (or string content), and compaction
@@ -126,7 +126,7 @@ It MUST NOT start a session turn or add the recap to any later model context, in
 recap request. Persistence is limited to the custom entry in Section 5.2. A provider failure
 MUST NOT retry with another model.
 
-### 5.2 Output and lifecycle
+### 5.2 Output and lifecycle {#output}
 
 While generating, the command MUST show `Generating recap…` as an `info` notification. The
 request MUST have a 30000 ms deadline and MUST receive an abort signal linked to the host signal.
@@ -158,7 +158,7 @@ notifications. Every completion outcome MUST release the busy state.
 > In `rpc` mode the entry arrives through the host's `entry_appended` event and the notifications
 > as `notify` UI requests; the renderer of Section 5.3 applies to `tui` only.
 
-### 5.3 Rendering and readers
+### 5.3 Rendering and readers {#rendering}
 
 The extension MUST register an entry renderer for `pi-dent-recap`. It MUST render the entry in the
 chat transcript, including after reopening the session, as a wrapping plain-text box with the
@@ -176,6 +176,6 @@ It MUST NOT update a turn record's `goal` ([session-store.md](session-store.md),
 affect guidance injection's comparison with the latest guidance message. Recap input selection
 (Section 5.1) MUST exclude it.
 
-## 6. Specification gaps
+## 6. Specification gaps {#gaps}
 
 - Rendering and key handling of the host `select` and `input` dialogs.

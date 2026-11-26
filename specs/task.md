@@ -10,7 +10,7 @@ The inspection and cancellation surface is [task-tool.md](task-tool.md); the tas
 kill key cancels through the same path ([task-browser.md](task-browser.md), Section 4.4). The
 permanent history of tasks is the task ledger ([task-ledger.md](task-ledger.md)).
 
-## 1. Task kinds
+## 1. Task kinds {#task-kinds}
 
 Every `Agent`, `Script`, and `Bash` invocation, foreground or background, including a pre-start
 rejection, MUST register exactly one task row before execution begins, except three cases: a
@@ -35,7 +35,7 @@ The tool's own checks run after the host's, and their failures are pre-start rej
 runs before its row is registered and returns the tool's own text without a row
 ([script-tool.md](script-tool.md), Section 2).
 
-### 1.1 The `cwd` parameter
+### 1.1 The `cwd` parameter {#cwd-parameter}
 
 A tool that starts a task and takes a working directory takes it as the `cwd` parameter, with
 one contract in `Agent`, `Script`, and `Bash`:
@@ -54,7 +54,7 @@ one contract in `Agent`, `Script`, and `Bash`:
 
 A tool's spec states only what the working directory is used for and any default of its own.
 
-## 2. Lifecycle
+## 2. Lifecycle {#lifecycle}
 
 - A task's `status` is `running` from registration until it settles once to a terminal value.
   The terminal values are `completed`, `failed`, `cancelled`, and `interrupted`; a task is
@@ -66,7 +66,7 @@ A tool's spec states only what the working directory is used for and any default
 - A task belongs to one task registry at a time; when that registry ends, the task follows
   [task-registry.md](task-registry.md), Section 4.
 
-## 3. Task tree
+## 3. Task tree {#task-tree}
 
 The task tree of a session is the set of its task rows:
 
@@ -80,7 +80,7 @@ The task tree of a session is the set of its task rows:
   query dispatch's row ([task-registry.md](task-registry.md), Section 1) is a member of no task
   tree.
 
-## 4. Task tree widget
+## 4. Task tree widget {#task-tree-widget}
 
 The extension MUST render the task tree of the main session through the host widget surface
 under the key `pi-dent-tasks`, placed above the editor. The task tree widget MUST be rendered only
@@ -118,7 +118,7 @@ when the session has an interactive terminal UI.
   reported.
 - Execution MUST NOT depend on the widget.
 
-### 4.1 Task feed
+### 4.1 Task feed {#task-feed}
 
 The task feed carries the task tree to an RPC client that draws it itself
 and announces that by setting the environment variable `PI_DENT_FEEDS` to `1`. When the main
@@ -154,7 +154,7 @@ with no limit on their number:
   failure is reported.
 - Execution MUST NOT depend on the feed.
 
-### 4.2 Task detail feed
+### 4.2 Task detail feed {#task-detail-feed}
 
 The task detail feed carries the details page of one task ([task-browser.md](task-browser.md),
 Section 4) to an RPC client, under the same announcement as the task feed (Section 4.1). The
@@ -195,14 +195,14 @@ breaks and tabs removed:
 - A read of the watched row's session file that fails yields no events, and a feed that fails to
   set the widget leaves the widget as it is; no failure is reported.
 
-## 5. Host terms
+## 5. Host terms {#host-terms}
 
 - A tool error is a tool result with `isError: true`.
 - The tool-call signal is the abort signal the host passes to one tool execution.
 - The invoking session is the session whose model made the tool call.
 - An agent run is one host agent loop, from a prompt until the agent is idle.
 
-## 6. Specification gaps
+## 6. Specification gaps {#gaps}
 
 - The marker, if any, and the handling of wide characters when a line is truncated to the render
   width are the terminal toolkit's.

@@ -8,7 +8,7 @@ task: `Schedule` registers no task row ([task.md](task.md), Section 1), and `Tas
 nor cancels schedules. A schedule is not a `Fleet` message: it is never written to the local
 session store ([session-store.md](session-store.md)) and has no `messageId`.
 
-## 1. Tool surface
+## 1. Tool surface {#tool-surface}
 
 The tool `description` MUST be exactly:
 
@@ -16,7 +16,7 @@ The tool `description` MUST be exactly:
 Insert a message into this same session when it is due: queued as a follow-up when an agent run is in progress, else starting one. A schedule fires once unless `everySeconds` makes it repeat; a repeating schedule ends at its `count` or on `cancel`, and pending schedules end with the session. `create` one with `message` and one of `delaySeconds`, `at`, or `everySeconds` (with optional `count`), `list` this session's pending schedules, or `cancel` one by `scheduleId`.
 ```
 
-### 1.1 Parameter schema
+### 1.1 Parameter schema {#parameter-schema}
 
 The parameter schema is a JSON object schema with `type: "object"` and
 `additionalProperties: false`, with one required field, `action`; every other field is optional in
@@ -38,7 +38,7 @@ violation with its own error text; the checks of Section 1.2 run at execution ti
 whose value is `null` counts as absent. A positive integer is a number for which ECMAScript
 `Number.isInteger` holds and which is at least 1.
 
-### 1.2 Validation
+### 1.2 Validation {#validation}
 
 Execution-time validation MUST reject the call as a tool error (`isError: true`) whose text is
 the error text of the first failing check, in this order, and MUST leave the pending schedules
@@ -66,7 +66,7 @@ check 12.
 > Note (non-normative): 8640000000000000 ms after the Unix epoch is the latest instant an
 > ECMAScript `Date` represents.
 
-### 1.3 Activation
+### 1.3 Activation {#activation}
 
 At every `session_start`, before the session's first model request, the extension MUST:
 
@@ -80,9 +80,9 @@ another extension — MUST fail as a tool error (`isError: true`) with the text
 `Schedule is unavailable: this is an agent session with no user input.`, before validation and
 leaving pending schedules unchanged.
 
-## 2. Schedules
+## 2. Schedules {#schedules}
 
-### 2.1 Schedule
+### 2.1 Schedule {#schedule}
 
 A schedule is held by the session whose `Schedule` call created it and carries:
 
@@ -106,7 +106,7 @@ repeating schedule per Section 2.3, and any schedule on `cancel` (Section 3.3) o
 session ends (Section 5). Pending schedules are ordered by ascending `dueAt`, ties by creation
 order.
 
-### 2.2 Time values
+### 2.2 Time values {#time-values}
 
 A date-time of this section is a string that matches the `date-time` production of [RFC 3339],
 Section 5.6, names a valid calendar date ([RFC 3339], Section 5.7), and has a second value below
@@ -118,7 +118,7 @@ A local time stamp renders an instant, in whole seconds rounded down, as
 four digits, followed by its local offset, both per [billing.md](billing.md), Section 5. Every time
 in the tool's text, the scheduled message, and the schedule status line is a local time stamp.
 
-### 2.3 Repeating schedules
+### 2.3 Repeating schedules {#repeating-schedules}
 
 A schedule created with `everySeconds` is a repeating schedule; `e` below is
 `everySeconds × 1000`. Each firing of a repeating schedule, and each skip (Section 4.1), at check
@@ -133,9 +133,9 @@ Due times thus stay on the grid of the first due time, and every grid due time t
 the schedule could not fire collapses into the one firing or skip. A repeating schedule without
 `count` fires until it is cancelled or the session ends (Section 5).
 
-## 3. Actions
+## 3. Actions {#actions}
 
-### 3.1 `create`
+### 3.1 `create` {#create}
 
 The call adds one pending schedule and returns at once. The text, on one line, is
 
@@ -149,7 +149,7 @@ with it. `<createdAt>` and `<dueAt>` are local time stamps. `details` is
 `{ action: "create", scheduleId, createdAt, dueAt, everySeconds?, count? }`, times in milliseconds
 since the Unix epoch.
 
-### 3.2 `list`
+### 3.2 `list` {#list}
 
 The call returns the session's pending schedules in the order of Section 2.1, one line each:
 
@@ -166,19 +166,19 @@ a `count`, followed by ` · queued` when `queued` is `true`; `<preview>` is the 
 in the same order, times in milliseconds since the Unix epoch. `list` MUST NOT change any
 schedule.
 
-### 3.3 `cancel`
+### 3.3 `cancel` {#cancel}
 
 The call ends the pending schedule named by the trimmed `scheduleId`; it fires no more. The text is
 `Schedule <scheduleId> cancelled.` and `details` is `{ action: "cancel", scheduleId }`. Cancelling
 does not withdraw an occurrence already queued (Section 4.2); the host still inserts it.
 
-## 4. Firing
+## 4. Firing {#firing}
 
 An agent run is in progress while the host's extension context exposes an abort signal for the
 current run. The session is idle per [session-store.md](session-store.md), Section 2. A schedule
 is due once the system clock reads at or after its `dueAt`.
 
-### 4.1 Checks
+### 4.1 Checks {#checks}
 
 While the session has a pending schedule, the extension MUST check for due schedules at most
 1000 ms apart. At a check, in the order of Section 2.1:
@@ -193,7 +193,7 @@ A due schedule MUST fire within 1000 ms after the first instant at which it is d
 skipped, and an agent run is in progress or the session is idle. A schedule fires at most once
 per check and MUST NOT fire before it is due.
 
-### 4.2 Insertion
+### 4.2 Insertion {#insertion}
 
 The schedules firing at one check fire together: the extension hands one scheduled message to the
 host `sendMessage` API with `customType` `"pi-dent-schedule"`, `display: true`, `triggerTurn: true`,
@@ -254,7 +254,7 @@ marking it as the session's own scheduled message rather than the user speaking.
 `occurrence` being `occurrences` after this firing for a repeating schedule, times in milliseconds
 since the Unix epoch.
 
-## 5. Lifecycle
+## 5. Lifecycle {#lifecycle}
 
 - Pending schedules are held in the memory of the process, keyed by session ID. The extension
   MUST NOT write a schedule to the session file or any other file; only an inserted scheduled
@@ -274,7 +274,7 @@ since the Unix epoch.
 > Note (non-normative): a child session ends with its attempt, so a schedule in it would fire into
 > a session no attempt is waiting on.
 
-## 6. Schedule status line
+## 6. Schedule status line {#schedule-status-line}
 
 While the main session has an interactive terminal UI and at least one pending schedule, the
 extension MUST show the schedule status line through the host `setStatus` API under the key
@@ -318,12 +318,12 @@ When the host `notify` API itself throws while showing a notification of this se
 Section 4.2, the call or check MUST carry on as if the notification had been shown; no failure is
 reported.
 
-## 7. Normative references
+## 7. Normative references {#references}
 
 - [RFC 3339] Date and Time on the Internet: Timestamps, G. Klyne and C. Newman, 2002: Section 5.6
   (the `date-time` and `time-offset` productions) and Section 5.7 (date validity).
 
-## 8. Specification gaps
+## 8. Specification gaps {#gaps}
 
 - Which of a scheduled message and a user prompt submitted at the same instant the session becomes
   idle starts the agent run is the host's.

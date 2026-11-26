@@ -5,7 +5,7 @@ keyboard: browser activation keys, the browser stack, and the navigation keys ev
 answers. The pages and their own keys are owned by the browser's specification
 ([task-browser.md](task-browser.md), Section 1).
 
-## 1. Activation keys
+## 1. Activation keys {#activation-keys}
 
 pi-dent MUST NOT listen for terminal input outside what the host delivers to keys it registers
 itself. Every browser is opened by a host-registered shortcut or extension command only; while open it takes input
@@ -20,7 +20,7 @@ keeps every key. A browser registers and configures its shortcut per its own spe
 > action uses `shift+right`. A terminal that reports `shift+right` as plain `right` (no modifier)
 > leaves the browser opening on `right` until the configuration changes.
 
-## 2. Browser stack
+## 2. Browser stack {#browser-stack}
 
 Open browsers form a stack, newest on top.
 
@@ -38,7 +38,7 @@ Open browsers form a stack, newest on top.
 - While a browser is top it MUST consume all input per its own specification; the listeners of
   the browsers below it MUST NOT handle input.
 
-## 3. Navigation keys
+## 3. Navigation keys {#navigation-keys}
 
 Every browser page MUST answer the keys of the table in addition to the keys its own
 specification gives it.
@@ -58,7 +58,7 @@ specification gives it.
   and `agent` details page are such pages ([task-browser.md](task-browser.md), Sections 3 and
   4.1); its `script` and `bash` details page is not.
 
-## 4. `g` and `G`
+## 4. `g` and `G` {#home-end-keys}
 
 `g` and `G` MUST act on every page whose own specification gives `home` and `end` a behaviour,
 and on no other page.
@@ -70,11 +70,11 @@ and on no other page.
 The task browser's list page ([task-browser.md](task-browser.md), Section 3) and its details
 pages ([task-browser.md](task-browser.md), Sections 4.1 and 4.2) are such pages.
 
-## 5. Normative references
+## 5. Normative references {#references}
 
 None.
 
-## 6. Specification gaps
+## 6. Specification gaps {#gaps}
 
 - A terminal that reports `G` as `shift+G` with a shift modifier, rather than as the printable
   character, is not distinguished; the host input layer decides what a page receives.

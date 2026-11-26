@@ -4,7 +4,7 @@ This document specifies the plugin resource: the plugin layout, plugin manifest,
 the plugin catalog, and the plugin inventory that another program reads. The resource reader tool is owned by [plugin-tool.md](plugin-tool.md);
 the script execution tool is owned by [script-tool.md](script-tool.md).
 
-## 1. Plugin layout
+## 1. Plugin layout {#plugin-layout}
 
 A plugin is a directory containing a root `plugin.json` plugin manifest plus optional resource folders.
 The plugin root is the plugin directory, the resolved `path` of its `plugins` entry.
@@ -27,7 +27,7 @@ which are not plugin resources.
 - `context.md` is not a plugin resource: it enters no catalog, and no tool, `Plugin` included,
   serves it. Only Section 10 reads it.
 
-## 2. Plugin manifest
+## 2. Plugin manifest {#plugin-manifest}
 
 | Field         | Contract                                                                               |
 | ------------- | -------------------------------------------------------------------------------------- |
@@ -71,13 +71,13 @@ which are not plugin resources.
 - A plugin manifest declares no other capabilities: a plugin contributes only the Section 1
   resources and Section 12 MCP servers.
 
-## 3. Identity and namespace
+## 3. Identity and namespace {#identity-namespace}
 
 - The namespace is the plugin identity. Paths and display fields never determine identity.
 - A namespace MUST be admitted at most once per boot snapshot: a later candidate with an admitted
   namespace MUST be skipped with one diagnostic naming the namespace and both plugin roots.
 
-## 4. Discovery
+## 4. Discovery {#discovery}
 
 - Plugins are configured under the `plugins` root key of `pi-dent.conf`, which loads and merges per
   the [configuration file specification](config-file.md). The value of `plugins` is an object
@@ -94,7 +94,7 @@ which are not plugin resources.
 - Discovery MUST NOT follow a `path` outside the local filesystem (no remote or URL sources).
 - Plugin admission order is the order of admitted candidates in this key order.
 
-## 5. Slash commands
+## 5. Slash commands {#slash-commands}
 
 - A `commands/*.md` file defines one plugin command named by its basename without `.md`.
 - Frontmatter carries an optional string `description`; a non-string value is ignored. Unknown
@@ -123,7 +123,7 @@ which are not plugin resources.
   or collides with a bare host command. Command execution is prompt delivery only; it MUST NOT
   bypass session tool gating.
 
-## 6. Argument substitution
+## 6. Argument substitution {#argument-substitution}
 
 - The argument string—`args` of a `Plugin` call when present, or the argument string defined by
   [slash-commands.md](slash-commands.md), Section 1—is tokenized as maximal runs of non-whitespace
@@ -139,7 +139,7 @@ which are not plugin resources.
   inserted verbatim: dollar sequences inside them MUST NOT be re-interpreted, and substituted
   text MUST NOT be re-scanned.
 
-## 7. Contained paths
+## 7. Contained paths {#contained-paths}
 
 A contained path is relative to a stated root, has no leading `/`, drive prefix, or `..` segment
 (with `\` treated as `/`), and resolves inside the root after symbolic links. The root is compared
@@ -148,7 +148,7 @@ reports it as missing. A symbolic link whose target is outside the root, danglin
 contained. A contained path naming something other than a regular file is not contained.
 A path that is not contained MUST be rejected.
 
-## 8. Plugin catalog
+## 8. Plugin catalog {#plugin-catalog}
 
 - The plugin catalog is the boot-snapshot index of admitted plugins by namespace. Namespace
   changes, admission, and removal take effect only at the next boot; they MUST NOT be observed
@@ -163,7 +163,7 @@ A path that is not contained MUST be rejected.
   [agent.md](agent.md) and [skill.md](skill.md) when used through `Agent` and `Skill`; skill
   references follow [skill-tool.md](skill-tool.md), Section 2.
 
-## 9. Catalog composition
+## 9. Catalog composition {#catalog-composition}
 
 Plugin resources feed the agent and skill catalogs:
 
@@ -179,7 +179,7 @@ Plugin resources feed the agent and skill catalogs:
 - A duplicate `namespace:name` is skipped as a duplicate `name` is ([agent.md](agent.md), Section 1).
 - Skill references are not catalog entries; they load through [skill-tool.md](skill-tool.md).
 
-## 10. Plugin context
+## 10. Plugin context {#plugin-context}
 
 A plugin's context is the text of its root `context.md` file, read once into the boot snapshot.
 
@@ -225,7 +225,7 @@ A plugin's context is the text of its root `context.md` file, read once into the
 - A diagnostic of this section is reported per [config-file.md](config-file.md), Section 6, as a
   plugin discovery diagnostic.
 
-## 11. Plugin inventory
+## 11. Plugin inventory {#plugin-inventory}
 
 A plugin candidate is one entry of the merged `plugins` object (Section 4), named by its entry
 key; discovery admits it as a plugin or skips it. The plugin inventory is the result of running
@@ -259,7 +259,7 @@ in the extension's own boot reads it.
   order MUST NOT change because the inventory exists.
 - Strings are returned whole: the inventory cuts nothing.
 
-### 11.1 Shape
+### 11.1 Shape {#shape}
 
 The plugin inventory is an object:
 
@@ -340,7 +340,7 @@ An MCP server is an object:
 - When both layers have the same `file`, as when `cwd` is the user's home directory, `layer` is
   `project`.
 
-### 11.2 Plugin script listing
+### 11.2 Plugin script listing {#script-listing}
 
 No catalog holds plugin scripts, and the `Script` tool lists none: it resolves the one path a
 call names ([script-tool.md](script-tool.md), Section 2). The plugin inventory lists them, and
@@ -371,7 +371,7 @@ only it does.
 > Note (non-normative): the two exclusions keep the walk bounded and free of cycles. A script
 > under them still runs through `Script`; it is only not listed, and the diagnostic says so.
 
-## 12. Plugin MCP servers
+## 12. Plugin MCP servers {#mcp-servers}
 
 An admitted plugin's valid `mcpServers` entries (Section 2) are registered with `pi-mcp-adapter` as
 runtime MCP servers when the main session starts, and in every child session
@@ -395,12 +395,12 @@ runtime MCP servers when the main session starts, and in every child session
 - Ending the main session (`session_shutdown`) MUST dispose every active plugin MCP registration
   so a subsequent session registers cleanly.
 
-## 13. Normative references
+## 13. Normative references {#references}
 
 - [RFC 8259] The JavaScript Object Notation (JSON) Data Interchange Format (STD 90),
   T. Bray, Ed., 2017: the `plugin.json` syntax of Sections 1 and 2.
 
-## 14. Specification gaps
+## 14. Specification gaps {#gaps}
 
 - A plugin command whose frontmatter fails to parse is registered without a description and
   without a diagnostic (Section 5), so the plugin inventory cannot tell it from a command that

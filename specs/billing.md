@@ -8,14 +8,14 @@ models, and the billing text placed in the guidance message
 ([session-tool.md](session-tool.md)). pi-dent MUST NOT contact a vendor, read a credential, or
 derive billing data itself; everything in this document comes from billing query replies.
 
-## 1. Enablement
+## 1. Enablement {#enablement}
 
 Billing is enabled unless `modelGuidance.billing` is `false`
 ([model-guidance.md](model-guidance.md), Section 1). While billing is disabled, the extension
 MUST NOT emit on or subscribe to the channels of Section 2, holds no billing, and every billing
 text of Sections 6 and 7 is absent.
 
-## 2. Billing service protocol
+## 2. Billing service protocol {#service-protocol}
 
 The billing service answers on the event bus of the extension instance:
 the host's inter-extension bus, which delivers an emitted event synchronously to every listener
@@ -26,7 +26,7 @@ during `emit`. pi-dent relies on the following and nothing else.
 | `purse:query:v1`   | pi-dent → service | A request (Section 2.1).             |
 | `purse:changed:v1` | service → pi-dent | A change notification (Section 2.3). |
 
-### 2.1 Request and outcome
+### 2.1 Request and outcome {#request-outcome}
 
 A billing query emits one request object on `purse:query:v1`:
 
@@ -63,7 +63,7 @@ Only an `ok` outcome changes held billing (Section 4.1). No outcome produces a d
 notification, or a session message, and billing queries start only by the rules of Section 4. A
 failure that is not a query outcome is reported per Section 4.5.
 
-### 2.2 Billing entry
+### 2.2 Billing entry {#billing-entry}
 
 The billing reply's `providers` maps a provider id to its billing entry. pi-dent reads these fields; a
 value outside its listed shape is treated as stated in the last column:
@@ -117,12 +117,12 @@ the billing reply. A balance item, limit window, or model record that is not a n
 dropped. A model record has a price schedule when its `price.schedule.multiplier` is read as a
 number; it then has `active` and `changesAt` as read.
 
-### 2.3 Change notification
+### 2.3 Change notification {#change-notification}
 
 A change notification is a `purse:changed:v1` payload that is an object whose `providers` is an
 array; its named providers are the array's string elements. Any other payload MUST be ignored.
 
-## 3. Billing providers and mapping
+## 3. Billing providers and mapping {#providers}
 
 A billing entry is keyed by provider id; a guided model's identifier
 ([model-guidance.md](model-guidance.md), Section 2) parses to a descriptor whose `provider` is
@@ -145,9 +145,9 @@ A guided model whose provider has no held billing entry has an empty billing ann
 whose `id` has no model record in the held entry is treated as having one with every rate and
 `source` `null` and no price schedule.
 
-## 4. Queries
+## 4. Queries {#queries}
 
-### 4.1 Extension instance and held billing
+### 4.1 Extension instance and held billing {#held-billing}
 
 An extension instance is one call of pi-dent's extension factory; session replacement (`new`,
 `resume`, `fork`) and reload start a new one with a new event bus. While billing is enabled,
@@ -163,7 +163,7 @@ greater
 From the extension instance's `session_shutdown` on, the extension MUST start no billing query,
 MUST ignore change notifications and settlements, and MUST NOT inject on account of any of them.
 
-### 4.2 Billing poll
+### 4.2 Billing poll {#billing-poll}
 
 A billing poll is a billing query with `mode` `"auto"` for the guidance billing providers. A
 poll is due when billing is enabled, the guidance billing providers are non-empty, and no poll
@@ -184,7 +184,7 @@ handler, and MUST NOT impose a minimum time between polls of its own.
 > pi-dent's own would add no protection beyond this and only delay guidance; the 429 answers seen
 > came from a test run calling the endpoint repeatedly.
 
-### 4.3 Cached query
+### 4.3 Cached query {#cached-query}
 
 A cached query is a billing query with `mode` `"cached"`. Each extension instance keeps a
 waiting set of providers, initially empty. Providers join the waiting set on two occasions: on a
@@ -208,7 +208,7 @@ extension instance.
 > schedule's current activity, so a crossing into or out of a discount window shows at the next
 > injection rather than one run later.
 
-### 4.4 Report query
+### 4.4 Report query {#report-query}
 
 While billing is enabled, a `Session` call with non-empty report billing providers MUST make
 one billing query with `mode` `"auto"` for them and wait for its outcome before returning,
@@ -217,7 +217,7 @@ billing alone. Its `ok` outcome updates held billing per Section 4.1. Whichever 
 `Session`, the report query uses the event bus of the main session's extension instance, and
 Section 7 reads that instance's held billing.
 
-### 4.5 Diagnostics
+### 4.5 Diagnostics {#diagnostics}
 
 Each of these failures MUST produce one diagnostic naming the failure: one message with level
 `warning`, reported through the host `notify` API as `pi-dent: <message>`
@@ -235,7 +235,7 @@ held: without the change subscription, with no guidance billing providers for th
 poll, without that injection. It MUST carry on and MUST NOT let the failure reach the event
 handler, timer, or promise callback that runs it.
 
-## 5. Billing text
+## 5. Billing text {#billing-text}
 
 Every text of Sections 6 and 7 is composed by pi-dent from the fields of Section 2.2. The only
 strings copied from a billing entry are sanitized text, `status` as read, and the values
@@ -289,9 +289,9 @@ Section 7 admits by pattern; provider ids and model ids come from pi-dent's own 
 > is the one in force at the instant itself, so a daylight-saving change before a reset neither
 > misstates the reset nor changes the text.
 
-## 6. Guidance billing text
+## 6. Guidance billing text {#guidance-billing}
 
-### 6.1 Presence
+### 6.1 Presence {#presence}
 
 Guidance billing text is present while billing is enabled, model guidance is active for the
 configured models ([model-guidance.md](model-guidance.md), Section 2), and held billing has an
@@ -300,7 +300,7 @@ is computed from held billing at the moment guidance content or a child guidance
 ([model-guidance.md](model-guidance.md), Sections 4 and 5). Without it — billing disabled, the
 billing service absent, or no `ok` outcome yet — the guidance message has no billing lines.
 
-### 6.2 Billing annotation
+### 6.2 Billing annotation {#billing-annotation}
 
 A guided model's billing annotation is built from the held entry of its provider and that
 entry's model record for its `id`. Its parts, in order:
@@ -335,7 +335,7 @@ Section 5).
 > out of a window, and a weekly schedule always has its next crossing within the billing
 > service's 7-day horizon, so the annotation changes once per crossing and never in between.
 
-### 6.3 Billing note
+### 6.3 Billing note {#billing-note}
 
 The billing note is the following line, `<zone>` being the local zone (Section 5):
 
@@ -355,7 +355,7 @@ Model billing:
 Choose by stated use first; among models suited to a task, prefer the cheaper, counting a discount (×) while it lasts. Prices are USD per million input/output tokens; times UTC, local Europe/Prague in parentheses. Requests to an exhausted provider or model fail until its reset. Providers without limit data are marked unknown or untracked.
 ```
 
-## 7. Billing report
+## 7. Billing report {#billing-report}
 
 The billing report of a `Session` call is `null` while billing is disabled or when it would hold
 no record; otherwise it is `{ timeZone, providers }`: `timeZone` the local zone (Section 5), and
@@ -397,7 +397,7 @@ Its text is one block per record, blocks in record order:
    changesAt>`; then `; <severity>`; rates and multiplier in decimal rendering to 3 places, `?`
    for `null`.
 
-## 8. Normative references
+## 8. Normative references {#references}
 
 - [ECMA-262] ECMAScript Language Specification, 14th edition (June 2023), Ecma International:
   Regular Expressions (pattern syntax and the `u` flag), Number::toString and
@@ -407,7 +407,7 @@ Its text is one block per record, blocks in record order:
 - [IANA TZ] IANA Time Zone Database, any release supported by the host runtime's `Intl` API: the
   zone names and UTC offsets of Section 5.
 
-## 9. Specification gaps
+## 9. Specification gaps {#gaps}
 
 - Whether the host's `emit` propagates an exception thrown by a listener; Section 2.1 treats a
   throw before `respond` as `no-service` either way.

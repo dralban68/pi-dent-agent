@@ -3,7 +3,7 @@
 This document specifies the `Agent` tool: the public tool surface, dispatch-plan resolution,
 execution model, results, recovery, continuation, liveness, cancellation, and observation.
 
-## 1. Tool registration surface
+## 1. Tool registration surface {#registration}
 
 The extension MUST register the `Agent` tool through the host `registerTool` API:
 
@@ -45,7 +45,7 @@ present, falling back to `task`. `renderResult` MUST stream intermediate assista
 it is produced and replace it with the final result text (Section 7) at settlement. Visual
 layout is the renderer's own; only content is normative.
 
-### 1.1 Parameter schema
+### 1.1 Parameter schema {#parameter-schema}
 
 The parameter schema is a JSON object schema with `type: "object"` and
 `additionalProperties: false`:
@@ -89,7 +89,7 @@ The checks the schema cannot express MUST reject the call as a pre-start rejecti
   this process (Section 9), so a symbolic link or a `..` segment does not hide a held file.
 - The `cwd` check of [task.md](task.md), Section 1.1.
 
-## 2. Agent definitions
+## 2. Agent definitions {#agent-definitions}
 
 A dispatch is static or dynamic. A static dispatch resolves its agent from the agent catalog
 ([agent.md](agent.md)) by key; the catalog key is the agent identity. A dynamic dispatch
@@ -97,7 +97,7 @@ defines its agent entirely by the call's `prompt` parameter and uses no definiti
 identity is `dynamic`. The definition resource — file format, discovery, catalog composition, and
 the `agents` configuration override — is owned by [agent.md](agent.md).
 
-## 3. Dispatch plan
+## 3. Dispatch plan {#dispatch-plan}
 
 One dispatch plan MUST be resolved once per invocation, before the child starts, and then frozen;
 every attempt uses the same plan. The plan carries: agent identity, resolved cwd, effective tool
@@ -107,7 +107,7 @@ session's identity, and its agent directory (Section 4.2).
 Plan resolution failures are typed errors carrying `failurePhase: "plan-resolution"` and a
 `failureCode` from the plan-resolution codes of Section 7.
 
-### 3.1 Tools
+### 3.1 Tools {#tools}
 
 - The tool cap is the authority. Every agent inherits the tool cap; there is no per-agent tool
   declaration.
@@ -172,13 +172,13 @@ Plan resolution failures are typed errors carrying `failurePhase: "plan-resoluti
 - The resolved tool cap MUST reach the child in-process; the child MUST NOT select from a
   global inventory.
 
-### 3.2 Skills
+### 3.2 Skills {#skills}
 
 The plan's skills are the skill catalog specified in [skill.md](skill.md) when the tool cap
 includes `Skill`, and empty otherwise; there is no per-agent skill declaration. Binding of `Skill`
 and the `<available_skills>` injection follow [skill-tool.md](skill-tool.md).
 
-### 3.3 Model and thinking
+### 3.3 Model and thinking {#model-thinking}
 
 Model precedence:
 
@@ -215,7 +215,7 @@ call  >  agent model (static only)  >  persisted (resume source)  >  dispatching
   dispatching-session tier), and `previousModel`, as `<provider>/<modelId>` with no thinking
   suffix, when a continuation's persisted model was superseded.
 
-### 3.4 Compaction and session policy
+### 3.4 Compaction and session policy {#compaction}
 
 - Compaction: the child's compaction settings are the dispatching session's, each field absent
   from them taking its value from the defaults
@@ -227,9 +227,9 @@ call  >  agent model (static only)  >  persisted (resume source)  >  dispatching
   (Section 1.1 default included); a `resume` call that gives `cwd` continues the session in that
   resolved working directory.
 
-## 4. Execution model
+## 4. Execution model {#execution-model}
 
-### 4.1 Invocation lifecycle
+### 4.1 Invocation lifecycle {#invocation-lifecycle}
 
 One dispatch flows: invocation registration → parameter validation → plan resolution →
 foreground or background delivery.
@@ -260,7 +260,7 @@ every attempt (Section 3.1), for example — MUST NOT be a pre-start rejection: 
 consumed by the failure, and the row MUST settle through `settle`
 ([task-registry.md](task-registry.md), Section 5).
 
-### 4.2 Child session
+### 4.2 Child session {#child-session}
 
 The child MUST run in-process on the pi SDK:
 
@@ -422,7 +422,7 @@ The child MUST run in-process on the pi SDK:
 
 - If an attempt completes without a retained session file at its `sessionPath`, it MUST settle as `failed` with `stopReason: "error"`, `failurePhase: "execution"`, and `failureCode: "execution-error"`.
 
-### 4.3 Terminal candidate
+### 4.3 Terminal candidate {#terminal-candidate}
 
 The child's final answer is a candidate until admitted. An assistant message is a terminal
 candidate when its `stopReason` is `stop`, `error`, or `aborted`, or it carries a non-empty
@@ -446,7 +446,7 @@ with any other `stopReason`, it ends `failed`, with `stopReason: "error"`,
 attempt that ends with no committed error and no terminal candidate is a protocol fault
 (`invalid-turn`), not success.
 
-## 5. Foreground contract
+## 5. Foreground contract {#foreground-contract}
 
 Foreground delivery blocks the tool call:
 
@@ -454,7 +454,7 @@ Foreground delivery blocks the tool call:
 - Every settled dispatch — success or failure — MUST return the formatted final result of
   Section 7 (`isError: true` on failure, with `details.results` preserved).
 
-## 6. Background contract
+## 6. Background contract {#background-contract}
 
 `background: true` requests background delivery: unless the call is a pre-start rejection
 (Section 4.1), the dispatch MUST keep running after the tool call returns, and the call MUST
@@ -473,7 +473,7 @@ Task lifetime, cohort completion notification, and consumption follow
 [task-registry.md](task-registry.md) Sections 4–5; tasks are inspected or cancelled through the
 `Task` tool ([task-tool.md](task-tool.md)).
 
-## 7. Result contract
+## 7. Result contract {#result-contract}
 
 The tool MUST accumulate one result record per attempt; a pre-start rejection accumulates
 one record with no attempt (`status: "failed"`, `stopReason: "error"`, empty usage, no
@@ -525,7 +525,7 @@ renders the preview ([task-tool.md](task-tool.md), Section 2.1).
 > Note (non-normative): the spill keeps long background results out of the model's context
 > until it asks for them; `result` stays complete so that a failed spill loses nothing.
 
-## 8. Recovery
+## 8. Recovery {#recovery}
 
 Recovery is bounded, caller-owned re-prompting of the same child session. The number of recovery
 attempts of one dispatch, of both classes together, is bounded by `PI_DENT_AGENT_RECOVERY_MAX_RETRIES`
@@ -562,7 +562,7 @@ and the default applies).
    supervisor restart, and containment follows the task lifetime rule
    ([task.md](task.md), Section 2).
 
-## 9. Continuation (`resume`)
+## 9. Continuation (`resume`) {#resume}
 
 `resume` continues a retained session; the source file MUST exist. A `resume` call MUST still
 name `agent` or `prompt`; the continued session takes its system prompt, tool cap, and skills from
@@ -609,7 +609,7 @@ under its existing session ID: history is never copied and never rewritten, and 
 calls on the same path continue the same lineage. A concurrent `resume` check MUST follow Section 1.1. The `cwd` override
 rebinds execution without rewriting source history.
 
-## 10. Retention sweep
+## 10. Retention sweep {#retention-sweep}
 
 The retention sweep runs at most once per boot window: at the window's first `session_start`,
 after the starting session's agent directory has been created (Section 4.2) and the session has
@@ -650,7 +650,7 @@ MUST produce one diagnostic and the default applies.
 > tools wrote, which a name pattern cannot recognise; the store, not file ages, says whether a
 > session is still live, since an open session can stay idle for longer than the age.
 
-## 11. Cancellation
+## 11. Cancellation {#cancellation}
 
 Cancellation is cooperative, not an OS hard kill:
 
@@ -662,7 +662,7 @@ Cancellation is cooperative, not an OS hard kill:
   `cancelled` unless the task row has already settled; a request after settlement MUST NOT
   rewrite the outcome.
 
-## 12. Observation
+## 12. Observation {#observation}
 
 - Intermediate assistant text (its first line, cut to at most 120 characters, no marker) and
   projected content-free tool events (`<kind> <toolName>` from `kind`, `agent`, `toolCallId`,
@@ -681,7 +681,7 @@ Cancellation is cooperative, not an OS hard kill:
   pi-dent MUST NOT forward the main session's own responses, which the host already delivers
   to pi-dent-purse. A throw from `emit` MUST be ignored and MUST NOT fail the dispatch.
 
-## 13. Usage
+## 13. Usage {#usage}
 
 The usage of an assistant message is its host `usage`: the token counts `input`, `output`,
 `cacheRead`, and `cacheWrite`, and the cost `cost.total` in US dollars. A usage sum has the fields
@@ -761,12 +761,12 @@ The line is that text, coloured only through the host theme. Its last character 
 
 Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
 
-## 14. Normative references
+## 14. Normative references {#references}
 
 - [ECMA-262] ECMAScript Language Specification, 14th edition (June 2023), Ecma International:
   Regular Expressions (pattern syntax and the `i` flag).
 
-## 15. Specification gaps
+## 15. Specification gaps {#gaps}
 
 - Inheritance of extensions that register only hooks, flags, commands, or providers (Section 4.2
   copies the providers, not the extension); inline `-e` factories;

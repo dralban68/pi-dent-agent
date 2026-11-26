@@ -7,7 +7,7 @@ which a script calls the session's other tools. The plugin script it can read is
 with `name` and `label` `"Script"`; the host shows a call as a tool card
 ([tool-card.md](tool-card.md)).
 
-## 1. Parameter schema
+## 1. Parameter schema {#parameter-schema}
 
 The parameter schema is a JSON object schema with `type: "object"` and
 `additionalProperties: false`:
@@ -28,7 +28,7 @@ types of the table and the `1` to `600000` bounds of `timeout`, and nothing else
 a blank `code`, `plugin`, `path`, or `description` as absent (Sections 2 and 6): one that
 is empty or has only white space.
 
-## 2. Validation
+## 2. Validation {#validation}
 
 The host validates the call's arguments against the schema of Section 1 before the tool runs,
 and rejects a call whose arguments do not satisfy it. That rejection is a schema rejection
@@ -64,7 +64,7 @@ The remaining checks the schema cannot express MUST reject the call as a pre-sta
 
 The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md), Section 8.
 
-## 3. Execution model
+## 3. Execution model {#execution-model}
 
 - A call runs one script in an in-process worker thread. The worker is a lifecycle boundary, not a
   sandbox: scripts run with the caller's privileges and full Node capabilities. No external
@@ -125,7 +125,7 @@ The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md
   the line `<name>: <message>` when the `stack` has no such line — is appended to `stderr` at
   settlement, on a new line, and is not otherwise written to `stderr`.
 
-## 4. Module contract
+## 4. Module contract {#module-contract}
 
 - A script declares its return value with a top-level default export (`export default <expr>`).
 - Without a default export, the return value is the module body's completion value; it is
@@ -144,7 +144,7 @@ The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md
   string `<non-cloneable: <error>>`, `<error>` being the string form of the cloning error; that
   string is then the return value.
 
-## 5. Result contract
+## 5. Result contract {#result-contract}
 
 - The foreground body (`content[0].text`) is `stdout`, then `\n--- stderr ---\n<stderr>` when
   `stderr` is non-empty, then `\n--- return ---\n<rendered>` when `exitReason` is `ok`, then
@@ -209,7 +209,7 @@ The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md
   (`Task` `kill`), or `aborted` (tool-call signal). The call is an error (`isError: true`)
   unless `exitReason` is `ok`, `exit-called`, or `running`.
 
-## 6. Timeout and delivery
+## 6. Timeout and delivery {#timeout-delivery}
 
 - Every settled run MUST terminate its worker outright (`worker.terminate()`) and, when the
   script has spawned children, MUST first signal the spawned process tree with `SIGTERM`.
@@ -324,7 +324,7 @@ The plugin script file MUST be read fresh at call time per [plugin.md](plugin.md
   `execFile`, and `fork`, `fork` with `silent` unset or `false` included, whose stdio is
   otherwise inherited. The child's standard streams are therefore never a terminal.
 
-## 7. Configuration
+## 7. Configuration {#configuration}
 
 The root key `script` of the configuration file ([config-file.md](config-file.md), Section 2)
 configures the `Script` tool:
@@ -344,7 +344,7 @@ keys follow the unknown-key rule ([config-file.md](config-file.md), Section 2). 
 merges per [config-file.md](config-file.md), Sections 3 and 7: arrays replace, so a layer
 declaring `allow` replaces every lower layer's list whole.
 
-## 8. Tool functions
+## 8. Tool functions {#tool-functions}
 
 A script calls the session's other tools through typed functions, one per tool, and never by
 passing a tool name as a string. The host gives a running tool the callable tools: the list of
@@ -355,7 +355,7 @@ hooks, and permission checks as a call the model issues, and that resolves, with
 the tool's result (`content`, `details`, optional `structuredContent`) and an `isError` flag. A
 call made that way is a nested call.
 
-### 8.1 Bound tools
+### 8.1 Bound tools {#bound-tools}
 
 - The tool reads the callable tools once per call, after the checks of Section 2 have passed. The
   bound tools are the callable tools of that reading, without:
@@ -371,7 +371,7 @@ call made that way is a nested call.
 > Note (non-normative): `reachesTools` lets an extension that registers tools late, such as one
 > whose servers are still connecting, finish before the callable tools are read.
 
-### 8.2 Tool declarations
+### 8.2 Tool declarations {#tool-declarations}
 
 The tool declarations are one TypeScript text, lines joined by `\n`, with a final `\n`. They are
 these lines verbatim, with `<members>` and `<unbound>` replaced as below:
@@ -463,7 +463,7 @@ type-check a script against them, and a script that misuses a tool function fail
 > Note (non-normative): the declarations can be narrower or wider than the schema where a marker
 > says so; the host's validation of the arguments at call time (Section 8.3) is what holds.
 
-### 8.3 Calling a tool
+### 8.3 Calling a tool {#calling-tool}
 
 - `tools` is a frozen object whose own enumerable properties are the bound tools' names, in the
   order of the tool declarations, each a tool function. A tool function takes one argument,
@@ -501,7 +501,7 @@ type-check a script against them, and a script that misuses a tool function fail
   made before that result is returned; the nested calls of a background run, made after its
   call has returned, are in the tool log (Section 8.4) and in no record of the host's.
 
-### 8.4 Tool log
+### 8.4 Tool log {#tool-log}
 
 The tool log of a run is a session file that records the run's source and every nested call,
 so that `Search` reads it like the session file of an `Agent` dispatch.
@@ -546,12 +546,12 @@ so that `Search` reads it like the session file of an `Agent` dispatch.
   log. When the failure was the creation, `details.toolLogPath` is absent, and the
   `--- tool calls` block of Section 5 still names `<toolLogPath>`.
 
-## 9. Normative references
+## 9. Normative references {#references}
 
 - [RFC 3339]: Date and Time on the Internet: Timestamps, Section 5.6, for the `timestamp` of a
   tool log header and entry.
 
-## 10. Specification gaps
+## 10. Specification gaps {#gaps}
 
 - The size of a tool log is unbounded: results, image data included, are written as the host
   returned them.
