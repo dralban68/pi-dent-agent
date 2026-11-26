@@ -1612,6 +1612,16 @@ terms:
       - date: 2026-11-25
         op: deprecate
         reason: out-of-scope
+  - id: pi-dent-conf
+    label: pi-dent.conf
+    meaning: "pi-dent's JSONC configuration file, read from the global and the project layer directory and merged deeply"
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: plugin
     label: Plugin
     meaning: The tool that reads one plugin resource file of a plugin
@@ -1995,6 +2005,16 @@ terms:
         from: specs/thesaurus.md
       - date: 2026-11-14
         op: update
+  - id: root-key
+    label: root key
+    meaning: "A top-level key of pi-dent.conf, owned by the pi-dent spec or sibling package that defines its value"
+    owner: specs/config-file.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: safe-name
     label: safe name
     meaning: An input reduced to a form usable in a file name by replacing disallowed characters
@@ -2698,6 +2718,18 @@ terms:
       - session-file
     history:
       - date: 2026-11-18
+        op: add
+  - id: tool-result
+    label: tool result
+    meaning: "The result a tool call returns to the model: its content, details and error flag"
+    owner: specs/task.md
+    group: Tools
+    key: shared
+    status: active
+    distinguish:
+      - tool-error
+    history:
+      - date: 2026-11-26
         op: add
   - id: transcript-item
     label: transcript item
