@@ -24,6 +24,7 @@ pnpm typecheck    # tsc --noEmit
 pnpm lint         # oxlint .
 pnpm fmt          # oxfmt . (rewrites files, Markdown included)
 pnpm fmt:check    # oxfmt --check .
+codegraph sync    # refresh the CodeGraph index; run after committing
 pi -ne -e ./      # run the agent with this repository's extensions only
 ```
 
