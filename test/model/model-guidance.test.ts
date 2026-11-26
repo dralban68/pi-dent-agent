@@ -121,7 +121,7 @@ test("parseModelGuidance: valid parse with models and rules", () => {
   assert.equal(
     modelCatalog(guidance, available),
     "- anthropic/claude-opus-4-5:high: design and code review\n- google/gemini-3-flash: mechanical edits",
-    "each `when` is used trimmed and the key in canonical serialization (Sections 2 and 6)",
+    "each `when` is used trimmed and the key in canonical serialization (specs/model-guidance.md#guided-models, specs/model-guidance.md#model-catalog)",
   );
   assert.deepEqual(
     sessionRules(guidance, "google/gemini-3-flash"),

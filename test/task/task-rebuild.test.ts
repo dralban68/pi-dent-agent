@@ -95,7 +95,7 @@ test("a terminal record keeps its status, settledAt, and resultPath", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test("rebuilt taskIds are reserved, so a fresh register never reissues one (Section 2)", () => {
+test("rebuilt taskIds are reserved, so a fresh register never reissues one (specs/task-registry.md#task-row)", () => {
   const dir = tempDir();
   writeRunningRecord(dir, runningFields("01234567"));
   // A fake taskId source that offers a rebuilt row's id twice before a free one

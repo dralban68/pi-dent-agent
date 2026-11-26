@@ -145,12 +145,12 @@ export class ProgressLines {
   }
 }
 
-/** The label fallback of Section 6: the first line of `text` without leading white space, 80 characters. */
+/** The label fallback of specs/bash-tool.md#timeout-delivery: the first line of `text` without leading white space, 80 characters. */
 export function labelFallback(text: string): string {
   return firstLine(text.trimStart(), 80);
 }
 
-/** A pre-start rejection (Section 6): the row is consumed and settles `failed`. */
+/** A pre-start rejection (specs/bash-tool.md#timeout-delivery): the row is consumed and settles `failed`. */
 export function rejectCall(registry: TaskRegistry, row: TaskRow, message: string): ToolResult {
   registry.consume(row);
   registry.settle(row, { status: "failed", result: message });

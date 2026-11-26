@@ -509,7 +509,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
         if (extra !== undefined && Object.keys(extra).length > 0) request.extraEnv = extra;
         // The run's chunks feed the row's progress projection line by line, in
         // arrival order, with lines formed as specs/bash-tool.md#output-capture states for
-        // the captured output (Section 6): a line may start on one stream and
+        // the captured output (specs/script-tool.md#timeout-delivery): a line may start on one stream and
         // end on the other, and each entry is that line's display text, cut.
         // specs/script-tool.md#timeout-delivery: the output file takes the output in both deliveries. A write
         // failure (e.g. the session's directory was already removed) never fails

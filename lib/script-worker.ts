@@ -171,7 +171,7 @@ process.on("uncaughtException", (thrown: unknown) => {
   reportError(thrown instanceof Error ? thrown : new Error(String(thrown)));
 });
 
-// --- tool functions and dent (Sections 4 and 10.3) ----------------------------
+// --- tool functions and dent (specs/script-tool.md#tool-functions, specs/script-tool.md#calling-tool)
 // A nested call is one `tool-call` message; the runner answers with `tool-result`. The port is
 // referenced only while a call is pending, so a script awaiting nothing else still ends as before.
 interface PendingCall {

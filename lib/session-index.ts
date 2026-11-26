@@ -364,7 +364,7 @@ export interface CandidateFilter {
   bound: number;
   /** True: only items whose `time` equals `bound`. */
   exactBound?: boolean | undefined;
-  /** The other, inclusive end of a bounded time window the page holds (Section 2.3). */
+  /** The other, inclusive end of a bounded time window the page holds (specs/search-tool.md#abort). */
   withinTime?: number | undefined;
   /** Only items of these kinds. */
   kinds?: readonly string[] | undefined;
@@ -396,7 +396,7 @@ export interface CandidateFilter {
   lineBelow?: number | undefined;
   /** Only items of lines at or above this number. */
   lineAbove?: number | undefined;
-  /** Order rows of equal `time` by line number this way, for those chunks (Section 2.3). */
+  /** Order rows of equal `time` by line number this way, for those chunks (specs/search-tool.md#abort). */
   lineOrder?: "asc" | "desc" | undefined;
 }
 
@@ -1429,7 +1429,7 @@ export class SessionIndex implements IndexView {
     });
   }
 
-  /** The number of `files` rows, which a call compares its own file count with (Section 2.3). */
+  /** The number of `files` rows, which a call compares its own file count with (specs/search-tool.md#abort). */
   fileCount(): ReadOutcome<number> {
     return this.query((db) => {
       const row = db.prepare("SELECT count(*) AS n FROM files").get();
