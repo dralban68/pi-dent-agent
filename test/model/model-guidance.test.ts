@@ -479,7 +479,7 @@ test("a guided model carries the parsed provider, model id, and thinking level o
   assert.equal("thinking" in at(guided, 0), false);
 });
 
-test("guided-model thinking support is decided by model-string Section 4.4 alone", () => {
+test("guided-model thinking support is decided by specs/model-string.md#thinking-precedence alone", () => {
   const leveled = (thinking: "high" | "xhigh", id: string): ModelGuidance =>
     guidanceOf({ [`openai/${id}:${thinking}`]: { when: "w" } });
   // Neither flag nor level map: only `off` is supported, so `:high` is omitted.

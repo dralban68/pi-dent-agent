@@ -431,7 +431,7 @@ export interface ContinuationOutcome {
   reason: string | undefined;
 }
 
-/** A continuation of catch-up the caller starts and stops (Section 2.2). */
+/** A continuation of catch-up the caller starts and stops (specs/search-tool.md#coverage). */
 export interface CatchUpContinuation {
   /** Settles when the continuation ends. */
   readonly done: Promise<ContinuationOutcome>;

@@ -9,7 +9,7 @@ import { localStampIn } from "./billing-text.ts";
 /** The latest instant an ECMAScript `Date` represents, ms since the Unix epoch (specs/schedule-tool.md#validation, check 10). */
 export const MAX_INSTANT = 8640000000000000;
 
-/** The `date-time` production of RFC 3339, Section 5.6. */
+/** The `date-time` production of [RFC 3339], Section 5.6. */
 const DATE_TIME =
   /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?([Zz]|([+-])(\d{2}):(\d{2}))$/;
 
