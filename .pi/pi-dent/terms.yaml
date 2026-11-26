@@ -886,6 +886,20 @@ terms:
       - date: 2026-11-24
         op: deprecate
         reason: out-of-scope
+  - id: flattening
+    label: flattening
+    meaning: "Replacing every maximal run of white space and of the control characters U+0000–U+001F and U+007F–U+009F in a string by one space, then removing a leading and a trailing space"
+    owner: specs/search-tool.md
+    group: Tools
+    key: confusable
+    status: active
+    forms:
+      - flattened
+    history:
+      - date: 2026-11-26
+        op: add
+      - date: 2026-11-26
+        op: update
   - id: fleet
     label: Fleet
     meaning: The tool that carries messages and queries between sibling sessions
@@ -1027,7 +1041,7 @@ terms:
         op: update
   - id: host
     label: host
-    meaning: The pi process and extension API pi-dent runs in
+    meaning: The pi process and extension API an extension runs in
     owner: specs/config-file.md
     group: Configuration and models
     key: shared
@@ -1036,6 +1050,9 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+      - date: 2026-11-26
+        op: update
+        meaning: The pi process and extension API pi-dent runs in
   - id: host-command
     label: host command
     meaning: A slash command the host itself provides
