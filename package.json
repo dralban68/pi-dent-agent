@@ -1,6 +1,6 @@
 {
   "name": "pi-dent-agent",
-  "version": "0.2.37",
+  "version": "0.2.38",
   "description": "A generic coding agent as a pi extension: Bash, Task, Agent, Fleet, Script, Search, Markdown and more tools, with billing and terms extensions bundled",
   "keywords": [
     "coding-agent",
