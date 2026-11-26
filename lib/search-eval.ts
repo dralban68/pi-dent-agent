@@ -18,6 +18,7 @@ import { Worker } from "node:worker_threads";
 import type { ToolResult } from "./engine.ts";
 import { localStamp } from "./schedule-time.ts";
 import {
+  PROBE_BY_ID_ROWS,
   type CandidateFilter,
   type CatchUpContinuation,
   type IndexFileRow,
@@ -54,14 +55,96 @@ const FIND_LIMIT = 20;
 /** The most bytes one chunk of a direct read consumes before the call yields. */
 const READ_CHUNK_BYTES = 1048576;
 
-/** The rows one candidate page asks the index for (specs/search-tool.md#abort). */
+/** The step limit `pageRows`: the rows one candidate page asks the index for (specs/search-tool.md#step-limits). */
 const PAGE_ROWS = 256;
 
-/** The matching item IDs a first page may fetch before it decides to scan instead. */
-const SMALL_MATCH = 2000;
+/** The step limits of a call (specs/search-tool.md#step-limits). */
+export interface StepLimits {
+  fileModeLines: number;
+  windowRows: number;
+  pageRows: number;
+  groupRows: number;
+  groupChunkRows: number;
+  collectionRows: number;
+  collectionChunkItems: number;
+  firstLookupMatches: number;
+  probeByIdRows: number;
+}
 
-/** The most rows of one time value a page fetches to complete it. */
-const GROUP_CAP = 50000;
+/** The step limits the test seam may lower: every one but `pageRows` (specs/search-tool.md#test-seam). */
+export type LoweredStepLimits = Partial<Omit<StepLimits, "pageRows">>;
+
+/** The values of specs/search-tool.md#step-limits, which every runtime built without `limits` uses. */
+export const STEP_LIMITS: Readonly<StepLimits> = Object.freeze({
+  fileModeLines: 200000,
+  windowRows: 100000,
+  pageRows: PAGE_ROWS,
+  groupRows: 50000,
+  groupChunkRows: 20000,
+  collectionRows: 20000,
+  collectionChunkItems: 200000,
+  firstLookupMatches: 2000,
+  probeByIdRows: PROBE_BY_ID_ROWS,
+});
+
+/** The names of the lowered step limits, in the table order of specs/search-tool.md#step-limits. */
+const LOWERED_NAMES = [
+  "fileModeLines",
+  "windowRows",
+  "groupRows",
+  "groupChunkRows",
+  "collectionRows",
+  "collectionChunkItems",
+  "firstLookupMatches",
+  "probeByIdRows",
+] as const;
+
+/**
+ * The order the rules of specs/search-tool.md#test-seam keep: each pair is
+ * `[lower, higher, strict]`, the lower limit below the higher one, or at most it
+ * when not strict.
+ */
+const STEP_ORDER: readonly (readonly [keyof StepLimits, keyof StepLimits, boolean])[] = [
+  ["pageRows", "groupRows", true],
+  ["groupRows", "windowRows", true],
+  ["windowRows", "fileModeLines", true],
+  ["groupChunkRows", "groupRows", true],
+  ["collectionRows", "groupRows", true],
+  ["probeByIdRows", "firstLookupMatches", true],
+  ["firstLookupMatches", "collectionRows", true],
+  ["collectionRows", "collectionChunkItems", true],
+  ["collectionChunkItems", "fileModeLines", false],
+  ["probeByIdRows", "groupChunkRows", true],
+];
+
+/**
+ * The step limits of a runtime: the values of specs/search-tool.md#step-limits,
+ * with the lowered ones in their place. Throws a `RangeError` naming the limit
+ * when a lowered value breaks a rule of specs/search-tool.md#test-seam.
+ */
+export function stepLimitsOf(lowered: LoweredStepLimits | undefined): StepLimits {
+  const limits: StepLimits = { ...STEP_LIMITS };
+  if (lowered === undefined) return limits;
+  for (const name of LOWERED_NAMES) {
+    const value = lowered[name];
+    if (value === undefined) continue;
+    const max = STEP_LIMITS[name];
+    if (!Number.isInteger(value) || value < 1 || value > max) {
+      throw new RangeError(`step limit ${name} must be an integer from 1 to ${max}, not ${value}`);
+    }
+    limits[name] = value;
+  }
+  for (const [lower, higher, strict] of STEP_ORDER) {
+    const low = limits[lower];
+    const high = limits[higher];
+    if (strict ? low < high : low <= high) continue;
+    const relation = strict ? "less than" : "at most";
+    throw new RangeError(
+      `step limit ${lower} (${low}) must be ${relation} step limit ${higher} (${high})`,
+    );
+  }
+  return limits;
+}
 
 /** The slots of a loaded session one narrowing probe answers for (specs/search-tool.md#evaluation). */
 const PROBE_AHEAD = 256;
@@ -311,6 +394,8 @@ export interface Call {
   /** How a regular-expression evaluator is made; a test may replace it (specs/search-tool.md#abort). */
   makeEvaluator: ((pattern: string, flags: string) => PatternEvaluator) | undefined;
   continuation: CatchUpContinuation | undefined;
+  /** The runtime's step limits (specs/search-tool.md#step-limits). */
+  limits: StepLimits;
 }
 
 export function textError(message: string): ToolResult {
@@ -1061,7 +1146,7 @@ class FileSource implements Source {
     const trigrams = call.query?.trigrams ?? [];
     if (trigrams.length > 0) {
       filter.trigrams = trigrams;
-      filter.narrowFirst = SMALL_MATCH;
+      filter.narrowFirst = call.limits.firstLookupMatches;
     }
     let outcome = index.candidatePage(filter);
     refreshIndexState(call);
@@ -1268,7 +1353,7 @@ class ScanSource implements Source {
    * One page of candidates (specs/search-tool.md#abort and specs/search-tool.md#evaluation). With narrowing, the first page
    * probes the trigram matches once and selects its rows by them; on overflow the
    * pages narrow by their own rows. Without narrowing, the page is bounded by a
-   * time window of `WINDOW_ROWS` items, computed by one indexed statement, so a
+   * time window of `windowRows` items, computed by one indexed statement, so a
    * page with no matches cannot walk to the end of the index.
    */
   private async fetchPage(): Promise<void> {
@@ -1288,8 +1373,8 @@ class ScanSource implements Source {
         return;
       }
       filter.trigrams = call.query?.trigrams ?? [];
-      filter.narrowFirst = SMALL_MATCH;
-      filter.limit = SMALL_MATCH;
+      filter.narrowFirst = call.limits.firstLookupMatches;
+      filter.limit = call.limits.firstLookupMatches;
       await call.pace();
       const outcome = index.candidatePage(filter);
       refreshIndexState(call);
@@ -1318,7 +1403,7 @@ class ScanSource implements Source {
       }
       if (this.windowLow === undefined && !this.lastWindow) {
         // The far end of the next window: the time of its last item in the call's order.
-        const boundary = index.windowBoundary(this.newest, this.bound, WINDOW_ROWS);
+        const boundary = index.windowBoundary(this.newest, this.bound, call.limits.windowRows);
         refreshIndexState(call);
         if (!boundary.ok) {
           this.done = true;
@@ -1393,7 +1478,7 @@ class ScanSource implements Source {
    * The collection of a call with a filter SQL can apply and that may be sparse
    * (`kinds`, `tool`, `isError`): the IDs of the rows that pass, read in chunks in
    * `item_id` order, which costs the same whatever the rows' times. When at most
-   * `COLLECT_CAP` rows pass, they are every candidate of the call: they are
+   * `collectionRows` rows pass, they are every candidate of the call: they are
    * ordered and the source is done, every other item decided by the filters
    * (specs/search-tool.md#evaluation). More, and the filter is dense: the windowed pages take over,
    * and find their rows at once.
@@ -1402,7 +1487,8 @@ class ScanSource implements Source {
     const call = this.call;
     const index = call.index;
     if (index === undefined) return;
-    const base = this.filter(COLLECT_CAP + 1);
+    const { collectionRows, collectionChunkItems } = call.limits;
+    const base = this.filter(collectionRows + 1);
     base.withinTime = undefined;
     const ids: number[] = [];
     const chunks: Array<{ after: number; upTo: number }> = [];
@@ -1414,8 +1500,8 @@ class ScanSource implements Source {
         this.collection = "dense";
         return;
       }
-      for (let after = 0; after < top.value; after += COLLECT_CHUNK_IDS) {
-        chunks.push({ after, upTo: Math.min(top.value, after + COLLECT_CHUNK_IDS) });
+      for (let after = 0; after < top.value; after += collectionChunkItems) {
+        chunks.push({ after, upTo: Math.min(top.value, after + collectionChunkItems) });
       }
     }
     const fileChunks: number[][] = [];
@@ -1431,7 +1517,7 @@ class ScanSource implements Source {
         this.stopFlag = true;
         return;
       }
-      const filter: CandidateFilter = { ...base, limit: COLLECT_CAP + 1 - ids.length };
+      const filter: CandidateFilter = { ...base, limit: collectionRows + 1 - ids.length };
       const chunk = chunks[step];
       const files = fileChunks[step];
       if (files !== undefined) filter.fileIds = files;
@@ -1442,7 +1528,7 @@ class ScanSource implements Source {
         return;
       }
       for (const id of outcome.value) ids.push(id);
-      if (ids.length > COLLECT_CAP) {
+      if (ids.length > collectionRows) {
         this.collection = "dense";
         return;
       }
@@ -1493,7 +1579,7 @@ class ScanSource implements Source {
       newest: this.newest,
       bound: time,
       exactBound: true,
-      limit: GROUP_CAP,
+      limit: call.limits.groupRows,
       ...sqlFiltersOf(call),
     };
     const files = this.filter(1);
@@ -1505,7 +1591,7 @@ class ScanSource implements Source {
     refreshIndexState(call);
     if (!outcome.ok) return { rows: [...rows], matched, groupWalk: false };
     const page = outcome.value;
-    if (page.rows.length >= GROUP_CAP) {
+    if (page.rows.length >= call.limits.groupRows) {
       // A very large group: walk it file by file in the call's order, one bounded
       // chunk at a time, without the page's own rows at this time (specs/search-tool.md#evaluation).
       this.groupTime = time;
@@ -1553,7 +1639,7 @@ class ScanSource implements Source {
 
   /**
    * One chunk of one session's part of a very large time group, in the call's
-   * order (specs/search-tool.md#evaluation): rows of at most `GROUP_CHUNK_ROWS` lines, never splitting
+   * order (specs/search-tool.md#evaluation): rows of at most `groupChunkRows` lines, never splitting
    * a line, so a session of any size is paged through without a long statement.
    */
   private async fetchGroupChunk(): Promise<void> {
@@ -1583,7 +1669,7 @@ class ScanSource implements Source {
       newest: this.newest,
       bound: time,
       exactBound: true,
-      limit: GROUP_CHUNK_ROWS,
+      limit: call.limits.groupChunkRows,
       fileIds: [entry.fileId],
       lineOrder: this.newest ? "desc" : "asc",
       ...sqlFiltersOf(call),
@@ -1605,7 +1691,7 @@ class ScanSource implements Source {
       return;
     }
     let rows = fetched;
-    if (fetched.length >= GROUP_CHUNK_ROWS) {
+    if (fetched.length >= call.limits.groupChunkRows) {
       // Keep the chunk on whole lines only; the rest of the file continues from
       // the boundary line in the next chunk, and a line too big for one chunk is
       // split rather than walked forever.
@@ -1674,23 +1760,6 @@ class ScanSource implements Source {
   }
 }
 
-/**
- * The most lines a call loads session by session instead of scanning the time
- * order: the sessions it names are loaded whole, however many items they hold, so
- * the bound keeps a call from loading thousands of sessions, never a session's
- * own rows (specs/search-tool.md#evaluation).
- */
-const FILE_MODE_ROWS = 200000;
-
-/** The rows one window of a trigramless scan spans, so that no statement runs long (specs/search-tool.md#abort). */
-const WINDOW_ROWS = 100000;
-
-/** The most rows a collection keeps; past it, a filter is dense and the windowed pages serve it (specs/search-tool.md#evaluation). */
-const COLLECT_CAP = 20000;
-
-/** The `item_id`s one collection statement spans, so that no statement runs long (specs/search-tool.md#abort). */
-const COLLECT_CHUNK_IDS = 200000;
-
 /** The files one collection statement reads when the call names its files (specs/search-tool.md#abort). */
 const COLLECT_CHUNK_FILES = 500;
 
@@ -1701,9 +1770,6 @@ function hasSparseFilter(call: Call): boolean {
     settings.kinds !== undefined || settings.tool !== undefined || settings.isError !== undefined
   );
 }
-
-/** The rows one chunk of a very large time group holds, on whole lines (specs/search-tool.md#abort). */
-const GROUP_CHUNK_ROWS = 20000;
 
 /**
  * The filters of specs/search-tool.md#candidates that SQL can express exactly — `kinds`, `tool`,
@@ -1806,7 +1872,9 @@ export async function sourcesOf(call: Call): Promise<Source[]> {
   );
   let lines = 0;
   for (const cover of catchUp) lines += cover.lines ?? 0;
-  if (catchUp.length > 0 && lines <= FILE_MODE_ROWS) {
+  // The sessions are loaded whole, however many items they hold: `fileModeLines`
+  // keeps a call from loading thousands of sessions, never a session's own rows.
+  if (catchUp.length > 0 && lines <= call.limits.fileModeLines) {
     // A call with few sessions loads them whole, row by row through the
     // (file_id, line, part) index, so its cost does not depend on the sessions it
     // does not search and no row of them is cut off (specs/search-tool.md#evaluation).

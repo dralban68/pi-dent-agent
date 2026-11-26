@@ -65,6 +65,7 @@ import {
   snippetOf,
   stampOf,
   startContinuation,
+  stepLimitsOf,
   textError,
   uncoveredCount,
   type Call,
@@ -73,6 +74,7 @@ import {
   type PatternEvaluator,
   type Forest,
   type HitLineParts,
+  type LoweredStepLimits,
   type Reached,
   type SearchAction,
   type SearchHost,
@@ -83,7 +85,8 @@ import {
 } from "./search-eval.ts";
 
 /** The invoking session as the host sees it (specs/search-tool.md#reach), re-exported for callers. */
-export type { SearchHost, SearchProgress } from "./search-eval.ts";
+export type { SearchHost, SearchProgress, StepLimits, LoweredStepLimits } from "./search-eval.ts";
+export { STEP_LIMITS } from "./search-eval.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -276,6 +279,8 @@ export interface SearchRuntimeOptions {
   makeEvaluator?: ((pattern: string, flags: string) => PatternEvaluator) | undefined;
   /** A test seam: called for each item read back from a session file (specs/search-tool.md#evaluation). */
   onItemRead?: (() => void) | undefined;
+  /** The test seam of specs/search-tool.md#test-seam: lowered step limits. The extension never sets it. */
+  limits?: LoweredStepLimits | undefined;
 }
 
 /** The tool of one extension instance. */
@@ -1713,6 +1718,8 @@ async function sessionsAction(call: Call, settings: Settings): Promise<ToolResul
 /** The `Search` tool of one extension instance. */
 export function searchRuntime(options: SearchRuntimeOptions): SearchRuntime {
   const now = options.now ?? (() => Date.now());
+  // specs/search-tool.md#test-seam: a lowered value that breaks a rule throws here.
+  const limits = stepLimitsOf(options.limits);
   const running = new Set<Promise<unknown>>();
 
   async function execute(invocation: SearchInvocation): Promise<ToolResult> {
@@ -1759,10 +1766,15 @@ export function searchRuntime(options: SearchRuntimeOptions): SearchRuntime {
       knownVersion: undefined,
       makeEvaluator: options.makeEvaluator,
       continuation: undefined,
+      limits,
     };
     note(call, { phase: "start" });
     if (action !== "sessions") {
-      const opened = openSessionIndex({ path: call.indexPath, busyTimeoutMs: call.busyTimeoutMs });
+      const opened = openSessionIndex({
+        path: call.indexPath,
+        busyTimeoutMs: call.busyTimeoutMs,
+        probeByIdRows: limits.probeByIdRows,
+      });
       if (opened.ok) call.index = opened.index;
       else call.indexUnusable = opened.reason;
     }

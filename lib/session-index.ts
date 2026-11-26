@@ -90,8 +90,8 @@ const TRIGRAM_PROBE_LIMIT = 2000;
 /** The item IDs one trigram probe statement checks (specs/search-tool.md#evaluation). */
 const PROBE_CHUNK = 20000;
 
-/** The most item IDs a probe looks up one by one; more are matched by one streamed range (specs/session-index.md#schema). */
-const PROBE_BY_ID_MAX = 1000;
+/** The step limit `probeByIdRows`: the most item IDs a probe looks up one by one; more are matched by one streamed range (specs/search-tool.md#step-limits). */
+export const PROBE_BY_ID_ROWS = 1000;
 
 /** The SQLite error codes of specs/session-index.md#failures, as their base values. */
 const SQLITE_BUSY = 5;
@@ -186,6 +186,8 @@ export interface SessionIndexOptions {
   mode?: OpenMode | undefined;
   /** The session store's path, which the index must not share. Default `sessionStorePath()` (specs/session-index.md#location). */
   storePath?: string | undefined;
+  /** The step limit `probeByIdRows`. Default `PROBE_BY_ID_ROWS`; only the test seam lowers it (specs/search-tool.md#test-seam). */
+  probeByIdRows?: number | undefined;
 }
 
 /** The outcome of opening an index: usable, or unusable with the reason of specs/session-index.md#failures. */
@@ -526,6 +528,7 @@ export class SessionIndex implements IndexView {
   readonly busyTimeoutMs: number;
   private readonly mode: OpenMode;
   private readonly storePath: string;
+  private readonly probeByIdRows: number;
   private db: DatabaseSync | undefined;
   private device = -1;
   private inode = -1;
@@ -540,6 +543,7 @@ export class SessionIndex implements IndexView {
     this.busyTimeoutMs = options.busyTimeoutMs ?? BUSY_TIMEOUT_MS;
     this.mode = options.mode ?? "index";
     this.storePath = options.storePath ?? sessionStorePath();
+    this.probeByIdRows = options.probeByIdRows ?? PROBE_BY_ID_ROWS;
   }
 
   /**
@@ -1362,7 +1366,10 @@ export class SessionIndex implements IndexView {
       const intact = rows.every(
         (row) => identity.get(row.itemId) === `${row.fileId}:${row.line}:${row.part}`,
       );
-      const matched = query === undefined ? new Set<number>(ids) : selectMatchedIds(db, query, ids);
+      const matched =
+        query === undefined
+          ? new Set<number>(ids)
+          : selectMatchedIds(db, query, ids, this.probeByIdRows);
       return { matched, intact, files: selectFilesByIds(db, [fileId]) };
     });
   }
@@ -1412,7 +1419,8 @@ export class SessionIndex implements IndexView {
       if (query !== undefined) {
         matched = new Set<number>();
         for (let start = 0; start < itemIds.length; start += PROBE_CHUNK) {
-          for (const id of selectMatchedIds(db, query, itemIds.slice(start, start + PROBE_CHUNK))) {
+          const chunk = itemIds.slice(start, start + PROBE_CHUNK);
+          for (const id of selectMatchedIds(db, query, chunk, this.probeByIdRows)) {
             matched.add(id);
           }
         }
@@ -1525,6 +1533,7 @@ export class SessionIndex implements IndexView {
                 db,
                 query,
                 rows.map((row) => row.itemId),
+                this.probeByIdRows,
               ),
         overflow: false,
       };
@@ -2262,10 +2271,11 @@ function selectMatchedIds(
   db: DatabaseSync,
   query: string,
   itemIds: readonly number[],
+  probeByIdRows: number,
 ): Set<number> {
   const matched = new Set<number>();
   if (itemIds.length === 0) return matched;
-  if (itemIds.length <= PROBE_BY_ID_MAX) {
+  if (itemIds.length <= probeByIdRows) {
     // Up to a page of IDs: each is looked up in the trigram lists, at a cost per ID
     // that does not depend on how many items the index holds.
     const statement = db.prepare(
