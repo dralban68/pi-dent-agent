@@ -99,7 +99,7 @@ test("rebuilt taskIds are reserved, so a fresh register never reissues one (Sect
   const dir = tempDir();
   writeRunningRecord(dir, runningFields("01234567"));
   // A fake taskId source that offers a rebuilt row's id twice before a free one
-  // (dx:testing: randomness is replaced by a fake).
+  // (dev:testing: randomness is replaced by a fake).
   const candidates = ["01234567", "01234567"];
   let spare = 0;
   const nextTaskId = (): string => {

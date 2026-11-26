@@ -2,7 +2,7 @@
 
 A generic coding agent, built as a pi extension. Its consumer is the pi host, which loads `index.ts`.
 
-This repository follows the dx repo standard.
+This repository follows the dev repo standard.
 
 ## Read first
 

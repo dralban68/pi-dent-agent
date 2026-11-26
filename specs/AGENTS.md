@@ -1,6 +1,6 @@
 # pi-dent specifications
 
-Write and review specs per the `dx:writing-specs` skill. An implementation conforms when it
+Write and review specs per the `dev:writing-specs` skill. An implementation conforms when it
 satisfies every MUST and MUST NOT. This file holds pi-dent's spec list and differences.
 
 ## Specs
