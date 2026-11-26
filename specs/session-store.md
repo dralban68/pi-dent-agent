@@ -127,6 +127,10 @@ owner process is gone, with the boot locks (below) checked after that session st
   thread's locks when the thread ends, by termination or a crash included. From before it writes
   any record until it closes, a boot window MUST hold its boot lock in mode `shared`. A boot lock
   is free when an `exclusive` request for it that does not wait (`ifAvailable`) is granted.
+  A boot window whose request for its boot lock fails MUST show each session it has registered
+  or later registers the `warning` notification
+  `pi-dent: Fleet boot lock <name> could not be held: <message>; this session may vanish from the fleet`,
+  `<name>` the lock's name and `<message>` the failure's message.
 
   > Note (non-normative): every thread has its own module instances and its own copy of
   > `process.env`, so only a process-wide lock manager tells one thread that another's boot window
@@ -142,7 +146,11 @@ owner process is gone, with the boot locks (below) checked after that session st
   read the record finds the lock free; until such a check it is not gone.
   - The deletion before a main session registers and the periodic deletion below MUST check the
     boot lock of each record they read whose boot window is of another thread of the process. The
-    deletion when a boot window opens the store and target resolution check no boot lock.
+    deletion when a boot window opens the store and target resolution check no boot lock. A
+    check that fails finds the lock not free; at its first failed check a boot window MUST show
+    the `warning` notification
+    `pi-dent: Fleet boot lock <name> could not be checked: <message>; records of other threads' boot windows are kept until a check succeeds`
+    once, to each session it has registered, or, with none, to the next session it registers.
 - The local session store MUST hold a session's record only while the session is in the fleet,
   or while the dispatch that runs it does:
   - A session that ends MUST have its record deleted at once, by the boot window that owns it; a
