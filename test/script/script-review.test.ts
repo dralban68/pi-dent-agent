@@ -224,12 +224,12 @@ test("output: nothing arriving after settlement lands after the exit block", asy
   const f = makeFixture();
   try {
     // Output (under the 1 MiB cap in total) floods the port in bursts for 4 s
-    // while the 2000 ms timeout settles the run; chunks delivered after the
+    // while the 500 ms timeout settles the run; chunks delivered after the
     // suffix was appended used to land after `--- exited ...` in the output
     // file. The bursts span the timeout however late the worker starts.
     const r = await call(f, {
       background: true,
-      timeout: 2000,
+      timeout: 500,
       code: `for (let n = 0; n < 40; n++) { for (let i = 0; i < 10000; i++) console.log("t"); await new Promise((r) => setTimeout(r, 100)); } await new Promise(() => {});`,
     });
     const details = r.details as Record<string, unknown>;
