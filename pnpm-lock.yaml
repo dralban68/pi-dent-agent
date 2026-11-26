@@ -206,20 +206,20 @@ importers:
         specifier: 0.3.9
         version: 0.3.9(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(zod@4.6.7)
       pi-dent-markdown:
-        specifier: 0.2.1
-        version: 0.2.1(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
+        specifier: 0.2.2
+        version: 0.2.2(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
       pi-dent-purse:
         specifier: 0.2.1
         version: 0.2.1(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
       pi-dent-terms:
-        specifier: 0.1.1
-        version: 0.1.1(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
+        specifier: 0.1.2
+        version: 0.1.2(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
       pi-dent-web-fetch:
-        specifier: 0.3.3
-        version: 0.3.3(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
+        specifier: 0.3.4
+        version: 0.3.4(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
       pi-dent-web-search:
-        specifier: 0.1.1
-        version: 0.1.1(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
+        specifier: 0.1.2
+        version: 0.1.2(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
       pi-mcp-adapter:
         specifier: 7.0.1
         version: 7.0.1(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)(zod@4.6.7)
@@ -1850,8 +1850,8 @@ packages:
       '@earendil-works/pi-coding-agent': '>=0.86.0'
       '@earendil-works/pi-tui': '>=0.86.0'
 
-  pi-dent-markdown@0.2.1:
-    resolution: {integrity: sha512-ZJFlSWoXZKSOBZbvYB0cTagmA18os9bdWAGHejXmWmmWtXt+zQJlFjk7tAhUyYetwZdqHp2ZboVeWG3qzdruVA==}
+  pi-dent-markdown@0.2.2:
+    resolution: {integrity: sha512-N6y7nv1B8Sz6cCC2PVKVp4KIpDszA97ADtTqtLfOTUCxdGDjnz87Zu4m3LKMU4iocPAQU3+7MJBz/auurFa4mQ==}
     engines: {node: '>=26'}
     peerDependencies:
       '@earendil-works/pi-agent-core': '*'
@@ -1870,8 +1870,8 @@ packages:
       '@earendil-works/pi-tui': '*'
       typebox: '*'
 
-  pi-dent-terms@0.1.1:
-    resolution: {integrity: sha512-kWIDui/v85kJB/yWA37a1JkNcLrwSODbqAgH+FoW6Cpn0ciLv6YKUw0p6dX/u31ySDaVr9Rp58C68reQU0YPLA==}
+  pi-dent-terms@0.1.2:
+    resolution: {integrity: sha512-EaYTiLQAexiEFWaxo8SKOV3WpOzQl1th9P44W+r8ogNvoodn/iaFDLmzYIujP27Lifmx2KCJPb4nhH3RVQmX5Q==}
     engines: {node: '>=26'}
     peerDependencies:
       '@earendil-works/pi-agent-core': '*'
@@ -1880,8 +1880,8 @@ packages:
       '@earendil-works/pi-tui': '*'
       typebox: '*'
 
-  pi-dent-web-fetch@0.3.3:
-    resolution: {integrity: sha512-onNNvDX2BeKf02P6k1SM8ub0w40rbdvg8keYO/uXhHBVnVDVBlpJ5n6+mVF/RQIdx6mlikYAwROhE1v50HJGQg==}
+  pi-dent-web-fetch@0.3.4:
+    resolution: {integrity: sha512-bGV18knQ6xz6DW+nNnteY/mTmf3DRxnlw9uie1X7s6rNijYwKyCcyTPNIcTOGXmAcu/jJZBdF82RKr0CTHyy4w==}
     engines: {node: '>=26'}
     peerDependencies:
       '@earendil-works/pi-agent-core': '*'
@@ -1890,8 +1890,8 @@ packages:
       '@earendil-works/pi-tui': '*'
       typebox: '*'
 
-  pi-dent-web-search@0.1.1:
-    resolution: {integrity: sha512-JlVJBVZaTegQ8qgr5xyZ3/xBXHL19gvpIz8o15HJeUhybcQGN4NLBlRFd5PIMtXo49BVmOlfJhbTfvgjZGv0tQ==}
+  pi-dent-web-search@0.1.2:
+    resolution: {integrity: sha512-OuNbrRsTDnG2HRMEpxawMu7tQJBmpa49pB5iWFdUjsVXNfJoQsakGPB9IkNlI08bZFDoMIS+/59rqB+9tfZ6Uw==}
     engines: {node: '>=26'}
     peerDependencies:
       '@earendil-works/pi-agent-core': '*'
@@ -3995,7 +3995,7 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  pi-dent-markdown@0.2.1(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27):
+  pi-dent-markdown@0.2.2(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27):
     dependencies:
       '@earendil-works/pi-agent-core': 1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7)
       '@earendil-works/pi-ai': 1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7)
@@ -4019,7 +4019,7 @@ snapshots:
       '@earendil-works/pi-tui': 1.5.2
       typebox: 1.3.27
 
-  pi-dent-terms@0.1.1(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27):
+  pi-dent-terms@0.1.2(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27):
     dependencies:
       '@earendil-works/pi-agent-core': 1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7)
       '@earendil-works/pi-ai': 1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7)
@@ -4035,7 +4035,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  pi-dent-web-fetch@0.3.3(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27):
+  pi-dent-web-fetch@0.3.4(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27):
     dependencies:
       '@earendil-works/pi-agent-core': 1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7)
       '@earendil-works/pi-ai': 1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7)
@@ -4053,7 +4053,7 @@ snapshots:
       - canvas
       - pdfjs-dist
 
-  pi-dent-web-search@0.1.1(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27):
+  pi-dent-web-search@0.1.2(@earendil-works/pi-agent-core@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(ws@8.22.2)(zod@4.6.7))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27):
     dependencies:
       '@earendil-works/pi-agent-core': 1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7)
       '@earendil-works/pi-ai': 1.5.2(@aws-sdk/credential-provider-node@3.972.94)(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.2)(zod@4.6.7)
