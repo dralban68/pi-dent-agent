@@ -283,6 +283,18 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: boot-lock
+    label: boot lock
+    meaning: "The process-wide Web Lock a boot window holds while open, by which other threads of its process tell that its session records are live."
+    owner: specs/session-store.md
+    group: Fleet
+    key: confusable
+    status: active
+    distinguish:
+      - boot-window
+    history:
+      - date: 2026-11-26
+        op: add
   - id: boot-snapshot
     label: boot snapshot
     meaning: "The image of configuration, agent definitions, skills, and plugins that a boot window shares"
