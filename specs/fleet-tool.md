@@ -261,12 +261,12 @@ attempt delivers.
 
 A `query` whose invoking session is a child session is a waited query. It differs from [action `query`](#query) only as follows:
 
-- The calling boot window MUST hold an address for the invoking session
+- The invoking session's boot window MUST hold an address for the invoking session
   ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)) from before the query is enqueued until the
   session's last waited query ends: the child session record of a invoking session that has one,
   else a hidden record.
-- The call MUST NOT return until the query ends. The reply is not delivered as a turn: the calling
-  boot window consumes it, marking it `delivered`, and the call returns the text
+- The call MUST NOT return until the query ends. The reply is not delivered as a turn: the invoking
+  session's boot window consumes it, marking it `delivered`, and the call returns the text
   `Fleet query <messageId> to <target> answered (correlationId: <correlationId>).`, a line break,
   and the reply text, with `details`
   `{ action: "query", messageId, correlationId, target, state, reply }`.
@@ -274,7 +274,7 @@ A `query` whose invoking session is a child session is a waited query. It differ
   `Fleet query <messageId> to <target> failed: <reason>` when no reply can arrive. `<reason>` is
   the query's rejection reason when it becomes `rejected`; `target session ended before replying`
   when the target's record is deleted first; `cancelled` when the tool call is aborted, the
-  calling boot window closes, or the dispatch that runs the invoking session settles. A query that
+  invoking session's boot window closes, or the dispatch that runs the invoking session settles. A query that
   ends `cancelled` while still `pending` MUST be rejected with the reason `cancelled`, so the
   target never runs it. A reply the local session store already holds for the query settles the
   call, even when the target's record is deleted in the same pass.
