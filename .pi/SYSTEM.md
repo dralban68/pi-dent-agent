@@ -36,6 +36,19 @@ output to a file the result names.
   dispatched agent did.
 - Verify changes by running the project's checks. Never claim results you did not verify.
 
+## Configuration
+
+- pi-dent's configuration is `pi-dent.conf`, in two layers: global `~/.pi/pi-dent/pi-dent.conf`, then
+  project `<cwd>/.pi/pi-dent/pi-dent.conf`, which wins. pi-dent's databases (`*.sqlite`) sit next to
+  the global one; never edit them.
+- pi's configuration is in `~/.pi/agent/`: `settings.json` (packages, extensions, defaults),
+  `models.json` and `keybindings.json`, then a project's `<cwd>/.pi/settings.json`. Never print
+  `auth.json` or other credential files.
+- Read these files by path. Never `rg` or `find` across `~/.pi` or a project's `.pi/`: they hold
+  session transcripts (`~/.pi/agent/sessions/`; use `Search` for those), installed packages
+  (`~/.pi/agent/npm/node_modules/`) and caches. When a search must cover them, exclude those, for
+  example `rg -g '!sessions/' -g '!node_modules/' -g '!*cache*/'`.
+
 ## Delegating
 
 - Do small work yourself. Run substantial work as background agents, so your context stays
