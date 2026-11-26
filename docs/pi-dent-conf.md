@@ -86,9 +86,9 @@ changes take effect at the next boot or `/reload`, never mid-window
 ## The configuration pi-dent is developed with
 
 The real files this repository is developed with, as of this writing. The global layer carries
-what every project on the machine shares; the project layer overrides the `dx` plugin's path
-with one relative to its own layer directory, because the layers merge deeply and the project
-layer wins every conflict.
+what every project on the machine shares, the `dev` plugin included; this repository has no
+project layer. The plugin is loaded only here, never also as a pi package in pi's `packages`:
+its skills would then be listed twice, once without the `dev:` namespace.
 
 `~/.pi/pi-dent/pi-dent.conf`:
 
@@ -96,7 +96,8 @@ layer wins every conflict.
 {
   // Plugins: shared skills, commands, scripts (plugin.md Section 4).
   "plugins": {
-    "dx": { "path": "~/.pi/agent/npm/node_modules/pi-dent-skills" },
+    // An absolute path: plugin paths do not expand `~` (plugin.md Section 4).
+    "dev": { "path": "<absolute path of the dev plugin checkout>" },
   },
   // Model guidance: which models an Agent call may name, and when to pick each.
   // The dispatcher sees these sorted by model id, so each `when` must stand alone.
@@ -142,19 +143,6 @@ layer wins every conflict.
         "rule": "You are billed per token from a small fixed budget.",
       },
     ],
-  },
-}
-```
-
-`<repo>/.pi/pi-dent/pi-dent.conf`:
-
-```jsonc
-{
-  "plugins": {
-    "dx": {
-      // relative to this layer directory (.pi/pi-dent/): the repository's devDependency pi-dent-skills
-      "path": "../../node_modules/pi-dent-skills",
-    },
   },
 }
 ```

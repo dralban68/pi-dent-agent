@@ -12,7 +12,6 @@ minimumReleaseAgeExclude:
   - pi-anthropic-oauth@0.3.9
   - pi-dent-markdown
   - pi-dent-purse
-  - pi-dent-skills
   - pi-dent-terms
   - pi-dent-web-fetch
   - pi-dent-web-search
