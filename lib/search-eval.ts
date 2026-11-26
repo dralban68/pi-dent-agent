@@ -2278,10 +2278,15 @@ class Merger {
   /** The sources not loaded yet, with the time each can reach, in call order. */
   private readonly pending: { source: Source; reach: number }[];
   private readonly loaded: Source[] = [];
+  /** True when the abort or the time budget ended the merge before it loaded every source it needed. */
+  private halted = false;
+  /** True when the call is aborted or its time budget has expired (specs/search-tool.md#abort, specs/search-tool.md#evaluation). */
+  private readonly halt: () => boolean;
 
-  constructor(sources: readonly Source[], newest: boolean) {
+  constructor(sources: readonly Source[], newest: boolean, halt: () => boolean) {
     this.sources = sources;
     this.newest = newest;
+    this.halt = halt;
     this.pending = sources
       .map((source) => ({ source, reach: source.reach() }))
       .toSorted((one, other) => (newest ? other.reach - one.reach : one.reach - other.reach));
@@ -2313,6 +2318,12 @@ class Merger {
       const head = bestSlot === undefined ? undefined : bestSlot.time;
       const matters = head === undefined || (this.newest ? reach >= head : reach <= head);
       if (matters) {
+        // Loading the sources one by one can take seconds over thousands of
+        // sessions: each load first sees the abort and the budget (specs/search-tool.md#abort).
+        if (this.halt()) {
+          this.halted = true;
+          return;
+        }
         this.pending.shift();
         if (next.source.dropped || next.source.stopped) continue;
         this.loaded.push(next.source);
@@ -2325,6 +2336,7 @@ class Merger {
 
   /** True when any source stopped for the budget or the abort (specs/search-tool.md#evaluation). */
   get stopped(): boolean {
+    if (this.halted) return true;
     for (const source of this.loaded) if (source.stopped) return true;
     return false;
   }
@@ -2339,7 +2351,11 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
     query === undefined || query.regex ? undefined : new RegExp(query.pattern, query.flags);
   const sources = await sourcesOf(call);
   call.sources = sources;
-  const merger = new Merger(sources, newest);
+  const merger = new Merger(
+    sources,
+    newest,
+    () => isAborted(call) || call.now() >= call.budgetDeadline,
+  );
   const hits: ShownHit[] = [];
   /** The last decided slot of each session, for the stop item (specs/search-tool.md#evaluation). */
   const lastDecided = new Map<string, Slot>();
