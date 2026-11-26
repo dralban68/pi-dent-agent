@@ -224,7 +224,7 @@ test("get answers the same from the index and from a direct read", async () => {
     offset: 2,
     limit: 5,
   });
-  const unusableDb = made.db.replace("search-v2.sqlite", "unusable.sqlite");
+  const unusableDb = made.db.replace("search-v3.sqlite", "unusable.sqlite");
   const handle = new DatabaseSync(unusableDb);
   handle.exec("PRAGMA user_version = 9;");
   handle.close();
@@ -293,7 +293,7 @@ async function directRead(
   made: Addressed,
   params: Record<string, unknown>,
 ): Promise<{ lines: string[]; details: Record<string, unknown>; text: string }> {
-  const unavailable = made.db.replace("search-v2.sqlite", "unavailable.sqlite");
+  const unavailable = made.db.replace("search-v3.sqlite", "unavailable.sqlite");
   const handle = new DatabaseSync(unavailable);
   handle.exec("PRAGMA user_version = 9;");
   handle.close();

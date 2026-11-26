@@ -20,6 +20,7 @@ import {
   mkdirSync,
   openSync,
   readSync,
+  realpathSync,
   statSync,
   unlinkSync,
   type Stats,
@@ -52,13 +53,13 @@ export const SEARCH_DB_ENV = "PI_DENT_SEARCH_DB";
 export const STORE_DB_ENV = "PI_DENT_FLEET_DB";
 
 /** The index file's name under `~/.pi/pi-dent/` (Section 1). */
-export const INDEX_FILE_NAME = "search-v2.sqlite";
+export const INDEX_FILE_NAME = "search-v3.sqlite";
 
 /** The session store's file name under `~/.pi/pi-dent/` (session-store.md, Section 1). */
 const STORE_FILE_NAME = "fleet-v2.sqlite";
 
 /** The format version recorded in `user_version` (Section 1). */
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
 /** The busy timeout in milliseconds (Section 1). */
 const BUSY_TIMEOUT_MS = 1000;
@@ -100,16 +101,18 @@ const SQLITE_NOTADB = 26;
 /** The schema of Section 2, verbatim. */
 const SCHEMA = `
 CREATE TABLE files (
-  file_id     INTEGER PRIMARY KEY,
-  path        TEXT    NOT NULL UNIQUE,
-  session_id  TEXT    NOT NULL,
-  started     INTEGER NOT NULL,
-  consumed    INTEGER NOT NULL,
-  lines       INTEGER NOT NULL,
-  last_time   INTEGER NOT NULL,
-  mtime       INTEGER NOT NULL,
-  tail_offset INTEGER NOT NULL,
-  tail_hash   TEXT    NOT NULL
+  file_id            INTEGER PRIMARY KEY,
+  path               TEXT    NOT NULL UNIQUE,
+  session_id         TEXT    NOT NULL,
+  started            INTEGER NOT NULL,
+  consumed           INTEGER NOT NULL,
+  lines              INTEGER NOT NULL,
+  last_time          INTEGER NOT NULL,
+  mtime              INTEGER NOT NULL,
+  tail_offset        INTEGER NOT NULL,
+  tail_hash          TEXT    NOT NULL,
+  session_name       TEXT,
+  first_user_message TEXT
 );
 CREATE TABLE entries (
   file_id   INTEGER NOT NULL,
@@ -142,7 +145,10 @@ CREATE VIRTUAL TABLE item_text USING fts5 (
 );
 `;
 
-/** The index file's path: `PI_DENT_SEARCH_DB` when set and non-empty, else `~/.pi/pi-dent/search-v2.sqlite` (Section 1). */
+/** The most code points of a first user line (Section 2). */
+const USER_LINE_CODE_POINTS = 80;
+
+/** The index file's path: `PI_DENT_SEARCH_DB` when set and non-empty, else `~/.pi/pi-dent/search-v3.sqlite` (Section 1). */
 export function searchIndexPath(
   env: Readonly<Record<string, string | undefined>> = process.env,
   home: string = homedir(),
@@ -207,6 +213,18 @@ export interface IndexFileRow {
   tailOffset: number;
   /** The SHA-256 digest of the tail line, lowercase hexadecimal. */
   tailHash: string;
+  /** `session_name`: the session name of the consumed bytes, else null. */
+  sessionName: string | null;
+  /** `first_user_message`: the first user line of the consumed bytes, else null. */
+  firstUserMessage: string | null;
+}
+
+/** The session title of one session file (Section 7). */
+export interface SessionTitle {
+  sessionName: string | null;
+  firstUserMessage: string | null;
+  /** True when the row's `consumed` and `mtime` equal the file's current size and modification time. */
+  complete: boolean;
 }
 
 /** One `items` row with the `entries` and `files` columns a reader needs (Section 2). */
@@ -901,9 +919,13 @@ export class SessionIndex implements IndexView {
     let lastTime = 0;
     let tailOffset = 0;
     let tailHash = "";
+    let sessionName: string | null = null;
+    let firstUserMessage: string | null = null;
     let reset = false;
     if (row !== undefined) {
       fileId = row.fileId;
+      sessionName = row.sessionName;
+      firstUserMessage = row.firstUserMessage;
       sessionId = row.sessionId;
       consumed = row.consumed;
       lines = row.lines;
@@ -932,6 +954,8 @@ export class SessionIndex implements IndexView {
       previousLeaf = selectLeafId(db, fileId);
       deleteFileRows(db, fileId);
       fileId = undefined;
+      sessionName = null;
+      firstUserMessage = null;
     }
     if (fileId === undefined) {
       const header = readSessionHeaderFile(path);
@@ -981,6 +1005,11 @@ export class SessionIndex implements IndexView {
       line: lines + 1,
       previousTime: lastTime,
       seenIds: [sessionId],
+      // Section 2: the titles come from the added lines and the row's values alone.
+      onEntry: (value) => {
+        if (value.type === "session_info") sessionName = sessionNameOf(value);
+        else if (firstUserMessage === null) firstUserMessage = userLineOf(value) ?? null;
+      },
     });
     const nextConsumed = read.consumed;
     // Section 1: an entry ID that an earlier line carries yields no row; the unique index answers per ID.
@@ -1007,6 +1036,7 @@ export class SessionIndex implements IndexView {
       nextTailOffset,
       nextTailHash,
     );
+    updateTitles(db, fileId, sessionName, firstUserMessage);
     updateLineage(
       db,
       fileId,
@@ -1217,6 +1247,30 @@ export class SessionIndex implements IndexView {
     const query = trigramQuery(trigrams);
     if (query === undefined) return { ok: true, value: undefined };
     return this.query((db) => selectTrigramIds(db, query, fileIds));
+  }
+
+  /** The session titles of session files, keyed by the paths as given (Section 7). */
+  titles(paths: readonly string[]): ReadOutcome<Map<string, SessionTitle>> {
+    const resolved = new Map<string, string>();
+    for (const path of paths) {
+      if (resolved.has(path)) continue;
+      const real = resolvedTitlePath(path);
+      if (real !== undefined) resolved.set(path, real);
+    }
+    const rows = this.query((db) => selectTitleRows(db, [...new Set(resolved.values())]));
+    if (!rows.ok) return rows;
+    const titles = new Map<string, SessionTitle>();
+    for (const [given, real] of resolved) {
+      const row = rows.value.get(real);
+      if (row === undefined) continue;
+      const stamp = stampOf(real);
+      titles.set(given, {
+        sessionName: row.sessionName,
+        firstUserMessage: row.firstUserMessage,
+        complete: stamp !== undefined && stamp.size === row.consumed && stamp.mtime === row.mtime,
+      });
+    }
+    return { ok: true, value: titles };
   }
 
   /**
@@ -1731,6 +1785,8 @@ function fileRowOf(row: unknown): IndexFileRow | undefined {
     mtime,
     tailOffset,
     tailHash,
+    sessionName: stringOf(row.session_name) ?? null,
+    firstUserMessage: stringOf(row.first_user_message) ?? null,
   };
 }
 
@@ -1768,6 +1824,71 @@ function updateProgress(
     db,
     "UPDATE files SET consumed = ?, lines = ?, last_time = ?, mtime = ?, tail_offset = ?, tail_hash = ? WHERE file_id = ?",
   ).run(consumed, lines, lastTime, mtime, tailOffset, tailHash, fileId);
+}
+
+function updateTitles(
+  db: DatabaseSync,
+  fileId: number,
+  sessionName: string | null,
+  firstUserMessage: string | null,
+): void {
+  writable(db, "UPDATE files SET session_name = ?, first_user_message = ? WHERE file_id = ?").run(
+    sessionName,
+    firstUserMessage,
+    fileId,
+  );
+}
+
+/** The session name a `session_info` entry sets: its trimmed `name`, or null (Section 2). */
+function sessionNameOf(value: Record<string, unknown>): string | null {
+  const name = typeof value.name === "string" ? value.name.trim() : "";
+  return name.length > 0 ? name : null;
+}
+
+/** The user line of a `user` message entry, or undefined when it is none or has none (Section 2). */
+function userLineOf(value: Record<string, unknown>): string | undefined {
+  if (value.type !== "message") return;
+  const message = value.message;
+  if (!isPlainObject(message) || message.role !== "user") return;
+  const content = message.content;
+  const parts: string[] = [];
+  if (typeof content === "string") parts.push(content);
+  else if (Array.isArray(content)) {
+    for (const element of content) {
+      if (isPlainObject(element) && element.type === "text" && typeof element.text === "string") {
+        parts.push(element.text);
+      }
+    }
+  }
+  for (const line of parts.join("\n").split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) return Array.from(trimmed).slice(0, USER_LINE_CODE_POINTS).join("");
+  }
+  return;
+}
+
+/** The `files` rows of resolved paths, by path, looked up through the `path` index (Section 7). */
+function selectTitleRows(db: DatabaseSync, paths: readonly string[]): Map<string, IndexFileRow> {
+  const rows = new Map<string, IndexFileRow>();
+  if (paths.length === 0) return rows;
+  const statement = db.prepare(
+    "SELECT * FROM files WHERE path IN (SELECT value FROM json_each(?))",
+  );
+  for (const row of statement.all(JSON.stringify(paths))) {
+    const file = fileRowOf(row);
+    if (file !== undefined) rows.set(file.path, file);
+  }
+  return rows;
+}
+
+/** A path resolved as a `files` row's `path`, or undefined when it cannot be resolved (Section 7). */
+function resolvedTitlePath(path: string): string | undefined {
+  try {
+    return realpathSync(resolve(path));
+  } catch {
+    // Section 7: an unresolvable path has no key in the map, which is how the caller learns of it.
+    return;
+  }
 }
 
 /** Delete a `files` row and every row of its `file_id`, its item text included (Sections 3 and 6). */

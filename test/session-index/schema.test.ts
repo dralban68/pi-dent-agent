@@ -38,16 +38,18 @@ const STATEMENTS: readonly { name: string; sql: string }[] = [
   {
     name: "files",
     sql: `CREATE TABLE files (
-  file_id     INTEGER PRIMARY KEY,
-  path        TEXT    NOT NULL UNIQUE,
-  session_id  TEXT    NOT NULL,
-  started     INTEGER NOT NULL,
-  consumed    INTEGER NOT NULL,
-  lines       INTEGER NOT NULL,
-  last_time   INTEGER NOT NULL,
-  mtime       INTEGER NOT NULL,
-  tail_offset INTEGER NOT NULL,
-  tail_hash   TEXT    NOT NULL
+  file_id            INTEGER PRIMARY KEY,
+  path               TEXT    NOT NULL UNIQUE,
+  session_id         TEXT    NOT NULL,
+  started            INTEGER NOT NULL,
+  consumed           INTEGER NOT NULL,
+  lines              INTEGER NOT NULL,
+  last_time          INTEGER NOT NULL,
+  mtime              INTEGER NOT NULL,
+  tail_offset        INTEGER NOT NULL,
+  tail_hash          TEXT    NOT NULL,
+  session_name       TEXT,
+  first_user_message TEXT
 )`,
   },
   {
@@ -343,14 +345,18 @@ test("the files row keeps the columns Section 2 gives it", async () => {
   assert.deepEqual(Object.keys(file).toSorted(), [
     "consumed",
     "fileId",
+    "firstUserMessage",
     "lastTime",
     "lines",
     "mtime",
     "path",
     "sessionId",
+    "sessionName",
     "started",
     "tailHash",
     "tailOffset",
   ]);
+  assert.equal(file.sessionName, null);
+  assert.equal(file.firstUserMessage, "text");
   index.close();
 });

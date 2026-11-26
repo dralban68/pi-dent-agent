@@ -20,7 +20,7 @@ export function tempDir(prefix = "session-index-"): string {
 export const STAMP = "2026-01-01T00:00:00.000Z";
 
 /** The index file's path inside a test's temporary directory. */
-export function indexPath(dir: string, name = "search-v2.sqlite"): string {
+export function indexPath(dir: string, name = "search-v3.sqlite"): string {
   return join(dir, name);
 }
 

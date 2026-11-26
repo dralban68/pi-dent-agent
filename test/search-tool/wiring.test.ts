@@ -205,7 +205,7 @@ test("a child session binds Search when the tool cap includes it, and carries it
 
 test("the index prune runs after the retention sweep", async () => {
   const sandbox = makeSandbox("pi-dent-search-prune-");
-  const db = join(sandbox.project, "search-v2.sqlite");
+  const db = join(sandbox.project, "search-v3.sqlite");
   const sessionFile = join(sandbox.project, "gone.jsonl");
   try {
     writeFileSync(

@@ -133,7 +133,7 @@ test("a ledger path naming the local session store's file is refused without ope
 
 test("a ledger path that is a hard link to the session index's file is refused", async () => {
   const dir = tempDir();
-  const index = join(dir, "search-v2.sqlite");
+  const index = join(dir, "search-v3.sqlite");
   writeFileSync(index, "index bytes");
   const link = join(dir, "tasks-v1.sqlite");
   linkSync(index, link);

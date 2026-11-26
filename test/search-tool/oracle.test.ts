@@ -323,7 +323,7 @@ function messageToolCall(
 
 /** A database file the index cannot use, so every session is read directly. */
 function unusableDb(db: string): string {
-  const path = db.replace("search-v2.sqlite", "unusable.sqlite");
+  const path = db.replace("search-v3.sqlite", "unusable.sqlite");
   const handle = new DatabaseSync(path);
   handle.exec("PRAGMA user_version = 9;");
   handle.close();

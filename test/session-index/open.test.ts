@@ -46,18 +46,18 @@ function dir(): string {
   return path;
 }
 
-test("the index path is PI_DENT_SEARCH_DB when set and non-empty, else ~/.pi/pi-dent/search-v2.sqlite", () => {
+test("the index path is PI_DENT_SEARCH_DB when set and non-empty, else ~/.pi/pi-dent/search-v3.sqlite", () => {
   assert.equal(SEARCH_DB_ENV, "PI_DENT_SEARCH_DB");
-  assert.equal(INDEX_FILE_NAME, "search-v2.sqlite");
+  assert.equal(INDEX_FILE_NAME, "search-v3.sqlite");
   assert.equal(
     searchIndexPath({ PI_DENT_SEARCH_DB: "/tmp/index.sqlite" }, "/home/user"),
     "/tmp/index.sqlite",
   );
   assert.equal(
     searchIndexPath({ PI_DENT_SEARCH_DB: "" }, "/home/user"),
-    "/home/user/.pi/pi-dent/search-v2.sqlite",
+    "/home/user/.pi/pi-dent/search-v3.sqlite",
   );
-  assert.equal(searchIndexPath({}, "/home/user"), "/home/user/.pi/pi-dent/search-v2.sqlite");
+  assert.equal(searchIndexPath({}, "/home/user"), "/home/user/.pi/pi-dent/search-v3.sqlite");
   assert.equal(searchIndexPath({ PI_DENT_SEARCH_DB: "/a", OTHER: "b" }, "/home/user"), "/a");
 });
 
@@ -108,14 +108,15 @@ test("the index does not open another name of the session store's file on a case
   if (opened.ok) opened.index.close();
 });
 
-test("the first open creates the directory, the file, and the schema of version 1 in WAL mode", () => {
+test("the first open creates the directory, the file, and the schema of version 3 in WAL mode", () => {
   const root = dir();
   const path = indexPath(join(root, "nested", "deeper"));
   const index = openIndex(path);
   assert.equal(index.path, path);
   assert.equal(index.busyTimeoutMs, 1000);
   assert.equal(existsSync(path), true);
-  assert.equal(userVersionOf(path), FORMAT_VERSION);
+  assert.equal(FORMAT_VERSION, 3);
+  assert.equal(userVersionOf(path), 3);
   const db = rawIndex(path);
   try {
     const tables = db
@@ -150,7 +151,31 @@ test("a second opener of the same file uses it and indexes nothing twice", async
   second.close();
 });
 
-test("a user_version other than 0 or 2 leaves the file untouched and reports the index unusable", () => {
+test("an index file of format version 2 is unusable and left untouched, beside a new version-3 index", async () => {
+  const root = dir();
+  const old = indexPath(root, "search-v2.sqlite");
+  const db = rawIndex(old);
+  db.exec(
+    "CREATE TABLE files (file_id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, session_id TEXT NOT NULL, started INTEGER NOT NULL, consumed INTEGER NOT NULL, lines INTEGER NOT NULL, last_time INTEGER NOT NULL, mtime INTEGER NOT NULL, tail_offset INTEGER NOT NULL, tail_hash TEXT NOT NULL); PRAGMA user_version = 2;",
+  );
+  db.close();
+  const before = readFileSync(old);
+  assert.deepEqual(openSessionIndex({ path: old }), {
+    ok: false,
+    reason: "unsupported index version 2",
+  });
+  assert.equal(readFileSync(old).equals(before), true);
+  const fresh = indexPath(root);
+  const session = join(root, "s.jsonl");
+  writeSession(session, headerLine());
+  const index = openIndex(fresh);
+  assert.equal((await index.catchUp(session)).status, "complete");
+  index.close();
+  assert.equal(userVersionOf(fresh), 3);
+  assert.equal(readFileSync(old).equals(before), true);
+});
+
+test("a user_version other than 0 or 3 leaves the file untouched and reports the index unusable", () => {
   const root = dir();
   const path = indexPath(root);
   const db = rawIndex(path);
@@ -274,11 +299,11 @@ test("a failed creation is rolled back whole and the index is unusable", () => {
   }
 });
 
-test("a valid database of another application with user_version 2 is used as an index until a statement fails", () => {
+test("a valid database of another application with user_version 3 is used as an index until a statement fails", () => {
   const root = dir();
   const path = indexPath(root);
   const db = rawIndex(path);
-  db.exec("CREATE TABLE other (a INTEGER); PRAGMA user_version = 2;");
+  db.exec("CREATE TABLE other (a INTEGER); PRAGMA user_version = 3;");
   db.close();
   const opened = openSessionIndex({ path });
   assert.equal(opened.ok, true);

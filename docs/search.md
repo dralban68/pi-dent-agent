@@ -9,7 +9,7 @@ Non-normative. How `Search` is built, why, and what it costs. The specs decide:
 | File                        | Owns                                                                                                     |
 | --------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `lib/session-transcript.ts` | Parsing session files: entries, items, lineage, session trees, project members, addresses, order.        |
-| `lib/session-index.ts`      | The SQLite index `~/.pi/pi-dent/search-v2.sqlite` (`PI_DENT_SEARCH_DB`): schema, catch-up, reads, prune. |
+| `lib/session-index.ts`      | The SQLite index `~/.pi/pi-dent/search-v3.sqlite` (`PI_DENT_SEARCH_DB`): schema, catch-up, reads, prune. |
 | `lib/search-tool.ts`        | Tool schema, validation, scope and session resolution, discovery and its cache, `get`, `sessions`.       |
 | `lib/search-eval.ts`        | `find`: covering, candidate sources, filters, matching, merge, stop item, hit lines.                     |
 | `lib/search-worker.ts`      | Worker thread for `regex: true`, so a catastrophic pattern is terminated instead of blocking the loop.   |

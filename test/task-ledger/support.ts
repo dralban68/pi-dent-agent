@@ -39,7 +39,7 @@ export function openLedger(options: Partial<TaskLedgerOptions> = {}): Opened {
   const path = options.path ?? join(dir, "tasks-v1.sqlite");
   const ledger = openTaskLedger({
     storePath: join(dir, "fleet.sqlite"),
-    indexPath: join(dir, "search-v2.sqlite"),
+    indexPath: join(dir, "search-v3.sqlite"),
     ...options,
     path,
     notify: (message, level) => notices.push({ message, level }),

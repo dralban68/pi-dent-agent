@@ -186,7 +186,7 @@ test("a direct read applies every filter of Section 3.1", async () => {
     agentDirectory: made.agentDir,
     main: true,
   };
-  const unusable = made.db.replace("search-v2.sqlite", "unusable.sqlite");
+  const unusable = made.db.replace("search-v3.sqlite", "unusable.sqlite");
   const handle = new DatabaseSync(unusable);
   handle.exec("PRAGMA user_version = 9;");
   handle.close();

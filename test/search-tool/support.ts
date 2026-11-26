@@ -301,5 +301,5 @@ export function fixture(prefix = "search-tool-"): Fixture {
   const mainFile = join(sessions, "m1.jsonl");
   const agentDir = join(sessions, "m1.agents");
   mkdirSync(agentDir, { recursive: true });
-  return { root, sessions, mainFile, agentDir, db: join(root, "search-v2.sqlite") };
+  return { root, sessions, mainFile, agentDir, db: join(root, "search-v3.sqlite") };
 }

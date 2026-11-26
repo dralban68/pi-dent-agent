@@ -180,7 +180,7 @@ test("an unusable index answers from the session files, with the same hits", asy
     action: "find",
     query: "alpha",
   });
-  const unusableDb = made.db.replace("search-v2.sqlite", "unusable.sqlite");
+  const unusableDb = made.db.replace("search-v3.sqlite", "unusable.sqlite");
   makeUnusable(unusableDb);
   const h = harness({ db: unusableDb });
   const outcome = await h.call(made.host, { action: "find", query: "alpha" });
@@ -506,7 +506,7 @@ test("a direct read still running at 3000 ms is abandoned: the covering deadline
     parent = `x${index}`;
   }
   writeSession(made.other, ...lines);
-  const unusable = made.db.replace("search-v2.sqlite", "unusable.sqlite");
+  const unusable = made.db.replace("search-v3.sqlite", "unusable.sqlite");
   makeUnusable(unusable);
   const clock = testClock();
   let reads = 0;
@@ -669,7 +669,7 @@ test("the after session that loses its cover mid-call is covered again by a dire
 
 test("a file that is not a session file on a direct read is not a session of the call", async () => {
   const made = pair("search-tool-lost-");
-  const unusable = made.db.replace("search-v2.sqlite", "unusable.sqlite");
+  const unusable = made.db.replace("search-v3.sqlite", "unusable.sqlite");
   makeUnusable(unusable);
   // The second session's file stops being a session file before the call reads it: it
   // is neither covered nor uncovered and counts in neither <n> nor <k>.
@@ -692,7 +692,7 @@ test("a file that is not a session file on a direct read is not a session of the
   // An address of a session so lost is rejected with the resolution error, and an
   // `after` with the error of Section 3.4.
   const addressed = pair("search-tool-lost-get-");
-  const addressedDb = addressed.db.replace("search-v2.sqlite", "unusable.sqlite");
+  const addressedDb = addressed.db.replace("search-v3.sqlite", "unusable.sqlite");
   makeUnusable(addressedDb);
   const second = harness({ db: addressedDb, clock: testClock() });
   second.hook((event) => {
@@ -735,7 +735,7 @@ test("an uncovered after session has its own stopped line, without the uncovered
 
 test("an uncovered after session with an unusable index reports the index, not the after state", async () => {
   const made = pair("search-tool-after-unusable-");
-  const unusable = made.db.replace("search-v2.sqlite", "unusable.sqlite");
+  const unusable = made.db.replace("search-v3.sqlite", "unusable.sqlite");
   makeUnusable(unusable);
   const clock = testClock();
   const h = harness({ db: unusable, clock });

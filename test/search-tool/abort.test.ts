@@ -151,7 +151,7 @@ test("an abort during a sessions call ends it while its previews are read", asyn
 
 test("an abort during a get answered by a direct read ends it", async () => {
   const made = session();
-  const unusable = made.db.replace("search-v2.sqlite", "unusable.sqlite");
+  const unusable = made.db.replace("search-v3.sqlite", "unusable.sqlite");
   const handle = new DatabaseSync(unusable);
   handle.exec("PRAGMA user_version = 9;");
   handle.close();

@@ -154,6 +154,8 @@ export interface SessionReadOptions {
    * when that one alone is longer. Default: no bound.
    */
   maxBytes?: number | undefined;
+  /** Called, in line order, with every session entry that is not the session header, whatever its `id`. */
+  onEntry?: ((value: Record<string, unknown>) => void) | undefined;
 }
 
 /** The header entry's narrowed shape: `type` `"session"` and a string `id` (Section 1). */
@@ -226,6 +228,7 @@ export function readSessionBytes(bytes: Uint8Array, options: SessionReadOptions 
         header = { sessionId: value.id, time, bytes: lineBytes.length };
         seen.add(value.id);
       } else {
+        options.onEntry?.(value);
         const id = value.id;
         if (typeof id === "string" && ENTRY_ID.test(id) && !seen.has(id)) {
           seen.add(id);
