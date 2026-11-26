@@ -59,7 +59,8 @@ in the [README](../README.md#configure-pi-dent-in-pi).
   // The terms extension's settings (pi-dent-terms, specs/terms-tool.md, Section 4.2).
   "terms": { "checkAfterEdit": true },
 
-  // The web extension's settings (pi-dent-web-fetch, specs/web-fetch.md, Section 8). `cache` is
+  // The web extension's settings (pi-dent-web-fetch, specs/web-fetch.md, Section 8). With
+  // `reformatModel` set, `reformat` defaults to true; `false` turns it off. `cache` is
   // "project" (default, <cwd>/.pi/web-cache), "session" or a folder; PI_DENT_WEB_CACHE_DIR overrides it.
   "web": { "reformat": false, "reformatModel": "fast", "cache": ".cache" },
 

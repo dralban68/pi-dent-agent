@@ -49,7 +49,7 @@
     "pi-dent-markdown": "0.2.2",
     "pi-dent-purse": "0.2.1",
     "pi-dent-terms": "0.1.2",
-    "pi-dent-web-fetch": "0.3.5",
+    "pi-dent-web-fetch": "0.3.6",
     "pi-dent-web-search": "0.1.2",
     "pi-mcp-adapter": "7.0.1",
     "semver": "^7.8.3",
