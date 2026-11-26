@@ -9,7 +9,7 @@ import { createJiti } from "jiti";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /**
- * Main-session skill binding per specs/skill-tool.md Section 1: with a
+ * Main-session skill binding per specs/skill-tool.md#binding: with a
  * non-empty skill catalog the extension registers `Skill` and appends the
  * `<available_skills>` injection to the system prompt on every turn while
  * `Skill` is active; with an empty catalog it does neither. index.ts is
@@ -63,7 +63,7 @@ function makeProject(skills: Record<string, string>, pluginContext?: string): ()
   mkdirSync(join(project, ".pi", "pi-dent", "skills"), { recursive: true });
   mkdirSync(join(root, "tmp"), { recursive: true });
   if (pluginContext !== undefined) {
-    // A global-layer plugin with a root context.md (plugin.md Section 10).
+    // A global-layer plugin with a root context.md (specs/plugin.md#plugin-context).
     const pluginDir = join(home, ".pi", "pi-dent", "plugins", "alpha");
     mkdirSync(pluginDir, { recursive: true });
     writeFileSync(join(pluginDir, "plugin.json"), JSON.stringify({ name: "alpha" }));

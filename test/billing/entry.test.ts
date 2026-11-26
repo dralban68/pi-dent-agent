@@ -21,7 +21,7 @@ const balance = (...value: unknown[]) => ({ balance: { state: "known", value } }
 
 // ------------------------------------------------------------ reply
 
-test("reply validity (Section 2.1)", () => {
+test("reply validity (specs/billing.md#request-outcome)", () => {
   const ok = reply({ a: entry() });
   assert.ok(readReply(ok, ["a"]));
   assert.equal(readReply(null, ["a"]), undefined);

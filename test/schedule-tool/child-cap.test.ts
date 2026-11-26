@@ -12,7 +12,7 @@ import type { HostSession } from "../../lib/host.ts";
 import { must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Section 3.1: a tool-cap name naming `Schedule` is not
+ * specs/agent-tool.md#tools: a tool-cap name naming `Schedule` is not
  * bound, so a child session never has the tool. A real child runs on a
  * scripted faux provider, and the tool declarations the child was offered are
  * read off its request.

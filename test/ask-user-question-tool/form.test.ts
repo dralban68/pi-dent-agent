@@ -12,7 +12,7 @@ import { at } from "../support/must.ts";
 import { params, question, questionWorld } from "./support.ts";
 
 /**
- * specs/ask-user-question-tool.md Section 4.4: the question form request. With
+ * specs/ask-user-question-tool.md#form-request: the question form request. With
  * `PI_DENT_ASK_FORM` set to `1` in RPC mode, one `editor` dialog asks the whole call; its text is
  * the form answer, and an invalid text shows the same editor again.
  */
@@ -255,7 +255,7 @@ const validPair = answered([
   { options: ["macOS"], text: null },
 ]);
 
-/** Each invalid text, the call it is sent for, and a valid reply for that call (Section 4.4). */
+/** Each invalid text, the call it is sent for, and a valid reply for that call (specs/ask-user-question-tool.md#form-request). */
 const invalidAnswers: [name: string, invalid: string, input: () => unknown, valid: string][] = [
   ["bad JSON", "not json", direct, oauthOnly],
   ["a JSON value that is not an object", "[]", direct, oauthOnly],
@@ -379,7 +379,7 @@ test("cancelling the dismissal choice shows the editor again", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Section 5: the abort signal and session shutdown end a shown editor
+// specs/ask-user-question-tool.md#no-answers: the abort signal and session shutdown end a shown editor
 // ---------------------------------------------------------------------------
 
 test("the call's abort ends a shown editor with the aborted result, and a late text is ignored", async () => {

@@ -5,9 +5,9 @@ import { makeTaskTool } from "../../lib/tools.ts";
 import { at } from "../support/must.ts";
 
 /**
- * Task row fields per specs/task-registry.md Section 2: timestamped progress
+ * Task row fields per specs/task-registry.md#task-row: timestamped progress
  * entries, the `agent` kind fields (`agent`, `task`, `sessionPath`), and the
- * `Task` `read` projection of progress lines (task-tool.md Section 2.2).
+ * `Task` `read` projection of progress lines (specs/task-tool.md#kill).
  */
 
 const reg = () => new TaskRegistry(() => undefined);

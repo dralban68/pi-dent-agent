@@ -18,7 +18,7 @@ import { ASK_USER_DESCRIPTION, ASK_USER_PROMPT_SNIPPET } from "../../lib/ask-use
 import { must } from "../support/must.ts";
 
 /**
- * specs/ask-user-question-tool.md Section 1.4 and agent-tool.md Section 3.1: the tool is
+ * specs/ask-user-question-tool.md#activation and specs/agent-tool.md#tools: the tool is
  * registered for the main session in every mode, a session without a user interface loses
  * it at `session_start`, and a child session never binds it. index.ts is loaded through
  * jiti, as in test/bash-tool/main-session-bash.test.ts.
@@ -237,7 +237,7 @@ test("session_start removes the tool before any later step can throw", async () 
   }
 });
 
-test("session_shutdown ends the session's open calls and completes (Section 5)", async () => {
+test("session_shutdown ends the session's open calls and completes (specs/ask-user-question-tool.md#no-answers)", async () => {
   const { project, restore } = makeProject();
   const stub = makeStubPi();
   try {
@@ -253,7 +253,7 @@ test("session_shutdown ends the session's open calls and completes (Section 5)",
 });
 
 // ---------------------------------------------------------------------------
-// agent-tool.md Section 3.1: a child session never binds AskUserQuestion
+// specs/agent-tool.md#tools: a child session never binds AskUserQuestion
 // ---------------------------------------------------------------------------
 
 const roots: string[] = [];
@@ -354,7 +354,7 @@ function offeredTools(messages: readonly unknown[]): string[] {
   return names;
 }
 
-test("a child session is offered no AskUserQuestion, even when the tool cap names it (agent-tool.md Section 3.1)", async () => {
+test("a child session is offered no AskUserQuestion, even when the tool cap names it (specs/agent-tool.md#tools)", async () => {
   const root = mkdtempSync(join(tmpdir(), "pi-dent-ask-child-"));
   roots.push(root);
   const sessionFile = join(root, "main.jsonl");

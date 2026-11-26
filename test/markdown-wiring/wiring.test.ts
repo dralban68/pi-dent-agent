@@ -12,7 +12,7 @@ import { makeMarkdownTool, markdownRuntime } from "pi-dent-markdown";
 import { must } from "../support/must.ts";
 
 /**
- * pi-dent-markdown specs/markdown-tool.md Section 1 and specs/agent-tool.md Section 3.1: the
+ * pi-dent-markdown specs/markdown-tool.md Section 1 and specs/agent-tool.md#tools: the
  * extension registers `Markdown` in every run mode, and a child session binds
  * it when the tool cap includes it. index.ts is loaded through jiti, as in
  * test/search-tool/wiring.test.ts.

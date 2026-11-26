@@ -1,11 +1,10 @@
 /**
  * What a host call that fails inside the fleet must not cost: a throwing
- * endpoint never escapes a poll tick or a read/enqueue path (specs/session-store.md
- * Sections 2 and 5), a slash-command rejection carries the bare reason of
- * specs/fleet-tool.md Section 3.2 in both delivery modes, a cancelled query's
- * reply lives as long as the querying boot window (specs/fleet-tool.md Section 4,
- * specs/session-store.md Section 3), and a re-entrant drain never injects one
- * row twice (specs/session-store.md Section 5).
+ * endpoint never escapes a poll tick or a read/enqueue path (specs/session-store.md#session-records and specs/session-store.md#delivery), a slash-command rejection carries the bare reason of
+ * specs/fleet-tool.md#delivery-modes in both delivery modes, a cancelled query's
+ * reply lives as long as the querying boot window (specs/fleet-tool.md#query,
+ * specs/session-store.md#messages), and a re-entrant drain never injects one
+ * row twice (specs/session-store.md#delivery).
  */
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";

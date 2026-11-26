@@ -29,7 +29,7 @@ export function entryLine(value: Record<string, unknown>): string {
   return JSON.stringify(value);
 }
 
-/** The session header's line (Section 1). */
+/** The session header's line (specs/session-index.md#location). */
 export function headerLine(id = "session-one", timestamp = STAMP): string {
   return entryLine({ type: "session", version: 3, id, timestamp, cwd: "/tmp" });
 }

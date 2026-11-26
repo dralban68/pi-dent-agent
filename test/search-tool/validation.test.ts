@@ -15,7 +15,7 @@ import {
 import type { SearchHost } from "../../lib/search-tool.ts";
 
 /**
- * specs/search-tool.md Sections 1.2, 2.1, 3.4, and 4: the validation checks, in
+ * specs/search-tool.md#validation, specs/search-tool.md#reach, specs/search-tool.md#result, and specs/search-tool.md#get: the validation checks, in
  * their order, with their exact error texts, and the file-system checks that
  * follow them.
  */
@@ -69,7 +69,7 @@ test("check 1: a field the action does not accept is reported in table order", a
     await rejection({ action: "sessions", order: "oldest" }),
     "order is not valid for action sessions",
   );
-  // Two invalid fields: the earlier one in the table order of Section 1.1 wins.
+  // Two invalid fields: the earlier one in the table order of specs/search-tool.md#parameter-schema wins.
   assert.equal(
     await rejection({ action: "get", session: "self", query: "x" }),
     "query is not valid for action get",
@@ -208,7 +208,7 @@ test("checks 15 to 18: address, offset, limit, and context of get", async () => 
   );
 });
 
-test("Section 2.1: unknown and ambiguous sessions, and the project refusal", async () => {
+test("specs/search-tool.md#reach: unknown and ambiguous sessions, and the project refusal", async () => {
   assert.equal(
     await rejection({ action: "find", query: "alpha", session: "nope" }),
     'unknown session "nope"',
@@ -262,7 +262,7 @@ test("Section 2.1: unknown and ambiguous sessions, and the project refusal", asy
   );
 });
 
-test("Section 2.1: a child session, and a main session without a file, are refused the project", async () => {
+test("specs/search-tool.md#reach: a child session, and a main session without a file, are refused the project", async () => {
   const made = project();
   const h = harness({ db: made.db });
   const childHost: SearchHost = {
@@ -294,7 +294,7 @@ test("Section 2.1: a child session, and a main session without a file, are refus
   }
 });
 
-test("Section 3.4: after must name a session of the call and an item of that session", async () => {
+test("specs/search-tool.md#result: after must name a session of the call and an item of that session", async () => {
   const made = project();
   const h = harness({ db: made.db });
   // The child session is not a session of a `session`-scope call.
@@ -318,7 +318,7 @@ test("Section 3.4: after must name a session of the call and an item of that ses
   );
 });
 
-test("Section 4: an address that does not resolve, and an offset past the end", async () => {
+test("specs/search-tool.md#get: an address that does not resolve, and an offset past the end", async () => {
   const made = project();
   const h = harness({ db: made.db });
   assert.equal(
@@ -357,7 +357,7 @@ test("a session that is not a session file is not read as one", async () => {
   assert.deepEqual(hitAddresses(injected), ["self:u1"]);
 });
 
-test("Section 1.2: the checks run in the numbered order, the earlier error winning", async () => {
+test("specs/search-tool.md#validation: the checks run in the numbered order, the earlier error winning", async () => {
   const cases: { params: Record<string, unknown>; error: string }[] = [
     // 1 before 2
     {

@@ -19,7 +19,7 @@ import {
 import type { SearchHost } from "../../lib/search-tool.ts";
 
 /**
- * specs/search-tool.md Section 4: `get` with paging, `context`, the call–result
+ * specs/search-tool.md#get: `get` with paging, `context`, the call–result
  * link, an address that does not resolve, and the same answer from a direct read.
  */
 
@@ -311,7 +311,7 @@ test("a reset below the call's own catch-up answers from a direct read", async (
     reset = true;
     // Another process resets the file and catches it up to its first tool result only:
     // `consumed` is now smaller than the reader's own catch-up of the file left, and the
-    // later rows are gone (session-index.md Section 4).
+    // later rows are gone (specs/session-index.md#concurrent-access).
     const fileId = fileIdOf(made.db);
     const db = new DatabaseSync(made.db);
     try {
@@ -351,8 +351,7 @@ test("rows another process renumbers between the addressed item's reads answer f
     if (event.phase !== "read" || changed) return;
     changed = true;
     // Another process resets the file and catches it up again between two reads of
-    // the call: the items it lists next carry new `item_id`s (session-index.md
-    // Section 4), so the neighbours and the pair of the addressed item are the
+    // the call: the items it lists next carry new `item_id`s (specs/session-index.md#concurrent-access), so the neighbours and the pair of the addressed item are the
     // file's, not the rows the call started with.
     const db = new DatabaseSync(made.db);
     db.prepare("UPDATE items SET item_id = item_id + 1000 WHERE file_id = ?").run(
@@ -383,7 +382,7 @@ test("a lineage column that reaches past the call-start size is recomputed withi
     changed = true;
     // Another connection appends an entry that branches the lineage and catches the
     // file up: the row's `consumed` now reaches past the call-start size, so its
-    // `lineage` column describes bytes the call must not use (Section 2.2).
+    // `lineage` column describes bytes the call must not use (specs/search-tool.md#coverage).
     const fileId = fileIdOf(made.db);
     const db = new DatabaseSync(made.db);
     db.prepare("UPDATE files SET consumed = consumed + 1 WHERE file_id = ?").run(fileId);
@@ -426,7 +425,7 @@ test("a session that is not a session file on the direct read is rejected as unk
     action: "get",
     address: "self:u1",
   });
-  // The file is not a session of the call, so its key names no session (Section 2.2).
+  // The file is not a session of the call, so its key names no session (specs/search-tool.md#coverage).
   assert.equal(outcome.isError, true, outcome.text);
   assert.equal(outcome.text, 'unknown session "self"');
 });

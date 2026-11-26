@@ -1,5 +1,5 @@
 /**
- * Session ownership (specs/session-store.md Section 4): one live boot window
+ * Session ownership (specs/session-store.md#membership-lifecycle): one live boot window
  * owns a session, so a refused registration leaves the owner's record, its
  * ownership and its queued messages alone.
  */
@@ -58,7 +58,7 @@ function rawDb(path: string): DatabaseSync {
   return new DatabaseSync(path);
 }
 
-/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md Section 1). */
+/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md#parameter-schema). */
 function registerSender(fleet: FleetCoordinator, sessionId: string, cwd: string): void {
   fleet.registerEndpoint(
     {
@@ -104,7 +104,7 @@ test("a refused session's shutdown leaves the owner's record and its pending mes
     assert.equal(sent.status, "pending");
 
     // The same session ID open in boot window B: its registration is refused
-    // (specs/session-store.md Section 4: one live owner).
+    // (specs/session-store.md#membership-lifecycle: one live owner).
     const registeredB = fleetB.registerEndpoint(
       {
         sessionId: "sess-s",

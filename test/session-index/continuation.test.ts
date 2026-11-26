@@ -14,7 +14,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/search-tool.md Section 2.2: the continuation of catch-up after a call returns. */
+/** specs/search-tool.md#coverage: the continuation of catch-up after a call returns. */
 
 const roots: string[] = [];
 after(() => {

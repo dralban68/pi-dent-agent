@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { AgentTaskRow, TaskRegistry } from "../../lib/registry.ts";
 import { makeTaskTool } from "../../lib/tools.ts";
 
-/** Task `wait` per specs/task-tool.md Section 2.4. */
+/** Task `wait` per specs/task-tool.md#wait. */
 
 const reg = () => new TaskRegistry(() => undefined);
 
@@ -143,7 +143,7 @@ test("wait on an interrupted row returns the resume line at once and does not co
   assert.equal(row.consumed, false, "an interrupted row is never consumed");
 });
 
-test("wait with an unknown taskId is a tool error (Section 1.1)", async () => {
+test("wait with an unknown taskId is a tool error (specs/task-tool.md#parameter-schema)", async () => {
   const registry = reg();
   const result = await wait(registry, { taskId: "aaaa0009" });
   assert.equal(result.isError, true);
@@ -184,7 +184,7 @@ test("two concurrent waits on one taskId both wake at settlement", async () => {
   assert.equal(row.consumed, true, "consume is idempotent across the two wakes");
 });
 
-test("wait without a timeout expires after the default 600000ms (Section 1.1)", async (t) => {
+test("wait without a timeout expires after the default 600000ms (specs/task-tool.md#parameter-schema)", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const registry = reg();
   const row = registry.register({ kind: "script", cohort: "c", label: "spin", background: true });
@@ -197,7 +197,7 @@ test("wait without a timeout expires after the default 600000ms (Section 1.1)", 
   assert.equal(row.consumed, false);
 });
 
-test("wait with a timeout above 2147483647 imposes no deadline (Section 1.1)", async (t) => {
+test("wait with a timeout above 2147483647 imposes no deadline (specs/task-tool.md#parameter-schema)", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const registry = reg();
   const row = registry.register({ kind: "script", cohort: "c", label: "spin", background: true });

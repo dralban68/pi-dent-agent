@@ -12,7 +12,7 @@ import {
 } from "../../lib/fleet-feed.ts";
 import { at, must } from "../support/must.ts";
 
-/** Fleet feed conformance per specs/fleet-tool.md Section 6. */
+/** Fleet feed conformance per specs/fleet-tool.md#fleet-feed. */
 
 const record = (
   sessionId: string,

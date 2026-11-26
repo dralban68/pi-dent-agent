@@ -9,9 +9,9 @@ import type { Diagnostic } from "../../lib/util.ts";
 import { at } from "../support/must.ts";
 
 /**
- * Plugin commands per specs/plugin.md Section 5: command frontmatter that is not a mapping
+ * Plugin commands per specs/plugin.md#slash-commands: command frontmatter that is not a mapping
  * reports one warning and still registers the command, without a description. The mapping rule
- * itself is owned by specs/skill.md Section 1.
+ * itself is owned by specs/skill.md#skill-files.
  */
 
 function pluginFixture(): { root: string; home: string; project: string } {

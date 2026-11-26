@@ -17,7 +17,7 @@ import type { HostSession } from "../../lib/host.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Sections 4.2-4.3: an attempt waits while its task registry
+ * specs/agent-tool.md#child-session, specs/agent-tool.md#terminal-candidate: an attempt waits while its task registry
  * holds a running row; the completion notification triggers a notification turn.
  * Real child sessions run on a scripted faux provider; the inner background
  * agent blocks on a gate the test opens.

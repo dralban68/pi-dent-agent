@@ -16,8 +16,8 @@ import { makeFleetTool } from "../../lib/tools.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * specs/fleet-tool.md Sections 1, 2 and 4 over the child session of
- * specs/session-store.md Section 4: the boot window that runs a dispatch writes
+ * specs/fleet-tool.md#parameter-schema, specs/fleet-tool.md#list and specs/fleet-tool.md#query over the child session of
+ * specs/session-store.md#membership-lifecycle: the boot window that runs a dispatch writes
  * a child session record, only the dispatching session may reach it, `list` of
  * scope `children` shows it, and a waited query keeps that record as its address
  * (a hidden record is only the fallback).
@@ -298,7 +298,7 @@ test("a repeated dispatch of the same child keeps one turn: the dispatch task", 
 
     fleet.registerChild("parent-sess", child.endpoint, "Fix the bug");
     // A recovery attempt continues the same child session and rewrites the same
-    // one turn record (session-store.md, Section 4).
+    // one turn record (specs/session-store.md#membership-lifecycle).
     fleet.registerChild("parent-sess", child.endpoint, "Fix the bug again\nand why");
 
     const record = must(fleet.getSession("child-1"));
@@ -338,7 +338,7 @@ test("a child session another live boot window owns is refused, and still a chil
     assert.equal(refused.inbox.length, 0, "the refusing window delivers nothing");
 
     // Refused the record, but the session is a child session all the same: it is
-    // never refused send or query (specs/fleet-tool.md, Section 1).
+    // never refused send or query (specs/fleet-tool.md#parameter-schema).
     const sent = await toolCaller(
       fleet,
       "child-1",
@@ -614,7 +614,7 @@ test("a child record keeps its one turn record across turns", async (t) => {
     fleet.recordTurnEnd("child-1");
 
     // A second turn of the child session: the record keeps the dispatch task as
-    // its one turn (fleet-tool.md Section 7: no later turn is recorded).
+    // its one turn (specs/fleet-tool.md#gaps: no later turn is recorded).
     child.setRunning(true);
     fleet.recordTurnStart("child-1", dir, "later");
     const next = await call({ action: "send", target: "child-1", body: "after that" });
@@ -806,7 +806,7 @@ test("Fleet list of scope children needs the calling session's ID", async (t) =>
     assert.equal(children.isError, true);
     assert.equal(textOf(children), 'no live session identity for Fleet action "list"');
 
-    // Any other scope needs no identity of its own (fleet-tool.md Section 1).
+    // Any other scope needs no identity of its own (specs/fleet-tool.md#parameter-schema).
     const machine = await call({ action: "list", scope: "machine" });
     assert.equal(machine.isError, undefined);
     assert.match(textOf(machine), /parent-sess · instance · idle · /);
@@ -1105,7 +1105,7 @@ test("a child's waited query ends cancelled when its dispatch settles", async (t
     await waitFor(() => asked === 1, "the query to reach the target");
 
     // The child's record — and with it the only address its reply could reach —
-    // goes with its dispatch, so the wait ends (fleet-tool.md, Section 4.1).
+    // goes with its dispatch, so the wait ends (specs/fleet-tool.md#waited-query).
     fleet.unregisterChild("child-1");
     const failed = await queryCall;
     assert.equal(failed.isError, true);
@@ -1152,7 +1152,7 @@ test("a query to a child target still running when the dispatch settles replies 
     assert.equal(asked, 1, "the child's dispatch runs the query while its record is live");
 
     // The dispatch settles while the query still runs: its one reply is the
-    // cancellation (fleet-tool.md, Section 4).
+    // cancellation (specs/fleet-tool.md#query).
     fleet.unregisterChild("child-1");
     pending.resolve({ text: "a late answer", isError: false });
     await new Promise((done) => setImmediate(done));

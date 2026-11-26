@@ -19,7 +19,7 @@ import { makeScriptTool } from "../../lib/script-tool.ts";
 import { at } from "../support/must.ts";
 
 /**
- * Script worker internals per specs/script-tool.md Sections 3 and 6: the
+ * Script worker internals per specs/script-tool.md#execution-model and specs/script-tool.md#timeout-delivery: the
  * process.exit gate (no script code runs after the call), the detached
  * process-group default for spawned children, and the child stdio resolution
  * that keeps the host's standard streams from a script's children. Integration
@@ -155,7 +155,7 @@ test("exit gate: process.exit with a running child leaves no zombie", async () =
     assert.equal(r.details.exitReason, "exit-called");
     const pid = Number(readFileSync(join(work, "child.pid"), "utf8").trim());
     assert.ok(Number.isInteger(pid) && pid > 0, "the script recorded its child's pid");
-    // The runner kills the tree after settlement (Section 6); the child must leave
+    // The runner kills the tree after settlement (specs/script-tool.md#timeout-delivery); the child must leave
     // the process table, not linger as a zombie of the host process.
     const gone = await pidGoneWithin(pid);
     assert.ok(gone, `pid ${pid} is still in the process table after settlement`);
@@ -186,7 +186,7 @@ test("exit gate: node:timers/promises timers never settle after process.exit", a
     const work = join(f.root, "timer-promises");
     mkdirSync(work, { recursive: true });
     // The child keeps the worker alive past the exit, so a timer of the promises module
-    // that is still pending at the call has its chance to run (Section 3).
+    // that is still pending at the call has its chance to run (specs/script-tool.md#execution-model).
     const r = await call(f, {
       cwd: work,
       code: `
@@ -403,7 +403,7 @@ test("builtin patching: createRequire(...)(child_process).execSync is rejected",
   }
 });
 
-test("console capture: globalThis.console.log is captured (Section 3)", async () => {
+test("console capture: globalThis.console.log is captured (specs/script-tool.md#execution-model)", async () => {
   const f = makeFixture();
   try {
     const r = await call(f, {
@@ -653,7 +653,7 @@ test("script mode: stack lines stay aligned after the binding prologue", async (
 test("error reporting: the error text is in stderr exactly once", async () => {
   const f = makeFixture();
   try {
-    // The worker does not write it; the tool appends it at settlement (Section 3).
+    // The worker does not write it; the tool appends it at settlement (specs/script-tool.md#execution-model).
     const r = await call(f, { code: `console.error("partial"); throw new Error("dup");` });
     assert.equal(r.details.exitReason, "threw");
     const stderr = String(r.details.stderr);
@@ -668,7 +668,7 @@ test("error reporting: a message spanning several lines writes its header once",
   const f = makeFixture();
   try {
     // The stack already carries both message lines; prepending the header again
-    // would show them twice (Section 3).
+    // would show them twice (specs/script-tool.md#execution-model).
     const r = await call(f, { code: `throw new Error("first line\\nsecond line");` });
     assert.equal(r.details.exitReason, "threw");
     const stderr = String(r.details.stderr);
@@ -724,11 +724,11 @@ test("child_process: a relative cwd option resolves against the script cwd", asy
   }
 });
 
-// --- child stdio resolution (Section 6) --------------------------------------
+// --- child stdio resolution (specs/script-tool.md#timeout-delivery) --------------------------------------
 // A child process a script spawns never receives the host's standard streams:
 // inherited elements resolve to captured pipes before the spawn.
 
-test("child stdio: spawn stdio inherit captures the child's output; its stdout is not a TTY (Section 6)", async () => {
+test("child stdio: spawn stdio inherit captures the child's output; its stdout is not a TTY (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const r = await call(f, {
@@ -758,7 +758,7 @@ test("child stdio: spawn stdio inherit captures the child's output; its stdout i
   }
 });
 
-test("child stdio: inherit elements of an array stdio resolve to captured pipes (Section 6)", async () => {
+test("child stdio: inherit elements of an array stdio resolve to captured pipes (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const r = await call(f, {
@@ -787,7 +787,7 @@ test("child stdio: inherit elements of an array stdio resolve to captured pipes 
   }
 });
 
-test("child stdio: the worker's process.stdout/stderr elements resolve like inherit (Section 6)", async () => {
+test("child stdio: the worker's process.stdout/stderr elements resolve like inherit (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const r = await call(f, {
@@ -823,7 +823,7 @@ test("child stdio: the worker's process.stdout/stderr elements resolve like inhe
   }
 });
 
-test("child stdio: fork's console output is captured, default and silent (Section 6)", async () => {
+test("child stdio: fork's console output is captured, default and silent (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const mod = join(f.root, "forked.mjs");
@@ -860,7 +860,7 @@ test("child stdio: fork's console output is captured, default and silent (Sectio
   }
 });
 
-test("child stdio: an already-open file element passes through unchanged (Section 6)", async () => {
+test("child stdio: an already-open file element passes through unchanged (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const target = join(f.root, "passthrough.log");

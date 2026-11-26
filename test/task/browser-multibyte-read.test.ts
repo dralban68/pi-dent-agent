@@ -7,7 +7,7 @@ import { TaskBrowserState, type BrowserTheme } from "../../lib/task-browser.ts";
 import { TaskRegistry } from "../../lib/registry.ts";
 
 /**
- * The task browser per specs/task-browser.md Section 4: a session read that catches up across
+ * The task browser per specs/task-browser.md#details-page: a session read that catches up across
  * two reads keeps a multi-byte character split between them intact, and still parses the lines
  * that follow it.
  */

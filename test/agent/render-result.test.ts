@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { shortenSessionDir } from "../../lib/util.ts";
 
-/** Terminal text per specs/agent-tool.md Section 4.2. */
+/** Terminal text per specs/agent-tool.md#child-session. */
 
 test("render: the agent directory path shows as $PI_DENT_SESSION_DIR, every occurrence", () => {
   const dir = "/home/u/.pi/agent/sessions/--p--/s.agents";

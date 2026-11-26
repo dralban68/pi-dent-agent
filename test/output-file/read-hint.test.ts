@@ -7,7 +7,7 @@ import type { ToolResultEvent } from "@earendil-works/pi-coding-agent";
 import { readErrorHint } from "../../lib/output-file.ts";
 
 /**
- * The `read` error hint of specs/script-tool.md Section 6, through its public
+ * The `read` error hint of specs/script-tool.md#timeout-delivery, through its public
  * function: a failed `read` of a mistyped output path gets a suggestion only when
  * exactly one output file of that base name lies in the agent directory tree.
  */

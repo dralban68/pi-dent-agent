@@ -4,7 +4,7 @@ import type { BootSnapshot } from "../../lib/engine.ts";
 import { AgentToolRegistry, buildAgentDescription, makeAgentTool } from "../../lib/tools.ts";
 
 /**
- * specs/agent-tool.md Section 1: the `Models:` suffix carries the model catalog
+ * specs/agent-tool.md#registration: the `Models:` suffix carries the model catalog
  * when non-empty, and the main session's `Agent` is registered again only when
  * its description changes.
  */

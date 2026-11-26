@@ -12,7 +12,7 @@ import type { HostSession } from "../../lib/host.ts";
 import { must } from "../support/must.ts";
 
 /**
- * Section 9 of specs/agent-tool.md: a `resume` dispatch records the model and
+ * specs/agent-tool.md#resume: a `resume` dispatch records the model and
  * thinking it runs with, so a later `resume` without them continues the same
  * lineage instead of silently reverting to the source's original model.
  *
@@ -381,7 +381,7 @@ test("the persisted model is appended once per dispatch, not per recovery attemp
       [`${modelB}:high`, "call"],
       [`${modelB}:high`, "call"],
     ],
-    "every attempt runs the plan resolved once for the dispatch (Section 3)",
+    "every attempt runs the plan resolved once for the dispatch (specs/agent-tool.md#dispatch-plan)",
   );
 
   assert.equal(
@@ -395,7 +395,7 @@ test("the persisted model is appended once per dispatch, not per recovery attemp
   );
 });
 
-// --- Section 8 item 3: a refusal whose recovery cannot run keeps the refusal text ---
+// --- specs/agent-tool.md#recovery item 3: a refusal whose recovery cannot run keeps the refusal text ---
 
 test("a refusal with recovery bound 0 fails with the refusal as its error text", async () => {
   const refusal = "I cannot assist with that request.";

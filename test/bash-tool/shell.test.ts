@@ -15,7 +15,7 @@ import {
   type ShellLookup,
 } from "../../lib/bash-tool.ts";
 
-/** Shell resolution, environment and host settings (specs/bash-tool.md Section 3). */
+/** Shell resolution, environment and host settings (specs/bash-tool.md#execution-model). */
 
 function makeHost(overrides: Partial<HostSession> = {}): HostSession {
   return {

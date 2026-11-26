@@ -6,7 +6,7 @@ import { startTaskFeed, taskFeedTasks } from "../../lib/task-feed.ts";
 import { collectTaskTree, renderTaskTree, TASK_WIDGET_ID } from "../../lib/task-widget.ts";
 import { at, must } from "../support/must.ts";
 
-/** Task feed conformance per specs/task.md Section 4.1 and the announcement of `PI_DENT_FEEDS`. */
+/** Task feed conformance per specs/task.md#task-feed and the announcement of `PI_DENT_FEEDS`. */
 
 const reg = () => new TaskRegistry(() => undefined);
 const rpc = { env: { PI_DENT_FEEDS: "1" }, hasUI: true, mode: "rpc" };

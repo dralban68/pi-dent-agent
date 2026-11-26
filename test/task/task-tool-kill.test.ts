@@ -7,7 +7,7 @@ import { TaskRegistry } from "../../lib/registry.ts";
 import { writeRunningRecord } from "../../lib/task-record.ts";
 import { makeTaskTool } from "../../lib/tools.ts";
 
-/** Task `kill` per specs/task-tool.md Section 2.2. */
+/** Task `kill` per specs/task-tool.md#kill. */
 
 const reg = () => new TaskRegistry(() => undefined);
 
@@ -61,7 +61,7 @@ test("kill of a running row with no handler consumes it, leaves it running, and 
     assert.equal(textOf(result), `Task ${row.taskId} kill requested (running).`);
     assert.equal(row.consumed, true);
     assert.equal(row.status, "running", "a row with no cancellation handler is left running");
-    // A running row keeps its record; the later settlement rewrites it (task-record.md Section 2).
+    // A running row keeps its record; the later settlement rewrites it (specs/task-record.md#lifecycle).
     assert.equal(existsSync(recordPath), true);
   } finally {
     rmSync(dir, { recursive: true, force: true });

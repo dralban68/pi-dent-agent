@@ -40,7 +40,7 @@ export function fakeTui(rows = 24, columns = 80): FakeTui {
   return tui;
 }
 
-/** The host's editor component, replaced by a recorder (Section 3.4). */
+/** The host's editor component, replaced by a recorder (specs/ask-user-question-tool.md#keys). */
 export class FakeEditor {
   onSubmit: ((text: string) => void) | undefined;
   focused = false;
@@ -62,7 +62,7 @@ export class FakeEditor {
     return this.rendered ?? [`editor: ${this.text}`];
   }
 
-  /** Lines to render instead of the single `editor: <text>` line, for Section 3.5's window. */
+  /** Lines to render instead of the single `editor: <text>` line, for specs/ask-user-question-tool.md#text-entry's window. */
   rendered: string[] | undefined;
 
   setText(text: string): void {
@@ -73,7 +73,7 @@ export class FakeEditor {
     return this.text;
   }
 
-  /** Types into the editor, as the keys of Section 3.4 would. */
+  /** Types into the editor, as the keys of specs/ask-user-question-tool.md#keys would. */
   type(text: string): void {
     this.text += text;
   }
@@ -91,11 +91,11 @@ export interface PanelHarness {
   tui: FakeTui;
   editor: FakeEditor;
   result: Promise<AskToolResult>;
-  /** The `ctx.ui.custom` options the tool passed, its overlay options resolved (Section 3). */
+  /** The `ctx.ui.custom` options the tool passed, its overlay options resolved (specs/ask-user-question-tool.md#question-panel). */
   customOptions(): Record<string, unknown>;
   panel(): AskQuestionPanel;
   lines(width?: number): string[];
-  /** The panel's height at the current terminal rows (Section 3.1). */
+  /** The panel's height at the current terminal rows (specs/ask-user-question-tool.md#size-border). */
   height(): number;
   press(data: string): void;
 }
@@ -105,7 +105,7 @@ export interface DialogRecord {
   title: string;
   options: string[];
   placeholder: string | undefined;
-  /** The option keys of the dialog options, so a timeout can be ruled out (Section 4). */
+  /** The option keys of the dialog options, so a timeout can be ruled out (specs/ask-user-question-tool.md#dialog-sequence). */
   optionKeys: string[];
   signal: AbortSignal | undefined;
 }
@@ -154,7 +154,7 @@ function hang(signal: AbortSignal | undefined): Promise<undefined> {
 
 /** One `editor` dialog of the question form request, as the host received it. */
 export interface FormRecord {
-  /** Every argument the tool passed; Section 4.4 passes the title and the payload only. */
+  /** Every argument the tool passed; specs/ask-user-question-tool.md#form-request passes the title and the payload only. */
   args: unknown[];
   title: string;
   prefill: string;
@@ -190,7 +190,7 @@ export interface QuestionWorld {
     hasUI?: boolean;
   }): DialogHarness;
   /**
-   * Starts one call in RPC mode with the question form request (Section 4.4): `respond` gives
+   * Starts one call in RPC mode with the question form request (specs/ask-user-question-tool.md#form-request): `respond` gives
    * the text of each `editor` dialog in turn, `choose` the answer of each dismissal `select`.
    */
   startForm(input: {
@@ -205,8 +205,8 @@ export interface QuestionWorld {
 
 /**
  * A question runtime whose panels get a recorder instead of the host's editor component, so
- * text entry of Section 3.4 is driven without a terminal. The environment is empty unless the
- * test names one (Section 2: `PI_DENT_ASK_FORM`).
+ * text entry of specs/ask-user-question-tool.md#keys is driven without a terminal. The environment is empty unless the
+ * test names one (specs/ask-user-question-tool.md#asking: `PI_DENT_ASK_FORM`).
  */
 export function questionWorld(
   options: {
@@ -382,12 +382,12 @@ export function questionWorld(
   return { runtime, editors, tui, startPanel, startDialogs, startForm };
 }
 
-/** The panel's content lines inside the border, without terminal sequences (Section 3.1). */
+/** The panel's content lines inside the border, without terminal sequences (specs/ask-user-question-tool.md#size-border). */
 export function panelContent(lines: readonly string[]): string[] {
   return lines.slice(1, -1).map((line) => stripTerminalSequences(line.slice(1, -1)).trimEnd());
 }
 
-/** A question of a call, as Section 1.2 leaves it. */
+/** A question of a call, as specs/ask-user-question-tool.md#validation leaves it. */
 export function question(
   header: string,
   text: string,

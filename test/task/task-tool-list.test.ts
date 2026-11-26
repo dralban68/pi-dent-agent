@@ -13,7 +13,7 @@ import type { ToolResult } from "../../lib/engine.ts";
 import { makeTaskTool } from "../../lib/tools.ts";
 import { openLedger, raw, usage } from "../task-ledger/support.ts";
 
-/** Task `list` per specs/task-tool.md Section 2.3, its figures from the task ledger. */
+/** Task `list` per specs/task-tool.md#list, its figures from the task ledger. */
 
 function scopeOf(ledger: TaskLedger | undefined): LedgerScope {
   const holder = new LedgerHolder();
@@ -167,7 +167,7 @@ test("a read abandoned at the read deadline shows ledger busy for every row", as
   const lock = raw(path);
   lock.exec("BEGIN IMMEDIATE");
   try {
-    // A write waiting for the lock holds back the read behind it (task-ledger.md Section 5).
+    // A write waiting for the lock holds back the read behind it (specs/task-ledger.md#concurrent-access).
     registry.register({ kind: "bash", cohort: "c", label: "b", background: false });
     const result = await list(registry, ledger);
     assert.match(

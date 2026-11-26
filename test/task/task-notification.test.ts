@@ -5,7 +5,7 @@ import { AgentTaskRow, TaskRegistry } from "../../lib/registry.ts";
 import { at } from "../support/must.ts";
 
 /**
- * The notification send shape of specs/task-registry.md Section 5, through the host
+ * The notification send shape of specs/task-registry.md#cohorts, through the host
  * adapter the main session gives a task registry: `sendMessage` with `customType`
  * `"pi-dent-tasks"`, `display: true`, `deliverAs: "followUp"`, and `triggerTurn: true`.
  */
@@ -31,7 +31,7 @@ function fakeMainSession(): { sent: SendMessageCall[]; host: ReturnType<typeof h
   return { sent, host: hostFromContext(pi as never, {} as never) };
 }
 
-test("a completion notification is sent with the notification shape of Section 5", () => {
+test("a completion notification is sent with the notification shape of specs/task-registry.md#cohorts", () => {
   const { sent, host } = fakeMainSession();
   const registry = new TaskRegistry(() => host);
   const row = registry.register({ kind: "script", cohort: "c", label: "spin", background: true });
@@ -71,7 +71,7 @@ test("an interrupted notification is sent with the same shape and consumes nothi
 });
 
 test("a child host with no live child session fails the send, leaving the rows unconsumed", () => {
-  // task-registry.md Section 5: rows are consumed only once the host accepted the message.
+  // specs/task-registry.md#cohorts: rows are consumed only once the host accepted the message.
   const host = hostFromSessionBox({});
   assert.throws(
     () => host.notify("Background tasks settled:\n…"),

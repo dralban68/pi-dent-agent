@@ -17,7 +17,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/session-index.md Section 3: the bound on one transaction, and a catch-up stopped by a deadline or an abort. */
+/** specs/session-index.md#catch-up: the bound on one transaction, and a catch-up stopped by a deadline or an abort. */
 
 const TRANSACTION_BYTE_LIMIT = 8388608;
 

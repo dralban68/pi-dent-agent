@@ -4,7 +4,7 @@ import type { BootSnapshot } from "../../lib/engine.ts";
 import { makeAgentTool } from "../../lib/tools.ts";
 
 /**
- * specs/agent-tool.md Section 1: the base `Agent` description states the dispatch contract,
+ * specs/agent-tool.md#registration: the base `Agent` description states the dispatch contract,
  * and the agent catalog suffix is present only for a non-empty catalog. The description is
  * read off the registered tool, which is what the host and the model receive.
  */
@@ -23,7 +23,7 @@ function agentTool(boot: BootSnapshot) {
 
 const emptyBoot = { agents: [] } as unknown as BootSnapshot;
 
-test("the Agent description states the dispatch contract of Section 1", () => {
+test("the Agent description states the dispatch contract of specs/agent-tool.md#registration", () => {
   const description = agentTool(emptyBoot).description;
   // Each fact of the contract the specification requires the description to state.
   for (const fact of [

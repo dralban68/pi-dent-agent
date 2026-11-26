@@ -5,7 +5,7 @@ import { TaskRegistry } from "../../lib/registry.ts";
 import { makeTaskTool } from "../../lib/tools.ts";
 import { at } from "../support/must.ts";
 
-/** Display label per specs/task-registry.md Section 2: first line, ANSI escapes and control characters removed. */
+/** Display label per specs/task-registry.md#task-row: first line, ANSI escapes and control characters removed. */
 
 const RAW_LABEL = "\x1b[31mBuild\x1b[0m step\x07\x01\tnow\nsecond line";
 const DISPLAY_LABEL = "Build stepnow";
@@ -31,7 +31,7 @@ test("Task list line uses the display label, not the raw label", async () => {
     undefined,
     undefined as never,
   );
-  // Without a task ledger the figures say so (task-tool.md Section 2.3).
+  // Without a task ledger the figures say so (specs/task-tool.md#list).
   const text = result.content[0]?.type === "text" ? result.content[0].text : "";
   assert.ok(text.startsWith(`${row.taskId} · running · `), text);
   assert.ok(text.endsWith(` · ledger unavailable · ${DISPLAY_LABEL}`), text);

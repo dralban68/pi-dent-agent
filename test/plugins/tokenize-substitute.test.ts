@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { renderPluginCommand, substituteArgs, tokenizeArgs } from "../../lib/plugins.ts";
 
 /**
- * Argument tokenization and substitution per specs/plugin.md Section 6:
+ * Argument tokenization and substitution per specs/plugin.md#argument-substitution:
  * unit tests over the pure functions. Tool-level behavior (omitted args,
  * insertion into real resource bodies) lives in plugin-tool.test.ts.
  */
@@ -89,7 +89,7 @@ test("substitution: a body with no tokens is unchanged", () => {
   assert.equal(substituteArgs("plain text", "a b"), "plain text");
 });
 
-test("renderPluginCommand trims the slash-command argument string before substitution (plugin.md Section 5)", () => {
+test("renderPluginCommand trims the slash-command argument string before substitution (specs/plugin.md#slash-commands)", () => {
   const root = mkdtempSync(join(tmpdir(), "pi-dent-command-"));
   try {
     mkdirSync(join(root, "commands"));
@@ -105,7 +105,7 @@ test("renderPluginCommand trims the slash-command argument string before substit
   }
 });
 
-test("renderPluginCommand returns the body with the skill.md Section 2 normalisation (plugin.md Section 5)", () => {
+test("renderPluginCommand returns the body with the specs/skill.md#content-rules normalisation (specs/plugin.md#slash-commands)", () => {
   const root = mkdtempSync(join(tmpdir(), "pi-dent-command-"));
   try {
     mkdirSync(join(root, "commands"));

@@ -16,7 +16,7 @@ import type { HostSession } from "../../lib/host.ts";
 import { makeFleetTool } from "../../lib/tools.ts";
 
 /**
- * `/fleet` (specs/slash-commands.md Section 4): sibling sessions are the
+ * `/fleet` (specs/slash-commands.md#fleet): sibling sessions are the
  * machine `list` without the current session; no arguments opens
  * select + input; `<target> <query>` resolves the target; a query is
  * enqueued exactly as the Fleet tool's `query` action does, with no subject.
@@ -170,7 +170,7 @@ function deps(fleet: FleetCoordinator, dir: string, ui: FleetCommandUI): FleetCo
   return { fleet, sessionId: CURRENT, cwd: dir, ui };
 }
 
-// specs/slash-commands.md Section 4.1: without an interactive terminal UI the command is a no-op.
+// specs/slash-commands.md#no-arguments: without an interactive terminal UI the command is a no-op.
 test("fleet command: no interactive terminal UI is a no-op", async () => {
   await withFleet(async (fleet, dir) => {
     seed(fleet, dir);
@@ -331,7 +331,7 @@ test("fleet command: a unique session-ID prefix resolves the target", async () =
 });
 
 /**
- * specs/slash-commands.md Section 4: the command refuses exactly the caller a
+ * specs/slash-commands.md#fleet: the command refuses exactly the caller a
  * `Fleet` query from it fails on — a session whose record this boot window does
  * not own, here one released for a reload (owner_boot NULL).
  */
@@ -352,7 +352,7 @@ test("fleet command: a caller the Fleet tool refuses is a no-op", async () => {
     assert.equal(refusedText, 'no live session identity for Fleet action "query"');
 
     // Every action but `list` refuses the same caller, `status` included
-    // (specs/fleet-tool.md Section 1).
+    // (specs/fleet-tool.md#parameter-schema).
     for (const params of [
       { action: "send", target: "sess-bravo", body: "hello" },
       { action: "status", messageId: 1 },

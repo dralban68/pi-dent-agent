@@ -15,8 +15,7 @@ import { openSessionIndex } from "../../lib/session-index.ts";
 import { must } from "../support/must.ts";
 
 /**
- * The wiring of specs/search-tool.md Section 1 and specs/agent-tool.md Sections
- * 3.1, 4.2, and 10: `Search` is registered for the main session, a child session
+ * The wiring of specs/search-tool.md#registration and specs/agent-tool.md#tools, specs/agent-tool.md#child-session, and specs/agent-tool.md#retention-sweep: `Search` is registered for the main session, a child session
  * binds it when the tool cap includes it and carries its session-notes line, and
  * the index prune runs after the retention sweep. index.ts is loaded through
  * jiti, as in test/schedule-tool/wiring.test.ts.
@@ -192,7 +191,7 @@ test("a child session binds Search when the tool cap includes it, and carries it
   ]);
   // A child whose cap omits Search does not bind it.
   assert.deepEqual(effectiveToolCap(["Bash"], [tool], []), []);
-  // The line is for a child that can both search and dispatch (agent-tool.md Section 4.2).
+  // The line is for a child that can both search and dispatch (specs/agent-tool.md#child-session).
   const line =
     "- Everything an agent you dispatched ran, printed, or said is in its transcript, not only its final message: `Search` `find` with `session` set to its task ID, or to its session file path for a resumed agent, then `get` the hit by its address. A bare `find` searches this session; use it before redoing work and after a summary replaced earlier turns. Never read session files through `Bash`.";
   const notes = sessionNotes("/tmp/pi-dent-test", ["Search", "Agent"]);

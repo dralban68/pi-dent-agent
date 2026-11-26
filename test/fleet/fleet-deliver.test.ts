@@ -1,5 +1,5 @@
 /**
- * Delivery-contract tests for Fleet `send` (specs/fleet-tool.md Sections 1 and 3):
+ * Delivery-contract tests for Fleet `send` (specs/fleet-tool.md#parameter-schema and specs/fleet-tool.md#send):
  * idle-gated followUp built-ins, target-side slash-command rendering, live-only
  * recipient resolution, steer abort settling before delivery, and abort validation.
  */
@@ -54,7 +54,7 @@ function stubHost(sessionId: string, cwd: string): HostSession {
   };
 }
 
-/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md Section 1). */
+/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md#parameter-schema). */
 function registerSender(fleet: FleetCoordinator, sessionId: string, cwd: string): void {
   fleet.registerEndpoint(
     {
@@ -267,7 +267,7 @@ test("the command token ends at the first U+0020 space, so a line break stays in
     const call = (params: Record<string, unknown>) =>
       tool.execute("tc", params as never, undefined, undefined, undefined as never);
 
-    // No U+0020 space: the line break belongs to the token (slash-commands.md Section 1).
+    // No U+0020 space: the line break belongs to the token (specs/slash-commands.md#registration).
     const sent = await call({
       action: "send",
       target: "target-token",
@@ -587,7 +587,7 @@ test("a delivered followUp stops gating later deliveries once its turn starts", 
 });
 
 /**
- * specs/session-store.md Sections 2 and 5 scope the `followUp` rules to `kind`
+ * specs/session-store.md#session-records and specs/session-store.md#delivery scope the `followUp` rules to `kind`
  * `send`: a delivered `query` neither makes the target `running` nor holds back
  * a later `followUp` message of the same session.
  */
@@ -665,7 +665,7 @@ test("a send to a target that ended before its row was written is rejected, neve
     );
     registerSender(fleet, "sender-vanished", dir);
     // The resolution a `send` does first, then the target ends before the write
-    // (specs/session-store.md Section 4: no message waits for an ended session).
+    // (specs/session-store.md#membership-lifecycle: no message waits for an ended session).
     const resolved = fleet.resolveRecipient("target-vanished");
     assert.ok("session" in resolved, "the target resolves before it ends");
     fleet.unregisterEndpoint("target-vanished");

@@ -14,10 +14,9 @@ import type { HostSession } from "../../lib/host.ts";
 import type { Api, Model } from "@earendil-works/pi-ai/compat";
 
 /**
- * The Fleet `query` child's effective tool cap per specs/fleet-tool.md
- * Section 4: only the read-only tools `read`, `grep`, `find`, and `ls`
+ * The Fleet `query` child's effective tool cap per specs/fleet-tool.md#query: only the read-only tools `read`, `grep`, `find`, and `ls`
  * present in the target's tool cap; the query itself must not be rejected by
- * the Agent dispatch-authority check (specs/agent-tool.md Section 3.1).
+ * the Agent dispatch-authority check (specs/agent-tool.md#tools).
  */
 
 /** The names of the child tool definitions the engine binds (engine.ts childTools). */

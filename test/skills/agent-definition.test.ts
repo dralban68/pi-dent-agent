@@ -8,7 +8,7 @@ import type { Diagnostic } from "../../lib/util.ts";
 import { at } from "../support/must.ts";
 
 /**
- * The layer-scope skip rules of specs/agent.md Section 1: the reserved bare name
+ * The layer-scope skip rules of specs/agent.md#definition-files: the reserved bare name
  * `dynamic`, a duplicate `name` within one scope, and an empty body each skip one
  * definition with one diagnostic naming its file.
  *

@@ -8,8 +8,8 @@ import type { Diagnostic } from "../../lib/util.ts";
 import { at } from "../support/must.ts";
 
 /**
- * Pi-dent skill discovery per specs/skill.md Section 1 and the skip-and-report
- * rules of specs/agent.md Section 1: each `<name>/SKILL.md` under a layer's
+ * Pi-dent skill discovery per specs/skill.md#skill-files and the skip-and-report
+ * rules of specs/agent.md#definition-files: each `<name>/SKILL.md` under a layer's
  * `skills/` folder is one skill; a malformed or unreadable SKILL.md is skipped
  * with exactly one report line naming the file; absent paths stay silent
  * because discovery directories are advisory.
@@ -169,7 +169,7 @@ test("layout: unknown frontmatter keys produce one diagnostic and the skill stil
       assert.equal(
         at(lines, 0),
         `skills: ${file}: frontmatter: unknown keys future ignored`,
-        "the unknown-key text of config-file.md Section 2, with `frontmatter` as the object",
+        "the unknown-key text of specs/config-file.md#format, with `frontmatter` as the object",
       );
     } finally {
       rmSync(root, { recursive: true, force: true });

@@ -18,7 +18,7 @@ import { at } from "../support/must.ts";
 import { params, question, questionWorld } from "./support.ts";
 
 /**
- * specs/ask-user-question-tool.md Section 3: the question panel. Keys are driven into the
+ * specs/ask-user-question-tool.md#question-panel: the question panel. Keys are driven into the
  * component through the injected UI and the rendered lines are asserted; the terminal size is
  * the fake TUI's. No terminal is involved.
  */
@@ -66,7 +66,7 @@ const topBorder = (lines: readonly string[]): string => lines[0] ?? "";
 const bottomBorder = (lines: readonly string[]): string => lines[lines.length - 1] ?? "";
 
 // ---------------------------------------------------------------------------
-// Section 3.1: size and border
+// specs/ask-user-question-tool.md#size-border: size and border
 // ---------------------------------------------------------------------------
 
 test("the panel is drawn inside a border whose top line carries the title", () => {
@@ -126,7 +126,7 @@ test("a terminal narrower than the smallest width gives the panel the terminal w
 });
 
 // ---------------------------------------------------------------------------
-// Section 3.1: fixed height, padding, scrolling, indicator
+// specs/ask-user-question-tool.md#size-border: fixed height, padding, scrolling, indicator
 // ---------------------------------------------------------------------------
 
 test("the panel has the same height on every tab, row, text entry, and dismissal state", () => {
@@ -263,7 +263,7 @@ test("a resize recomputes the height and keeps the width taken when the panel op
 });
 
 // ---------------------------------------------------------------------------
-// Section 3.3: content
+// specs/ask-user-question-tool.md#panel-content: content
 // ---------------------------------------------------------------------------
 
 test("a direct call shows the question, its rows, the Other row, and the direct-call hint", () => {
@@ -290,7 +290,7 @@ test("a multi-select row carries its mark, and the tab bar marks answered questi
   assert.equal(at(content(harness.lines()), 0), "«■ Targets»  Submit");
 });
 
-test("values are cleaned of ANSI escape sequences and control characters (Section 3.3)", () => {
+test("values are cleaned of ANSI escape sequences and control characters (specs/ask-user-question-tool.md#panel-content)", () => {
   const harness = questionWorld().startPanel({
     params: {
       questions: [
@@ -346,7 +346,7 @@ test("the Submit tab's question lines are cut to the inner width with …", () =
 });
 
 // ---------------------------------------------------------------------------
-// Section 3.5: text entry
+// specs/ask-user-question-tool.md#text-entry: text entry
 // ---------------------------------------------------------------------------
 
 test("the Other row starts text entry with the label and the editor", () => {
@@ -454,7 +454,7 @@ test("empty text on a single-select question keeps its chosen option", async () 
 });
 
 // ---------------------------------------------------------------------------
-// Section 3.4 and 3.6: keys, dismissal
+// specs/ask-user-question-tool.md#keys and specs/ask-user-question-tool.md#dismissal: keys, dismissal
 // ---------------------------------------------------------------------------
 
 test("up and down move the highlight and stop at the ends", () => {
@@ -591,7 +591,7 @@ test("escape disarms dismissal, and any other key disarms it and is handled", ()
 });
 
 // ---------------------------------------------------------------------------
-// Section 2.1 and 3: the answer summary, focus
+// specs/ask-user-question-tool.md#answers and specs/ask-user-question-tool.md#question-panel: the answer summary, focus
 // ---------------------------------------------------------------------------
 
 test("the answer summary joins labels, then the quoted first line with an ellipsis", () => {

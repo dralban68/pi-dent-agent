@@ -29,8 +29,7 @@ import { rebuildInterruptedTasks } from "../../lib/task-rebuild.ts";
 import { must } from "../support/must.ts";
 
 /**
- * Reproductions of reviewed dispatch-engine defects (specs/agent-tool.md
- * Sections 1.1, 3.3, 4.2, 4.3, 7 and 8).
+ * Reproductions of reviewed dispatch-engine defects (specs/agent-tool.md#parameter-schema, specs/agent-tool.md#model-thinking, specs/agent-tool.md#child-session, specs/agent-tool.md#terminal-candidate, specs/agent-tool.md#result-contract and specs/agent-tool.md#recovery).
  *
  * Real child sessions run on a scripted faux provider.
  */
@@ -159,7 +158,7 @@ interface DetailsLike {
 }
 const detailsOf = (result: ToolResult) => result.details as DetailsLike;
 
-// --- Section 4.3: the last assistant message commits the error ----------------
+// --- specs/agent-tool.md#terminal-candidate: the last assistant message commits the error ----------------
 
 test("an attempt pi itself retried past an error completes instead of failing", async () => {
   // pi's default retry: an error answer is followed by a normal stop answer.
@@ -239,7 +238,7 @@ test("a successful attempt is not re-prompted by the engine after pi recovered",
   assert.equal(calls, 2, "work that already succeeded is not done again");
 });
 
-// --- Section 4.3 / 7: empty error message falls back --------------------------
+// --- specs/agent-tool.md#terminal-candidate / 7: empty error message falls back --------------------------
 
 test("an empty error message falls back to the model error text", async () => {
   faux.setResponses([() => fauxAssistantMessage("", { stopReason: "error", errorMessage: "" })]);
@@ -264,7 +263,7 @@ test("an empty error message falls back to the model error text", async () => {
   assert.ok(!text.startsWith("Agent error: \n"), text);
 });
 
-// --- Section 3.3: persisted thinking is not checked against the model ---------
+// --- specs/agent-tool.md#model-thinking: persisted thinking is not checked against the model ---------
 
 test("a persisted thinking level is applied to the persisted model without a support check", async () => {
   const { root, sessionFile } = newRoot();
@@ -335,7 +334,7 @@ test("a blank cwd is absent: the dispatching session's working directory applies
   }
 });
 
-// --- Section 7: a failed permission check on a recovery attempt ---------------
+// --- specs/agent-tool.md#result-contract: a failed permission check on a recovery attempt ---------------
 
 test("a missing-tool-authority record on a recovery attempt carries no previous usage", async () => {
   let ran = false;
@@ -376,7 +375,7 @@ test("a missing-tool-authority record on a recovery attempt carries no previous 
   assert.equal((records[1]?.trace ?? []).length, 0);
 });
 
-// --- Section 4.1 / 4.2: agent-directory creation is a pre-start rejection -----
+// --- specs/agent-tool.md#invocation-lifecycle / 4.2: agent-directory creation is a pre-start rejection -----
 
 function resumeFixture(root: string): { source: string; recordPath: string; blocked: string } {
   const dir = join(root, "child");
@@ -459,7 +458,7 @@ test("a child agent directory that cannot be created fails a background call ins
   assert.equal(existsSync(recordPath), true, "the resumed row's record survives");
 });
 
-// --- Section 3.1 / 4.1: a plan-resolution failure after delivery began -------
+// --- specs/agent-tool.md#tools / 4.1: a plan-resolution failure after delivery began -------
 
 /** Wait until the row with `taskId` leaves `running`. */
 async function waitForSettled(engine: DispatchEngine, taskId: string) {
@@ -516,7 +515,7 @@ test("a plan-resolution failure on a later attempt settles like an execution fai
     /Agent error: the main session's tool cap no longer includes Agent/,
   );
   // A row consumed before it settles is never listed by a completion
-  // notification (task-registry.md Section 5). This one is listed, so the late
+  // notification (specs/task-registry.md#cohorts). This one is listed, so the late
   // plan-resolution failure settles like an execution failure.
   assert.deepEqual(notified, [`Background tasks settled:\n${taskId} · failed · go`]);
 });
@@ -557,7 +556,7 @@ test("a plan-resolution failure during delivery records its own phase and code",
   assert.equal(last.failureCode, "missing-tool-authority");
 });
 
-// --- Section 4.1: the row label is `<agent> — <summary>` --------------------
+// --- specs/agent-tool.md#invocation-lifecycle: the row label is `<agent> — <summary>` --------------------
 
 test("the initial label falls back to the literal `task` when the first line of task is empty", async () => {
   faux.setResponses([]);
@@ -629,14 +628,14 @@ test("the amended label uses the literal `task` when the first line of task is e
   await waitForSettled(engine, row.taskId);
 });
 
-// --- Section 1.1 / task.md 1.1: the `cwd` check is a parameter check --------
+// --- specs/agent-tool.md#parameter-schema / task.md 1.1: the `cwd` check is a parameter check --------
 
 test("a cwd failure is reported before the dispatch-authority failure", async () => {
   faux.setResponses([]);
   const { root, sessionFile } = newRoot();
   const base = makeHost(sessionFile, "main-id", root);
   // The cap excludes Agent, so plan resolution would also fail; the `cwd`
-  // check is a parameter check and comes first (agent-tool.md Section 1.1).
+  // check is a parameter check and comes first (specs/agent-tool.md#parameter-schema).
   const host: HostSession = { ...base, activeTools: () => ["bash"] };
   const engine = new DispatchEngine(
     bootWith(),
@@ -660,7 +659,7 @@ test("a cwd failure is reported before the dispatch-authority failure", async ()
   assert.equal(detailsOf(result).results?.[0]?.failureCode, "invalid-plan");
 });
 
-// --- Section 1.1: an empty agent name lists the catalog ------------------------
+// --- specs/agent-tool.md#parameter-schema: an empty agent name lists the catalog ------------------------
 
 test("an empty agent name is rejected with the list of available agents", async () => {
   const alpha: AgentDefinition = { name: "alpha", description: "a", prompt: "A", source: "test" };

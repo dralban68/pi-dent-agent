@@ -27,7 +27,7 @@ export function threadCpuMs(): number {
 
 /**
  * The longest the main thread ran without yielding to the event loop while
- * `work` ran, in milliseconds (specs/search-tool.md Section 2.3, the 250 ms
+ * `work` ran, in milliseconds (specs/search-tool.md#abort, the 250 ms
  * bound). A 5 ms interval timer marks each yield; between two ticks it counts
  * the main thread's own CPU time, not wall time, so time the OS spends running
  * other processes on a loaded machine does not count as holding the loop.
@@ -84,7 +84,7 @@ export function entryLine(value: Record<string, unknown>): string {
   return JSON.stringify(value);
 }
 
-/** A session header's line (session-transcript.md Section 1). */
+/** A session header's line (specs/session-transcript.md#reading). */
 export function headerLine(id = "session-one", seconds = 0): string {
   return entryLine({ type: "session", version: 3, id, timestamp: stamp(seconds), cwd: "/tmp" });
 }

@@ -12,7 +12,7 @@ import {
 } from "../../lib/session-transcript.ts";
 import { headerLine, tempDir, userLine, writeSession } from "./support.ts";
 
-/** specs/session-transcript.md Sections 4 and 4.1: the session tree, its discovery, and the project. */
+/** specs/session-transcript.md#session-tree and specs/session-transcript.md#project: the session tree, its discovery, and the project. */
 
 const roots: string[] = [];
 after(() => {
@@ -125,7 +125,7 @@ test("a root with no session file is a member with no entries whose agent direct
 
 test("a root without a session file reads the agent directory it is given", async () => {
   const root = dir();
-  // A session without a session file has `<tmpdir>/pi-dent-sessions/<sessionId>/` (agent-tool.md Section 4.2).
+  // A session without a session file has `<tmpdir>/pi-dent-sessions/<sessionId>/` (specs/agent-tool.md#child-session).
   const agents = join(root, "pi-dent-sessions", "session-id-0001");
   mkdirSync(agents, { recursive: true });
   writeSession(join(agents, "kid-0001.jsonl"), headerLine("kid-session"));

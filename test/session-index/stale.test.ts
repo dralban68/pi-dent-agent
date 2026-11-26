@@ -17,7 +17,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/session-index.md Section 3: a stale row, and the conditional reset. */
+/** specs/session-index.md#catch-up: a stale row, and the conditional reset. */
 
 const roots: string[] = [];
 after(() => {
@@ -73,7 +73,7 @@ test("a stale row is detected when the line no longer carries the entry ID", asy
   replaceInFile(session, '"id":"a1"', '"id":"z1"');
   assert.deepEqual(index.readItem(first), { status: "stale" });
   // A row whose entry is intact but whose part the line does not yield is stale too
-  // (Section 3), as is one whose kind differs.
+  // (specs/session-index.md#catch-up), as is one whose kind differs.
   assert.deepEqual(index.readItem({ ...must(rows[1]), part: "7" }), { status: "stale" });
   assert.deepEqual(index.readItem({ ...must(rows[1]), kind: "tool_result" }), { status: "stale" });
   index.close();

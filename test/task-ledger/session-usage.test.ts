@@ -7,7 +7,7 @@ import {
 } from "../../lib/task-ledger.ts";
 import { usage } from "./support.ts";
 
-/** specs/task-ledger.md Section 2.1: the usage and tool-call count of a ledger session row. */
+/** specs/task-ledger.md#session-row: the usage and tool-call count of a ledger session row. */
 
 function hostUsage(input: number, output: number, cost: number, cacheRead = 0, cacheWrite = 0) {
   return { input, output, cacheRead, cacheWrite, cost: { total: cost } };

@@ -426,7 +426,7 @@ test("details bash: the first section is named Bash, then Command, then Output",
   assert.equal(page[13], "↑↓ scroll · g/G top/bottom · esc back");
 });
 
-test("details bash: a long multi-line command shows every line, wrapped, under Command (Section 4.2)", async () => {
+test("details bash: a long multi-line command shows every line, wrapped, under Command (specs/task-browser.md#script-bash)", async () => {
   const root = mkdtempSync(join(tmpdir(), "pi-dent-browser-command-"));
   const host = {
     cwd: () => root,
@@ -1326,7 +1326,7 @@ test("details: paths under the agent directory show it as $PI_DENT_SESSION_DIR",
     assert.ok(labelled.renderLine(0).endsWith("read $PI_DENT_SESSION_DIR/brief.md"));
     assert.ok(root.listLine(labelled).endsWith(`read ${dir}/brief.md`));
 
-    // The Command lines of a bash row take the same substitution (Section 4.2).
+    // The Command lines of a bash row take the same substitution (specs/task-browser.md#script-bash).
     const bash = root.register({
       kind: "bash",
       cohort: "c",
@@ -1349,7 +1349,7 @@ test("details: paths under the agent directory show it as $PI_DENT_SESSION_DIR",
   }
 });
 
-test("kill key: the hint carries the segment only where the key applies (Sections 4.1, 4.2, 4.4)", () => {
+test("kill key: the hint carries the segment only where the key applies (specs/task-browser.md#agent-details, specs/task-browser.md#script-bash, specs/task-browser.md#kill-key)", () => {
   const hint = (row: TaskRow, killable: boolean, armed = false): string => {
     const page = renderDetails({
       row,
@@ -1393,7 +1393,7 @@ test("kill key: the hint carries the segment only where the key applies (Section
   assert.equal(hint(bash, false), "↑↓ scroll · g/G top/bottom · esc back");
 });
 
-test("kill key: the first press arms and cancels nothing, the second cancels without consuming (Section 4.4)", () => {
+test("kill key: the first press arms and cancels nothing, the second cancels without consuming (specs/task-browser.md#kill-key)", () => {
   const root = reg();
   const row = addAgent(root, "victim");
   let cancelled = 0;
@@ -1428,7 +1428,7 @@ test("kill key: the first press arms and cancels nothing, the second cancels wit
   );
 });
 
-test("kill key: any other key disarms it and is handled per its own rule (Section 4.4)", () => {
+test("kill key: any other key disarms it and is handled per its own rule (specs/task-browser.md#kill-key)", () => {
   const root = reg();
   const row = addAgent(root, "victim");
   let cancelled = 0;
@@ -1451,7 +1451,7 @@ test("kill key: any other key disarms it and is handled per its own rule (Sectio
   assert.equal(cancelled, 1);
 });
 
-test("kill key: a settled row shows no segment and ignores the key (Section 4.4)", () => {
+test("kill key: a settled row shows no segment and ignores the key (specs/task-browser.md#kill-key)", () => {
   const root = reg();
   const row = addAgent(root, "done");
   root.settle(row, { status: "completed", result: "fine" });
@@ -1477,7 +1477,7 @@ test("kill key: a settled row shows no segment and ignores the key (Section 4.4)
   assert.equal(row.result, "fine");
 });
 
-test("kill key: a child session's task is killed in the registry that holds it (Section 4.4)", () => {
+test("kill key: a child session's task is killed in the registry that holds it (specs/task-browser.md#kill-key)", () => {
   const root = reg();
   const parent = addAgent(root, "parent");
   const child = reg();
@@ -1526,7 +1526,7 @@ test("kill key: a child session's task is killed in the registry that holds it (
   assert.equal(cancelled, 2);
 });
 
-test("kill key: a running row whose registry the tree no longer holds is not killable (Section 4.4)", () => {
+test("kill key: a running row whose registry the tree no longer holds is not killable (specs/task-browser.md#kill-key)", () => {
   const root = reg();
   const parent = addAgent(root, "parent");
   const child = reg();
@@ -1551,7 +1551,7 @@ test("kill key: a running row whose registry the tree no longer holds is not kil
   assert.equal(inner.browserKill, false);
 });
 
-test("kill key: the same key kills a script and a bash row (Section 4.4)", () => {
+test("kill key: the same key kills a script and a bash row (specs/task-browser.md#kill-key)", () => {
   const root = reg();
   const script = addScript(root, "s");
   const bash = addBash(root, "b");
@@ -1579,7 +1579,7 @@ test("kill key: the same key kills a script and a bash row (Section 4.4)", () =>
   assert.equal(killed, 2);
 });
 
-test("overlay: a browser kill is reflected without a further key press (Section 4.4)", async () => {
+test("overlay: a browser kill is reflected without a further key press (specs/task-browser.md#kill-key)", async () => {
   const root = reg();
   const row = addAgent(root, "victim");
   row.cancel = () => root.settle(row, { status: "cancelled", result: "Command killed" });
@@ -1609,7 +1609,7 @@ test("overlay: a browser kill is reflected without a further key press (Section 
   overlay.dispose();
 });
 
-test("kill key: a background kill is delivered as the completion notification naming the user (Section 4.4)", () => {
+test("kill key: a background kill is delivered as the completion notification naming the user (specs/task-browser.md#kill-key)", () => {
   const messages: string[] = [];
   const root = new TaskRegistry(
     () =>
@@ -1635,7 +1635,7 @@ test("kill key: a background kill is delivered as the completion notification na
   assert.equal(row.consumed, true, "the completion notification consumes the row");
 });
 
-test("kill key: a child session's foreground bash is cancelled and the child goes on (Section 4.4)", async () => {
+test("kill key: a child session's foreground bash is cancelled and the child goes on (specs/task-browser.md#kill-key)", async () => {
   const root = mkdtempSync(join(tmpdir(), "pi-dent-browser-"));
   const messages: string[] = [];
   const host = {

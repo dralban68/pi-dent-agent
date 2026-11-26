@@ -12,7 +12,7 @@ import type { HostSession, HostToolInfo } from "../../lib/host.ts";
 import { must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Section 3.1 lifecycle rules: the child runs its inherited
+ * specs/agent-tool.md#tools lifecycle rules: the child runs its inherited
  * extensions' session-start before its first prompt, so tools registered then
  * are available, and invokes their session-shutdown on completion, cancellation
  * and failure. It loads the sources from the dispatching session's inventory, so
@@ -252,7 +252,7 @@ test("a failed dispatch runs session-shutdown", async () => {
   const root = newRoot();
   const marker = join(root, "life.log");
   const extension = writeExtension(root, "lifecycle.mjs", lifecycleExtension(marker));
-  // A non-transient error (Section 8), with no recovery attempt allowed.
+  // A non-transient error (specs/agent-tool.md#recovery), with no recovery attempt allowed.
   faux.setResponses([
     () =>
       fauxAssistantMessage("", {

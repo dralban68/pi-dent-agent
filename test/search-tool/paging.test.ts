@@ -19,7 +19,7 @@ import type { SearchHost } from "../../lib/search-tool.ts";
 import { openSessionIndex } from "../../lib/session-index.ts";
 
 /**
- * specs/search-tool.md Sections 2.3, 3.1 and 3.3: how a call pages through
+ * specs/search-tool.md#abort, specs/search-tool.md#candidates and specs/search-tool.md#evaluation: how a call pages through
  * candidate rows — a session's own rows whatever the index holds besides, deep
  * paging, a time group above the row cap, the filters a direct read applies, and
  * the bounds a page, a direct read, and a covering under a replaced index keep.
@@ -171,7 +171,7 @@ test("an abort during paging is observed within 100 ms", async () => {
   assert.equal(elapsed < 100, true, `the abort took ${elapsed} ms`);
 });
 
-test("a direct read applies every filter of Section 3.1", async () => {
+test("a direct read applies every filter of specs/search-tool.md#candidates", async () => {
   const made = fixture("search-tool-fixes-direct-");
   writeSession(
     made.mainFile,

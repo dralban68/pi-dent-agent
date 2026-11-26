@@ -7,7 +7,7 @@ import { makeAgentTool } from "../../lib/tools.ts";
 import { at } from "../support/must.ts";
 
 /**
- * A host-less Agent call per specs/agent-tool.md Sections 3.1 and 4.1: when no
+ * A host-less Agent call per specs/agent-tool.md#tools and specs/agent-tool.md#invocation-lifecycle: when no
  * live main session exists there is no tool cap, so the dispatch fails the plan
  * with `missing-tool-authority` — routed through DispatchEngine.dispatch's
  * rejection path, registering exactly one failed, consumed task row.
@@ -41,7 +41,7 @@ function textOf(result: ToolResult): string {
 
 const noCtx = undefined as unknown as ExtensionToolContext;
 
-test("host-less: the tool routes through dispatch and returns the Section 7 error shape with one failed consumed row", async () => {
+test("host-less: the tool routes through dispatch and returns the specs/agent-tool.md#result-contract error shape with one failed consumed row", async () => {
   const engine = new DispatchEngine(
     boot,
     () => undefined,

@@ -9,7 +9,7 @@ import { createJiti } from "jiti";
 import type { ExtensionAPI, ToolResultEvent } from "@earendil-works/pi-coding-agent";
 
 /**
- * specs/script-tool.md Section 6: the main session registers the read hint on
+ * specs/script-tool.md#timeout-delivery: the main session registers the read hint on
  * `tool_result`, rooted at the `PI_DENT_SESSION_DIR` of the process environment.
  * index.ts is loaded through jiti, as in test/markdown-wiring/wiring.test.ts.
  */

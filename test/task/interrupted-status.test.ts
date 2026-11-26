@@ -7,10 +7,9 @@ import { AgentTaskRow, TaskRegistry, type SettleStatus, type TaskRow } from "../
 import type { HostSession } from "../../lib/host.ts";
 
 /**
- * The `interrupted` task status per specs/task-registry.md Sections 2 and 5:
+ * The `interrupted` task status per specs/task-registry.md#task-row and specs/task-registry.md#cohorts:
  * row rendering, settlement exclusion, cohort notification, task-record
- * deletion on consume, and the rebuild of pre-built rows (task-record.md
- * Section 3).
+ * deletion on consume, and the rebuild of pre-built rows (specs/task-record.md#rebuild).
  */
 
 const INTERRUPTED_HEADER = "Interrupted tasks (resume with Agent resume=<taskId>):";
@@ -29,7 +28,7 @@ function bg(registry: TaskRegistry, cohort: string, label = "t"): TaskRow {
   return registry.register({ kind: "script", cohort, label, background: true });
 }
 
-/** A pre-built background `agent` row as a rebuild inserts it (task-record.md Section 3). */
+/** A pre-built background `agent` row as a rebuild inserts it (specs/task-record.md#rebuild). */
 function restoredRow(
   status: "interrupted" | "completed" | "failed" | "cancelled",
   taskId: string,
@@ -63,7 +62,7 @@ test("renderLine freezes elapsed at settledAt once not running", () => {
 });
 
 test("settle admits only SettleStatus and never yields interrupted", () => {
-  // Typecheck-enforced: `interrupted` is not a SettleStatus (Section 2).
+  // Typecheck-enforced: `interrupted` is not a SettleStatus (specs/task-registry.md#task-row).
   const outcome: { status: SettleStatus } = { status: "completed" };
   // @ts-expect-error - interrupted is set only by a rebuild, never by settle
   outcome.status = "interrupted";

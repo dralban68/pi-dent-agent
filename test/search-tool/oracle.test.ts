@@ -28,7 +28,7 @@ import {
 
 /**
  * An independent oracle: it computes the expected hit addresses straight from the
- * session files by the rules of specs/search-tool.md Sections 3.1 to 3.4 — no
+ * session files by the rules of specs/search-tool.md#candidates, specs/search-tool.md#matching, specs/search-tool.md#evaluation, specs/search-tool.md#result — no
  * index, none of the tool's evaluation code — and compares `find` against it over
  * a matrix of scopes, filters, orders, branches, paging and index states, and
  * over the paths that are easy to leave uncovered: a fixture above the
@@ -41,7 +41,7 @@ after(cleanupRoots);
 
 /** One session of a fixture, as the oracle knows it. */
 interface OracleSession {
-  /** The session key relative to the invoking session (session-transcript.md Sections 4 and 4.1). */
+  /** The session key relative to the invoking session (specs/session-transcript.md#session-tree and specs/session-transcript.md#project). */
   key: string;
   path: string;
 }
@@ -82,12 +82,12 @@ const LITERAL_SPECIALS = new Set([
   "|",
 ]);
 
-/** The literal pattern of Section 3.2: each metacharacter escaped. */
+/** The literal pattern of specs/search-tool.md#matching: each metacharacter escaped. */
 function literalPattern(query: string): string {
   return [...query].map((ch) => (LITERAL_SPECIALS.has(ch) ? `\\${ch}` : ch)).join("");
 }
 
-/** The regular expression of Section 3.2. */
+/** The regular expression of specs/search-tool.md#matching. */
 function expressionOf(query: string, regex: boolean, caseSensitive: boolean): RegExp {
   const pattern = regex ? query : literalPattern(query);
   return new RegExp(pattern, caseSensitive ? "m" : "mi");
@@ -96,7 +96,7 @@ function expressionOf(query: string, regex: boolean, caseSensitive: boolean): Re
 /** The items of the session files a fixture holds, cached per path for the big fixtures. */
 const placedCache = new Map<string, Placed[]>();
 
-/** The items of one session file, read directly (Section 1 of session-transcript.md). */
+/** The items of one session file, read directly (specs/session-transcript.md#reading). */
 function placedItems(session: OracleSession): Placed[] {
   const cached = placedCache.get(session.path);
   if (cached !== undefined) return cached;
@@ -118,7 +118,7 @@ function placedItems(session: OracleSession): Placed[] {
   return placed;
 }
 
-/** Transcript order of Section 6. */
+/** Transcript order of specs/search-tool.md#references. */
 function comparePlaced(one: Placed, other: Placed): number {
   if (one.item.time !== other.item.time) return one.item.time - other.item.time;
   if (one.key !== other.key) return one.key < other.key ? -1 : 1;
@@ -127,7 +127,7 @@ function comparePlaced(one: Placed, other: Placed): number {
   return compareParts(one.item.part, other.item.part);
 }
 
-/** The sessions of a scope (Section 2.1), written out from the fixture's layout. */
+/** The sessions of a scope (specs/search-tool.md#reach), written out from the fixture's layout. */
 function sessionsOf(layout: Layout, scope: string): OracleSession[] {
   if (scope === "session") return [layout.self];
   const tree = [layout.self, layout.kid, layout.deep].filter(
@@ -145,7 +145,7 @@ function sessionsOf(layout: Layout, scope: string): OracleSession[] {
   return [...tree, ...otherTree, ...members];
 }
 
-/** The filters a `find` call applies (Sections 3.1 and 3.2). */
+/** The filters a `find` call applies (specs/search-tool.md#candidates and specs/search-tool.md#matching). */
 interface Filters {
   query?: string;
   regex?: boolean;
@@ -171,7 +171,7 @@ function paramsOf(filters: Filters): Record<string, unknown> {
   return params;
 }
 
-/** True when the item passes every filter of Section 3.1. */
+/** True when the item passes every filter of specs/search-tool.md#candidates. */
 function passes(placed: Placed, filters: Filters, expression: RegExp | undefined): boolean {
   const item = placed.item;
   if (filters.branches !== true && !placed.onLineage) return false;
@@ -197,7 +197,7 @@ function passes(placed: Placed, filters: Filters, expression: RegExp | undefined
   return true;
 }
 
-/** The hit addresses of a call, in the call's order, after `after`, up to `limit` (Section 3.4). */
+/** The hit addresses of a call, in the call's order, after `after`, up to `limit` (specs/search-tool.md#result). */
 function oracle(
   layout: Layout,
   scope: string,
@@ -221,7 +221,7 @@ function oracle(
   return addresses.slice(at + 1, at + 1 + limit);
 }
 
-/** The address of one item (session-transcript.md Section 5). */
+/** The address of one item (specs/session-transcript.md#item-address). */
 function addressOf(placed: Placed): string {
   const part = placed.item.part === undefined ? "" : `.${placed.item.part}`;
   return `${placed.key}:${placed.item.entryId}${part}`;
@@ -361,7 +361,7 @@ const FILTERS: { label: string; filters: Filters }[] = [
   },
 ];
 
-/** Run the tool to the end of its hits, following `after` (Section 3.4). */
+/** Run the tool to the end of its hits, following `after` (specs/search-tool.md#result). */
 async function paged(
   h: ReturnType<typeof harness>,
   host: SearchHost,
@@ -389,8 +389,8 @@ async function paged(
 
 /**
  * Run the tool to the end of its hits whether a page stops at the time budget or
- * reports more: a stopped page continues from its stop item (Section 3.3), a page
- * with more hits from its last hit (Section 3.4).
+ * reports more: a stopped page continues from its stop item (specs/search-tool.md#evaluation), a page
+ * with more hits from its last hit (specs/search-tool.md#result).
  */
 async function continued(
   h: ReturnType<typeof harness>,
@@ -907,7 +907,7 @@ test("a stopped call shows a prefix of the oracle and its continuation loses not
   }
   assert.equal(stopped, true, "the call was expected to stop at the budget");
   const expected = oracle(made.layout, "tree", { query: "a", order }, Number.MAX_SAFE_INTEGER);
-  // The first, stopped page showed a prefix of the oracle's order (Section 3.3). It
+  // The first, stopped page showed a prefix of the oracle's order (specs/search-tool.md#evaluation). It
   // may hold every hit: the run of decided items can reach the end of the list, and
   // a stop shortens no page, it only names the item the next call goes on from.
   assert.deepEqual(firstPageAddresses, expected.slice(0, firstPageAddresses?.length));
@@ -980,7 +980,7 @@ test("narrowing reads back only the items that match, on every covered session o
   assert.equal(outcome.isError, false, outcome.text);
   // Every item on the lineage whose match text contains "needle" is read back —
   // Search's own calls among them, whose label the call reads to apply the
-  // own-calls rule — and nothing else (Section 3.3).
+  // own-calls rule — and nothing else (specs/search-tool.md#evaluation).
   const tree = sessionsOf(made.layout, "tree").flatMap((session) => placedItems(session));
   const expression = expressionOf("needle", false, false);
   const ownRead = tree.filter(
@@ -1044,7 +1044,7 @@ test("the scan path restricted to the call's files, when they are a small part o
 test("a regular expression narrows by trigrams without losing a hit", async () => {
   // Each pattern with the texts it matches: `find` must return exactly the items
   // the pattern matches, whether the call narrows the candidates by trigrams or
-  // evaluates every one of them (Section 3.3).
+  // evaluates every one of them (specs/search-tool.md#evaluation).
   const cases: { pattern: string; texts: string[] }[] = [
     { pattern: "needle", texts: ["a needle here"] },
     { pattern: "nee?dle", texts: ["nedle", "needle"] },

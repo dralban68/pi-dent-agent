@@ -1,7 +1,7 @@
 /**
- * Spec-gap tests for specs/session-store.md Section 4 (a record whose owner
+ * Spec-gap tests for specs/session-store.md#membership-lifecycle (a record whose owner
  * process is gone is no target, is deleted when detected, and has its pending
- * messages rejected) and specs/fleet-tool.md Section 4's
+ * messages rejected) and specs/fleet-tool.md#query's
  * exactly-one query reply (a failed reply is never retried as a second reply).
  */
 import assert from "node:assert/strict";
@@ -70,7 +70,7 @@ function rawDb(path: string): DatabaseSync {
   return new DatabaseSync(path);
 }
 
-/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md Section 1). */
+/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md#parameter-schema). */
 function registerSender(fleet: FleetCoordinator, sessionId: string, cwd: string): void {
   fleet.registerEndpoint(
     {
@@ -252,7 +252,7 @@ test("a reply the store refuses is spent, never resent as a second reply", async
       },
       "idle",
     );
-    // The store refuses the reply the target sends back (fleet-tool.md Section 4).
+    // The store refuses the reply the target sends back (specs/fleet-tool.md#query).
     const refusing = rawDb(dbPath);
     refusing.exec(
       "CREATE TRIGGER refuse_reply_insert BEFORE INSERT ON fleet_messages WHEN NEW.body LIKE '[Fleet query reply%' BEGIN SELECT RAISE(ABORT, 'reply transport refused'); END",

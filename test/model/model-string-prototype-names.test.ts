@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { resolveModelString } from "../../lib/model-string.ts";
 
 /**
- * Model string resolution per specs/model-string.md Section 3: a class name that only names an
+ * Model string resolution per specs/model-string.md#model-classes: a class name that only names an
  * `Object.prototype` property resolves as an unknown class, and an own class of that name still
  * resolves through its mapping.
  */

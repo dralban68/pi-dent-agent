@@ -17,7 +17,7 @@ import { searchRuntime } from "../../lib/search-tool.ts";
 import type { SearchHost } from "../../lib/search-tool.ts";
 
 /**
- * specs/search-tool.md Sections 2.2, 2.3 and 3.3: the evaluation of a query and
+ * specs/search-tool.md#coverage, specs/search-tool.md#abort and specs/search-tool.md#evaluation: the evaluation of a query and
  * what bounds it — the event loop yield under a long one, an abort during one, the
  * per-item evaluation limit, a failing evaluation, and the end of a continuation's
  * boot window.
@@ -127,7 +127,7 @@ test("an evaluation that fails ends the call at once as Search failed", async ()
   const made = fixture("search-tool-evaluation-failure-");
   writeSession(made.mainFile, headerLine("main-session-0001"), userLine("a", null, "alpha", 1));
   // The evaluation fails for a reason other than the pattern, the evaluation limit,
-  // the budget, or an abort (Section 2.3).
+  // the budget, or an abort (specs/search-tool.md#abort).
   const failing = (): PatternEvaluator => ({
     evaluate: async () => ({ kind: "failed", message: "the search worker exited (code 1)" }),
     close: () => {},

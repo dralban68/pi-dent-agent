@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 import { LEDGER_FILE_NAME, taskLedgerPath, TASKS_DB_ENV } from "../../lib/task-ledger.ts";
 import { inserted, openLedger, raw, taskRow, tempDir, userVersionOf } from "./support.ts";
 
-/** specs/task-ledger.md Sections 1, 2 and 7: location, opening, schema, and an unusable ledger. */
+/** specs/task-ledger.md#location, specs/task-ledger.md#schema and specs/task-ledger.md#failures: location, opening, schema, and an unusable ledger. */
 
 test("the ledger path is PI_DENT_TASKS_DB when set and non-empty, else ~/.pi/pi-dent/tasks-v1.sqlite", () => {
   assert.equal(TASKS_DB_ENV, "PI_DENT_TASKS_DB");
@@ -278,7 +278,7 @@ test("a wrong-version file in write-ahead-log mode keeps its bytes and gets no w
   assert.equal(ledger.unusableReason(), "unsupported task ledger version 3");
   assert.equal(notices.length, 1);
   assert.equal(readFileSync(path).equals(before), true, "the main file is unchanged");
-  // SQLite may create the companions of a WAL file (Section 9); a write would add a frame to the
+  // SQLite may create the companions of a WAL file (specs/task-ledger.md#gaps); a write would add a frame to the
   // log, past its 32-byte header.
   const wal = `${path}-wal`;
   assert.equal(!existsSync(wal) || statSync(wal).size <= 32, true, "no frame was written");

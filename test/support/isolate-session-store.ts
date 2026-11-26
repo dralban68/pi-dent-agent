@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /**
- * Imported for its effect: points the local session store (specs/session-store.md Section 1)
+ * Imported for its effect: points the local session store (specs/session-store.md#location)
  * of this test file's process at a fresh temporary file, so a test that starts the extension
  * never opens the real store, whatever `PI_DENT_FLEET_DB` the environment carries.
  */

@@ -17,7 +17,7 @@ import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { applyLocalLinks, localLinkDiagnostics } from "../../lib/local-links.ts";
 
-/** Local links of specs/package.md Section 5, each in a temporary package root. */
+/** Local links of specs/package.md#local-links, each in a temporary package root. */
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const RUN = "node scripts/link-local.ts";

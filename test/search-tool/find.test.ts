@@ -22,7 +22,7 @@ import {
 import type { SearchHost } from "../../lib/search-tool.ts";
 
 /**
- * specs/search-tool.md Sections 3.1 to 3.4: the filters, the matching, the
+ * specs/search-tool.md#candidates, specs/search-tool.md#matching, specs/search-tool.md#evaluation, specs/search-tool.md#result: the filters, the matching, the
  * orders, the limit and its continuation, the own-calls rule, the lineage, and
  * every scope value.
  */

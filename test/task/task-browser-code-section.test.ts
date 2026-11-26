@@ -4,7 +4,7 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { TaskRegistry } from "../../lib/registry.ts";
 import { identityTheme, renderDetails, TaskBrowserState } from "../../lib/task-browser.ts";
 
-/** The `Code` section of a `script` details page (task-browser.md Section 4.2). */
+/** The `Code` section of a `script` details page (specs/task-browser.md#script-bash). */
 
 const reg = () => new TaskRegistry(() => undefined);
 const addScript = (r: TaskRegistry, code: string) =>

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { processStartedMs } from "../../lib/task-ledger.ts";
 import { inserted, openLedger, raw, taskRow } from "./support.ts";
 
-/** specs/task-ledger.md Section 4.1: the sweep at opening. */
+/** specs/task-ledger.md#sweep: the sweep at opening. */
 
 /** The pid of a process that has exited. */
 function deadPid(): Promise<number> {
@@ -61,7 +61,7 @@ test("opening settles the running rows of a gone owner interrupted at their upda
 });
 
 test("an owner the probe may not signal counts as existing", async (t) => {
-  // A non-root process gets EPERM signalling pid 1 (Section 4.1).
+  // A non-root process gets EPERM signalling pid 1 (specs/task-ledger.md#sweep).
   if (process.getuid?.() === 0) {
     t.skip("running as root: signalling pid 1 succeeds, so no permission-denied probe");
     return;

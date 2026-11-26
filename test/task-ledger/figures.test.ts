@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { inserted, ok, openLedger, usage } from "./support.ts";
 
-/** specs/task-ledger.md Section 6: figures derived from the rows when read. */
+/** specs/task-ledger.md#derived-figures: figures derived from the rows when read. */
 
 test("row and session figures over a tree with a row whose parent is missing", async () => {
   const { ledger } = openLedger({ now: () => 10_000 });
@@ -89,7 +89,7 @@ test("row and session figures over a tree with a row whose parent is missing", a
   assert.equal(rows.get(orphanChild)?.wallMs, 0);
   assert.equal(rows.get(orphanChild)?.descendants, 0);
   assert.deepEqual(rows.get(grandchild)?.own, usage(0, 0, 0, 0));
-  // A bash row has no tool-call count, not 0 (Section 6).
+  // A bash row has no tool-call count, not 0 (specs/task-ledger.md#derived-figures).
   assert.equal(rows.get(grandchild)?.toolCalls, undefined);
 
   assert.deepEqual(ok(await ledger.readSessionFigures("session-a")), {
@@ -113,7 +113,7 @@ test("a session without a ledger session row has no session figures but its agen
   ledger.close();
 });
 
-test("a rebuilt row's figures are read by the key Section 4.2 finds its ledger row by", async () => {
+test("a rebuilt row's figures are read by the key specs/task-ledger.md#rebuild finds its ledger row by", async () => {
   const { ledger } = openLedger();
   const rowId = inserted(ledger, { taskId: "k0000000", startedAt: 42 });
   ledger.setTaskUsage(rowId, usage(5, 6, 0.5, 1), 0);

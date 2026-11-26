@@ -15,7 +15,7 @@ import { at, must } from "../support/must.ts";
 
 /**
  * Configuration-driven discovery, manifest skip rules, unknown-key
- * diagnostics, and namespace identity per specs/plugin.md Sections 2-5:
+ * diagnostics, and namespace identity per specs/plugin.md#plugin-manifest, specs/plugin.md#identity-namespace, specs/plugin.md#discovery, specs/plugin.md#slash-commands:
  * discoverPlugins reads the merged `plugins` configuration over manually
  * constructed BootConfig layers, so each test pins the exact merged entries
  * and owning-layer file paths without going through the config loader.
@@ -591,7 +591,7 @@ test(
       } finally {
         chmodSync(hidden, 0o755);
       }
-      // plugin.md Section 5: still registered, without a description and without a diagnostic.
+      // specs/plugin.md#slash-commands: still registered, without a description and without a diagnostic.
       assert.deepEqual(discovered.diagnostics, []);
       const commands = at(discovered.catalog.plugins, 0).commands;
       assert.deepEqual(
@@ -628,7 +628,7 @@ test(
       } finally {
         chmodSync(outside, 0o755);
       }
-      // plugin.md Section 5: not a contained path, so skipped without a diagnostic.
+      // specs/plugin.md#slash-commands: not a contained path, so skipped without a diagnostic.
       assert.deepEqual(discovered.diagnostics, []);
       assert.deepEqual(at(discovered.catalog.plugins, 0).commands, []);
     } finally {

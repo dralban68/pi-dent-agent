@@ -770,7 +770,7 @@ test("deactivated direct tools are filtered out by activeToolNames and bound as 
   }
 });
 
-test("Section 7: run override event supports custom tools, stateDir, round, errors, and validation", async () => {
+test("specs/plugin-ui.md#extension-event-seam: run override event supports custom tools, stateDir, round, errors, and validation", async () => {
   const fx = makePluginFixture();
   try {
     const stateDir = join(fx.dir, "scratch-state");
@@ -880,7 +880,7 @@ test("Section 7: run override event supports custom tools, stateDir, round, erro
   }
 });
 
-test("Section 7: cancel-tag and plugin-catalog events integrate through pi.events", () => {
+test("specs/plugin-ui.md#extension-event-seam: cancel-tag and plugin-catalog events integrate through pi.events", () => {
   const listeners = new Map<string, Array<(data: unknown) => void>>();
   const piStub = {
     events: {

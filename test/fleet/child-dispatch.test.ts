@@ -19,12 +19,12 @@ import { engineDeps } from "../support/engine-deps.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Section 4.2 and specs/session-store.md Section 4: a
+ * specs/agent-tool.md#child-session and specs/session-store.md#membership-lifecycle: a
  * dispatch's child session is a child session record from before its first
  * prompt until the dispatch settles; a Fleet `query` child registers none; a
  * store that refuses the record warns and the dispatch still answers. Child
  * sessions run on a scripted faux provider; the fleet is the real coordinator
- * over a temporary store (specs/fleet-tool.md Sections 2–4).
+ * over a temporary store (specs/fleet-tool.md#list, specs/fleet-tool.md#send, specs/fleet-tool.md#query).
  */
 
 // --- Runtime harness: the same faux wiring as test/agent/engine-runtime.test.ts ---
@@ -203,7 +203,7 @@ interface RecordLike extends AttemptLike {
 const recordsOf = (result: ToolResult): RecordLike[] =>
   (result.details as { results?: RecordLike[] | undefined }).results ?? [];
 
-/** A session record's stored state, read straight from the store (session-store.md Section 2). */
+/** A session record's stored state, read straight from the store (specs/session-store.md#session-records). */
 function storedState(dbPath: string, sessionId: string): { state: string; turns: string } {
   const db = new DatabaseSync(dbPath);
   try {
@@ -329,7 +329,7 @@ interface StoredRow {
   parentSessionId: string | null;
 }
 
-/** Every session record in the store, read directly (session-store.md Section 2). */
+/** Every session record in the store, read directly (specs/session-store.md#session-records). */
 function storedRows(dbPath: string): StoredRow[] {
   const db = new DatabaseSync(dbPath);
   try {
@@ -345,7 +345,7 @@ function storedRows(dbPath: string): StoredRow[] {
   }
 }
 
-/** The message rows addressed to `targetSessionId`, read directly (session-store.md Section 3). */
+/** The message rows addressed to `targetSessionId`, read directly (specs/session-store.md#messages). */
 function storedMessageRows(
   dbPath: string,
   targetSessionId: string,
@@ -593,7 +593,7 @@ test("a followUp to a waiting child is accepted at once, and the dispatch waits 
     const call = fleetCaller(fleet, host);
 
     // `/abort` starts no turn and a followUp host command applies only when the
-    // target is idle (fleet-tool.md Section 3.2): its delivery is the proof that
+    // target is idle (specs/fleet-tool.md#delivery-modes): its delivery is the proof that
     // the child has finished its own turn and is waiting on its background task.
     const probe = await call({ action: "send", target: child.sessionId, body: "/abort" });
     const probeId = (probe.details as { messageId: number }).messageId;
@@ -676,7 +676,7 @@ test("a Fleet turn starting as the child's own turn ends keeps the dispatch aliv
     );
     const child = must(at(fleet.listSessions("children", root, "main-id"), 0));
     // Queued while the child runs its own turn; it is delivered the moment that
-    // turn ends, and the turn it starts is not this attempt's to end (Section 3.2).
+    // turn ends, and the turn it starts is not this attempt's to end (specs/fleet-tool.md#delivery-modes).
     const sent = await fleetCaller(
       fleet,
       host,
@@ -825,7 +825,7 @@ test("a Fleet turn that starts as the task turn fails supplies the dispatch's re
     taskGate.resolve();
     await within(fleetStarted.promise, 1000);
 
-    // agent-tool.md Section 4.2: the attempt MUST NOT settle while that turn runs, and
+    // specs/agent-tool.md#child-session: the attempt MUST NOT settle while that turn runs, and
     // the dispatch's result is the last assistant message of the child's last turn.
     const settledEarly = deferred<void>();
     void dispatched.then(() => {
@@ -947,7 +947,7 @@ test("a refused Fleet query reply warns on the dispatching session's warning cha
         warnings.push(message);
       },
     };
-    // The store refuses the child's reply to its parent (fleet-tool.md Section 4).
+    // The store refuses the child's reply to its parent (specs/fleet-tool.md#query).
     const db = new DatabaseSync(dbPath);
     try {
       db.exec(
@@ -1148,7 +1148,7 @@ test("a liveness expiry during the wait for a Fleet turn fails the dispatch with
     });
 
     // The followUp drained at registration starts a turn that never answers, so the
-    // idle deadline expires while the dispatch waits for it (agent-tool.md Section 4.2).
+    // idle deadline expires while the dispatch waits for it (specs/agent-tool.md#child-session).
     const gapStarted = deferred<void>();
     const gapTurn = deferred<void>();
     gapGate = gapTurn;
@@ -1230,7 +1230,7 @@ test("a Fleet send with abort starts the turn that supplies the dispatch's resul
     const messageId = (sent.details as { messageId: number }).messageId;
     taskTurn.resolve();
 
-    // agent-tool.md Section 4.2: the steer's turn starts after the abort and supplies
+    // specs/agent-tool.md#child-session: the steer's turn starts after the abort and supplies
     // the dispatch's result like any last turn.
     const result = await within(dispatched, 2000);
     assert.equal(result.isError, undefined, textOf(result));
@@ -1283,7 +1283,7 @@ test("a Fleet abort host command on the child settles the dispatch cancelled", a
     taskTurn.resolve();
 
     // The abort command carries no message, so the attempt ends on the aborted turn
-    // (agent-tool.md Section 4.2): its error message is no execution error.
+    // (specs/agent-tool.md#child-session): its error message is no execution error.
     const result = await within(dispatched, 2000);
     assert.equal(result.isError, true);
     assert.match(textOf(result), /^Agent aborted: /);

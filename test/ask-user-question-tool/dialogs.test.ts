@@ -6,7 +6,7 @@ import { at } from "../support/must.ts";
 import { params, question, questionWorld } from "./support.ts";
 
 /**
- * specs/ask-user-question-tool.md Section 4: the dialog sequence in RPC mode. The host
+ * specs/ask-user-question-tool.md#dialog-sequence: the dialog sequence in RPC mode. The host
  * dialog methods are scripted, and every title, option string, and result is asserted.
  */
 
@@ -43,7 +43,7 @@ const otherEmptyMarked = `3. [ ] ${OTHER_ROW_TEXT}`;
 const otherExtra = "3. [x] Other: extra";
 
 // ---------------------------------------------------------------------------
-// Section 4.1: questions
+// specs/ask-user-question-tool.md#questions: questions
 // ---------------------------------------------------------------------------
 
 test("a single-select question is asked with the description in each option string", async () => {
@@ -204,7 +204,7 @@ test("choosing a question in the review asks it again, and the review follows it
 });
 
 // ---------------------------------------------------------------------------
-// Section 4.3: dismissal choice
+// specs/ask-user-question-tool.md#dismissal-choice: dismissal choice
 // ---------------------------------------------------------------------------
 
 test("cancelling a question starts the dismissal choice, and Skip dismisses", async () => {
@@ -281,7 +281,7 @@ test("cancelling the review starts the dismissal choice", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Section 4: values the dialog does not offer, abort signal, no timeout
+// specs/ask-user-question-tool.md#dialog-sequence: values the dialog does not offer, abort signal, no timeout
 // ---------------------------------------------------------------------------
 
 test("a value that is not one of the option strings shows the same dialog again", async () => {
@@ -350,7 +350,7 @@ test("session_shutdown ends a shown dialog with the shutdown result", async () =
   assert.equal(at(harness.calls, 0).signal?.aborted, true);
 });
 
-test("the dialogs show cleaned values (Section 4)", async () => {
+test("the dialogs show cleaned values (specs/ask-user-question-tool.md#dialog-sequence)", async () => {
   const harness = questionWorld().startDialogs({
     params: {
       questions: [

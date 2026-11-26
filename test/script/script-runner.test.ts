@@ -13,7 +13,7 @@ import { makeScriptTool } from "../../lib/script-tool.ts";
 import { must } from "../support/must.ts";
 
 /**
- * Script runner conformance per specs/script-tool.md Sections 3 and 6: process
+ * Script runner conformance per specs/script-tool.md#execution-model and specs/script-tool.md#timeout-delivery: process
  * group termination on timeout/abort/kill, task row status mapping, and the
  * 1 MiB UTF-8 byte output cap.
  */
@@ -356,8 +356,8 @@ test("duration: the run ends at settlement, so the drain is not in durationMs", 
   const f = makeFixture();
   try {
     // A direct child that ignores SIGTERM makes the settlement drain its full
-    // 200 ms SIGTERM grace (Section 6); the run's end is its settlement
-    // (Section 5), so the call outlasts durationMs by that grace. Comparing the
+    // 200 ms SIGTERM grace (specs/script-tool.md#timeout-delivery); the run's end is its settlement
+    // (specs/script-tool.md#result-contract), so the call outlasts durationMs by that grace. Comparing the
     // two keeps the check free of any absolute bound on this machine's speed.
     const code = `
       import { spawn } from "node:child_process";

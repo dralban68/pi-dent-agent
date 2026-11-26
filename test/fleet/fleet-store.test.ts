@@ -225,7 +225,7 @@ test("the store path is PI_DENT_FLEET_DB when set and non-empty, else the home d
     assert.ok(existsSync(join(dir, "own.sqlite")), "the configured store is a file");
     configured.close();
 
-    // An empty value is unset, never a private in-memory store (session-store.md Section 1).
+    // An empty value is unset, never a private in-memory store (specs/session-store.md#location).
     process.env.PI_DENT_FLEET_DB = "";
     // A file of another format version beside it is neither read nor changed.
     const other = join(home, ".pi", "pi-dent", "fleet.sqlite");

@@ -20,13 +20,13 @@ import { engineDeps } from "../support/engine-deps.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * specs/session-store.md Section 4 and specs/agent-tool.md Sections 4.2 and 10:
+ * specs/session-store.md#membership-lifecycle and specs/agent-tool.md#child-session and specs/agent-tool.md#retention-sweep:
  * the boot window that runs a dispatch writes the child session record once the
  * child session exists and before its first prompt — with `parent_session_id`,
  * `state` `running` and the child's agent directory — keeps it across recovery
  * attempts, and deletes it when the dispatch settles, in both delivery modes.
  * Child sessions run on a scripted faux provider; the fleet is the real
- * coordinator over a temporary store (specs/fleet-tool.md Section 2).
+ * coordinator over a temporary store (specs/fleet-tool.md#list).
  */
 
 // --- Runtime harness: the same faux wiring as test/fleet/child-dispatch.test.ts ---
@@ -215,7 +215,7 @@ interface StoredRow {
   agentsDir: string | null;
 }
 
-/** Every session record in the store, read directly (session-store.md Section 2). */
+/** Every session record in the store, read directly (specs/session-store.md#session-records). */
 function storedRows(dbPath: string): StoredRow[] {
   const db = new DatabaseSync(dbPath);
   try {
@@ -235,7 +235,7 @@ function storedRows(dbPath: string): StoredRow[] {
   }
 }
 
-/** The child session records of the store (session-store.md Section 4). */
+/** The child session records of the store (specs/session-store.md#membership-lifecycle). */
 function childRows(dbPath: string): StoredRow[] {
   return storedRows(dbPath).filter((row) => row.parentSessionId !== null);
 }
@@ -309,7 +309,7 @@ test("a recovery attempt keeps the child session record", async () => {
     faux.setResponses([
       () => {
         firstAttemptIds = childRows(dbPath).map((row) => row.sessionId);
-        // The auto-resume class of Section 8: transient, not on the non-transient list.
+        // The auto-resume class of specs/agent-tool.md#recovery: transient, not on the non-transient list.
         return fauxAssistantMessage("", {
           stopReason: "error",
           errorMessage: "429 rate limit exceeded",

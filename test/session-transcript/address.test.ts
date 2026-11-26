@@ -10,7 +10,7 @@ import {
 } from "../../lib/session-transcript.ts";
 import { at } from "../support/must.ts";
 
-/** specs/session-transcript.md Section 5: the item address grammar, its parsing and formatting. */
+/** specs/session-transcript.md#item-address: the item address grammar, its parsing and formatting. */
 
 function roundTrip(text: string): ItemAddress {
   const address = parseItemAddress(text);

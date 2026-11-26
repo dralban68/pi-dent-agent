@@ -11,8 +11,7 @@ import type { SkillEntry } from "../../lib/catalogs.ts";
 import type { HostSession } from "../../lib/host.ts";
 
 /**
- * Skill binding per specs/skill-tool.md Section 1 and specs/agent-tool.md
- * Section 3.2: a session carries the skill catalog only when its tools include
+ * Skill binding per specs/skill-tool.md#binding and specs/agent-tool.md#skills: a session carries the skill catalog only when its tools include
  * `Skill`; a child's plan skills follow the tool cap.
  */
 
@@ -106,7 +105,7 @@ test("appendSkillCatalog leaves the prompt unchanged for an empty skill catalog"
   assert.equal(appendSkillCatalog("Base", []), "Base");
 });
 
-test("appendSkillCatalog collapses each run of line breaks in a description to one space (skill-tool.md Section 1)", () => {
+test("appendSkillCatalog collapses each run of line breaks in a description to one space (specs/skill-tool.md#binding)", () => {
   const multi: SkillEntry = {
     name: "m",
     description: "first line\nsecond\n\nthird\r\nfourth",

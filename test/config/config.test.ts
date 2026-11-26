@@ -43,7 +43,7 @@ function writeConf(root: string, content: string): string {
   return filePath;
 }
 
-/** The boot diagnostics about model classes, which carry the owning layer's file (Section 4). */
+/** The boot diagnostics about model classes, which carry the owning layer's file (specs/config-file.md#attribution). */
 function modelClassMessages(project: string): string[] {
   return readBootSnapshot(project)
     .diagnostics.map((diagnostic) => diagnostic.message)
@@ -334,7 +334,7 @@ test("a layer whose file cannot be read is dropped with one diagnostic and the o
   });
 });
 
-test("$$ renders a literal $ and a lone $ stays literal (config-file.md Section 7)", () => {
+test("$$ renders a literal $ and a lone $ stays literal (specs/config-file.md#value-substitution)", () => {
   withIsolatedEnv(({ project }) => {
     const projectFile = writeConf(
       project,
@@ -355,7 +355,7 @@ test("an unterminated block comment is a parse failure of its layer, never silen
   withIsolatedEnv(({ home, project }) => {
     writeConf(home, JSON.stringify({ modelClasses: { fast: "anthropic/x" } }));
     // Dropping the unterminated comment up to end-of-file left a valid document, so the
-    // layer loaded with the malformed comment unreported (config-file.md Section 2).
+    // layer loaded with the malformed comment unreported (specs/config-file.md#format).
     const projectFile = writeConf(
       project,
       '{ "modelClasses": { "slow": "anthropic/y" } } /* never closed\n',
@@ -375,7 +375,7 @@ test("a comma with no value before it is a parse failure of its layer", () => {
     withIsolatedEnv(({ home, project }) => {
       writeConf(home, JSON.stringify({ modelClasses: { fast: "anthropic/x" } }));
       // Dropping every comma before a closing bracket accepted `{,}` and `[,]`, which
-      // are not JSONC (config-file.md Section 2).
+      // are not JSONC (specs/config-file.md#format).
       const projectFile = writeConf(project, `{ "modelClasses": ${body} }`);
       const config = readConfig(project);
       assert.equal(config.diagnostics.length, 1, JSON.stringify(config.diagnostics));

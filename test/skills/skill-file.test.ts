@@ -8,8 +8,8 @@ import type { Diagnostic } from "../../lib/util.ts";
 import { at } from "../support/must.ts";
 
 /**
- * The skill file rules of specs/skill.md Section 1 (a `description` and a non-empty
- * body are required, and a skip is reported once naming the file) and Section 2
+ * The skill file rules of specs/skill.md#skill-files (a `description` and a non-empty
+ * body are required, and a skip is reported once naming the file) and specs/skill.md#content-rules
  * (a leading byte-order mark is removed and line endings normalised in the body).
  *
  * `homedir()` reads HOME, so each test points HOME at a throwaway directory.
@@ -62,7 +62,7 @@ test("skill file: a missing or empty description skips the skill with one diagno
   });
 });
 
-test("skill file: a whitespace-only description is accepted (skill.md Section 1)", () => {
+test("skill file: a whitespace-only description is accepted (specs/skill.md#skill-files)", () => {
   withTempHome(() => {
     const root = mkdtempSync(join(tmpdir(), "pi-dent-skillfile-"));
     try {
@@ -118,7 +118,7 @@ test("skill file: a leading byte-order mark is removed and CRLF line endings are
   });
 });
 
-test("skill file: a delimiter on a longer line does not open or close the frontmatter (skill.md Section 1)", () => {
+test("skill file: a delimiter on a longer line does not open or close the frontmatter (specs/skill.md#skill-files)", () => {
   withTempHome(() => {
     const root = mkdtempSync(join(tmpdir(), "pi-dent-skillfile-"));
     try {

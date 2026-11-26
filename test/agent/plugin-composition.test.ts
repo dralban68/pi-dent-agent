@@ -14,8 +14,8 @@ import type { Diagnostic } from "../../lib/util.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * Plugin catalog composition per specs/plugin.md Section 9 and the `agents`
- * override of specs/agent.md Section 2: plugin `agents/*.md` and
+ * Plugin catalog composition per specs/plugin.md#catalog-composition and the `agents`
+ * override of specs/agent.md#agents-override: plugin `agents/*.md` and
  * `skills/<name>/SKILL.md` entries join the composed catalogs as
  * `namespace:name`, after pi-dent's own entries, in admission order with
  * lexicographic file order within a plugin.

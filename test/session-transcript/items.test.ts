@@ -12,7 +12,7 @@ import {
 } from "../../lib/session-transcript.ts";
 import { at } from "../support/must.ts";
 
-/** specs/session-transcript.md Section 2: the transcript items an entry yields. */
+/** specs/session-transcript.md#transcript-items: the transcript items an entry yields. */
 
 function ref(value: Record<string, unknown>, line = 1): TranscriptEntryRef {
   return { line, entryId: `e${line}`, time: 1000 + line, value };

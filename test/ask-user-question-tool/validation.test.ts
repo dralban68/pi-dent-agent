@@ -12,9 +12,9 @@ import { must } from "../support/must.ts";
 import { fakeUi } from "./support.ts";
 
 /**
- * specs/ask-user-question-tool.md Section 1.2: the twelve checks, their exact error
+ * specs/ask-user-question-tool.md#validation: the twelve checks, their exact error
  * texts (read out of the specification's own table), their order, and the invalid
- * result. The trimming rule of Section 1.1 is checked on the validated values.
+ * result. The trimming rule of specs/ask-user-question-tool.md#parameter-schema is checked on the validated values.
  */
 
 const specPath = join(
@@ -26,7 +26,7 @@ const specPath = join(
 );
 const spec = readFileSync(specPath, "utf8");
 
-/** The Section 1.2 table's error text by check number. */
+/** The specs/ask-user-question-tool.md#validation table's error text by check number. */
 function checkTexts(): Map<number, string> {
   const from = spec.indexOf("| #   | Check");
   assert.equal(from >= 0, true);
@@ -171,7 +171,7 @@ test("check 10: an option label repeats an earlier label of the question", () =>
   assert.equal(errorOf([okQuestion({ options: [option("OAuth"), option("oauth")] })]), "");
 });
 
-test("check 10: labels are compared after the cleaning of Section 3.3", () => {
+test("check 10: labels are compared after the cleaning of specs/ask-user-question-tool.md#panel-content", () => {
   assert.equal(
     errorOf([okQuestion({ options: [option("OAuth"), option("OAuth\u0007")] })]),
     `question 1 option 2: duplicate label "OAuth\u0007"`,
@@ -252,7 +252,7 @@ test("every check of a question runs before the next question's checks", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Section 1.1: trimming
+// specs/ask-user-question-tool.md#parameter-schema: trimming
 // ---------------------------------------------------------------------------
 
 test("every value is used with leading and trailing white space removed", () => {
@@ -287,7 +287,7 @@ test("multiSelect is true only for the boolean true", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Section 1.2: the invalid result, before anything is shown
+// specs/ask-user-question-tool.md#validation: the invalid result, before anything is shown
 // ---------------------------------------------------------------------------
 
 test("an invalid call is a tool error with the invalid details and shows nothing", async () => {

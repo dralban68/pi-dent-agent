@@ -117,7 +117,7 @@ test("Session details: identity, null rules, sorted models, canonical classes", 
     },
     modelGuidance: null,
     billing: null,
-    // Without a task ledger the usage figures are unavailable (session-tool.md Section 2).
+    // Without a task ledger the usage figures are unavailable (specs/session-tool.md#result).
     ledger: "unavailable",
     usage: null,
   });
@@ -159,7 +159,7 @@ test("Session: null file and model, empty models and classes", async () => {
     modelClasses: {},
     modelGuidance: null,
     billing: null,
-    // Without a task ledger the usage figures are unavailable (session-tool.md Section 2).
+    // Without a task ledger the usage figures are unavailable (specs/session-tool.md#result).
     ledger: "unavailable",
     usage: null,
   });
@@ -262,7 +262,7 @@ test("Session: active model guidance with leveled entry strips level for models 
     },
     {},
     stubCtx("s5", {
-      // Section 4.4 support of the keyed level needs the inventory's reasoning flag.
+      // specs/model-string.md#thinking-precedence support of the keyed level needs the inventory's reasoning flag.
       available: [{ provider: "a", id: "flash-1", reasoning: true }],
     }),
   );
@@ -307,7 +307,7 @@ test("Session: guided models keep the guidance order, not sorted provider/id ord
       { model: "a/claude-x", when: "quick edits" },
       { model: "a/claude:high", when: "deep thought" },
     ],
-    "model-guidance.md Section 2 order is ascending ASCII of the identifier",
+    "specs/model-guidance.md#guided-models order is ascending ASCII of the identifier",
   );
   assert.deepEqual(result.details.models, ["a/claude-x", "a/claude"]);
 });
@@ -362,6 +362,6 @@ test("Session: a call with no session ID fails before reporting anything", async
   assert.equal(
     first?.type === "text" ? first.text : "",
     "no live session identity for Session",
-    "session-tool.md Section 2: the failure is the call's whole result",
+    "specs/session-tool.md#result: the failure is the call's whole result",
   );
 });

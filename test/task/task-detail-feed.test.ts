@@ -9,7 +9,7 @@ import {
 import type { AgentTaskRow } from "../../lib/task-row.ts";
 import { at, must } from "../support/must.ts";
 
-/** Task detail feed conformance per specs/task.md Section 4.2 and task-browser.md Section 4.3. */
+/** Task detail feed conformance per specs/task.md#task-detail-feed and specs/task-browser.md#session-events. */
 
 type Call = [string, string[] | undefined];
 
@@ -102,7 +102,7 @@ function agent(root: TaskRegistry, label = "agent-a", background = true): AgentT
   return root.register({ kind: "agent", cohort: "c", label, background });
 }
 
-test("watch sets pi-dent-task to one JSON line with the agent payload (task.md Section 4.2)", () => {
+test("watch sets pi-dent-task to one JSON line with the agent payload (specs/task.md#task-detail-feed)", () => {
   const { root, rec, session, feed } = setup();
   const a = root.register({
     kind: "agent",
@@ -166,7 +166,7 @@ test("a failed tool result is an error event; an error is absent unless the row 
   assert.equal("error" in p, false);
 });
 
-test("events keep the latest 200 and each content at most 200 lines (task.md Section 4.2)", () => {
+test("events keep the latest 200 and each content at most 200 lines (specs/task.md#task-detail-feed)", () => {
   const { root, rec, session, feed } = setup();
   const a = agent(root);
   root.amend(a, { sessionPath: "/s/a.jsonl" });
@@ -266,7 +266,7 @@ test("a bash row has the Bash section fields and the same output cap", () => {
   );
 });
 
-test("an agent and a script row carry no `command` (task.md Section 4.2)", () => {
+test("an agent and a script row carry no `command` (specs/task.md#task-detail-feed)", () => {
   const { root, rec, feed } = setup();
   feed.watch(agent(root).taskId);
   const a = at(must(must(rec.calls.at(-1))[1]), 0);
@@ -481,7 +481,7 @@ test("stop with nothing set clears nothing", () => {
   assert.equal(rec.calls.length, 0);
 });
 
-test("detail payload carries structured usage when present and omits it otherwise (task.md Section 4.2)", () => {
+test("detail payload carries structured usage when present and omits it otherwise (specs/task.md#task-detail-feed)", () => {
   const { root, rec, feed } = setup();
   const a = agent(root, "worker");
   feed.watch(a.taskId);
@@ -507,7 +507,7 @@ test("detail payload carries structured usage when present and omits it otherwis
   feed.stop();
 });
 
-test("detail payload carries toolCalls for an agent or script row and none for a bash row (task.md Section 4.2)", () => {
+test("detail payload carries toolCalls for an agent or script row and none for a bash row (specs/task.md#task-detail-feed)", () => {
   const { root, rec, feed } = setup();
   const a = agent(root, "worker");
   feed.watch(a.taskId);

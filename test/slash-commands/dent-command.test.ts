@@ -10,7 +10,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { must } from "../support/must.ts";
 
 /**
- * The `/dent` command per specs/slash-commands.md Section 2: the info notification
+ * The `/dent` command per specs/slash-commands.md#dent: the info notification
  * with the four counts of the boot snapshot. index.ts is loaded through jiti, as in
  * test/plugins/slash-commands.test.ts, because its module graph is not loadable under
  * native type stripping.
@@ -100,7 +100,7 @@ function makeFixture(): Fixture {
   };
 }
 
-/** One plugin contributing an agent and two skills (plugin.md Section 9). */
+/** One plugin contributing an agent and two skills (specs/plugin.md#catalog-composition). */
 function writePlugin(fixture: Fixture): string {
   const root = join(fixture.globalScope, "alpha");
   mkdirSync(join(root, "agents"), { recursive: true });

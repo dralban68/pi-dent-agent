@@ -22,7 +22,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/session-index.md Section 3: catch-up, and Section 4: two catch-ups of one file. */
+/** specs/session-index.md#catch-up: catch-up, and specs/session-index.md#concurrent-access: two catch-ups of one file. */
 
 const roots: string[] = [];
 after(() => {
@@ -447,7 +447,7 @@ test("a file whose header is past the read bound is not a session file", async (
   const session = join(root, "s.jsonl");
   // The first line is unterminated when the catch-up reads the file's size, and complete
   // by the time the header is read: the read bound does not hold the header's line
-  // ([session-transcript.md](session-transcript.md), Section 1).
+  // (specs/session-transcript.md#reading).
   writeFileSync(session, headerLine());
   const index = openIndex(indexPath(root));
   const pending = index.catchUp(session);

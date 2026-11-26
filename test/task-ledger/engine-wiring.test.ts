@@ -24,7 +24,7 @@ import { makeFleetTool, makeTaskTool } from "../../lib/tools.ts";
 import { openLedger, raw, tempDir } from "./support.ts";
 
 /**
- * specs/task-ledger.md Sections 3.1, 3.2 and 4.2 through real dispatches: every task row of every
+ * specs/task-ledger.md#parent-row, specs/task-ledger.md#write-rules and specs/task-ledger.md#rebuild through real dispatches: every task row of every
  * depth gets its ledger row, written as the task runs. Child sessions run on a scripted faux
  * provider.
  */
@@ -433,7 +433,7 @@ test("a reload settles a running background task cancelled; the next rebuild mak
   await next.ledger.flushed();
   const written = ledgerRowOf(path, row);
   assert.deepEqual([written.status, written.settled_at], ["interrupted", row.settledAt]);
-  // The rebuilt row shows its ledger row's figures, found by the key of Section 4.2.
+  // The rebuilt row shows its ledger row's figures, found by the key of specs/task-ledger.md#rebuild.
   const listed = await listText(rebuilt, next.ledger);
   assert.match(
     listed,
@@ -457,7 +457,7 @@ test("an unusable or busy ledger does not disturb a dispatch", async () => {
   const result = await dispatch(main, { task: "UNUSABLE" });
   assert.equal(textOf(result), "fine");
   assert.equal(unusable.notices.length, 1);
-  // Task list says so instead of showing figures (task-tool.md Section 2.3).
+  // Task list says so instead of showing figures (specs/task-tool.md#list).
   assert.match(await listText(main.engine.registry, unusable.ledger), / · ledger unavailable · /);
 
   const busy = openLedger();

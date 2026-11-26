@@ -9,8 +9,8 @@ import type { Diagnostic } from "../../lib/util.ts";
 import { at } from "../support/must.ts";
 
 /**
- * The plugin manifest per specs/plugin.md Section 2: an unknown key inside `author` follows the
- * unknown-key rule, while an `author` string or an object with the keys Section 2 defines is
+ * The plugin manifest per specs/plugin.md#plugin-manifest: an unknown key inside `author` follows the
+ * unknown-key rule, while an `author` string or an object with the keys specs/plugin.md#plugin-manifest defines is
  * accepted without a diagnostic.
  */
 

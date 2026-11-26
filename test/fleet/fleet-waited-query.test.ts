@@ -11,10 +11,9 @@ import { makeFleetTool } from "../../lib/tools.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * specs/fleet-tool.md Section 4.1: a child session — no endpoint in this boot
+ * specs/fleet-tool.md#waited-query: a child session — no endpoint in this boot
  * window and no record in the store — may `send`, and its `query` is a waited
- * query. The wait is addressed by a hidden record (specs/session-store.md
- * Section 4), which the boot window deletes when the session's last wait ends.
+ * query. The wait is addressed by a hidden record (specs/session-store.md#membership-lifecycle), which the boot window deletes when the session's last wait ends.
  */
 
 function emptyBoot(cwd: string): BootSnapshot {
@@ -675,7 +674,7 @@ function refuseQueryRows(dbPath: string): void {
 /**
  * A record whose owner boot window is gone: only a poll loop deletes it, so it
  * survives exactly when the boot window under test has stopped polling
- * (session-store.md Section 4: the sweep runs while a hidden record exists).
+ * (specs/session-store.md#membership-lifecycle: the sweep runs while a hidden record exists).
  */
 function plantGoneSession(dbPath: string, sessionId: string, cwd: string): void {
   const db = new DatabaseSync(dbPath);
@@ -972,7 +971,7 @@ function plantPendingSend(dbPath: string, targetSessionId: string, body: string)
 /**
  * The other process's write, placed at the interleaving the waiter cannot see:
  * when it rejects a reply that matches no wait, it writes the wait's own reply
- * and deletes the target's record together (specs/fleet-tool.md Section 4: the
+ * and deletes the target's record together (specs/fleet-tool.md#query: the
  * reply and the cancellation are written back to back).
  */
 function writeReplyWhileRejecting(
@@ -1056,7 +1055,7 @@ test("waited query: a reply written as the target's record disappears still sett
 
     // The pass that rejects the stranger reply also takes the target's record
     // away; the reply it wrote then must still settle the wait, not lose to the
-    // deletion (specs/fleet-tool.md Section 4.1: no reply can arrive is the only failure).
+    // deletion (specs/fleet-tool.md#waited-query: no reply can arrive is the only failure).
     t.mock.timers.tick(250);
     assert.equal(strangerWritten, true, "the other process's write was placed");
     t.mock.timers.tick(250);

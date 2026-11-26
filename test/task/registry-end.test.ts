@@ -8,7 +8,7 @@ import { collectTaskTree, renderTaskTree, startTaskWidget } from "../../lib/task
 import { at } from "../support/must.ts";
 
 /**
- * Registry end and adoption conformance per specs/task-registry.md Section 4:
+ * Registry end and adoption conformance per specs/task-registry.md#registry-end:
  * running and unconsumed rows adopt into the nearest live registry of the attach chain,
  * else are cancelled; adopted rows keep identity and stay in the task tree.
  */
@@ -101,7 +101,7 @@ test("register into an ended registry fails the invocation", () => {
   );
 });
 
-test("a tool call into a registry that is not live is a tool error naming it (Section 1)", async () => {
+test("a tool call into a registry that is not live is a tool error naming it (specs/task-registry.md#ownership)", async () => {
   const root = new TaskRegistry(() => undefined);
   root.end();
   const tool = makeScriptTool({

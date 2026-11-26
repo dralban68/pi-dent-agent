@@ -18,7 +18,7 @@ import {
 } from "../../lib/task-widget.ts";
 import { at, must } from "../support/must.ts";
 
-/** Task tree widget conformance per specs/task.md Section 4. */
+/** Task tree widget conformance per specs/task.md#task-tree-widget. */
 
 const reg = () => new TaskRegistry(() => undefined);
 const add = (r: TaskRegistry, label: string) =>
@@ -193,7 +193,7 @@ test("an interrupted row keeps the widget shown; the timer follows running only"
   await flush();
   assert.equal(host.renders, 1); // the rebuild is reflected
   t.mock.timers.tick(5_000);
-  assert.equal(host.renders, 1); // no refresh timer without a running task (Section 4)
+  assert.equal(host.renders, 1); // no refresh timer without a running task (specs/task.md#task-tree-widget)
 
   const row = add(root, "a");
   await flush();
@@ -209,7 +209,7 @@ test("an interrupted row keeps the widget shown; the timer follows running only"
   assert.equal(host.renders, 4); // the timer stopped: no running task
 });
 
-test("killing an interrupted row clears the widget (Section 4)", async () => {
+test("killing an interrupted row clears the widget (specs/task.md#task-tree-widget)", async () => {
   const root = reg();
   const host = fakeHost();
   startTaskWidget(root, host);
@@ -318,7 +318,7 @@ test("settled tasks are never rendered; their running children take their place"
   assert.deepEqual(prefixes(root), ["", ""]);
 });
 
-test("a failed widget refresh clears the widget and stops the controller (Section 4)", async () => {
+test("a failed widget refresh clears the widget and stops the controller (specs/task.md#task-tree-widget)", async () => {
   const root = reg();
   const sets: Array<"set" | undefined> = [];
   let renderFails = false;

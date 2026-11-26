@@ -12,7 +12,7 @@ import {
 } from "../../lib/task-detail-feed.ts";
 import { must } from "../support/must.ts";
 
-/** The `tasks` verbs per specs/slash-commands.md Section 3 and the announcement of task.md Section 4.1. */
+/** The `tasks` verbs per specs/slash-commands.md#tasks and the announcement of specs/task.md#task-feed. */
 
 const rpc = { env: { PI_DENT_FEEDS: "1" }, hasUI: true, mode: "rpc" };
 

@@ -17,10 +17,10 @@ import {
 import type { SearchHost } from "../../lib/search-tool.ts";
 
 /**
- * specs/search-tool.md Section 5: the `sessions` action, its order, its bounds,
+ * specs/search-tool.md#sessions: the `sessions` action, its order, its bounds,
  * its previews, and its details. `sessions` reads session files, and takes a
  * session's header from the index only for a file the index holds unchanged
- * (Section 2.1).
+ * (specs/search-tool.md#reach).
  */
 
 after(cleanupRoots);
@@ -125,7 +125,7 @@ test("a changed session file gives its own header, not the index's row", async (
   });
   assert.equal(seeded.isError, false, seeded.text);
   // The member is rewritten in place under another session ID, and its directory's
-  // stamp changes, so the next call discovers the tree afresh (Section 2.1).
+  // stamp changes, so the next call discovers the tree afresh (specs/search-tool.md#reach).
   writeSession(
     made.otherFile,
     headerLine("renamed-session-id-0009"),

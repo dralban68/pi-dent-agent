@@ -342,7 +342,7 @@ const guidance: ModelGuidance = {
   rules: [],
 };
 const available = [
-  // The keyed level is supported only while model-string.md Section 4.4 says so.
+  // The keyed level is supported only while specs/model-string.md#thinking-precedence says so.
   { provider: "anthropic", id: "claude-opus-4-5", reasoning: true },
   { provider: "deepseek", id: "deepseek-v4-pro" },
   { provider: "google", id: "gemini-3-flash" },
@@ -431,7 +431,7 @@ test("guidance without billing text carries no model lines", () => {
   );
 });
 
-test("billing note is the single line of Section 6.3", () => {
+test("billing note is the single line of specs/billing.md#billing-note", () => {
   assert.equal(
     billingNote({ zone: "UTC", entries: new Map() }),
     "Choose by stated use first; among models suited to a task, prefer the cheaper, counting a discount (×) while it lasts. Prices are USD per million input/output tokens; times UTC, local UTC in parentheses. Requests to an exhausted provider or model fail until its reset. Providers without limit data are marked unknown or untracked.",

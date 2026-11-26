@@ -20,7 +20,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/session-index.md Section 2: the schema and the rows it holds. */
+/** specs/session-index.md#schema: the schema and the rows it holds. */
 
 const roots: string[] = [];
 after(() => {
@@ -33,7 +33,7 @@ function dir(): string {
   return path;
 }
 
-/** The statements of Section 2, as the specification writes them. */
+/** The statements of specs/session-index.md#schema, as the specification writes them. */
 const STATEMENTS: readonly { name: string; sql: string }[] = [
   {
     name: "files",
@@ -99,7 +99,7 @@ function normalized(sql: string): string {
   return sql.replace(/\s+/g, " ").trim();
 }
 
-test("the schema is exactly the statements of Section 2", () => {
+test("the schema is exactly the statements of specs/session-index.md#schema", () => {
   const root = dir();
   const path = indexPath(root);
   const index = openIndex(path);
@@ -335,7 +335,7 @@ test("the FTS rows are deleted together with their items", async () => {
   }
 });
 
-test("the files row keeps the columns Section 2 gives it", async () => {
+test("the files row keeps the columns specs/session-index.md#schema gives it", async () => {
   const root = dir();
   const session = join(root, "s.jsonl");
   writeSession(session, headerLine("session-one"), userLine("a1", "session-one", "text"));

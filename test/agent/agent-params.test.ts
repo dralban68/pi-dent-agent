@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { Value } from "typebox/value";
 import { agentParameterSchema } from "../../lib/tools.ts";
 
-/** Agent parameters per specs/agent-tool.md Section 1.1. */
+/** Agent parameters per specs/agent-tool.md#parameter-schema. */
 
 test("schema: object, no property but the seven, task is the only required one", () => {
   const schema = agentParameterSchema as unknown as {
@@ -30,7 +30,7 @@ test("schema: object, no property but the seven, task is the only required one",
   assert.equal(Value.Check(agentParameterSchema, {}), false, "task is required");
 });
 
-test("schema: task has minLength 1; a whitespace-only task is valid (Section 1.1)", () => {
+test("schema: task has minLength 1; a whitespace-only task is valid (specs/agent-tool.md#parameter-schema)", () => {
   const schema = agentParameterSchema as unknown as {
     properties: Record<string, { minLength?: number }>;
   };
@@ -40,7 +40,7 @@ test("schema: task has minLength 1; a whitespace-only task is valid (Section 1.1
   assert.equal(Value.Check(agentParameterSchema, { task: "go" }), true);
 });
 
-test("schema: agent, prompt, model, and resume carry the pattern \\S (Section 1.1)", () => {
+test("schema: agent, prompt, model, and resume carry the pattern \\S (specs/agent-tool.md#parameter-schema)", () => {
   const schema = agentParameterSchema as unknown as {
     properties: Record<string, { pattern?: string }>;
   };
@@ -61,13 +61,13 @@ test("schema: agent, prompt, model, and resume carry the pattern \\S (Section 1.
   }
 });
 
-test("schema: a blank cwd is admitted; the tool treats it as absent (Section 1.1)", () => {
+test("schema: a blank cwd is admitted; the tool treats it as absent (specs/agent-tool.md#parameter-schema)", () => {
   for (const blank of ["", " ", "\t\n"]) {
     assert.equal(Value.Check(agentParameterSchema, { task: "go", cwd: blank }), true);
   }
 });
 
-test("schema: exactly one of agent and prompt is cross-field, so the tool keeps it (Section 1.1)", () => {
+test("schema: exactly one of agent and prompt is cross-field, so the tool keeps it (specs/agent-tool.md#parameter-schema)", () => {
   const base = { task: "go" };
   assert.equal(Value.Check(agentParameterSchema, { ...base, agent: "a", prompt: "p" }), true);
   assert.equal(Value.Check(agentParameterSchema, base), true);

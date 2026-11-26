@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 /**
- * Package manifest of specs/package.md Sections 1 and 2: the declared entry
+ * Package manifest of specs/package.md#package-manifest and specs/package.md#entry-list: the declared entry
  * list resolves to existing files, and each bundled extension is a dependency.
  */
 
@@ -26,7 +26,7 @@ const HOST_PACKAGES = [
   "typebox",
 ];
 
-/** specs/package.md Section 2: the entry list, in order. */
+/** specs/package.md#entry-list: the entry list, in order. */
 const SECTION_2_ENTRIES = [
   "./index.ts",
   "./node_modules/pi-dent-purse/index.ts",
@@ -37,7 +37,7 @@ const SECTION_2_ENTRIES = [
   "./node_modules/pi-anthropic-oauth/src/index.ts",
 ];
 
-test("the package is pi-dent and declares exactly the Section 2 entries, in order, each resolving on disk", () => {
+test("the package is pi-dent and declares exactly the specs/package.md#entry-list entries, in order, each resolving on disk", () => {
   assert.equal(manifest.name, "pi-dent-agent");
   assert.deepEqual(manifest.pi.extensions, SECTION_2_ENTRIES);
   for (const entry of manifest.pi.extensions) {
@@ -85,7 +85,7 @@ test("host packages are peers, never dependencies", () => {
   }
 });
 
-/** The packages Script imports by name (specs/script-tool.md Section 3), plus its loader. */
+/** The packages Script imports by name (specs/script-tool.md#execution-model), plus its loader. */
 const SCRIPT_PACKAGES = [
   "cheerio",
   "csv-parse",
@@ -105,7 +105,7 @@ const SCRIPT_PACKAGES = [
 
 test("Script's bundled packages and jiti are dependencies, never development dependencies", () => {
   // The host installs the package with its development dependencies omitted
-  // (package.md Section 1), so each of these must survive an install.
+  // (specs/package.md#package-manifest), so each of these must survive an install.
   for (const name of SCRIPT_PACKAGES) {
     assert.equal(typeof manifest.dependencies[name], "string", `${name} is not a dependency`);
     assert.equal(manifest.devDependencies[name], undefined, `${name} is a devDependency`);

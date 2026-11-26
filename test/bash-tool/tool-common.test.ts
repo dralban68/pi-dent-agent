@@ -20,7 +20,7 @@ test("progress lines: an entry keeps a long line's first 500 code points and its
 test("progress lines: the pending line is bounded, so a chunk costs O(chunk)", () => {
   // 1 MiB of one unterminated line in 20-byte chunks: rescanning the pending
   // line per chunk would burn seconds of host CPU here (Section 4's O(chunk)
-  // bound, by script-tool.md Section 6). The bound is wide: the cost is a few
+  // bound, by specs/script-tool.md#timeout-delivery). The bound is wide: the cost is a few
   // tens of milliseconds when the line is kept bounded and seconds when it is not.
   const size = 20;
   const chunks = 52428;

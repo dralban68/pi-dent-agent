@@ -9,7 +9,7 @@ import {
   type BrowserTheme,
 } from "../../lib/task-browser.ts";
 
-/** The `Task` section of an agent details page (task-browser.md Sections 2, 4.1). */
+/** The `Task` section of an agent details page (specs/task-browser.md#common-rendering, specs/task-browser.md#agent-details). */
 
 const reg = () => new TaskRegistry(() => undefined);
 const addAgent = (r: TaskRegistry, label: string) =>

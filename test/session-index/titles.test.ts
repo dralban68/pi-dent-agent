@@ -20,7 +20,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/session-index.md Section 2: `session_name` and `first_user_message`, kept by catch-up (Section 3), and the session titles read (Section 7). */
+/** specs/session-index.md#schema: `session_name` and `first_user_message`, kept by catch-up (specs/session-index.md#catch-up), and the session titles read (specs/session-index.md#session-titles). */
 
 const roots: string[] = [];
 after(() => {

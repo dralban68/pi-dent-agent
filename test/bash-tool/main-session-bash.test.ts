@@ -10,7 +10,7 @@ import { createJiti } from "jiti";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 /**
- * specs/bash-tool.md Section 7: `Bash` is registered at load and active on
+ * specs/bash-tool.md#builtin-suppression: `Bash` is registered at load and active on
  * registration, the built-in `bash` is deactivated on every `session_start`,
  * every `bash` call is blocked with the reason, and a selection left without a
  * shell tool warns once per `session_start`. index.ts is loaded through jiti,
@@ -104,7 +104,7 @@ interface Notified {
   level: string;
 }
 
-// package.md Section 5.3 notices follow the checkout's own .local-links, not the Bash rules tested here.
+// specs/package.md#load-time-check notices follow the checkout's own .local-links, not the Bash rules tested here.
 const LOCAL_LINK_NOTICE = /^pi-dent: local links? /;
 
 function makeCtx(project: string, notified: Notified[]): ExtensionContext {
@@ -146,7 +146,7 @@ async function sessionStart(stub: StubPi, project: string, notified: Notified[])
   for (const handler of handlers) await handler({ reason: "start" }, makeCtx(project, notified));
 }
 
-/** The same context, but a later step throws (Section 7: removal comes first). */
+/** The same context, but a later step throws (specs/bash-tool.md#builtin-suppression: removal comes first). */
 function makeFailingCtx(project: string, notified: Notified[]): ExtensionContext {
   const ctx = makeCtx(project, notified);
   return {
@@ -302,7 +302,7 @@ interface BashToolLike {
   ): Promise<{ isError?: boolean; content: { type: string; text?: string }[] }>;
 }
 
-test("a broken settings file warns once per boot window, naming the file (Section 3)", async () => {
+test("a broken settings file warns once per boot window, naming the file (specs/bash-tool.md#execution-model)", async () => {
   const { project, restore } = makeProject();
   const stub = makeStubPi();
   const notified: Notified[] = [];

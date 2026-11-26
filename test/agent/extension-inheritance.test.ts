@@ -38,7 +38,7 @@ import type { HostSession, HostToolInfo } from "../../lib/host.ts";
 import { must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Section 3.1: a child loads the dispatching session's
+ * specs/agent-tool.md#tools: a child loads the dispatching session's
  * extension sources — files and `builtin:<name>` paths — in inventory order,
  * never its own and never pi-dent's package again. It binds the tool cap's
  * extension tools, even one a source registers only at session start, and

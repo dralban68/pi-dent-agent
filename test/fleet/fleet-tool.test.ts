@@ -60,7 +60,7 @@ function rawDb(path: string): DatabaseSync {
   return new DatabaseSync(path);
 }
 
-/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md Section 1). */
+/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md#parameter-schema). */
 function registerSender(fleet: FleetCoordinator, sessionId: string, cwd: string): void {
   fleet.registerEndpoint(
     {
@@ -131,7 +131,7 @@ test("Fleet parameter validation: rejects invalid actions and action/field combi
     const statusWithBody = await call({ action: "status", messageId: 1, body: "nope" });
     assert.equal(statusWithBody.isError, true);
 
-    // fleet-tool.md Section 1: `status` carries an integer `messageId`, nothing else.
+    // specs/fleet-tool.md#parameter-schema: `status` carries an integer `messageId`, nothing else.
     const statusWithoutId = await call({ action: "status" });
     assert.equal(statusWithoutId.isError, true);
     assert.equal(
@@ -427,8 +427,7 @@ test("Fleet recipient resolution: exact ID wins over prefix matches and SQL wild
     const wildcard = fleet.resolveRecipient("%");
     assert.equal("error" in wildcard, true);
 
-    // The ambiguous list is in the host's locale-sensitive order, as fleet-tool.md
-    // Section 1 requires; code-unit order would put "pB-x" first.
+    // The ambiguous list is in the host's locale-sensitive order, as specs/fleet-tool.md#parameter-schema requires; code-unit order would put "pB-x" first.
     fleet.upsertSession({ sessionId: "pB-x", cwd: dir, state: "idle" });
     fleet.upsertSession({ sessionId: "pa-x", cwd: dir, state: "idle" });
     const localeAmbiguous = fleet.resolveRecipient("p");
@@ -444,7 +443,7 @@ test("Fleet recipient resolution: exact ID wins over prefix matches and SQL wild
     assert.deepEqual(
       extractChangedFiles("Apply_Patch", {}, { files: [{ path: "c.ts" }] }, false),
       ["c.ts"],
-      "tool names are compared in lowercase (session-store.md Section 2)",
+      "tool names are compared in lowercase (specs/session-store.md#session-records)",
     );
     assert.deepEqual(
       extractChangedFiles("applypatch", {}, { files: [{ path: "d.ts" }] }, false),
@@ -655,8 +654,8 @@ test("Fleet send/query need an endpoint in this boot window: a session with a re
 
     // A session with a record in the store that this boot window holds no
     // endpoint for belongs to another live boot window (or to no window after a
-    // reload), which alone delivers to it (specs/fleet-tool.md Section 1 and
-    // Section 4.1). A session with no visible record — a child — may send, and
+    // reload), which alone delivers to it (specs/fleet-tool.md#parameter-schema and
+    // specs/fleet-tool.md#waited-query). A session with no visible record — a child — may send, and
     // its query waits for the reply instead (test/fleet/fleet-waited-query.test.ts).
     fleet.upsertSession({ sessionId: "child-session-0001", cwd: dir, state: "idle" });
     const childTool = makeFleetTool({
@@ -689,7 +688,7 @@ test("Fleet send/query: a main session with no record of its own has no live ses
   try {
     const dbPath = join(dir, "fleet.sqlite");
     // One boot window owns the session; a second one that tries to register the
-    // same session ID is refused (specs/session-store.md, Section 4).
+    // same session ID is refused (specs/session-store.md#membership-lifecycle).
     const owner = new FleetCoordinator(emptyBoot(dir), { dbPath });
     registerSender(owner, "sess-owned", dir);
     const second = new FleetCoordinator(emptyBoot(dir), { dbPath });
@@ -723,7 +722,7 @@ test("Fleet send/query: a main session with no record of its own has no live ses
     assert.equal(textOf(query), 'no live session identity for Fleet action "query"');
 
     // A child session registers no endpoint, so a session ID with no record that
-    // this window never tried to register is still a child (Section 1).
+    // this window never tried to register is still a child (specs/fleet-tool.md#parameter-schema).
     const childTool = makeFleetTool({
       fleet: second,
       hostProvider: () => stubHost("child-0001", dir),
@@ -947,7 +946,7 @@ test("a repository root is derived when the record is written, never from an ear
     assert.equal(
       resolveRepoRoot(workdir),
       realpathSync(workdir),
-      "a git init after the earlier answer is picked up (fleet-tool.md Section 2)",
+      "a git init after the earlier answer is picked up (specs/fleet-tool.md#list)",
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -964,7 +963,7 @@ test("a .git file that does not name a gitdir still marks the repository root", 
     assert.equal(
       resolveRepoRoot(nested),
       realpathSync(workdir),
-      "the nearest .git file is the root, whatever it holds (fleet-tool.md Section 2)",
+      "the nearest .git file is the root, whatever it holds (specs/fleet-tool.md#list)",
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -1053,7 +1052,7 @@ test("a query without a target is rejected with the spec's error text", async ()
     assert.equal(
       text(missing),
       "target must be a non-empty string",
-      "fleet-tool.md Section 1 applies to the query target too",
+      "specs/fleet-tool.md#parameter-schema applies to the query target too",
     );
     const blank = await call({ action: "query", body: "q?", target: "   " });
     assert.equal(

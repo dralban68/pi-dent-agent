@@ -148,11 +148,11 @@ test("model string: an inventory that matches one `provider/id` twice fails with
       err instanceof ModelStringError &&
       err.code === "ambiguous-model" &&
       err.message.includes('"p/m" matches 2 inventory models: p/m, p/m'),
-    "the candidates are listed as provider/id pairs (Section 4.1) and the fallback class is not consulted: ambiguity is not a no-match (Section 4.3)",
+    "the candidates are listed as provider/id pairs (specs/model-string.md#exact-match) and the fallback class is not consulted: ambiguity is not a no-match (specs/model-string.md#fallback)",
   );
 });
 
-test("model string: grammar violations and ambiguity never fall back (model-string.md Section 4.3)", () => {
+test("model string: grammar violations and ambiguity never fall back (specs/model-string.md#fallback)", () => {
   const ctx = {
     classes: { fallback: "q/fb" },
     inventory: [
@@ -191,7 +191,7 @@ test("model string: an explicit thinking suffix overrides the fallback mapping's
 });
 
 test("model string: a fallback that fails fails with its own error, not the original no-match", () => {
-  // The fallback mapping carries a level its model does not support (Section 4.4).
+  // The fallback mapping carries a level its model does not support (specs/model-string.md#thinking-precedence).
   const unsupported = {
     classes: { fallback: "q/fb:xhigh" },
     inventory: [{ provider: "q", id: "fb", reasoning: true }],
@@ -229,7 +229,7 @@ test("model class: a thinking suffix on the class reference overrides the mappin
     id: "m",
     thinking: "medium",
   });
-  // Without a suffix the mapping's configured thinking applies (Section 4.4 precedence).
+  // Without a suffix the mapping's configured thinking applies (specs/model-string.md#thinking-precedence precedence).
   assert.deepEqual(resolveModelString("fast", ctx).descriptor, {
     provider: "p",
     id: "m",

@@ -18,7 +18,7 @@ import {
 import { searchRuntime, type SearchHost } from "../../lib/search-tool.ts";
 
 /**
- * specs/search-tool.md Section 3.3: how the candidates of a call are read — the
+ * specs/search-tool.md#evaluation: how the candidates of a call are read — the
  * per-session path and its narrowing, the index-wide scan a sparse filter needs,
  * a session's kept discovery, and what happens to a covered session when the
  * index is deleted or its rows go.
@@ -26,7 +26,7 @@ import { searchRuntime, type SearchHost } from "../../lib/search-tool.ts";
 
 after(cleanupRoots);
 
-/** A tree of one big child session, for the narrowing test (Section 3.3). */
+/** A tree of one big child session, for the narrowing test (specs/search-tool.md#evaluation). */
 function bigTree(
   lines: number,
   prefix = "search-tool-r3-narrow-",
@@ -230,7 +230,7 @@ test("an index file deleted during covering keeps the sessions covered", async (
   h.hook(undefined);
   assert.equal(outcome.isError, false, outcome.text);
   // The two sessions covered before the deletion lose their cover: the index was
-  // opened anew (Section 2.2). The three covered after it are caught up into the
+  // opened anew (specs/search-tool.md#coverage). The three covered after it are caught up into the
   // new file before the fast path is tried, so they stay covered.
   assert.equal(outcome.details.uncovered, 2, outcome.text);
   assert.equal(coveredAfter.length, 3);

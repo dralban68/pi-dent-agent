@@ -57,7 +57,7 @@ interface StubPi {
   sent: Sent[];
   statuses: StatusCall[];
   notifications: NotificationCall[];
-  /** When set, the host `sendMessage` API throws it (Section 4.2). */
+  /** When set, the host `sendMessage` API throws it (specs/schedule-tool.md#insertion). */
   sendFailure: string | undefined;
 }
 
@@ -123,7 +123,7 @@ function makeProject(): { project: string; restore: () => void } {
   };
 }
 
-/** The live session context, interactive so the status line is set (Section 6). */
+/** The live session context, interactive so the status line is set (specs/schedule-tool.md#schedule-status-line). */
 function makeCtx(project: string, stub: StubPi): ExtensionContext {
   return {
     cwd: project,
@@ -261,7 +261,7 @@ test("create sets the status line, a reload keeps the schedule, a quit clears bo
     assert.equal(
       lastStatus(reloaded),
       undefined,
-      "the session end clears the status line (Section 6)",
+      "the session end clears the status line (specs/schedule-tool.md#schedule-status-line)",
     );
     const fresh = makeStubPi();
     const freshCtx = makeCtx(project, fresh);
@@ -323,7 +323,7 @@ test("a refused hand-off notifies at level error and keeps the schedule pending"
     const scheduleId = /^Schedule ([0-9a-f]{8}) created at /.exec(created)?.[1];
     assert.ok(scheduleId, created);
 
-    // The host refuses the hand-off (Section 4.2).
+    // The host refuses the hand-off (specs/schedule-tool.md#insertion).
     stub.sendFailure = "the host is gone";
     const notice = await waitFor(
       () =>

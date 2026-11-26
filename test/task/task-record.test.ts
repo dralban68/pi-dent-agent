@@ -12,7 +12,7 @@ import {
   writeRunningRecord,
 } from "../../lib/task-record.ts";
 
-/** Task record conformance per specs/task-record.md Sections 1-3. */
+/** Task record conformance per specs/task-record.md#format, specs/task-record.md#lifecycle, specs/task-record.md#rebuild. */
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), "task-record-"));
@@ -263,7 +263,7 @@ test("a failed write leaves no temporary file behind", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test("a settled record without settledAt is not a valid record (Section 3)", () => {
+test("a settled record without settledAt is not a valid record (specs/task-record.md#rebuild)", () => {
   const dir = tempDir();
   const path = writeRunningRecord(dir, runningFields());
   const stored = JSON.parse(readFileSync(path, "utf8"));

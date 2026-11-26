@@ -6,7 +6,7 @@ import type { ToolResult } from "../../lib/engine.ts";
 import { SESSION, START, ZONE, fixture, inserted, listed, type Fixture } from "./harness.ts";
 import { must } from "../support/must.ts";
 
-/** The message envelope of Section 4.2. */
+/** The message envelope of specs/schedule-tool.md#insertion. */
 function envelope(
   scheduleId: string,
   createdAt: number,
@@ -28,7 +28,7 @@ function only<T>(items: readonly T[]): T {
   return must(items[0]);
 }
 
-/** One pending schedule as `list` reports it (Section 3.2). */
+/** One pending schedule as `list` reports it (specs/schedule-tool.md#list). */
 interface ListedSchedule {
   scheduleId: string;
   createdAt: number;
@@ -47,13 +47,13 @@ function pendingOf(f: Fixture): ListedSchedule {
   return must(pending[0]) as unknown as ListedSchedule;
 }
 
-/** The status line of Section 6. */
+/** The status line of specs/schedule-tool.md#schedule-status-line. */
 function statusLine(count: number, repeating: number, dueAt: number): string {
   const clause = repeating === 0 ? "" : ` (${repeating} repeating)`;
   return `schedule: ${count} pending${clause} · next ${localStamp(dueAt, ZONE)}`;
 }
 
-test("Section 4.1: the next check is armed inside the 1000 ms bound", () => {
+test("specs/schedule-tool.md#checks: the next check is armed inside the 1000 ms bound", () => {
   const f = fixture();
   f.call({ action: "create", message: "hello", delaySeconds: 10 });
   // The create refresh arms an immediate check; run it to arm the next one.
@@ -63,7 +63,7 @@ test("Section 4.1: the next check is armed inside the 1000 ms bound", () => {
   assert.ok(delay < 1000, `the gap between checks stays under the bound, got ${delay}`);
 });
 
-test("Section 4.1: a throwing window call is reported once and does not stop checking", () => {
+test("specs/schedule-tool.md#checks: a throwing window call is reported once and does not stop checking", () => {
   const f = fixture();
   idOf(f.call({ action: "create", message: "later", delaySeconds: 10 }));
   const realIsIdle = f.host.window.isIdle;
@@ -76,7 +76,7 @@ test("Section 4.1: a throwing window call is reported once and does not stop che
     return realIsIdle();
   };
   // The first checks throw; the failure is shown once, no exception escapes, and checking
-  // continues (Section 6).
+  // continues (specs/schedule-tool.md#schedule-status-line).
   f.clock.advance(2_000);
   assert.equal(failures, 3);
   assert.equal(f.host.sent.length, 0);
@@ -94,7 +94,7 @@ test("Section 4.1: a throwing window call is reported once and does not stop che
   assert.deepEqual(f.host.notices.slice(1), ["pi-dent: schedule check failed: window is gone"]);
 });
 
-test("Section 6: a host notify that throws does not stop checking or fail the check", () => {
+test("specs/schedule-tool.md#schedule-status-line: a host notify that throws does not stop checking or fail the check", () => {
   const f = fixture();
   idOf(f.call({ action: "create", message: "later", delaySeconds: 10 }));
   const realIsIdle = f.host.window.isIdle;
@@ -114,7 +114,7 @@ test("Section 6: a host notify that throws does not stop checking or fail the ch
   assert.equal(f.host.sent.length, 1, "the schedule still fired after the unreportable failure");
 });
 
-test("Section 4.1: a due schedule fires once, and never before it is due", () => {
+test("specs/schedule-tool.md#checks: a due schedule fires once, and never before it is due", () => {
   const f = fixture();
   const id = idOf(f.call({ action: "create", message: "hello", delaySeconds: 10 }));
   assert.equal(f.clock.armed(), 1);
@@ -132,7 +132,7 @@ test("Section 4.1: a due schedule fires once, and never before it is due", () =>
   assert.deepEqual(listed(f.call({ action: "list" })), []);
 });
 
-test("Section 4.1: checks run at most 1000 ms apart", () => {
+test("specs/schedule-tool.md#checks: checks run at most 1000 ms apart", () => {
   const f = fixture();
   const at = START + 10_500;
   f.call({ action: "create", message: "x", at: new Date(at).toISOString() });
@@ -145,7 +145,7 @@ test("Section 4.1: checks run at most 1000 ms apart", () => {
   assert.ok(only(f.host.sent).content.includes(localStamp(at, ZONE)));
 });
 
-test("Section 4.1: a due schedule waits while neither a run is in progress nor the session idle", () => {
+test("specs/schedule-tool.md#checks: a due schedule waits while neither a run is in progress nor the session idle", () => {
   const f = fixture({ running: false, idle: false });
   f.call({ action: "create", message: "x", delaySeconds: 1 });
   f.clock.advance(5_000);
@@ -159,7 +159,7 @@ test("Section 4.1: a due schedule waits while neither a run is in progress nor t
   assert.ok(only(f.host.sent).content.includes(localStamp(START + 1_000, ZONE)));
 });
 
-test("Section 2.3: missed grid points collapse into one firing, whose due time jumps to the next grid point", () => {
+test("specs/schedule-tool.md#repeating-schedules: missed grid points collapse into one firing, whose due time jumps to the next grid point", () => {
   const f = fixture({ running: false, idle: false });
   const id = idOf(f.call({ action: "create", message: "x", everySeconds: 10 }));
   f.clock.advance(35_000);
@@ -179,7 +179,7 @@ test("Section 2.3: missed grid points collapse into one firing, whose due time j
   );
 });
 
-test("Section 4.1: a repeating schedule whose occurrence is queued is skipped, not fired", () => {
+test("specs/schedule-tool.md#checks: a repeating schedule whose occurrence is queued is skipped, not fired", () => {
   const f = fixture({ running: true, idle: false });
   const id = idOf(f.call({ action: "create", message: "x", everySeconds: 10 }));
   f.clock.advance(10_000);
@@ -200,7 +200,7 @@ test("Section 4.1: a repeating schedule whose occurrence is queued is skipped, n
   ]);
 });
 
-test("Section 4.1: a schedule fires at most once per check", () => {
+test("specs/schedule-tool.md#checks: a schedule fires at most once per check", () => {
   const f = fixture();
   f.call({
     action: "create",
@@ -213,7 +213,7 @@ test("Section 4.1: a schedule fires at most once per check", () => {
   assert.equal(must(only(f.host.sent).details.schedules[0]).occurrence, 1);
 });
 
-test("Section 4.2: schedules due at one check fire together in one message, in the order of Section 2.1", () => {
+test("specs/schedule-tool.md#insertion: schedules due at one check fire together in one message, in the order of specs/schedule-tool.md#schedule", () => {
   const f = fixture();
   const first = idOf(f.call({ action: "create", message: "first", delaySeconds: 10 }));
   const second = idOf(
@@ -232,7 +232,7 @@ test("Section 4.2: schedules due at one check fire together in one message, in t
   ]);
 });
 
-test("Section 4.2: a message starting with a slash is kept verbatim", () => {
+test("specs/schedule-tool.md#insertion: a message starting with a slash is kept verbatim", () => {
   const f = fixture();
   const id = idOf(f.call({ action: "create", message: "/clear\nsecond line", delaySeconds: 1 }));
   f.clock.advance(1_000);
@@ -242,7 +242,7 @@ test("Section 4.2: a message starting with a slash is kept verbatim", () => {
   );
 });
 
-test("Section 4.2: a queued occurrence is discarded when a check finds the session idle, and never handed over again", () => {
+test("specs/schedule-tool.md#insertion: a queued occurrence is discarded when a check finds the session idle, and never handed over again", () => {
   const f = fixture({ running: true, idle: false });
   const id = idOf(f.call({ action: "create", message: "x", everySeconds: 10 }));
   f.clock.advance(10_000);
@@ -265,7 +265,7 @@ test("Section 4.2: a queued occurrence is discarded when a check finds the sessi
   assert.equal(handedOff.length, 1);
 });
 
-test("Section 4.2: a one-off schedule ends with its hand-off, even when the occurrence is discarded", () => {
+test("specs/schedule-tool.md#insertion: a one-off schedule ends with its hand-off, even when the occurrence is discarded", () => {
   const f = fixture({ running: true, idle: false });
   f.call({ action: "create", message: "x", delaySeconds: 5 });
   f.clock.advance(5_000);
@@ -277,7 +277,7 @@ test("Section 4.2: a one-off schedule ends with its hand-off, even when the occu
   assert.equal(f.host.sent.length, 1);
 });
 
-test("Section 4.2: only a message_start that carries the queued occurrence clears it", () => {
+test("specs/schedule-tool.md#insertion: only a message_start that carries the queued occurrence clears it", () => {
   const f = fixture({ running: true, idle: false });
   f.call({ action: "create", message: "x", everySeconds: 10 });
   f.clock.advance(10_000);
@@ -310,7 +310,7 @@ test("Section 4.2: only a message_start that carries the queued occurrence clear
   assert.equal(queued(), false);
 });
 
-test("Section 4.2: an occurrence of another due time leaves the queued occurrence in place", () => {
+test("specs/schedule-tool.md#insertion: an occurrence of another due time leaves the queued occurrence in place", () => {
   const f = fixture({ running: true, idle: false });
   f.call({ action: "create", message: "x", everySeconds: 10 });
   f.clock.advance(10_000);
@@ -326,7 +326,7 @@ test("Section 4.2: an occurrence of another due time leaves the queued occurrenc
   assert.equal(pendingOf(f).queued, true);
 });
 
-test("Section 2.3: a repeating schedule ends at its count with the count marker", () => {
+test("specs/schedule-tool.md#repeating-schedules: a repeating schedule ends at its count with the count marker", () => {
   const f = fixture();
   const id = idOf(f.call({ action: "create", message: "tick", everySeconds: 5, count: 2 }));
   f.clock.advance(5_000);
@@ -344,7 +344,7 @@ test("Section 2.3: a repeating schedule ends at its count with the count marker"
   assert.deepEqual(listed(f.call({ action: "list" })), []);
 });
 
-test("Section 2.3: a count of 1 ends the schedule with its first firing", () => {
+test("specs/schedule-tool.md#repeating-schedules: a count of 1 ends the schedule with its first firing", () => {
   const f = fixture();
   const id = idOf(f.call({ action: "create", message: "once", everySeconds: 5, count: 1 }));
   f.clock.advance(5_000);
@@ -359,7 +359,7 @@ test("Section 2.3: a count of 1 ends the schedule with its first firing", () => 
   assert.deepEqual(listed(f.call({ action: "list" })), []);
 });
 
-test("Section 2.3: a repeating schedule ends when its next due time is not representable", () => {
+test("specs/schedule-tool.md#repeating-schedules: a repeating schedule ends when its next due time is not representable", () => {
   const start = MAX_INSTANT - 7_000;
   const f = fixture({}, start);
   const id = idOf(f.call({ action: "create", message: "late", everySeconds: 5 }));
@@ -377,7 +377,7 @@ test("Section 2.3: a repeating schedule ends when its next due time is not repre
   assert.deepEqual(listed(f.call({ action: "list" })), []);
 });
 
-test("Section 2.3: a skip whose next due time is not representable ends the schedule", () => {
+test("specs/schedule-tool.md#repeating-schedules: a skip whose next due time is not representable ends the schedule", () => {
   const start = MAX_INSTANT - 12_000;
   const f = fixture({ running: true, idle: false }, start);
   f.call({ action: "create", message: "late", everySeconds: 5 });
@@ -393,7 +393,7 @@ test("Section 2.3: a skip whose next due time is not representable ends the sche
   assert.equal(f.host.status(), undefined);
 });
 
-test("Section 4.2: a hand-off the host refuses leaves the schedule pending and tells the user once", () => {
+test("specs/schedule-tool.md#insertion: a hand-off the host refuses leaves the schedule pending and tells the user once", () => {
   const f = fixture();
   const id = idOf(f.call({ action: "create", message: "hello", delaySeconds: 10 }));
   const deliver = f.host.window.send;
@@ -420,7 +420,7 @@ test("Section 4.2: a hand-off the host refuses leaves the schedule pending and t
   assert.deepEqual(listed(f.call({ action: "list" })), []);
 });
 
-test("Section 4.2: a refused hand-off loses no occurrence of a repeating schedule", () => {
+test("specs/schedule-tool.md#insertion: a refused hand-off loses no occurrence of a repeating schedule", () => {
   const f = fixture({ running: true, idle: false });
   f.call({ action: "create", message: "x", everySeconds: 10 });
   f.host.window.send = () => {

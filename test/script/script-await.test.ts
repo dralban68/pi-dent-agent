@@ -10,7 +10,7 @@ import { TaskRegistry } from "../../lib/registry.ts";
 import { makeScriptTool } from "../../lib/script-tool.ts";
 
 /**
- * Module contract (specs/script-tool.md Section 4): the completion value
+ * Module contract (specs/script-tool.md#module-contract): the completion value
  * depends on whether the body has top-level `await` — an `await` outside every
  * function and class body — and not on the word `await` appearing anywhere.
  */
@@ -91,7 +91,7 @@ for (const [label, code, expected] of NO_TOP_LEVEL_AWAIT) {
 }
 
 // Top-level await — every form the probe must recognise — still runs and
-// returns its value through a default export (Section 4).
+// returns its value through a default export (specs/script-tool.md#module-contract).
 const TOP_LEVEL_AWAIT: [string, string, unknown][] = [
   ["await expression", "export default await Promise.resolve(7);", 7],
   ["await call", "async function f() { return 8; }\nexport default await f();", 8],

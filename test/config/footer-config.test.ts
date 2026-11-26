@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { parseFooter, readConfig, SUPPORTED_ROOT_KEYS } from "../../lib/config.ts";
 
 /**
- * `footer` configuration per specs/footer.md Section 1.1 and specs/config-file.md Section 2: the
+ * `footer` configuration per specs/footer.md#configuration and specs/config-file.md#format: the
  * `enabled` default, the diagnostics of a value that is not an object or not a boolean, the
  * unknown keys of the object, and the supported root key.
  */

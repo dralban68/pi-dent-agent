@@ -12,7 +12,7 @@ import { FakeBus, FakePurse, entry, model, reply } from "./fakes.ts";
 import { at } from "../support/must.ts";
 
 /**
- * Extension wiring of specs/billing.md Sections 1 and 4.1: one subscription
+ * Extension wiring of specs/billing.md#enablement and specs/billing.md#held-billing: one subscription
  * per factory call on that call's own event bus, none while billing is
  * disabled, and the handlers reach the guidance controller. index.ts is loaded
  * through jiti, as in test/skills/main-session-skill.test.ts.
@@ -89,7 +89,7 @@ interface Notification {
   level: string | undefined;
 }
 
-/** A live main-session context of `project` that records every notification (Section 4.5). */
+/** A live main-session context of `project` that records every notification (specs/billing.md#diagnostics). */
 function liveContext(project: string, notifications: Notification[]): Record<string, unknown> {
   return {
     cwd: project,
@@ -202,7 +202,7 @@ test("no before_agent_start guidance handler is registered (once per session)", 
   }
 });
 
-test("a diagnostic with no open session is held until the next session_start (Section 4.5)", async () => {
+test("a diagnostic with no open session is held until the next session_start (specs/billing.md#diagnostics)", async () => {
   const restore = makeProject(guided);
   const bus = new FakeBus();
   new FakePurse(bus);
@@ -243,7 +243,7 @@ test("a diagnostic with no open session is held until the next session_start (Se
   }
 });
 
-test("a diagnostic raised while a session is open is shown at once (Section 4.5)", async () => {
+test("a diagnostic raised while a session is open is shown at once (specs/billing.md#diagnostics)", async () => {
   const restore = makeProject(guided);
   const bus = new FakeBus();
   new FakePurse(bus);

@@ -33,7 +33,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/session-index.md Sections 1 and 5: the index file, opening it, and an unusable index. */
+/** specs/session-index.md#location and specs/session-index.md#failures: the index file, opening it, and an unusable index. */
 
 const roots: string[] = [];
 after(() => {

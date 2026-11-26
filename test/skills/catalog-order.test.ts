@@ -8,7 +8,7 @@ import type { Diagnostic } from "../../lib/util.ts";
 import { must } from "../support/must.ts";
 
 /**
- * Catalog order per specs/agent.md Section 1 and specs/skill.md Section 1:
+ * Catalog order per specs/agent.md#definition-files and specs/skill.md#skill-files:
  * lexicographic by code unit, never locale collation. `B` sorts before `_x`
  * before `a` by code unit, while `localeCompare` orders `_x`, `a` before `B`.
  *

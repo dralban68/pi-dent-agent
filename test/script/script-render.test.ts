@@ -14,7 +14,7 @@ import { makeScriptTool, scriptParameterSchema } from "../../lib/script-tool.ts"
 
 /**
  * Script tool return-value classification and timeout schema conformance per
- * specs/script-tool.md Section 5 and Section 1, and the registered term
+ * specs/script-tool.md#result-contract and specs/script-tool.md#parameter-schema, and the registered term
  * "JSON-compatible value".
  */
 
@@ -112,14 +112,14 @@ test("return classification: plain nested object round-trips, unclipped, with no
   }
 });
 
-test("a JSON-compatible value carries its single-line JSON (Section 5)", () => {
+test("a JSON-compatible value carries its single-line JSON (specs/script-tool.md#result-contract)", () => {
   const render = renderReturn({ a: 1, note: "kept" });
   assert.equal(render.json, `{"a":1,"note":"kept"}`);
   assert.match(render.rendered, /"note": "kept"/);
   assert.deepEqual(render.jsonValue, { a: 1, note: "kept" });
 });
 
-test("a value whose JSON cannot be produced renders with no json and no failure (Section 5)", () => {
+test("a value whose JSON cannot be produced renders with no json and no failure (specs/script-tool.md#result-contract)", () => {
   // The getter throws only while JSON.stringify reads it: a stand-in for a serialisation failure.
   const value: Record<string, unknown> = {};
   Object.defineProperty(value, "a", {

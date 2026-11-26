@@ -22,8 +22,8 @@ import { SUPPORTED_ROOT_KEYS } from "../lib/config.ts";
 import { must } from "./support/must.ts";
 
 /**
- * The plugin inventory per specs/plugin.md Section 11: layer states, per-candidate skips,
- * admitted-plugin resources, the Section 11.2 script walk, and agreement with boot discovery
+ * The plugin inventory per specs/plugin.md#plugin-inventory: layer states, per-candidate skips,
+ * admitted-plugin resources, the specs/plugin.md#script-listing script walk, and agreement with boot discovery
  * (the same rules, read anew through readPluginInventory instead of the boot snapshot).
  */
 
@@ -682,7 +682,7 @@ test("inventory: agreement with boot for the same cwd", () => {
 
     // Every boot diagnostic the spec assigns appears exactly once, with the same text,
     // and the inventory holds no other (the fixture makes every boot diagnostic an
-    // assigned one; Section 11.2's are the inventory's alone).
+    // assigned one; specs/plugin.md#script-listing's are the inventory's alone).
     const bootMessages = snapshot.diagnostics.map((diagnostic) => diagnostic.message);
     const inventoryMessages = [
       ...inventory.diagnostics,

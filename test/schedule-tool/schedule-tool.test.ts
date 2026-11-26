@@ -44,7 +44,7 @@ function idOf(result: ToolResult): string {
   return id;
 }
 
-test("Section 1: the tool is Schedule and its description is the text of Section 1", (t) => {
+test("specs/schedule-tool.md#tool-surface: the tool is Schedule and its description is the text of specs/schedule-tool.md#tool-surface", (t) => {
   const { tool } = fixture();
   assert.equal(tool.name, "Schedule");
   assert.equal(tool.label, "Schedule");
@@ -52,7 +52,7 @@ test("Section 1: the tool is Schedule and its description is the text of Section
   t.diagnostic(tool.description);
 });
 
-test("Section 1.1: the schema is an object with only action required", () => {
+test("specs/schedule-tool.md#parameter-schema: the schema is an object with only action required", () => {
   const raw: Record<string, unknown> = JSON.parse(JSON.stringify(scheduleParameterSchema));
   assert.equal(raw.type, "object");
   assert.equal(raw.additionalProperties, false);
@@ -81,7 +81,7 @@ test("Section 1.1: the schema is an object with only action required", () => {
   }
 });
 
-test("Section 3.1: create with delaySeconds returns one line and its details", () => {
+test("specs/schedule-tool.md#create: create with delaySeconds returns one line and its details", () => {
   const { call } = fixture();
   const result = call({ action: "create", message: "ping", delaySeconds: 60 });
   assert.equal(result.isError, undefined);
@@ -101,7 +101,7 @@ test("Section 3.1: create with delaySeconds returns one line and its details", (
   });
 });
 
-test("Section 3.1: the repeat clause of a repeating schedule", () => {
+test("specs/schedule-tool.md#create: the repeat clause of a repeating schedule", () => {
   const { call } = fixture();
   const plain = call({ action: "create", message: "tick", everySeconds: 30 });
   assert.match(
@@ -129,7 +129,7 @@ test("Section 3.1: the repeat clause of a repeating schedule", () => {
   });
 });
 
-test("Section 2.1: an at instant sets the due time, the later of it and the call", () => {
+test("specs/schedule-tool.md#schedule: an at instant sets the due time, the later of it and the call", () => {
   const later = fixture();
   const future = new Date(START + 120_000).toISOString();
   const next = later.call({ action: "create", message: "late", at: future });
@@ -140,7 +140,7 @@ test("Section 2.1: an at instant sets the due time, the later of it and the call
   assert.equal(earlier.details.dueAt, START);
 });
 
-test("Section 3.2: the message is kept verbatim and previewed by its first line", () => {
+test("specs/schedule-tool.md#list: the message is kept verbatim and previewed by its first line", () => {
   const { call } = fixture();
   const message = "/deploy now\nsecond line";
   const created = call({ action: "create", message, delaySeconds: 10 });
@@ -156,7 +156,7 @@ test("Section 3.2: the message is kept verbatim and previewed by its first line"
   );
 });
 
-test("Section 3.2: a preview is cut to 120 characters with no marker", () => {
+test("specs/schedule-tool.md#list: a preview is cut to 120 characters with no marker", () => {
   const { call } = fixture();
   const message = "x".repeat(200);
   call({ action: "create", message, delaySeconds: 10 });
@@ -164,14 +164,14 @@ test("Section 3.2: a preview is cut to 120 characters with no marker", () => {
   assert.equal(text.split(" · ").at(-1), "x".repeat(120));
 });
 
-test("Section 3.2: list with no pending schedule", () => {
+test("specs/schedule-tool.md#list: list with no pending schedule", () => {
   const { call } = fixture();
   const result = call({ action: "list" });
   assert.equal(textOf(result), "(no pending schedules)");
   assert.deepEqual(result.details, { action: "list", schedules: [] });
 });
 
-test("Section 2.1: pending schedules are ordered by dueAt, ties by creation order", () => {
+test("specs/schedule-tool.md#schedule: pending schedules are ordered by dueAt, ties by creation order", () => {
   const { call } = fixture();
   const first = idOf(call({ action: "create", message: "a", delaySeconds: 30 }));
   const second = idOf(call({ action: "create", message: "b", delaySeconds: 10 }));
@@ -188,7 +188,7 @@ test("Section 2.1: pending schedules are ordered by dueAt, ties by creation orde
   );
 });
 
-test("Section 2.1: schedule IDs have 8 lowercase hexadecimal digits and stay unique", () => {
+test("specs/schedule-tool.md#schedule: schedule IDs have 8 lowercase hexadecimal digits and stay unique", () => {
   const { call, callIn } = fixture();
   const ids = new Set<string>();
   for (let index = 0; index < 60; index += 1) {
@@ -203,7 +203,7 @@ test("Section 2.1: schedule IDs have 8 lowercase hexadecimal digits and stay uni
   }
 });
 
-test("Section 3.2: list details carry every field in the order of Section 2.1", () => {
+test("specs/schedule-tool.md#list: list details carry every field in the order of specs/schedule-tool.md#schedule", () => {
   const { call } = fixture();
   const plain = call({ action: "create", message: "one", delaySeconds: 20 });
   const counted = call({
@@ -255,7 +255,7 @@ test("Section 3.2: list details carry every field in the order of Section 2.1", 
   assert.equal(lines[2], `${idOf(plain)} · due ${localStamp(START + 20_000, ZONE)} · one`);
 });
 
-test("Section 3.2: list changes no schedule", () => {
+test("specs/schedule-tool.md#list: list changes no schedule", () => {
   const { call } = fixture();
   call({ action: "create", message: "one", everySeconds: 60, count: 4 });
   const before = listed(call({ action: "list" }));
@@ -263,7 +263,7 @@ test("Section 3.2: list changes no schedule", () => {
   assert.deepEqual(listed(call({ action: "list" })), before);
 });
 
-test("Section 3.3: cancel ends a pending schedule", () => {
+test("specs/schedule-tool.md#cancel: cancel ends a pending schedule", () => {
   const { call } = fixture();
   const result = call({ action: "create", message: "one", delaySeconds: 10 });
   const id = idOf(result);
@@ -274,7 +274,7 @@ test("Section 3.3: cancel ends a pending schedule", () => {
   assert.deepEqual(listed(call({ action: "list" })), []);
 });
 
-test("Section 1.2: every check rejects with its error text and changes nothing", () => {
+test("specs/schedule-tool.md#validation: every check rejects with its error text and changes nothing", () => {
   const { call, callIn } = fixture();
   const kept = idOf(call({ action: "create", message: "keep", delaySeconds: 600 }));
   const elsewhere = idOf(
@@ -388,7 +388,7 @@ test("Section 1.2: every check rejects with its error text and changes nothing",
   );
 });
 
-test("Section 1.2: a cancelled schedule is no pending schedule", () => {
+test("specs/schedule-tool.md#validation: a cancelled schedule is no pending schedule", () => {
   const { call } = fixture();
   const id = idOf(call({ action: "create", message: "one", delaySeconds: 10 }));
   call({ action: "cancel", scheduleId: id });
@@ -397,7 +397,7 @@ test("Section 1.2: a cancelled schedule is no pending schedule", () => {
   assert.equal(textOf(result), `no pending schedule "${id}"`);
 });
 
-test("Section 3.3: the trimmed scheduleId names the schedule", () => {
+test("specs/schedule-tool.md#cancel: the trimmed scheduleId names the schedule", () => {
   const { call } = fixture();
   const id = idOf(call({ action: "create", message: "one", delaySeconds: 10 }));
   const result = call({ action: "cancel", scheduleId: `  ${id}\n` });
@@ -405,7 +405,7 @@ test("Section 3.3: the trimmed scheduleId names the schedule", () => {
   assert.equal(textOf(result), `Schedule ${id} cancelled.`);
 });
 
-test("Section 3: the tool call runs against the session of its context", async () => {
+test("specs/schedule-tool.md#actions: the tool call runs against the session of its context", async () => {
   const { tool, call } = fixture();
   const context = toolContext(SESSION);
   const created = await tool.execute(
@@ -428,7 +428,7 @@ test("Section 3: the tool call runs against the session of its context", async (
   assert.equal(textOf(other), "(no pending schedules)");
 });
 
-test("Section 1.2: a field whose value is null counts as absent", () => {
+test("specs/schedule-tool.md#validation: a field whose value is null counts as absent", () => {
   const { call } = fixture();
   const future = new Date(START + 90_000).toISOString();
   const created = call({
@@ -458,7 +458,7 @@ test("Section 1.2: a field whose value is null counts as absent", () => {
   assert.equal(textOf(absent), "scheduleId must be a non-empty string");
 });
 
-test("Section 1.1: the schema accepts null for every optional field", () => {
+test("specs/schedule-tool.md#parameter-schema: the schema accepts null for every optional field", () => {
   for (const field of ["message", "delaySeconds", "at", "everySeconds", "count", "scheduleId"]) {
     assert.equal(
       Value.Check(scheduleParameterSchema, { action: "create", [field]: null }),
@@ -475,7 +475,7 @@ test("Section 1.1: the schema accepts null for every optional field", () => {
   assert.equal(Value.Check(scheduleParameterSchema, { action: "list", extra: 1 }), false);
 });
 
-test("Section 1.1: the schema rejects an action outside the three", () => {
+test("specs/schedule-tool.md#parameter-schema: the schema rejects an action outside the three", () => {
   for (const params of [{ action: "update" }, {}, { action: 3 }]) {
     assert.equal(Value.Check(scheduleParameterSchema, params), false, JSON.stringify(params));
   }

@@ -11,8 +11,8 @@ import {
 } from "../../lib/config.ts";
 
 /**
- * `taskBrowser` configuration per specs/task-browser.md Section 1.1 and
- * specs/config-file.md Section 2: the default shortcut, validation, and the
+ * `taskBrowser` configuration per specs/task-browser.md#configuration and
+ * specs/config-file.md#format: the default shortcut, validation, and the
  * supported root key.
  */
 

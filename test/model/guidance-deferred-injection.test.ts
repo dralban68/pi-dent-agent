@@ -19,7 +19,7 @@ import {
 } from "../billing/fakes.ts";
 
 /**
- * Model guidance per specs/model-guidance.md Section 5: a `session_start` injection deferred until a
+ * Model guidance per specs/model-guidance.md#guidance-message: a `session_start` injection deferred until a
  * billing poll has an outcome other than `not-ready` is released with the plain rules when that poll
  * ends without an answer.
  */

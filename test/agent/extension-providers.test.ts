@@ -22,7 +22,7 @@ import type { HostExtensionProvider, HostSession } from "../../lib/host.ts";
 import { must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Section 4.2: the child's model runtime holds the dispatching
+ * specs/agent-tool.md#child-session: the child's model runtime holds the dispatching
  * session's extension providers as it holds them, so a model of a provider only an
  * extension of the dispatching session registered runs in the child with the stored
  * OAuth credential; a copy the dispatching session no longer holds is removed; a

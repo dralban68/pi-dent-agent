@@ -16,7 +16,7 @@ import { must } from "../support/must.ts";
 
 export const SESSION = "session-1";
 export const START = 1_700_000_000_000;
-/** The local zone every fixture runtime renders in (billing.md Section 5). */
+/** The local zone every fixture runtime renders in (specs/billing.md#billing-text). */
 export const ZONE = "UTC";
 
 interface Timer {

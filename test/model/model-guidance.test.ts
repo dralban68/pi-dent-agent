@@ -126,7 +126,7 @@ test("parseModelGuidance: valid parse with models and rules", () => {
   assert.deepEqual(
     sessionRules(guidance, "google/gemini-3-flash"),
     ["verify its output before relying on it"],
-    "the rule text is used trimmed and matched unanchored against `provider/id` (Section 4)",
+    "the rule text is used trimmed and matched unanchored against `provider/id` (specs/model-guidance.md#session-rules)",
   );
   assert.deepEqual(sessionRules(guidance, "anthropic/claude-opus-4-5"), []);
 });
@@ -229,7 +229,7 @@ test("parseModelGuidance: a models key that duplicates an earlier one after trim
     }),
   );
   // Trimming makes the first two keys the same model; the first wins, and the
-  // thinking level keeps the third distinct (model-guidance.md Section 1).
+  // thinking level keeps the third distinct (specs/model-guidance.md#configuration).
   assert.deepEqual(
     guidance.entries.map((entry) => [entry.key, entry.when]),
     [
@@ -258,7 +258,7 @@ test("parseModelGuidance: a project key equal after trimming to a global key win
     assert.deepEqual(
       guidance.entries.map((entry) => [entry.key, entry.when]),
       [["p/m", "project when"]],
-      "the project layer wins every conflict (config-file.md Section 3)",
+      "the project layer wins every conflict (specs/config-file.md#merge)",
     );
     assert.equal(diagnostics.length, 1, "the skipped key is reported once");
   });
@@ -286,7 +286,7 @@ test("parseModelGuidance: within one layer the first key of its own order loads,
     assert.equal(
       modelCatalog(guidance, [{ provider: "p", id: "m" }]),
       "- p/m: project first",
-      "the project layer's first key is the one that loads (model-guidance.md Section 1)",
+      "the project layer's first key is the one that loads (specs/model-guidance.md#configuration)",
     );
     assert.deepEqual(diagnostics, [
       `config: modelGuidance.models.p/m: duplicate of " p/m " after trimming; skipped (${projectFile})`,
@@ -557,12 +557,12 @@ test("modelCatalog / guidanceContent exact strings", () => {
 
   // guidanceContent: active models only
   const activeOnly = guidanceOf({ "google/gemini-3-flash": { when: "quick edits" } });
-  // The model catalog stays out of the message (Section 5): without billing, no content.
+  // The model catalog stays out of the message (specs/model-guidance.md#guidance-message): without billing, no content.
   assert.equal(modelCatalog(activeOnly, available), "- google/gemini-3-flash: quick edits");
   assert.equal(guidanceContent(activeOnly, available, "google/gemini-3-flash"), "");
   assert.equal(guidanceContent(activeOnly, [], "google/gemini-3-flash"), "");
 
-  // guidanceContent: both sections; the session model is canonical `provider/id` (Section 4)
+  // guidanceContent: both sections; the session model is canonical `provider/id` (specs/model-guidance.md#session-rules)
   const both = guidanceOf(
     { "anthropic/claude-opus-4-5:high": { when: "design and code review" } },
     [{ match: "opus", rule: "opus rule 1" }],
@@ -616,7 +616,7 @@ test('"modelGuidance" is a supported root key: readConfig reports no unknown-key
 
 test("host configuredModels lists only the configured provider; guidance content uses it", () => {
   // A host whose inventory has two providers, only one of them configured
-  // (specs/model-guidance.md Section 2): `inventory()` is the full registered
+  // (specs/model-guidance.md#guided-models): `inventory()` is the full registered
   // list, `configuredModels()` only the authenticated one.
   const ctx = {
     cwd: "/w",

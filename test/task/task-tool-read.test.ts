@@ -8,7 +8,7 @@ import { rewriteSettledRecord, writeRunningRecord } from "../../lib/task-record.
 import { rebuildInterruptedTasks } from "../../lib/task-rebuild.ts";
 import { makeTaskTool } from "../../lib/tools.ts";
 
-/** Task `read` per specs/task-tool.md Section 2.1. */
+/** Task `read` per specs/task-tool.md#read. */
 
 const reg = () => new TaskRegistry(() => undefined);
 
@@ -53,7 +53,7 @@ function textOf(result: { content: { type: string; text?: string }[] }): string 
   return first?.type === "text" ? (first.text ?? "") : "";
 }
 
-/** A settled `bash` row whose result carries its header line (bash-tool.md Section 4). */
+/** A settled `bash` row whose result carries its header line (specs/bash-tool.md#output-capture). */
 function bashRowWithHeader(
   resultPath: string,
   lines: string[],
@@ -90,7 +90,7 @@ test("read of an agent row whose result quotes a header keeps its own path and c
       undefined as never,
     );
     const lines = textOf(read).split("\n");
-    // A quoted header is no exemption: it is cut like any other line (Section 2.1).
+    // A quoted header is no exemption: it is cut like any other line (specs/task-tool.md#read).
     assert.equal(lines[1]?.length, 120, textOf(read));
     assert.equal(lines[1], quoted.slice(0, 120), textOf(read));
     // The row's own path is still named.
@@ -178,7 +178,7 @@ test("read of a settled row returns the header line whole, with no Full output l
       undefined as never,
     );
     const lines = textOf(read).split("\n");
-    // The header's own text names the file, so the path is not repeated (Section 2.1).
+    // The header's own text names the file, so the path is not repeated (specs/task-tool.md#read).
     assert.equal(lines[0], header, textOf(read));
     assert.equal(lines.filter((line) => line.startsWith("Full output: ")).length, 0, textOf(read));
     // Every other line is still cut to 120 characters.
@@ -321,7 +321,7 @@ test("read of a rebuilt row whose result file is unreadable is a tool error and 
         undefined,
         undefined as never,
       );
-      // The path and the read's own error are named (Section 2.1).
+      // The path and the read's own error are named (specs/task-tool.md#read).
       assert.equal(result.isError, true);
       const text = textOf(result);
       assert.ok(text.startsWith(`cannot read the result file ${resultPath}: `), text);

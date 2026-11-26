@@ -12,7 +12,7 @@ import {
 } from "../../lib/task-browser.ts";
 import { at } from "../support/must.ts";
 
-/** Task browser list filter and `usage` line per specs/task-browser.md Sections 3 and 4.1. */
+/** Task browser list filter and `usage` line per specs/task-browser.md#list-page and specs/task-browser.md#agent-details. */
 
 const reg = () => new TaskRegistry(() => undefined);
 const addAgent = (r: TaskRegistry, label: string, background = true) =>

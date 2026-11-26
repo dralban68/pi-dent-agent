@@ -7,7 +7,7 @@ import { makeSearchTool, searchRuntime } from "../../lib/search-tool.ts";
 import { must } from "../support/must.ts";
 
 /**
- * specs/search-tool.md Section 1.3: the model-facing texts are registered verbatim. The
+ * specs/search-tool.md#model-texts: the model-facing texts are registered verbatim. The
  * assertions are on the registered tool's fields and parameter schema, and the expected
  * texts are read out of the specification's own table and code blocks.
  */
@@ -31,14 +31,14 @@ function blockAfter(marker: string): string {
   return spec.slice(open + "```text\n".length, close);
 }
 
-/** A quoted literal of the Section 1 registration table, by field. */
+/** A quoted literal of the specs/search-tool.md#registration registration table, by field. */
 function registrationValue(field: string): string {
   const match = new RegExp(`^\\| \`${field}\`\\s+\\| \`"(.*)"\`\\s+\\|$`, "m").exec(spec);
   assert.notEqual(match, null, field);
   return must(match?.[1]);
 }
 
-/** The Section 1.3 parameter table's `description` column, by field. */
+/** The specs/search-tool.md#model-texts parameter table's `description` column, by field. */
 function tableDescriptions(): Record<string, string> {
   const from = spec.indexOf("| Field           | `description`");
   assert.equal(from >= 0, true);

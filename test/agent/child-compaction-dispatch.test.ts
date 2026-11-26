@@ -16,7 +16,7 @@ import type { HostSession } from "../../lib/host.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Section 3.4 through dispatch: a child runs with the dispatching
+ * specs/agent-tool.md#compaction through dispatch: a child runs with the dispatching
  * session's compaction settings, completed from the defaults, and neither its own
  * working directory's settings nor a nested dispatch's change them.
  */

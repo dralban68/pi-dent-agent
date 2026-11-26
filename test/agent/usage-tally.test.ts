@@ -19,14 +19,14 @@ import type { HostSession } from "../../lib/host.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Section 13: usage sums, the usage tally and the usage status line, and
+ * specs/agent-tool.md#usage: usage sums, the usage tally and the usage status line, and
  * the row and tally accounting of real dispatches. Child sessions of the behaviour tests run
  * on a scripted faux provider.
  */
 
 // --- formatTokens: the spec's rendering of a token count ---------------------
 
-test("formatTokens renders every boundary as Section 13 prescribes", () => {
+test("formatTokens renders every boundary as specs/agent-tool.md#usage prescribes", () => {
   assert.equal(formatTokens(999), "999", "below 1000 is decimal");
   assert.equal(formatTokens(1000), "1.0k", "1000 is the first k count, one decimal");
   assert.equal(formatTokens(1500), "1.5k");

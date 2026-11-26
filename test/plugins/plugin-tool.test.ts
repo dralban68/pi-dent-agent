@@ -11,7 +11,7 @@ import { makePluginTool, makeSkillTool, pluginParameterSchema } from "../../lib/
 import { at, must } from "../support/must.ts";
 
 /**
- * Plugin tool execution per specs/plugin-tool.md Sections 1, 2, and 3:
+ * Plugin tool execution per specs/plugin-tool.md#parameter-schema, specs/plugin-tool.md#path-rules, and specs/plugin-tool.md#execution-contract:
  * integration tests through the public `execute` surface against a
  * boot-snapshot plugin catalog backed by real files.
  */
@@ -257,7 +257,7 @@ test("a plugin skill file is served from the boot snapshot by Skill and read fre
         ),
       ),
       "---\nname: s\ndescription: d\n---\n\nfresh body\n",
-      "Plugin reads the file fresh (plugin.md Section 8)",
+      "Plugin reads the file fresh (specs/plugin.md#plugin-catalog)",
     );
   } finally {
     fixture.cleanup();

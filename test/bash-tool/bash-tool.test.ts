@@ -38,7 +38,7 @@ interface Fixture {
   deps: BashToolDeps;
   registry: TaskRegistry;
   root: string;
-  /** The invoking session's agent directory (agent-tool.md Section 4.2). */
+  /** The invoking session's agent directory (specs/agent-tool.md#child-session). */
   agentDir: string;
   /** The session directory the fixture passes as `PI_DENT_SESSION_DIR` (under `root`). */
   sessionDir: string;
@@ -152,13 +152,13 @@ test("schema: object, no additional properties, the five parameters, command pat
     "description",
     "timeout",
   ]);
-  // Section 1: timeout is an integer of 1 or more, with no upper bound.
+  // specs/bash-tool.md#parameter-schema: timeout is an integer of 1 or more, with no upper bound.
   const timeout = schema.properties.timeout ?? {};
   assert.equal(timeout.type, "integer");
   assert.equal(timeout.minimum, 1);
   assert.equal(timeout.maximum, undefined);
   assert.equal(schema.properties.command?.type, "string");
-  // Section 1: at least one character that is not white space.
+  // specs/bash-tool.md#parameter-schema: at least one character that is not white space.
   assert.equal(schema.properties.command?.pattern, "\\S");
   assert.equal(schema.properties.cwd?.type, "string");
   assert.equal(schema.properties.background?.type, "boolean");
@@ -189,7 +189,7 @@ test("description: names Bash and carries the &/nohup sentence verbatim", () => 
     description.includes("Do not start processes with & or nohup: use background: true."),
     description,
   );
-  // Section 1: an omitted timeout defaults for a foreground call only.
+  // specs/bash-tool.md#parameter-schema: an omitted timeout defaults for a foreground call only.
   assert.ok(
     description.includes("An omitted `timeout` gives a foreground call 600000 ms"),
     description,
@@ -197,7 +197,7 @@ test("description: names Bash and carries the &/nohup sentence verbatim", () => 
   assert.ok(!/Omitted `timeout` imposes none/.test(description), description);
 });
 
-test("validation: cwd, then the shell (Section 2)", async () => {
+test("validation: cwd, then the shell (specs/bash-tool.md#validation)", async () => {
   const f = makeFixture({ settings: { shellPath: "/nonexistent/shell" } });
   try {
     const missing = await call(f, { command: "true", cwd: join(f.root, "nowhere") });
@@ -216,7 +216,7 @@ test("validation: cwd, then the shell (Section 2)", async () => {
     assert.equal(shell.isError, true);
     assert.match(textOf(shell), /shell/);
     assert.equal(at(f.registry.list(), 2).status, "failed");
-    // A rejected call creates no output directory or file (Section 6).
+    // A rejected call creates no output directory or file (specs/bash-tool.md#timeout-delivery).
     assert.ok(!existsSync(join(f.agentDir, "output")));
   } finally {
     f.cleanup();
@@ -239,7 +239,7 @@ test("validation: a failed rejection settles the row failed, consumed, without a
   }
 });
 
-test("rejection order: no live host session comes before the cwd and the shell (Section 2)", async () => {
+test("rejection order: no live host session comes before the cwd and the shell (specs/bash-tool.md#validation)", async () => {
   const f = makeFixture({ settings: { shellPath: "/nonexistent/shell" } });
   try {
     f.deps.hostProvider = () => undefined;
@@ -270,7 +270,7 @@ test("validation: an empty or whitespace-only cwd or description is absent", asy
   }
 });
 
-test("the row carries the call's command text, unchanged (Section 6)", async () => {
+test("the row carries the call's command text, unchanged (specs/bash-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const command = "echo one\necho two\techo three\x1b[31m";
@@ -297,7 +297,7 @@ test("validation: timeout above 2147483647 is accepted and imposes none", async 
   }
 });
 
-test("timeout: the resolved value defaults for foreground only (Section 1)", () => {
+test("timeout: the resolved value defaults for foreground only (specs/bash-tool.md#parameter-schema)", () => {
   assert.equal(resolveBashTimeout(undefined, false), 600000);
   assert.equal(resolveBashTimeout(undefined, true), undefined);
   assert.equal(resolveBashTimeout(1, false), 1);
@@ -368,7 +368,7 @@ test("foreground: exit 0 has no status line and the task completes", async () =>
   }
 });
 
-test("output: the file lands in <agentDir>/output/, created when absent (Section 4)", async () => {
+test("output: the file lands in <agentDir>/output/, created when absent (specs/bash-tool.md#output-capture)", async () => {
   const f = makeFixture();
   try {
     assert.ok(!existsSync(f.agentDir), "no agent directory before the call");
@@ -385,7 +385,7 @@ test("output: the file lands in <agentDir>/output/, created when absent (Section
 test("output: a call still succeeds when the agent directory cannot be created", async () => {
   const f = makeFixture();
   try {
-    // A regular file where the agent directory belongs makes the mkdir fail (Section 4).
+    // A regular file where the agent directory belongs makes the mkdir fail (specs/bash-tool.md#output-capture).
     writeFileSync(f.agentDir, "");
     const result = await call(f, { command: "echo hi" });
     assert.equal(result.isError, undefined);
@@ -690,7 +690,7 @@ test("end: a timeout run does not end when the pipes close before the shell exit
   const f = makeFixture();
   try {
     // The shell ignores SIGTERM, points both pipes away at 200 ms, then lives
-    // until the SIGKILL at 300 ms; the run ends with the shell (Section 3).
+    // until the SIGKILL at 300 ms; the run ends with the shell (specs/bash-tool.md#execution-model).
     const started = Date.now();
     const result = await call(f, {
       command: "trap '' TERM; sleep 0.2; exec >/dev/null 2>/dev/null; sleep 3",
@@ -740,7 +740,7 @@ test("abort: a signal already aborted prevents the spawn", async () => {
   }
 });
 
-test("abort: a background call ignores an already-aborted signal (Section 6)", async () => {
+test("abort: a background call ignores an already-aborted signal (specs/bash-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const controller = new AbortController();
@@ -803,7 +803,7 @@ test("kill: the row's cancellation handler reports `Command killed`", async () =
   }
 });
 
-test("browser kill: a foreground run's result names the user (Sections 5, 6)", async () => {
+test("browser kill: a foreground run's result names the user (specs/bash-tool.md#result-contract, specs/bash-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const pending = call(f, { command: "sleep 5" });
@@ -926,7 +926,7 @@ test("leftover: false when the group signal reaches no process", async () => {
   try {
     const marker = join(f.root, "marker");
     // `kill` fails as a whole: EPERM (no member signalable) delivered the signal
-    // to no process, so the run claims no leftover (Section 3).
+    // to no process, so the run claims no leftover (specs/bash-tool.md#execution-model).
     process.kill = ((pid: number, signal?: string | number) => {
       if (pid < 0) {
         const error: NodeJS.ErrnoException = new Error("kill EPERM");
@@ -1611,7 +1611,7 @@ test("pipe notice: no top-level pipe to a filter stage means no notice", async (
   }
 });
 
-test("schema: the command description states the plain-run rule verbatim (Section 1)", () => {
+test("schema: the command description states the plain-run rule verbatim (specs/bash-tool.md#parameter-schema)", () => {
   const schema = bashParameterSchema as unknown as {
     properties: Record<string, { description?: string }>;
   };

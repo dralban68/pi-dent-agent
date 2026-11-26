@@ -11,7 +11,7 @@ import {
 import { at } from "../support/must.ts";
 
 /**
- * specs/ask-user-question-tool.md Section 7: the call and result components. The lines are
+ * specs/ask-user-question-tool.md#rendering: the call and result components. The lines are
  * the same collapsed and expanded, and carry no padding or background of their own.
  */
 

@@ -15,7 +15,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/session-index.md Section 4: concurrent access; Section 5: failed writes and an unusable index. */
+/** specs/session-index.md#concurrent-access: concurrent access; specs/session-index.md#failures: failed writes and an unusable index. */
 
 const roots: string[] = [];
 after(() => {

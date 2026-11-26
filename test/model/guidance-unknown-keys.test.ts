@@ -5,8 +5,8 @@ import type { BootConfig } from "../../lib/config.ts";
 import { at } from "../support/must.ts";
 
 /**
- * The `modelGuidance` object of specs/model-guidance.md Section 1: its unknown keys follow
- * specs/config-file.md Section 2, one diagnostic naming each key and the file of its layer.
+ * The `modelGuidance` object of specs/model-guidance.md#configuration: its unknown keys follow
+ * specs/config-file.md#format, one diagnostic naming each key and the file of its layer.
  */
 
 function configWithMerged(merged: Record<string, unknown>): BootConfig {

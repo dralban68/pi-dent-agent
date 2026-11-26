@@ -9,7 +9,7 @@ import { rebuildInterruptedTasks } from "../../lib/task-rebuild.ts";
 import type { HostSession } from "../../lib/host.ts";
 import { at } from "../support/must.ts";
 
-/** Rebuild per specs/task-record.md Section 3 and task-registry.md Section 5. */
+/** Rebuild per specs/task-record.md#rebuild and specs/task-registry.md#cohorts. */
 
 function hostRecording(notify: string[]): HostSession {
   return {
@@ -90,7 +90,7 @@ test("a terminal record keeps its status, settledAt, and resultPath", () => {
   assert.equal(row.resultPath, "/abs/result.txt");
   assert.equal(row.background, true);
   // A rebuild that inserted no `interrupted` row sends no interrupted
-  // notification (task-registry.md Section 5).
+  // notification (specs/task-registry.md#cohorts).
   assert.deepEqual(notify, []);
   rmSync(dir, { recursive: true, force: true });
 });
@@ -154,7 +154,7 @@ test("a second rebuild skips records already rebuilt and sends no second notific
   rmSync(dir, { recursive: true, force: true });
 });
 
-test("a record in a child session's agent directory is not read (Section 3)", () => {
+test("a record in a child session's agent directory is not read (specs/task-record.md#rebuild)", () => {
   const dir = tempDir();
   writeRunningRecord(dir, runningFields("01234567"));
   // A nested agent directory, as a child session's own would be: only the directory the
@@ -224,7 +224,7 @@ test("a rebuild whose agent directory cannot be read reports it once and inserts
   }
 });
 
-test("a missing agent directory reports nothing (Section 3)", () => {
+test("a missing agent directory reports nothing (specs/task-record.md#rebuild)", () => {
   const registry = new TaskRegistry(() => undefined);
   const reports: string[] = [];
   const count = rebuildInterruptedTasks(

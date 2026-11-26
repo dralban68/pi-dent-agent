@@ -8,7 +8,7 @@ import { hostFromContext } from "../../lib/engine.ts";
 import { at } from "../support/must.ts";
 
 /**
- * Compaction per specs/agent-tool.md Section 3.4: the dispatching session's
+ * Compaction per specs/agent-tool.md#compaction: the dispatching session's
  * compaction settings come from the settings files of its working directory, and a
  * settings file that cannot be read contributes nothing and is reported.
  */

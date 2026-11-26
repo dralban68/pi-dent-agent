@@ -5,7 +5,7 @@ import { TaskRegistry } from "../../lib/registry.ts";
 import { TaskBrowserState, type BrowserTheme } from "../../lib/task-browser.ts";
 import { at } from "../support/must.ts";
 
-/** `g` and `G` on every page that gives `home` and `end` a behaviour (browser-navigation.md, Section 4). */
+/** `g` and `G` on every page that gives `home` and `end` a behaviour (specs/browser-navigation.md#home-end-keys). */
 
 const HOME = "\x1b[H";
 const END = "\x1b[F";

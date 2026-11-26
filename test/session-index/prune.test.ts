@@ -17,7 +17,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/session-index.md Section 6: the index prune. */
+/** specs/session-index.md#index-prune: the index prune. */
 
 const roots: string[] = [];
 after(() => {
@@ -127,7 +127,7 @@ test("a prune waits for the write lock within the busy timeout and then deletes 
   const other = new DatabaseSync(path);
   other.exec("PRAGMA busy_timeout = 20;");
   other.exec("BEGIN IMMEDIATE");
-  // Another session's write ends well inside the default busy timeout of 1000 ms (Section 1).
+  // Another session's write ends well inside the default busy timeout of 1000 ms (specs/session-index.md#location).
   const release = setTimeout(() => {
     other.exec("COMMIT");
   }, 250);

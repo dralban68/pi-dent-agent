@@ -7,7 +7,7 @@ import { composePluginCatalogs, discoverAgents, discoverSkills } from "../../lib
 import type { Diagnostic } from "../../lib/util.ts";
 
 /**
- * Symlink discovery per specs/agent.md Section 1 and specs/skill.md Section 1:
+ * Symlink discovery per specs/agent.md#definition-files and specs/skill.md#skill-files:
  * a symlink to a regular file counts as a file and a symlink to a directory
  * counts as a directory, in pi-dent's own scans and in the plugin scans; a
  * dangling symlink is ignored silently.

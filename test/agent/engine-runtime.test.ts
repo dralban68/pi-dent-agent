@@ -11,7 +11,7 @@ import { engineDeps } from "../support/engine-deps.ts";
 import type { HostSession } from "../../lib/host.ts";
 import { must } from "../support/must.ts";
 
-// --- Section 8: recovery classification, driven through real dispatches ------
+// --- specs/agent-tool.md#recovery: recovery classification, driven through real dispatches ------
 //
 // A settled attempt is classified by what its child session produced, and the
 // classification shows in the dispatch itself: which attempt ran, what it was

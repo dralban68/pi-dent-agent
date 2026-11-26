@@ -8,7 +8,7 @@ import type { Diagnostic } from "../../lib/util.ts";
 import { at } from "../support/must.ts";
 
 /**
- * The frontmatter mapping rule of specs/skill.md Section 1, shared by every
+ * The frontmatter mapping rule of specs/skill.md#skill-files, shared by every
  * Markdown resource: a frontmatter that is not a mapping produces one diagnostic
  * naming the file and is read as empty, so the resource is then handled as one
  * with no frontmatter field at all (skipped here, for it lacks a `name`).

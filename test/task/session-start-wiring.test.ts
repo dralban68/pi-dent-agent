@@ -11,8 +11,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { at } from "../support/must.ts";
 
 /**
- * The index.ts `session_start` wiring of specs/task-record.md Section 3 and
- * specs/session-store.md Section 4: the rebuild reports an unreadable agent
+ * The index.ts `session_start` wiring of specs/task-record.md#rebuild and
+ * specs/session-store.md#membership-lifecycle: the rebuild reports an unreadable agent
  * directory, runs only when this boot window owns the session, and a refused
  * registration warns with the ownership text instead of rebuilding. index.ts is
  * loaded through jiti, as in test/schedule-tool/wiring.test.ts.
@@ -189,7 +189,7 @@ function interruptedNotifications(stub: StubPi): SentMessage[] {
 
 /**
  * Leave the session's record owned by another live boot window: a foreign process that is
- * alive, so the store refuses this boot window's registration (session-store.md Section 4).
+ * alive, so the store refuses this boot window's registration (specs/session-store.md#membership-lifecycle).
  */
 function ownSessionInAnotherProcess(project: string): void {
   const dbPath = process.env.PI_DENT_FLEET_DB ?? "";
@@ -302,7 +302,7 @@ test("a refused registration warns with the ownership text and rebuilds nothing"
   try {
     // The store exists once this boot window opened it.
     await factory(stub.pi);
-    // Another live boot window, in another process, owns the session (session-store.md Section 4).
+    // Another live boot window, in another process, owns the session (specs/session-store.md#membership-lifecycle).
     ownSessionInAnotherProcess(project);
     await sessionStart(stub, ctx);
 

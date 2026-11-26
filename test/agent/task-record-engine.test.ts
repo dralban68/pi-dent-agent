@@ -29,8 +29,8 @@ import { rebuildInterruptedTasks } from "../../lib/task-rebuild.ts";
 import { must } from "../support/must.ts";
 
 /**
- * specs/task-record.md Section 2 wired into the Agent dispatch engine
- * (specs/agent-tool.md Sections 6 and 9): the background start message names a
+ * specs/task-record.md#lifecycle wired into the Agent dispatch engine
+ * (specs/agent-tool.md#background-contract and specs/agent-tool.md#resume): the background start message names a
  * deterministic session file, a background task writes one running record and
  * rewrites it at settlement, and `resume` by task ID continues the recorded
  * session file in place, consuming a settled or interrupted row.
@@ -607,7 +607,7 @@ test("a Task kill that settles after a reload rewrites the record as cancelled",
 });
 
 /**
- * A reload (task-record.md Section 2): the session's task registry ends with no
+ * A reload (specs/task-record.md#lifecycle): the session's task registry ends with no
  * live attaching task registry to adopt the row, so the running task is
  * cancelled; its record MUST keep `running`, so the rebuild reports
  * `interrupted` whatever the order of the two.

@@ -22,7 +22,7 @@ import { openSessionIndex } from "../../lib/session-index.ts";
 import { searchRuntime, type SearchHost } from "../../lib/search-tool.ts";
 
 /**
- * specs/search-tool.md Sections 2.2 and 3.4: covering, its exceptions, the
+ * specs/search-tool.md#coverage and specs/search-tool.md#result: covering, its exceptions, the
  * continuation, and every result line a call can report.
  */
 
@@ -52,7 +52,7 @@ async function seed(db: string, path: string): Promise<void> {
   opened.index.close();
 }
 
-/** A file at `db` whose `user_version` makes the index unusable (session-index.md Section 5). */
+/** A file at `db` whose `user_version` makes the index unusable (specs/session-index.md#failures). */
 function makeUnusable(db: string, version = 7): void {
   const handle = new DatabaseSync(db);
   handle.exec(`PRAGMA user_version = ${version};`);
@@ -269,7 +269,7 @@ test("a call stopped by its budget names the last decided item, and every hit up
   assert.equal(outcome.details.stopped, true);
   assert.equal(outcome.details.more, false);
   // The window's items were all decided before the budget expired, so every hit of
-  // them is shown and the stop item is the last of them (Section 3.3).
+  // them is shown and the stop item is the last of them (specs/search-tool.md#evaluation).
   assert.equal(outcome.details.next, "self:u1");
   assert.deepEqual(hitAddresses(outcome), ["self:u3", "self:u2", "self:u1"]);
   assert.equal(
@@ -393,7 +393,7 @@ test("a stop with no stop item while a session other than after is uncovered", a
   assert.equal(outcome.details.uncovered, 1, outcome.text);
   assert.deepEqual(hitAddresses(outcome), []);
   // The after session is covered, so the call is not in the after-session state: the
-  // generic stop line and the uncovered-sessions line are both present (Section 3.4).
+  // generic stop line and the uncovered-sessions line are both present (specs/search-tool.md#result).
   assert.deepEqual(outcome.lines, [
     "(no hits)",
     "Search stopped after 5000 ms before any item was examined. Repeat the call.",
@@ -690,7 +690,7 @@ test("a file that is not a session file on a direct read is not a session of the
   assert.equal(outcome.details.uncovered, 0);
   assert.deepEqual(hitAddresses(outcome), ["self:a"]);
   // An address of a session so lost is rejected with the resolution error, and an
-  // `after` with the error of Section 3.4.
+  // `after` with the error of specs/search-tool.md#result.
   const addressed = pair("search-tool-lost-get-");
   const addressedDb = addressed.db.replace("search-v3.sqlite", "unusable.sqlite");
   makeUnusable(addressedDb);
@@ -753,7 +753,7 @@ test("an uncovered after session with an unusable index reports the index, not t
   assert.equal(outcome.details.uncovered, 2, outcome.text);
   assert.equal(outcome.details.indexError, "unsupported index version 7", outcome.text);
   // The after-session state needs a usable index, so the call reports the index and
-  // the sessions it could not search (Section 3.4).
+  // the sessions it could not search (specs/search-tool.md#result).
   assert.deepEqual(outcome.lines, [
     "(no hits)",
     "Search stopped after 5000 ms before any item was examined: a session is too large to read without the search index.",

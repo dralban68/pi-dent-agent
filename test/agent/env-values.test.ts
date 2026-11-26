@@ -6,8 +6,8 @@ import { test } from "node:test";
 import { readBootSnapshot, type BootSnapshot } from "../../lib/engine.ts";
 
 /**
- * Environment values per specs/agent-tool.md Sections 8 and 10 and
- * specs/config-file.md Section 6: decimal digits only, one diagnostic and the
+ * Environment values per specs/agent-tool.md#recovery and specs/agent-tool.md#retention-sweep and
+ * specs/config-file.md#diagnostics: decimal digits only, one diagnostic and the
  * default for any other value; unset or empty is silent.
  */
 

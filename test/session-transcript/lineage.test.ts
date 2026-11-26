@@ -9,7 +9,7 @@ import {
 } from "../../lib/session-transcript.ts";
 import { entryLine, fileText, headerLine, messageLine } from "./support.ts";
 
-/** specs/session-transcript.md Section 3: the leaf and the current lineage. */
+/** specs/session-transcript.md#current-lineage: the leaf and the current lineage. */
 
 function entry(entryId: string, parentId: string | null, line: number): SessionEntry {
   return {

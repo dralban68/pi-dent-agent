@@ -6,7 +6,7 @@ import { engineDeps } from "../support/engine-deps.ts";
 import type { HostSession } from "../../lib/host.ts";
 import { at } from "../support/must.ts";
 
-/** Task registry conformance per specs/task-registry.md Sections 1-7. */
+/** Task registry conformance per specs/task-registry.md#ownership, specs/task-registry.md#task-row, specs/task-registry.md#operations, specs/task-registry.md#registry-end, specs/task-registry.md#cohorts, specs/task-registry.md#nesting, specs/task-registry.md#registry-changes. */
 
 function hostRecording(notify: string[], throws = false): HostSession {
   return {
@@ -173,7 +173,7 @@ test("a host whose send throws leaves the rows for the cohort's next notificatio
   assert.equal(third.consumed, true);
 });
 
-test("a refused completion notification is reported once for its cohort (Section 5)", () => {
+test("a refused completion notification is reported once for its cohort (specs/task-registry.md#cohorts)", () => {
   const reported: string[] = [];
   const registry = new TaskRegistry(
     () => hostRecording([], true),
@@ -196,7 +196,7 @@ test("a refused completion notification is reported once for its cohort (Section
   assert.equal(reported.length, 2, JSON.stringify(reported));
 });
 
-test("a registry with no host reports its undelivered notification (Section 5)", () => {
+test("a registry with no host reports its undelivered notification (specs/task-registry.md#cohorts)", () => {
   const reported: string[] = [];
   const registry = new TaskRegistry(
     () => undefined,
@@ -211,7 +211,7 @@ test("a registry with no host reports its undelivered notification (Section 5)",
   assert.equal(row.consumed, false);
 });
 
-test("a registry without a boot-window UI reports nothing itself (Section 5)", () => {
+test("a registry without a boot-window UI reports nothing itself (specs/task-registry.md#cohorts)", () => {
   const notify: string[] = [];
   const registry = new TaskRegistry(() => hostRecording(notify, true));
   const row = bg(registry, "c");
@@ -220,7 +220,7 @@ test("a registry without a boot-window UI reports nothing itself (Section 5)", (
   assert.equal(notify.length, 1, "only the refused send itself reached the host");
 });
 
-test("a refused interrupted notification is reported once (Section 5)", () => {
+test("a refused interrupted notification is reported once (specs/task-registry.md#cohorts)", () => {
   const reported: string[] = [];
   const registry = new TaskRegistry(
     () => hostRecording([], true),
@@ -290,7 +290,7 @@ test("amend emits on a running row and is a no-op once settled", () => {
   assert.equal(calls, 2);
 });
 
-test("register sets the row's kind and its kind-specific fields (Section 2)", () => {
+test("register sets the row's kind and its kind-specific fields (specs/task-registry.md#task-row)", () => {
   const registry = new TaskRegistry(() => undefined);
   const agent = registry.register({ kind: "agent", cohort: "c", label: "a", background: true });
   const script = bg(registry, "c");
@@ -307,7 +307,7 @@ test("listLine uses the first line of the label", () => {
   assert.equal(registry.listLine(row), `${row.taskId} · running · first`);
 });
 
-test("live is true until end and false after it (Section 1)", () => {
+test("live is true until end and false after it (specs/task-registry.md#ownership)", () => {
   const registry = new TaskRegistry(() => undefined);
   assert.equal(registry.live, true);
   registry.end();
@@ -332,7 +332,7 @@ test("engine registry reset yields a new, live, empty registry", () => {
   assert.deepEqual(engine.registry.list(), []);
 });
 
-test("browser kill: the cancel is recorded, consumes nothing, and the notification names it (Sections 3, 5)", () => {
+test("browser kill: the cancel is recorded, consumes nothing, and the notification names it (specs/task-registry.md#operations, specs/task-registry.md#cohorts)", () => {
   const notify: string[] = [];
   const registry = new TaskRegistry(() => hostRecording(notify));
   const row = bg(registry, "c", "stuck");
@@ -355,7 +355,7 @@ test("browser kill: the cancel is recorded, consumes nothing, and the notificati
   assert.equal(row.consumed, true, "the completion notification consumes the row");
 });
 
-test("a browser-killed row that still completes gets no notification suffix (Section 5)", () => {
+test("a browser-killed row that still completes gets no notification suffix (specs/task-registry.md#cohorts)", () => {
   const notify: string[] = [];
   const registry = new TaskRegistry(() => hostRecording(notify));
   const row = bg(registry, "c", "finishing");
@@ -365,7 +365,7 @@ test("a browser-killed row that still completes gets no notification suffix (Sec
   assert.deepEqual(notify, [`Background tasks settled:\n${registry.listLine(row)}`]);
 });
 
-test("a plain cancel is no browser kill and adds no notification suffix (Sections 3, 5)", () => {
+test("a plain cancel is no browser kill and adds no notification suffix (specs/task-registry.md#operations, specs/task-registry.md#cohorts)", () => {
   const notify: string[] = [];
   const registry = new TaskRegistry(() => hostRecording(notify));
   const row = bg(registry, "c", "plain");

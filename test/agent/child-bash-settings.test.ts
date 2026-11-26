@@ -16,7 +16,7 @@ import { readBashSettings } from "../../lib/bash-tool.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * specs/bash-tool.md Section 3: a settings file that cannot be read is reported once per boot
+ * specs/bash-tool.md#execution-model: a settings file that cannot be read is reported once per boot
  * window per file, whichever session calls `Bash`. The extension instance passes its reporter
  * to the engine, so a child session's call reports it too.
  */

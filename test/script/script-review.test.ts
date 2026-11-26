@@ -13,7 +13,7 @@ import { bundledAliases } from "../../lib/bundled.ts";
 
 /**
  * Script tool behaviour that stands apart from the rest of the suite
- * (specs/script-tool.md Sections 3–6): non-Error throws, bundled package
+ * (specs/script-tool.md#execution-model, specs/script-tool.md#module-contract, specs/script-tool.md#result-contract, specs/script-tool.md#timeout-delivery): non-Error throws, bundled package
  * resolution, wrapper-independent process, non-string stacks, post-settlement
  * output, the console surface, primitive module.exports, pre-clone rendering, and
  * chdir validation.

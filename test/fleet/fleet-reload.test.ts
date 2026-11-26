@@ -1,5 +1,5 @@
 /**
- * Reload conformance for specs/fleet-tool.md Section 5: a `/reload` neither
+ * Reload conformance for specs/fleet-tool.md#status: a `/reload` neither
  * ends a session nor cancels a pending message; `status` covers only the
  * caller's current boot window.
  */
@@ -196,7 +196,7 @@ test("reload: session stays live, pending queues survive, new boot window delive
   }
 });
 
-/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md Section 1). */
+/** A live sender endpoint: `send` and `query` require one (specs/fleet-tool.md#parameter-schema). */
 function registerSender(fleet: FleetCoordinator, sessionId: string, cwd: string): void {
   fleet.registerEndpoint(
     {

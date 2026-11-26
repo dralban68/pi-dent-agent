@@ -10,10 +10,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { must } from "../support/must.ts";
 
 /**
- * Plugin slash commands per specs/plugin.md Section 5: the extension
+ * Plugin slash commands per specs/plugin.md#slash-commands: the extension
  * factory registers one command per commands/*.md resource of each
  * admitted plugin, invoked as /<namespace>:<command>;
- * the body is read fresh, substituted per plugin.md Section 6, and
+ * the body is read fresh, substituted per specs/plugin.md#argument-substitution, and
  * delivered as exactly one user message. index.ts is loaded through jiti
  * (the loader pi itself uses) because its module graph is not loadable
  * under native type stripping.
@@ -162,7 +162,7 @@ function makeFixture(): Fixture {
 }
 
 /**
- * Declare plugin entries in a layer's pi-dent.conf (specs/plugin.md Section 4).
+ * Declare plugin entries in a layer's pi-dent.conf (specs/plugin.md#discovery).
  * Global-layer relative paths resolve against the global base directory; the
  * project layer may use absolute paths.
  */

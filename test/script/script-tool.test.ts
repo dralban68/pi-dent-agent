@@ -34,7 +34,7 @@ interface Fixture {
   tool: ReturnType<typeof makeScriptTool>;
   registry: TaskRegistry;
   root: string;
-  /** The invoking session's agent directory (agent-tool.md Section 4.2). */
+  /** The invoking session's agent directory (specs/agent-tool.md#child-session). */
   agentDir: string;
   /** The session directory the fixture passes as `PI_DENT_SESSION_DIR` (under `root`). */
   sessionDir: string;
@@ -180,7 +180,7 @@ test("schema: object schema, additional properties rejected, expected fields", (
   }
 });
 
-test("source resolution: exactly one source required, with no task row (Section 2)", async () => {
+test("source resolution: exactly one source required, with no task row (specs/script-tool.md#validation)", async () => {
   const f = makeFixture();
   try {
     // Both shapes of the first string: code together with a plugin source.
@@ -215,7 +215,7 @@ test("source resolution: exactly one source required, with no task row (Section 
   }
 });
 
-test("a blank cwd is absent: the session's working directory applies (Section 1)", async () => {
+test("a blank cwd is absent: the session's working directory applies (specs/script-tool.md#parameter-schema)", async () => {
   const f = makeFixture();
   try {
     for (const blank of ["", "  \n"]) {
@@ -228,7 +228,7 @@ test("a blank cwd is absent: the session's working directory applies (Section 1)
   }
 });
 
-test("rejection order: no live host session comes before the cwd (Section 2)", async () => {
+test("rejection order: no live host session comes before the cwd (specs/script-tool.md#validation)", async () => {
   const f = makeFixture({ hostProvider: () => undefined });
   try {
     const result = await call(f, {
@@ -249,7 +249,7 @@ test("rejection order: no live host session comes before the cwd (Section 2)", a
   }
 });
 
-test("rejection order: source shape before the row, then cwd, plugin, path, file (Section 2)", async () => {
+test("rejection order: source shape before the row, then cwd, plugin, path, file (specs/script-tool.md#validation)", async () => {
   const f = makeFixture();
   try {
     // The source shape precedes the row and every later check: even an invalid
@@ -331,7 +331,7 @@ test("source resolution: bad path shape rejected", async () => {
   }
 });
 
-test("execution: inline code returns a JSON-compatible value with the Section 5 body", async () => {
+test("execution: inline code returns a JSON-compatible value with the specs/script-tool.md#result-contract body", async () => {
   const f = makeFixture();
   try {
     const r = await call(f, { code: `console.log("hi"); export default { n: 1 };` });
@@ -594,7 +594,7 @@ test("timeout: an omitted foreground timeout schedules the 600000 ms default", a
   }
 });
 
-test("timeout: the resolved value defaults for foreground only (Section 1)", () => {
+test("timeout: the resolved value defaults for foreground only (specs/script-tool.md#parameter-schema)", () => {
   assert.equal(resolveScriptTimeout(undefined, false), 600000);
   assert.equal(resolveScriptTimeout(undefined, true), undefined);
   assert.equal(resolveScriptTimeout(1, false), 1);
@@ -786,7 +786,7 @@ test("delivery: background returns running with taskId/outputPath and settles co
   }
 });
 
-test("delivery: a background call ignores an already-aborted signal (Section 6)", async () => {
+test("delivery: a background call ignores an already-aborted signal (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const controller = new AbortController();
@@ -804,7 +804,7 @@ test("delivery: a background call ignores an already-aborted signal (Section 6)"
   }
 });
 
-test("delivery: a foreground call with an already-aborted signal starts no run and reports 0 ms (Sections 5, 6)", async () => {
+test("delivery: a foreground call with an already-aborted signal starts no run and reports 0 ms (specs/script-tool.md#result-contract, specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const controller = new AbortController();
@@ -855,7 +855,7 @@ test("delivery: Task kill hard-terminates a running background script", async ()
   }
 });
 
-test("foreground: Task cancellation hard-terminates and settles cancelled (Section 6)", async () => {
+test("foreground: Task cancellation hard-terminates and settles cancelled (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     // A pending timer keeps the worker's event loop alive (a forever-pending
@@ -879,7 +879,7 @@ test("foreground: Task cancellation hard-terminates and settles cancelled (Secti
   }
 });
 
-test("foreground: a browser kill settles cancelled and names the user in the body (Sections 5, 6)", async () => {
+test("foreground: a browser kill settles cancelled and names the user in the body (specs/script-tool.md#result-contract, specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const pending = call(f, {
@@ -922,7 +922,7 @@ test("foreground: a browser kill settles cancelled and names the user in the bod
   }
 });
 
-test("row label: plugin script label is the caller-provided plugin-relative path (Section 6)", async () => {
+test("row label: plugin script label is the caller-provided plugin-relative path (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const r = await call(f, { plugin: "plug", path: "scripts/hello.ts", input: { z: 1 } });
@@ -935,7 +935,7 @@ test("row label: plugin script label is the caller-provided plugin-relative path
   }
 });
 
-test("row label: a present description wins over the plugin path and the code preview (Section 6)", async () => {
+test("row label: a present description wins over the plugin path and the code preview (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const pluginCall = await call(f, {
@@ -953,7 +953,7 @@ test("row label: a present description wins over the plugin path and the code pr
   }
 });
 
-test("row label: a blank description is treated as absent (Sections 1 and 6)", async () => {
+test("row label: a blank description is treated as absent (specs/script-tool.md#parameter-schema and specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const pluginCall = await call(f, {
@@ -971,7 +971,7 @@ test("row label: a blank description is treated as absent (Sections 1 and 6)", a
   }
 });
 
-test("row label: a code source drops its leading white space, line breaks included (Section 6)", async () => {
+test("row label: a code source drops its leading white space, line breaks included (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     const r = await call(f, { code: "\n\n  export default 3;\n" });
@@ -1010,7 +1010,7 @@ test("schema: timeout is an integer from 1 to 600000, no other property is admit
     Value.Check(scriptParameterSchema, { code: "export default 1;", timeout: 600000 }),
     true,
   );
-  // Section 1: no field is required, and only the eight properties are admitted.
+  // specs/script-tool.md#parameter-schema: no field is required, and only the eight properties are admitted.
   assert.equal(Value.Check(scriptParameterSchema, {}), true);
   assert.equal(Value.Check(scriptParameterSchema, { code: "x", extra: 1 }), false);
   assert.equal(Value.Check(scriptParameterSchema, { code: "x", input: 5 }), false);
@@ -1061,7 +1061,7 @@ test("foreground output feeds the row's progress projection line by line", async
   }
 });
 
-test("progress: lines are formed on the run's output across streams (Section 6)", async () => {
+test("progress: lines are formed on the run's output across streams (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     await call(f, {
@@ -1076,7 +1076,7 @@ test("progress: lines are formed on the run's output across streams (Section 6)"
   }
 });
 
-test("progress: an entry is its line's display text, cut to its first 500 code points (Section 6)", async () => {
+test("progress: an entry is its line's display text, cut to its first 500 code points (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   try {
     await call(f, {
@@ -1259,7 +1259,7 @@ test("output: an unclipped return names no full value in the body", async () => 
   }
 });
 
-test("output: an unusable output directory still lets the call succeed (Section 6)", async () => {
+test("output: an unusable output directory still lets the call succeed (specs/script-tool.md#timeout-delivery)", async () => {
   const f = makeFixture();
   // A regular file where the agent directory belongs: creating <dir>/output/ throws.
   writeFileSync(f.agentDir, "");

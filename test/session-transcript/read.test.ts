@@ -36,7 +36,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/session-transcript.md Section 1: reading a session file into session entries. */
+/** specs/session-transcript.md#reading: reading a session file into session entries. */
 
 const LINE_BYTE_LIMIT = 16777216;
 
@@ -66,7 +66,7 @@ test("the first line as a session header is read as the header and not as an ent
 test("a file whose first line is not a session header has no header", () => {
   const read = readSessionText(fileText(userLine("a1", null, "hello")));
   assert.equal(read.header, undefined);
-  // Section 1 makes only the header decide readability; the entries of the lines are still entries.
+  // specs/session-transcript.md#reading makes only the header decide readability; the entries of the lines are still entries.
   assert.deepEqual(
     read.entries.map((entry) => entry.entryId),
     ["a1"],

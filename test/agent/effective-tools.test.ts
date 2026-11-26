@@ -15,11 +15,11 @@ import { makeSkillTool } from "../../lib/tools.ts";
 import type { SkillEntry } from "../../lib/catalogs.ts";
 
 /**
- * The effective tool cap per specs/agent-tool.md Sections 3.1 and 4.2: the
+ * The effective tool cap per specs/agent-tool.md#tools and specs/agent-tool.md#child-session: the
  * main session's tool cap filtered, in main-session order, to the names the
  * child binds — pi's built-ins, pi-dent's child tools, and the tools the inherited
  * extension sources provided. `Skill` is bound only when the cap includes it
- * (specs/skill-tool.md Section 1).
+ * (specs/skill-tool.md#binding).
  */
 
 /** The names of the child tool definitions the engine binds (engine.ts childTools). */

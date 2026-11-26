@@ -12,9 +12,9 @@ import { isolateTaskLedger } from "../support/task-ledger-env.ts";
 import { inserted, openLedger, raw, sessionRow, usage } from "./support.ts";
 
 /**
- * The index.ts wiring of specs/task-ledger.md Sections 1, 3.3 and 7 and agent-tool.md Section 13:
+ * The index.ts wiring of specs/task-ledger.md#location, specs/task-ledger.md#session-row-writes and specs/task-ledger.md#failures and specs/agent-tool.md#usage:
  * the ledger opened at session_start, the ledger session row, the usage tally's seed read, and
- * the tool-result rule of Section 2.1. index.ts is loaded through jiti.
+ * the tool-result rule of specs/task-ledger.md#session-row. index.ts is loaded through jiti.
  */
 
 const entryDir = fileURLToPath(new URL(".", import.meta.url));
@@ -73,7 +73,7 @@ function sandbox(footer = false): Sandbox {
   const project = join(root, "project");
   mkdirSync(join(home, ".pi", "pi-dent"), { recursive: true });
   mkdirSync(join(project, ".pi", "pi-dent"), { recursive: true });
-  // Without pi-dent's footer, the usage status line shows the tally (agent-tool.md Section 13).
+  // Without pi-dent's footer, the usage status line shows the tally (specs/agent-tool.md#usage).
   writeFileSync(
     join(project, ".pi", "pi-dent", "pi-dent.conf"),
     JSON.stringify({ footer: { enabled: footer } }),
@@ -270,7 +270,7 @@ test("the ledger session row is written at session_start, each message end, comp
         usage: hostUsage(10, 0.5),
       },
     },
-    // The usage of an Agent dispatch is in its ledger row, not the session's (Section 2.1).
+    // The usage of an Agent dispatch is in its ledger row, not the session's (specs/task-ledger.md#session-row).
     {
       type: "message",
       timestamp: AT,
@@ -304,7 +304,7 @@ test("the ledger session row is written at session_start, each message end, comp
       [join(box.project, "session.jsonl"), box.project, 10, 1, 0.5, 1, 1],
     );
 
-    // The host reports a message's end before it saves the message (Section 3.3).
+    // The host reports a message's end before it saves the message (specs/task-ledger.md#session-row-writes).
     const ended = {
       role: "assistant",
       content: [
@@ -332,7 +332,7 @@ test("the ledger session row is written at session_start, each message end, comp
     await fire(stub, "session_tree", { summaryEntry: summary }, ctx);
     await until(() => row()?.input === 25, "the row with the branch summary");
 
-    // The Session tool reports the ledger's figures (session-tool.md Section 2).
+    // The Session tool reports the ledger's figures (specs/session-tool.md#result).
     const session = (await must(stub.tools.get("Session")).execute(
       "tc",
       {},
@@ -528,7 +528,7 @@ test("a task a nested call of a main-session Script run registers has the script
   }
 });
 
-test("pi-dent's tool-result handlers never set a host usage (task-ledger.md Section 2.1)", async () => {
+test("pi-dent's tool-result handlers never set a host usage (specs/task-ledger.md#session-row)", async () => {
   const box = sandbox();
   const stub = makeStub();
   const ui: Ui = { notices: [], statuses: new Map() };

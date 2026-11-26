@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { themePaint } from "../../index.ts";
 
-/** Widget theme paint per specs/task.md Section 4. */
+/** Widget theme paint per specs/task.md#task-tree-widget. */
 
 const tagging = { fg: (name: string, text: string) => `<${name}>${text}</${name}>` };
 

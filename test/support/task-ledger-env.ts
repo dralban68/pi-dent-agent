@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 /**
- * Point the task ledger (specs/task-ledger.md Section 1) into `dir`, so a test that starts the
+ * Point the task ledger (specs/task-ledger.md#location) into `dir`, so a test that starts the
  * extension never opens the real one; returns the function that restores the variable.
  */
 export function isolateTaskLedger(dir: string): () => void {

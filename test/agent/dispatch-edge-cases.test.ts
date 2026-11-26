@@ -33,8 +33,8 @@ import { collectTaskTree, renderTaskTree } from "../../lib/task-widget.ts";
 import { must } from "../support/must.ts";
 
 /**
- * Reviewed defects of the dispatch engine (specs/agent-tool.md Sections 8, 9
- * and 11): cancellation requested during startup, a `resume` of a running
+ * Reviewed defects of the dispatch engine (specs/agent-tool.md#recovery, specs/agent-tool.md#resume
+ * and specs/agent-tool.md#cancellation): cancellation requested during startup, a `resume` of a running
  * dispatch, consumption order of a resumed row by task ID and by path,
  * transient-error classification, and settlement after adoption.
  *
@@ -172,14 +172,14 @@ async function waitFor<T>(probe: () => T | undefined, what: string, timeoutMs = 
   }
 }
 
-/** The `pi-dent-tasks` widget content of the engine's registry (task.md Section 4). */
+/** The `pi-dent-tasks` widget content of the engine's registry (specs/task.md#task-tree-widget). */
 function widgetLines(engine: DispatchEngine): string[] {
   return renderTaskTree(collectTaskTree(engine.registry), Date.now(), 200) ?? [];
 }
 
 /**
  * A task that died while running: its `running` record is rebuilt into an
- * `interrupted` row of the engine's registry (task-record.md Section 3).
+ * `interrupted` row of the engine's registry (specs/task-record.md#rebuild).
  */
 function rebuiltInterrupted(
   engine: DispatchEngine,
@@ -203,7 +203,7 @@ function rebuiltInterrupted(
   return { row, recordPath };
 }
 
-// --- Section 11: cancellation -------------------------------------------------
+// --- specs/agent-tool.md#cancellation: cancellation -------------------------------------------------
 
 test("a signal aborted before dispatch settles the task cancelled without prompting", async () => {
   answerDone();
@@ -261,7 +261,7 @@ test("a cancel() during startup settles the task cancelled instead of being forg
   assert.equal(row.status, "cancelled", "the row settles cancelled");
 });
 
-// --- Section 9: resume --------------------------------------------------------
+// --- specs/agent-tool.md#resume: resume --------------------------------------------------------
 
 test("resume: a running dispatch's session file rejects a concurrent resume", async () => {
   // The first run keeps its child in a shell turn; the resume must not open a
@@ -793,7 +793,7 @@ test("resume by task ID consumes every settled row naming that file", async () =
   assert.deepEqual(widgetLines(engine), [], "no interrupted row is left in the widget");
 });
 
-// --- Section 8: transient-error classification --------------------------------
+// --- specs/agent-tool.md#recovery: transient-error classification --------------------------------
 
 test("transient classification: only status-like numbers count as HTTP statuses", () => {
   const table: Array<[string, boolean]> = [
@@ -820,7 +820,7 @@ test("transient classification: only status-like numbers count as HTTP statuses"
   }
 });
 
-// --- Section 8 item 3: a refusal's own text is the error text -----------------
+// --- specs/agent-tool.md#recovery item 3: a refusal's own text is the error text -----------------
 
 test("a refusal whose message also carries an error reports the refusal, not the error", async () => {
   const refusal = "I cannot assist with that request.";
@@ -851,7 +851,7 @@ test("a refusal whose message also carries an error reports the refusal, not the
   assert.equal(detailsOf(result).results?.[0]?.failureCode, "execution-error");
 });
 
-// --- Section 4.2: agent directory --------------------------------------------
+// --- specs/agent-tool.md#child-session: agent directory --------------------------------------------
 
 test("a dispatch keeps the session file's whole stem in its agent directory's name", async () => {
   // A stem with dots keeps all of them: `main.session.jsonl` → `main.session.agents`.
@@ -913,7 +913,7 @@ test("a dispatch keeps the session file's whole stem in its agent directory's na
   }
 });
 
-// --- Section 3.3: model tiers -------------------------------------------------
+// --- specs/agent-tool.md#model-thinking: model tiers -------------------------------------------------
 
 test("an unresolvable agent model fails the plan instead of falling through", async () => {
   const stale: AgentDefinition = {
@@ -942,7 +942,7 @@ test("an unresolvable agent model fails the plan instead of falling through", as
   assert.equal(detailsOf(result).results?.[0]?.failureCode, "missing-model");
 });
 
-// --- Section 4 / adoption: settlement after the row's registry ended ----------
+// --- specs/agent-tool.md#execution-model / adoption: settlement after the row's registry ended ----------
 
 test("a dispatch that fails after its registry ended settles the adopted row", async () => {
   // A billing failure inside the dispatch fails it; by then the reload below has

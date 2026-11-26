@@ -13,7 +13,7 @@ import {
 import type { SearchHost } from "../../lib/search-tool.ts";
 
 /**
- * specs/search-tool.md Section 2.3: an aborted call ends within 1000 ms as the
+ * specs/search-tool.md#abort: an aborted call ends within 1000 ms as the
  * tool error `Search aborted`, including while one regular expression is being
  * evaluated on one item, and it starts no continuation of catch-up.
  */

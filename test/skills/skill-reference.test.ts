@@ -11,8 +11,8 @@ import { makeSkillTool, skillParameterSchema } from "../../lib/tools.ts";
 import { at } from "../support/must.ts";
 
 /**
- * The Skill tool's `reference` parameter per specs/skill-tool.md Sections 1.1
- * and 2: resolution under the skill's `references/` folder with the rejection
+ * The Skill tool's `reference` parameter per specs/skill-tool.md#parameter-schema
+ * and specs/skill-tool.md#execution-contract: resolution under the skill's `references/` folder with the rejection
  * rules, verbatim bodies, and no side effects.
  */
 

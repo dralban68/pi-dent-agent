@@ -12,7 +12,7 @@ import {
 import { fakeUi, params, question, questionWorld } from "./support.ts";
 
 /**
- * specs/ask-user-question-tool.md Sections 2, 5, 6, and 6.3: every outcome, its text,
+ * specs/ask-user-question-tool.md#asking, specs/ask-user-question-tool.md#no-answers, specs/ask-user-question-tool.md#results, and specs/ask-user-question-tool.md#details: every outcome, its text,
  * its `isError` and `terminate` flags, and its `details`.
  */
 
@@ -37,7 +37,7 @@ const textOf = (result: { content: { type: string; text?: string }[] }): string 
   return first !== undefined && first.type === "text" ? (first.text ?? "") : "";
 };
 
-test("the answered result carries the questions' lines and its details (Section 6.1)", async () => {
+test("the answered result carries the questions' lines and its details (specs/ask-user-question-tool.md#answered-result)", async () => {
   const harness = questionWorld().startPanel({ params: direct() });
   harness.press("1");
   const result = await harness.result;
@@ -149,7 +149,7 @@ test("an already aborted call returns the aborted result and shows nothing", asy
   assert.deepEqual(shown, []);
 });
 
-test("an abort while the panel is shown closes it with the aborted result (Section 5)", async () => {
+test("an abort while the panel is shown closes it with the aborted result (specs/ask-user-question-tool.md#no-answers)", async () => {
   const controller = new AbortController();
   const harness = questionWorld().startPanel({ params: direct(), signal: controller.signal });
   controller.abort();
@@ -163,7 +163,7 @@ test("an abort while the panel is shown closes it with the aborted result (Secti
   assert.equal(harness.result instanceof Promise, true);
 });
 
-test("session_shutdown ends the shown panel with the shutdown result (Section 5)", async () => {
+test("session_shutdown ends the shown panel with the shutdown result (specs/ask-user-question-tool.md#no-answers)", async () => {
   const world = questionWorld();
   const harness = world.startPanel({ params: direct(), sessionId: "shutdown-panel" });
   world.runtime.sessionShutdown("shutdown-panel");
@@ -195,7 +195,7 @@ test("the dismissed and stopped results carry their texts and flags", async () =
   assert.deepEqual(stoppedResult.details, { outcome: "stopped", answers: [] });
 });
 
-test("every result carries the outcome and answers of Section 6.3", async () => {
+test("every result carries the outcome and answers of specs/ask-user-question-tool.md#details", async () => {
   const harness = questionWorld().startPanel({ params: direct() });
   harness.press("1");
   const answered = await harness.result;

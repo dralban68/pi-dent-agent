@@ -40,7 +40,7 @@ import type { HostSession } from "../../lib/host.ts";
 import { at, must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Sections 4.2 and 10: a session's agent directory is its folder,
+ * specs/agent-tool.md#child-session and specs/agent-tool.md#retention-sweep: a session's agent directory is its folder,
  * exposed as PI_DENT_SESSION_DIR, never removed by an attempt, pruned only by the sweep.
  * Real child sessions run on a scripted faux provider.
  */
@@ -392,7 +392,7 @@ test("a child's agent directory that cannot be created fails the dispatch as inv
   assert.equal(record.failurePhase, "plan-resolution");
 });
 
-// Retention sweep (Section 10).
+// Retention sweep (specs/agent-tool.md#retention-sweep).
 const DAY = 86_400_000;
 const sessionsRoot = () => join(root, "pi-agent", "sessions", "proj");
 const age = (path: string, days: number) => {
@@ -475,7 +475,7 @@ test("sweep removes an expired agent directory's output files with it", () => {
   assert.equal(existsSync(join(live, "output", "run2.log")), true);
 });
 
-// Live sessions (Section 10): the local session store says which directories are in use.
+// Live sessions (specs/agent-tool.md#retention-sweep): the local session store says which directories are in use.
 const dbPath = () => join(root, `fleet-${Math.random().toString(36).slice(2)}.sqlite`);
 const coordinator = (path: string) => new FleetCoordinator(bootWith(idle), { dbPath: path });
 const endpoint = (sessionId: string, agentsDir: string | undefined) => ({

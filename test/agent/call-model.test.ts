@@ -15,7 +15,7 @@ import type { HostSession } from "../../lib/host.ts";
 import { must } from "../support/must.ts";
 
 /**
- * Model precedence per specs/agent-tool.md Section 3.3: the call's `model` outranks
+ * Model precedence per specs/agent-tool.md#model-thinking: the call's `model` outranks
  * the agent definition's model, which outranks the dispatching session's. Each test
  * dispatches and reads the model the attempt record carries.
  */
@@ -213,7 +213,7 @@ test("an unresolvable call model fails the plan instead of falling through", asy
   assert.equal(record.failurePhase, "plan-resolution");
 });
 
-test("an empty call model is a schema rejection (Section 1.1)", () => {
+test("an empty call model is a schema rejection (specs/agent-tool.md#parameter-schema)", () => {
   // The host rejects a blank `model` before `execute` runs, so the check left
   // the engine for the schema.
   for (const blank of ["", " ", "\t"]) {

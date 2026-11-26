@@ -18,7 +18,7 @@ import {
   writeSession,
 } from "./support.ts";
 
-/** specs/search-tool.md Sections 3.3 and 4: the reads the tool asks of the index. */
+/** specs/search-tool.md#evaluation and specs/search-tool.md#get: the reads the tool asks of the index. */
 
 const roots: string[] = [];
 after(() => {
@@ -193,7 +193,7 @@ test("the trigram narrowing of more than 2000 searched items answers only the se
   const all: number[] = [];
   const half: number[] = [];
   // 24 files of 100 items are 2400 searched items, more than the narrowing probes one
-  // by one ([search-tool.md](search-tool.md), Section 3.3): one file is not searched.
+  // by one (specs/search-tool.md#evaluation): one file is not searched.
   for (let count = 0; count < 24; count += 1) {
     const session = join(root, `s${count}.jsonl`);
     needleSession(session, `session-${count}`, 100);

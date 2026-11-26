@@ -7,8 +7,8 @@ import type { BootConfig } from "../../lib/config.ts";
 import { appendPluginContext, type PluginEntry } from "../../lib/plugins.ts";
 
 /**
- * Plugin context placement per specs/plugin.md Section 10: the child system prompt
- * order (agent-tool.md Section 4.2) and the main session append after the skill
+ * Plugin context placement per specs/plugin.md#plugin-context: the child system prompt
+ * order (specs/agent-tool.md#child-session) and the main session append after the skill
  * catalog. A child's prompt never includes a non-admitted plugin: callers pass
  * only the admitted entries.
  */

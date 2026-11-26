@@ -16,7 +16,7 @@ import { zeroUsageSum } from "../../lib/usage.ts";
 import { at } from "../support/must.ts";
 
 /**
- * specs/footer.md Sections 2.1-2.3: the path line, the stats line with its fit rule, the status
+ * specs/footer.md#path-line, specs/footer.md#stats-line, specs/footer.md#status-line: the path line, the stats line with its fit rule, the status
  * line, and the session totals they show. The core takes plain inputs, so every test builds them
  * by hand; no host is involved.
  */

@@ -23,8 +23,8 @@ import { makeSessionTool } from "../../lib/tools.ts";
 import { isolateTaskLedger } from "../support/task-ledger-env.ts";
 
 /**
- * specs/session-tool.md Section 3, specs/schedule-tool.md Section 1.3,
- * specs/bash-tool.md Section 3, and specs/script-tool.md Section 6:
+ * specs/session-tool.md#session-kind, specs/schedule-tool.md#activation,
+ * specs/bash-tool.md#execution-model, and specs/script-tool.md#timeout-delivery:
  * user session vs agent session classification, PI_DENT_SESSION_KIND,
  * system prompt mode line, Session tool fields, and Schedule gating.
  */

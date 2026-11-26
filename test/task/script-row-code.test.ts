@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TaskRegistry } from "../../lib/registry.ts";
 
-/** The `code` field of a `script` row (task-registry.md Section 2). */
+/** The `code` field of a `script` row (specs/task-registry.md#task-row). */
 
 const reg = () => new TaskRegistry(() => undefined);
 

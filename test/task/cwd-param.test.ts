@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { resolveCwdParam } from "../../lib/cwd-param.ts";
 
-// specs/task.md Section 1.1: one `cwd` contract for Agent, Script, and Bash.
+// specs/task.md#cwd-parameter: one `cwd` contract for Agent, Script, and Bash.
 test("cwd parameter: blank is absent, relative resolves, a non-directory is rejected", () => {
   const root = mkdtempSync(join(tmpdir(), "pi-dent-cwd-"));
   try {

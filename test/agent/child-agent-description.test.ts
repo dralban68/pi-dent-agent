@@ -12,7 +12,7 @@ import type { HostSession } from "../../lib/host.ts";
 import { must } from "../support/must.ts";
 
 /**
- * specs/agent-tool.md Section 1 and Section 4.2: a child session's `Agent`
+ * specs/agent-tool.md#registration and specs/agent-tool.md#child-session: a child session's `Agent`
  * description is computed when the child session is created, with the model
  * catalog of the configured models. A real child runs on a scripted faux
  * provider; the tool declarations it was offered are read off its request.

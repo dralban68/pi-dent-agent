@@ -5,7 +5,7 @@ import { TaskRegistry } from "../../lib/registry.ts";
 import type { ToolResult } from "../../lib/engine.ts";
 import { makeTaskTool, taskParameterSchema } from "../../lib/tools.ts";
 
-/** Task parameters per specs/task-tool.md Section 1.1. */
+/** Task parameters per specs/task-tool.md#parameter-schema. */
 
 const TIMEOUT_ERROR = 'timeout is only valid when action is "wait"';
 
@@ -14,7 +14,7 @@ function textOf(result: ToolResult): string {
   return first !== undefined && first.type === "text" ? first.text : "";
 }
 
-test("schema: action is required and one of read, kill, list, wait; no other property (Section 1.1)", () => {
+test("schema: action is required and one of read, kill, list, wait; no other property (specs/task-tool.md#parameter-schema)", () => {
   const schema = taskParameterSchema as unknown as {
     type: string;
     additionalProperties: boolean;
@@ -40,7 +40,7 @@ test("schema: action is required and one of read, kill, list, wait; no other pro
   assert.equal(Value.Check(taskParameterSchema, { action: "list", extra: 1 }), false);
 });
 
-test("schema: taskId carries the pattern \\S and nothing else (Section 1.1)", () => {
+test("schema: taskId carries the pattern \\S and nothing else (specs/task-tool.md#parameter-schema)", () => {
   const schema = taskParameterSchema as unknown as {
     properties: Record<string, { pattern?: string }>;
   };
@@ -63,7 +63,7 @@ test("schema: taskId carries the pattern \\S and nothing else (Section 1.1)", ()
   assert.equal(Value.Check(taskParameterSchema, { action: "read", timeout: 100 }), true);
 });
 
-test("schema: timeout is an optional integer of 1 or more (Section 1.1)", () => {
+test("schema: timeout is an optional integer of 1 or more (specs/task-tool.md#parameter-schema)", () => {
   const schema = taskParameterSchema as unknown as {
     properties: Record<string, { type?: string; minimum?: number }>;
   };
@@ -81,7 +81,7 @@ test("schema: timeout is an optional integer of 1 or more (Section 1.1)", () => 
   }
 });
 
-test("tool checks: taskId is omitted with list, present with read, kill, and wait (Section 1.1)", async () => {
+test("tool checks: taskId is omitted with list, present with read, kill, and wait (specs/task-tool.md#parameter-schema)", async () => {
   const registry = new TaskRegistry(() => undefined);
   const tool = makeTaskTool({ registry: () => registry });
 
@@ -117,7 +117,7 @@ test("tool checks: taskId is omitted with list, present with read, kill, and wai
   }
 });
 
-test("tool checks: timeout is rejected with a non-wait action, the first failure reported (Section 1.1)", async () => {
+test("tool checks: timeout is rejected with a non-wait action, the first failure reported (specs/task-tool.md#parameter-schema)", async () => {
   const registry = new TaskRegistry(() => undefined);
   const tool = makeTaskTool({ registry: () => registry });
   const withTimeout = (action: string, extra: Record<string, unknown>) =>
@@ -137,13 +137,13 @@ test("tool checks: timeout is rejected with a non-wait action, the first failure
     assert.equal(result.isError, true, `action ${action}`);
     assert.equal(textOf(result), TIMEOUT_ERROR);
   }
-  // The order of Section 1: a taskId with list is reported before the timeout.
+  // The order of specs/task-tool.md#registration: a taskId with list is reported before the timeout.
   const both = await withTimeout("list", { taskId: "aaaa0001" });
   assert.equal(both.isError, true);
   assert.equal(textOf(both), 'taskId must be omitted when action is "list"');
 });
 
-test("tool checks: an unknown taskId is a tool error and no row is registered (Section 1.1)", async () => {
+test("tool checks: an unknown taskId is a tool error and no row is registered (specs/task-tool.md#parameter-schema)", async () => {
   const registry = new TaskRegistry(() => undefined);
   const tool = makeTaskTool({ registry: () => registry });
   for (const action of ["read", "kill"]) {

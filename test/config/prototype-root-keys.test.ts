@@ -8,7 +8,7 @@ import { readConfig } from "../../lib/config.ts";
 import { at } from "../support/must.ts";
 
 /**
- * Configuration loading per specs/config-file.md Sections 2 and 3: a `__proto__` key in a
+ * Configuration loading per specs/config-file.md#format and specs/config-file.md#merge: a `__proto__` key in a
  * configuration file stays an own key of the parsed and merged object, and is validated like any
  * other key instead of reaching the object prototype.
  */

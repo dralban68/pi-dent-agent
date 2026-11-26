@@ -91,7 +91,7 @@ function lastCellsAfter(marker: string): string[] {
   return cells;
 }
 
-/** The value cell of the Section 1 registration table, by field. */
+/** The value cell of the specs/ask-user-question-tool.md#registration registration table, by field. */
 function registrationCell(name: string): string {
   const pattern = new RegExp(`^\\| \`${name}\`\\s+\\| (.*?) \\|$`, "m");
   const match = pattern.exec(spec);
@@ -106,7 +106,7 @@ function quoted(cell: string): string {
   return must(match?.[1]);
 }
 
-/** The Section 1.3 parameter table's `description` column, by schema path. */
+/** The specs/ask-user-question-tool.md#prompt-texts parameter table's `description` column, by schema path. */
 function tableDescriptions(): Record<string, string> {
   const from = spec.indexOf("| Field                               | `description`");
   assert.equal(from >= 0, true);
@@ -155,7 +155,7 @@ const content = (harness: { lines: () => string[] }): string[] => panelContent(h
 const plain = (line: string): string => line.replace(/«|»/g, "");
 
 // ---------------------------------------------------------------------------
-// Section 1: the registration surface and the schema
+// specs/ask-user-question-tool.md#registration: the registration surface and the schema
 // ---------------------------------------------------------------------------
 
 test("the registered tool carries the specification's name, label, exposure, description, and promptSnippet", () => {
@@ -165,7 +165,11 @@ test("the registered tool carries the specification's name, label, exposure, des
   assert.equal(tool.exposure, quoted(registrationCell("exposure")));
   assert.equal(tool.description, blockAfter("The `description` is"));
   assert.equal(tool.promptSnippet, blockAfter("The `promptSnippet` is"));
-  assert.equal(tool.renderShell, undefined, "Section 1 leaves renderShell unset");
+  assert.equal(
+    tool.renderShell,
+    undefined,
+    "specs/ask-user-question-tool.md#registration leaves renderShell unset",
+  );
 });
 
 test("every parameter description is the specification's text, verbatim", () => {
@@ -183,7 +187,7 @@ test("every parameter description is the specification's text, verbatim", () => 
   assert.equal(text(property(optionItem, "description")), table.description);
 });
 
-test("every schema object admits no other property, and the schema has the Section 1.1 fields", () => {
+test("every schema object admits no other property, and the schema has the specs/ask-user-question-tool.md#parameter-schema fields", () => {
   const schema = makeAskUserQuestionTool(askUserRuntime()).parameters;
   assert.equal(field(schema, "type"), "object");
   assert.equal(field(schema, "additionalProperties"), false);
@@ -210,7 +214,7 @@ test("every schema object admits no other property, and the schema has the Secti
 });
 
 // ---------------------------------------------------------------------------
-// Section 3.2 and 3.3: the panel's texts
+// specs/ask-user-question-tool.md#rows-tabs and specs/ask-user-question-tool.md#panel-content: the panel's texts
 // ---------------------------------------------------------------------------
 
 const auth = question("Auth", "Which login method should the app use?", [
@@ -308,7 +312,7 @@ test("the panel's texts are the specification's, verbatim", () => {
   );
 });
 
-test("the blocked-on-user report is the specification's (Section 3)", () => {
+test("the blocked-on-user report is the specification's (specs/ask-user-question-tool.md#question-panel)", () => {
   const literals = backticksAfter("blocked-on-user report of kind");
   const harness = questionWorld().startPanel({ params: direct() });
   assert.deepEqual(harness.customOptions().blocked, {
@@ -318,10 +322,10 @@ test("the blocked-on-user report is the specification's (Section 3)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Section 4: the dialog texts
+// specs/ask-user-question-tool.md#dialog-sequence: the dialog texts
 // ---------------------------------------------------------------------------
 
-/** The Section 4.1 question title for a question. */
+/** The specs/ask-user-question-tool.md#questions question title for a question. */
 function dialogTitle(header: string, index: number, count: number, questionText: string): string {
   const pattern = must(backticksAfter("Question `<i>` is asked with a `select` dialog titled")[2]);
   return pattern
@@ -412,7 +416,7 @@ test("the dialog titles, options, and placeholder are the specification's, verba
 });
 
 // ---------------------------------------------------------------------------
-// Section 6: the result texts
+// specs/ask-user-question-tool.md#results: the result texts
 // ---------------------------------------------------------------------------
 
 test("the answered result is the specification's example, verbatim", async () => {
@@ -474,7 +478,7 @@ test("the other results' texts are the specification's table, verbatim", async (
 });
 
 // ---------------------------------------------------------------------------
-// Section 6.3: details
+// specs/ask-user-question-tool.md#details: details
 // ---------------------------------------------------------------------------
 
 test("the answered details hold the header, question, labels, and text of each question", async () => {

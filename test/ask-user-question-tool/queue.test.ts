@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { panelContent, params, question, questionWorld } from "./support.ts";
 
 /**
- * specs/ask-user-question-tool.md Section 2: the question queue. Only the first call of a
- * session is asked, the next is asked when the earlier returns, and Section 5 says what
+ * specs/ask-user-question-tool.md#asking: the question queue. Only the first call of a
+ * session is asked, the next is asked when the earlier returns, and specs/ask-user-question-tool.md#no-answers says what
  * ends a call.
  */
 

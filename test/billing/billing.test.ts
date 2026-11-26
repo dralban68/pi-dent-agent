@@ -303,7 +303,11 @@ test("a poll is not due without guidance billing providers, and an unanswered po
   assert.equal(svc.pendingPoll(), undefined, "no-service is known at once");
   assert.equal(bus.requests().length, 1);
   svc.startPoll();
-  assert.equal(bus.requests().length, 2, "no retry beyond the occasions of Section 4.2");
+  assert.equal(
+    bus.requests().length,
+    2,
+    "no retry beyond the occasions of specs/billing.md#billing-poll",
+  );
 });
 
 test("a throwing guidance provider getter is treated as no providers, and reported", () => {

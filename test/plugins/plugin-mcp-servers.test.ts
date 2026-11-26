@@ -14,7 +14,7 @@ import { discoverPlugins, type PluginEntry } from "../../lib/plugins.ts";
 import type { Diagnostic } from "../../lib/util.ts";
 
 /**
- * Plugin-declared HTTPS MCP servers per specs/plugin.md Sections 2, 11.1, and 12.
+ * Plugin-declared HTTPS MCP servers per specs/plugin.md#plugin-manifest, specs/plugin.md#shape, and specs/plugin.md#mcp-servers.
  */
 
 function writePlugin(root: string, dirName: string, manifest: Record<string, unknown>): string {
@@ -47,7 +47,7 @@ function withIsolatedHome<T>(fn: (root: string, cwd: string) => T): T {
   }
 }
 
-test("Section 2 & 11.1: valid mcpServers are parsed in UTF-16 order and inventory exposes headerNames without values", () => {
+test("specs/plugin.md#plugin-manifest & 11.1: valid mcpServers are parsed in UTF-16 order and inventory exposes headerNames without values", () => {
   withIsolatedHome((root, cwd) => {
     const dir = writePlugin(root, "acme", {
       name: "acme",
@@ -108,7 +108,7 @@ test("Section 2 & 11.1: valid mcpServers are parsed in UTF-16 order and inventor
   });
 });
 
-test("Section 2: non-object mcpServers is ignored with one warning diagnostic naming plugin.json", () => {
+test("specs/plugin.md#plugin-manifest: non-object mcpServers is ignored with one warning diagnostic naming plugin.json", () => {
   withIsolatedHome((root, cwd) => {
     const dir = writePlugin(root, "bad-root", {
       name: "bad-root",
@@ -123,7 +123,7 @@ test("Section 2: non-object mcpServers is ignored with one warning diagnostic na
   });
 });
 
-test("Section 2: invalid names, URLs, headers, auth, and unknown keys are validated with diagnostics", () => {
+test("specs/plugin.md#plugin-manifest: invalid names, URLs, headers, auth, and unknown keys are validated with diagnostics", () => {
   withIsolatedHome((root, cwd) => {
     const dir = writePlugin(root, "mixed", {
       name: "mixed",
@@ -183,7 +183,7 @@ test("Section 2: invalid names, URLs, headers, auth, and unknown keys are valida
   });
 });
 
-test("Section 12: registers servers in admission and key order, warns on collision, and disposes on shutdown", async () => {
+test("specs/plugin.md#mcp-servers: registers servers in admission and key order, warns on collision, and disposes on shutdown", async () => {
   const plugins: PluginEntry[] = [
     {
       name: "alpha",
@@ -283,7 +283,7 @@ test("Section 12: registers servers in admission and key order, warns on collisi
   assert.equal(received.length, 6);
 });
 
-test("Section 12: emits one warning when pi-mcp-adapter is not loaded", () => {
+test("specs/plugin.md#mcp-servers: emits one warning when pi-mcp-adapter is not loaded", () => {
   const plugins: PluginEntry[] = [
     {
       name: "alpha",
@@ -311,7 +311,7 @@ test("Section 12: emits one warning when pi-mcp-adapter is not loaded", () => {
   assert.match(diagnostics[0]?.message ?? "", /pi-mcp-adapter is not loaded/);
 });
 
-test("Section 2 & 12: oauth object validates clientId/scope/callbackUrl and maps callbackUrl to redirectUri", () => {
+test("specs/plugin.md#plugin-manifest & 12: oauth object validates clientId/scope/callbackUrl and maps callbackUrl to redirectUri", () => {
   withIsolatedHome((root, cwd) => {
     const dir = writePlugin(root, "crm", {
       name: "crm",

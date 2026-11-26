@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { BUSY_TIMEOUT_MS, READ_DEADLINE_MS } from "../../lib/task-ledger.ts";
 import { inserted, ok, openLedger, raw, taskRow, usage } from "./support.ts";
 
-/** specs/task-ledger.md Sections 5 and 7: the process's ledger order, busy files, deadlines, failures. */
+/** specs/task-ledger.md#concurrent-access and specs/task-ledger.md#failures: the process's ledger order, busy files, deadlines, failures. */
 
 /** Hold the ledger's write lock from another connection until `release` is called. */
 function holdWriteLock(path: string): { release: () => void } {
@@ -18,7 +18,7 @@ function holdWriteLock(path: string): { release: () => void } {
 }
 
 test("a write behind a held lock is attempted again until it applies, with no failure", async () => {
-  // Each attempt waits at most the busy timeout inside SQLite, then the queue pauses (Section 5).
+  // Each attempt waits at most the busy timeout inside SQLite, then the queue pauses (specs/task-ledger.md#concurrent-access).
   assert.equal(BUSY_TIMEOUT_MS, 10);
   const { ledger, path, notices } = openLedger({ readDeadlineMs: 50 });
   await ledger.flushed();

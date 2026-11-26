@@ -5,7 +5,7 @@ import { scheduleRuntime } from "../../lib/schedule-tool.ts";
 import { SESSION, START, ZONE, fakeClock, fakeWindow, fixture, listed, textOf } from "./harness.ts";
 import { must } from "../support/must.ts";
 
-/** The status line of Section 6. */
+/** The status line of specs/schedule-tool.md#schedule-status-line. */
 function statusLine(count: number, repeating: number, dueAt: number): string {
   const clause = repeating === 0 ? "" : ` (${repeating} repeating)`;
   return `schedule: ${count} pending${clause} · next ${localStamp(dueAt, ZONE)}`;
@@ -22,7 +22,7 @@ function first<T>(items: readonly T[]): T {
   return must(items[0]);
 }
 
-test("Section 5: a reload discards the queued occurrence but keeps the schedule", () => {
+test("specs/schedule-tool.md#lifecycle: a reload discards the queued occurrence but keeps the schedule", () => {
   const f = fixture({ running: true, idle: false });
   const id = idOf(f.call({ action: "create", message: "x", everySeconds: 10 }));
   f.clock.advance(10_000);
@@ -45,7 +45,7 @@ test("Section 5: a reload discards the queued occurrence but keeps the schedule"
   ]);
 });
 
-test("Section 5: a reload neither fires nor changes a pending schedule", () => {
+test("specs/schedule-tool.md#lifecycle: a reload neither fires nor changes a pending schedule", () => {
   const f = fixture();
   const id = idOf(f.call({ action: "create", message: "x", everySeconds: 30, count: 3 }));
   const before = listed(f.call({ action: "list" }));
@@ -62,7 +62,7 @@ test("Section 5: a reload neither fires nor changes a pending schedule", () => {
   ]);
 });
 
-test("Section 5: a session end drops its pending schedules without firing", () => {
+test("specs/schedule-tool.md#lifecycle: a session end drops its pending schedules without firing", () => {
   for (const reason of ["quit", "new", "resume", "fork"] as const) {
     const f = fixture();
     f.call({ action: "create", message: reason, delaySeconds: 5 });
@@ -75,7 +75,7 @@ test("Section 5: a session end drops its pending schedules without firing", () =
   }
 });
 
-test("Section 5: a session start that is not a reload has no pending schedule", () => {
+test("specs/schedule-tool.md#lifecycle: a session start that is not a reload has no pending schedule", () => {
   const f = fixture();
   f.call({ action: "create", message: "x", delaySeconds: 5 });
   f.runtime.sessionStart({ sessionId: SESSION, reason: "resume", window: f.host.window });
@@ -85,7 +85,7 @@ test("Section 5: a session start that is not a reload has no pending schedule", 
   assert.equal(f.host.sent.length, 0);
 });
 
-test("Section 5: schedules are held per session and fire into the session that created them", () => {
+test("specs/schedule-tool.md#lifecycle: schedules are held per session and fire into the session that created them", () => {
   const f = fixture();
   const other = fakeWindow();
   f.runtime.sessionStart({ sessionId: "session-2", reason: "startup", window: other.window });
@@ -102,7 +102,7 @@ test("Section 5: schedules are held per session and fire into the session that c
   assert.ok(first(other.sent).content.endsWith("\ntheirs"));
 });
 
-test("Section 5: the process keeps a session's schedules across extension instances", () => {
+test("specs/schedule-tool.md#lifecycle: the process keeps a session's schedules across extension instances", () => {
   const clock = fakeClock();
   const window = fakeWindow();
   const before = scheduleRuntime({ clock: clock.clock, zone: ZONE });
@@ -119,7 +119,7 @@ test("Section 5: the process keeps a session's schedules across extension instan
   assert.equal(after.store.sessions.has("reload-keeper"), false);
 });
 
-test("Section 6: the status line counts pending schedules and names the first due time", () => {
+test("specs/schedule-tool.md#schedule-status-line: the status line counts pending schedules and names the first due time", () => {
   const f = fixture();
   f.call({ action: "create", message: "a", delaySeconds: 60 });
   assert.equal(f.host.status(), statusLine(1, 0, START + 60_000));
@@ -131,7 +131,7 @@ test("Section 6: the status line counts pending schedules and names the first du
   assert.equal(f.host.status(), undefined);
 });
 
-test("Section 6: the status line follows a firing and a skip", () => {
+test("specs/schedule-tool.md#schedule-status-line: the status line follows a firing and a skip", () => {
   const f = fixture({ running: true, idle: false });
   f.call({ action: "create", message: "x", everySeconds: 10 });
   assert.equal(f.host.status(), statusLine(1, 1, START + 10_000));
@@ -141,7 +141,7 @@ test("Section 6: the status line follows a firing and a skip", () => {
   assert.equal(f.host.status(), statusLine(1, 1, START + 30_000));
 });
 
-test("Section 6: a status line that cannot be set is reported and fails no call", () => {
+test("specs/schedule-tool.md#schedule-status-line: a status line that cannot be set is reported and fails no call", () => {
   const f = fixture();
   f.host.window.setStatus = () => {
     throw new Error("the UI is gone");
@@ -163,7 +163,7 @@ test("Section 6: a status line that cannot be set is reported and fails no call"
   ]);
 });
 
-test("Section 6: a session without an interactive UI shows no status line", () => {
+test("specs/schedule-tool.md#schedule-status-line: a session without an interactive UI shows no status line", () => {
   const f = fixture({ interactive: false });
   f.call({ action: "create", message: "x", delaySeconds: 60 });
   f.clock.advance(60_000);
@@ -171,7 +171,7 @@ test("Section 6: a session without an interactive UI shows no status line", () =
   assert.deepEqual(f.host.statuses, []);
 });
 
-test("Section 6: the status line is cleared when the session ends", () => {
+test("specs/schedule-tool.md#schedule-status-line: the status line is cleared when the session ends", () => {
   const f = fixture();
   f.call({ action: "create", message: "x", delaySeconds: 60 });
   assert.equal(f.host.status(), statusLine(1, 0, START + 60_000));
@@ -179,7 +179,7 @@ test("Section 6: the status line is cleared when the session ends", () => {
   assert.equal(f.host.status(), undefined);
 });
 
-test("Section 6: the status line is set again at the session start after a reload", () => {
+test("specs/schedule-tool.md#schedule-status-line: the status line is set again at the session start after a reload", () => {
   const f = fixture();
   f.call({ action: "create", message: "x", delaySeconds: 60 });
   f.runtime.sessionShutdown({ sessionId: SESSION, reason: "reload" });

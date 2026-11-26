@@ -12,7 +12,7 @@ import {
 import { at } from "../support/must.ts";
 import { tempDir } from "./support.ts";
 
-/** specs/session-transcript.md Section 6: transcript order and file order. */
+/** specs/session-transcript.md#transcript-order: transcript order and file order. */
 
 function item(line: number, part: string | undefined, time = 0): TranscriptItem {
   return {

@@ -9,7 +9,7 @@ import type { Diagnostic } from "../../lib/util.ts";
 import { at } from "../support/must.ts";
 
 /**
- * Plugin context per specs/plugin.md Section 10: the root `context.md` read into
+ * Plugin context per specs/plugin.md#plugin-context: the root `context.md` read into
  * the boot snapshot for admitted plugins, its skip rules, admission order, and
  * the rendered block format.
  */

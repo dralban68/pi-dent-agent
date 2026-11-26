@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { processStartedMs } from "../../lib/task-ledger.ts";
 import { inserted, openLedger, raw, sessionRow, taskRow, usage } from "./support.ts";
 
-/** specs/task-ledger.md Sections 3 and 4.2: the writes of a ledger row and a ledger session row. */
+/** specs/task-ledger.md#writes and specs/task-ledger.md#rebuild: the writes of a ledger row and a ledger session row. */
 
 function clock(start = 5000) {
   const state = { now: start };
@@ -147,7 +147,7 @@ test("a resume by task ID records the resolved row, or null when it has none", a
   ledger.markDispatched(resume, { cwd: "/w", resume: { by: "task", row: original } });
   const orphan = inserted(ledger, { taskId: "33333333" });
   ledger.markDispatched(orphan, { cwd: "/w", resume: { by: "task", row: undefined } });
-  // A rebuilt row is named by the key Section 4.2 finds its ledger row by.
+  // A rebuilt row is named by the key specs/task-ledger.md#rebuild finds its ledger row by.
   const rebuilt = inserted(ledger, { taskId: "44444444", startedAt: 77 });
   const byKey = inserted(ledger, { taskId: "55555555" });
   const key = { sessionId: "session-a", taskId: "44444444", startedAt: 77 };

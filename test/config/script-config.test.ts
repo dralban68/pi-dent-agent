@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { parseScript, readConfig } from "../../lib/config.ts";
 
 /**
- * `script` configuration per specs/script-tool.md Section 8: the allow lists, the diagnostics
+ * `script` configuration per specs/script-tool.md#tool-functions: the allow lists, the diagnostics
  * of a wrong-typed value, unknown keys, and the merge that replaces arrays whole.
  */
 

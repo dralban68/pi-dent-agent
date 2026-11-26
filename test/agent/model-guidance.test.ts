@@ -66,7 +66,7 @@ const host: HostSession = {
 // --- Dispatch restriction, driven through real dispatches --------------------
 //
 // A guided dispatch is accepted only by running it: guidance is decided from
-// the host's model inventory (specs/model-guidance.md Section 3), and an
+// the host's model inventory (specs/model-guidance.md#dispatch-restriction), and an
 // accepted dispatch runs a real child session on the model the plan resolved.
 // The child sessions run on a scripted faux provider whose models the
 // inventory lists.
@@ -182,7 +182,7 @@ interface AttemptLike {
   status?: string | undefined;
 }
 
-/** The attempt record of a dispatch result (specs/agent-tool.md Section 7). */
+/** The attempt record of a dispatch result (specs/agent-tool.md#result-contract). */
 function attemptOf(result: ToolResult): AttemptLike {
   return at((result.details as { results: AttemptLike[] }).results, 0);
 }
