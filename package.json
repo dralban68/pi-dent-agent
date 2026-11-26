@@ -46,7 +46,7 @@
     "pi-dent-markdown": "0.1.0",
     "pi-dent-purse": "0.2.0",
     "pi-dent-terms": "0.1.0",
-    "pi-dent-web": "0.1.0",
+    "pi-dent-web": "0.1.1",
     "pi-mcp-adapter": "7.0.1",
     "pi-web-access": "0.47.0",
     "semver": "^7.8.3",
