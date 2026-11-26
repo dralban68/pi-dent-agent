@@ -27,8 +27,9 @@ export const SUPPORTED_ROOT_KEYS = [
   "footer",
   "recapModel",
   "script",
-  // Owned by pi-dent-terms (config-file.md, Section 2): pi-dent never validates it.
+  // Owned by pi-dent-terms and pi-dent-web (config-file.md, Section 2): pi-dent never validates them.
   "terms",
+  "web",
 ] as const;
 export type SupportedRootKey = (typeof SUPPORTED_ROOT_KEYS)[number];
 

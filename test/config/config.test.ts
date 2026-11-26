@@ -247,31 +247,33 @@ test("unknown root keys: exactly one diagnostic naming the file, all keys, and t
   });
 });
 
-test("terms is a known root key: pi-dent reports nothing about its value or subkeys and merges it deeply", () => {
-  assert.ok(SUPPORTED_ROOT_KEYS.includes("terms"));
-  withIsolatedEnv(({ home, project }) => {
-    const globalFile = writeConf(home, JSON.stringify({ terms: { checkAfterEdit: true } }));
-    const projectFile = writeConf(
-      project,
-      JSON.stringify({ terms: { bogusSubkey: 1, root: "${project.root}" } }),
-    );
-    const config = readConfig(project);
-    assert.deepEqual(config.diagnostics, []);
-    assert.deepEqual(config.merged.terms, {
-      checkAfterEdit: true,
-      bogusSubkey: 1,
-      root: project,
+for (const key of ["terms", "web"] as const) {
+  test(`${key} is a known root key: pi-dent reports nothing about its value or subkeys and merges it deeply`, () => {
+    assert.ok(SUPPORTED_ROOT_KEYS.includes(key));
+    withIsolatedEnv(({ home, project }) => {
+      const globalFile = writeConf(home, JSON.stringify({ [key]: { checkAfterEdit: true } }));
+      const projectFile = writeConf(
+        project,
+        JSON.stringify({ [key]: { bogusSubkey: 1, root: "${project.root}" } }),
+      );
+      const config = readConfig(project);
+      assert.deepEqual(config.diagnostics, []);
+      assert.deepEqual(config.merged[key], {
+        checkAfterEdit: true,
+        bogusSubkey: 1,
+        root: project,
+      });
+      assert.equal(attributeKey(config, [key, "checkAfterEdit"]), globalFile);
+      assert.equal(attributeKey(config, [key, "bogusSubkey"]), projectFile);
     });
-    assert.equal(attributeKey(config, ["terms", "checkAfterEdit"]), globalFile);
-    assert.equal(attributeKey(config, ["terms", "bogusSubkey"]), projectFile);
+    withIsolatedEnv(({ project }) => {
+      writeConf(project, JSON.stringify({ [key]: "not-an-object" }));
+      const config = readConfig(project);
+      assert.deepEqual(config.diagnostics, []);
+      assert.equal(config.merged[key], "not-an-object");
+    });
   });
-  withIsolatedEnv(({ project }) => {
-    writeConf(project, JSON.stringify({ terms: "not-an-object" }));
-    const config = readConfig(project);
-    assert.deepEqual(config.diagnostics, []);
-    assert.equal(config.merged.terms, "not-an-object");
-  });
-});
+}
 
 test("a layer whose parse fails is dropped with one diagnostic and the other layer still provides its values", () => {
   withIsolatedEnv(({ home, project }) => {

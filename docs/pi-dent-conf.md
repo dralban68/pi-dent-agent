@@ -58,6 +58,9 @@ in the [README](../README.md#configure-pi-dent-in-pi).
 
   // The terms extension's settings (pi-dent-terms, specs/terms-tool.md, Section 4.2).
   "terms": { "checkAfterEdit": true },
+
+  // The web extension's settings (pi-dent-web, specs/web-fetch.md, Section 8).
+  "web": { "reformat": false, "reformatModel": "fast" },
 }
 ```
 
