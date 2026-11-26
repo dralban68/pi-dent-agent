@@ -1,4 +1,14 @@
 terms:
+  - id: admitted-plugin
+    label: admitted plugin
+    meaning: "A plugin candidate discovery admitted; only it is read and put in the plugin catalog"
+    owner: specs/plugin.md
+    group: Skills and plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: adoption
     label: adoption
     meaning: The move of a running or unconsumed row into the nearest live attaching task registry when its own registry ends
@@ -295,6 +305,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: bound-tool
+    label: bound tool
+    meaning: "A callable tool a script may call: not Script, and matched by script.tools.allow"
+    owner: specs/script-tool.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: browser
     label: browser
     meaning: "A full-screen terminal view shown in place of the editor, of which the open ones form a stack and the top one takes all input"
@@ -335,6 +355,16 @@ terms:
     history:
       - date: 2026-11-15
         op: add
+  - id: bundled-extension
+    label: bundled extension
+    meaning: "An entry of the package's entry list other than the first, loaded as its own extension"
+    owner: specs/package.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: caller-supplied-environment
     label: caller-supplied environment
     meaning: The extra environment variables a tool call receives from the session that invokes it
@@ -360,6 +390,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: captured-output
+    label: captured output
+    meaning: The chunks of both output pipes in arrival order
+    owner: specs/bash-tool.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: catch-up
     label: catch-up
     meaning: The step that brings the session index rows of one session file up to the file
@@ -459,6 +499,18 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: command-body
+    label: command body
+    meaning: The text of a plugin command file after its frontmatter
+    owner: specs/plugin.md
+    group: Skills and plugins
+    key: confusable
+    status: active
+    distinguish:
+      - skill-body
+    history:
+      - date: 2026-11-26
+        op: add
   - id: command-token
     label: command token
     meaning: The part of a slash command invocation that names the command
@@ -1245,6 +1297,16 @@ terms:
     history:
       - date: 2026-11-25
         op: add
+  - id: leftover-process
+    label: leftover process
+    meaning: "A process of the shell's process group still alive when the shell exits"
+    owner: specs/bash-tool.md
+    group: Tools
+    key: local
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: list-page
     label: list page
     meaning: "The task browser page that lists the task rows, one selected"
@@ -1463,6 +1525,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: model-tier
+    label: model tier
+    meaning: "One source of a dispatch's model: the call, the agent definition, the persisted resume source, or the dispatching session"
+    owner: specs/agent-tool.md
+    group: Configuration and models
+    key: local
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: model-turn
     label: model turn
     meaning: "One request to the model and the tool calls it leads to, as the host counts turns"
@@ -1500,6 +1572,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: nested-call
+    label: nested call
+    meaning: A call of a tool function from a running script
+    owner: specs/script-tool.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: off-lineage
     label: off-lineage
     meaning: "Said of a session entry or transcript item that is not on its session's current lineage"
@@ -1658,6 +1740,18 @@ terms:
     history:
       - date: 2026-11-15
         op: add
+  - id: plugin-candidate
+    label: plugin candidate
+    meaning: "One entry of the merged plugins object, which discovery admits or skips"
+    owner: specs/plugin.md
+    group: Skills and plugins
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
+      - date: 2026-11-26
+        op: update
   - id: plugin-catalog
     label: plugin catalog
     meaning: The boot-snapshot index of admitted plugins by namespace
@@ -1697,6 +1791,18 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: plugin-inventory
+    label: plugin inventory
+    meaning: "The result of plugin discovery for one working directory at one moment: layers, candidates with what they contribute or why they were skipped, and diagnostics"
+    owner: specs/plugin.md
+    group: Skills and plugins
+    key: confusable
+    status: active
+    distinguish:
+      - inventory
+    history:
+      - date: 2026-11-26
+        op: add
   - id: plugin-manifest
     label: plugin manifest
     meaning: "The root plugin.json declaring a plugin's namespace"
@@ -1827,6 +1933,16 @@ terms:
       - workspace trust
     history:
       - date: 2026-11-15
+        op: add
+  - id: protected-agent-directory
+    label: protected agent directory
+    meaning: "A non-null agents_dir of a visible record of a live session, as the retention sweep uses it"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: local
+    status: active
+    history:
+      - date: 2026-11-26
         op: add
   - id: query
     label: query
@@ -2619,6 +2735,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: task-text
+    label: task text
+    meaning: "The child session's user message, from a dispatch's task"
+    owner: specs/agent-tool.md
+    group: Sessions and execution
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: task-tree
     label: task tree
     meaning: "A session's task rows with each agent task's child-session tasks nested beneath it"
@@ -2696,6 +2822,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: tool-declaration
+    label: tool declaration
+    meaning: "The type declaration of a bound tool that dent.toolTypes() returns, a reference that is never type-checked"
+    owner: specs/script-tool.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: tool-error
     label: tool error
     meaning: A tool result with isError true
@@ -2705,6 +2841,16 @@ terms:
     status: active
     history:
       - date: 2026-11-15
+        op: add
+  - id: tool-function
+    label: tool function
+    meaning: "A function of a script's tools binding that calls one bound tool of the session"
+    owner: specs/script-tool.md
+    group: Tools
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
         op: add
   - id: tool-log
     label: tool log
@@ -2855,6 +3001,16 @@ terms:
       - main-session
     history:
       - date: 2026-11-25
+        op: add
+  - id: virtual-model
+    label: virtual model
+    meaning: An inventory model that routes each request to another model
+    owner: specs/agent-tool.md
+    group: Configuration and models
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
         op: add
   - id: waited-query
     label: waited query
