@@ -10,7 +10,6 @@ export const RECAP_PROMPT =
 export const RECAP_MODE_ERROR = "/recap needs the tui or rpc mode.";
 
 const INPUT_LIMIT = 24000;
-const OUTPUT_LIMIT = 1200;
 
 export interface RecapData {
   text: string;
@@ -62,7 +61,7 @@ export function trimRecapOutput(text: string): string {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return clean.length > OUTPUT_LIMIT ? `${clean.slice(0, OUTPUT_LIMIT - 1)}…` : clean;
+  return clean;
 }
 
 export type RecapContext = Pick<

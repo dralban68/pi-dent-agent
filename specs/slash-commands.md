@@ -136,13 +136,13 @@ failure to append MUST show `Recap failed.` at `error` level and MUST NOT append
 On success, the command MUST join response text blocks with newlines, strip ANSI escape sequences
 and control characters other than LF and tab, collapse runs of spaces/tabs to one space, collapse
 three or more consecutive LF characters to two, and trim. Tabs are retained only until space
-normalization. The text MUST be capped at 1200 UTF-16 code units, replacing its final unit with
-`…` when truncated.
+normalization. The command MUST NOT cut or otherwise cap the normalized text.
 
-> Note (non-normative): this bound targets about twelve lines, not a hard rendered-line count.
+> Note (non-normative): the text is bounded only by the request's 1024-token maximum (Section
+> 5.1); a recap that fits the token budget is stored and shown in full, whatever its length.
 
 The command MUST append exactly one host custom entry through `appendEntry("pi-dent-recap", data)`.
-Its `data` MUST be `{ text: string }`, with `text` the normalized, capped text. It MUST NOT use a
+Its `data` MUST be `{ text: string }`, with `text` the normalized text. It MUST NOT use a
 custom message or a widget. The host persists custom entries in the session file but excludes
 them from model context. Each successful invocation adds an entry; earlier entries remain.
 Session start/shutdown MUST abort an in-flight recap and suppress its late appends and

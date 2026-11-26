@@ -133,8 +133,8 @@ test("recap output preserves labelled lines and bullets while stripping controls
     trimRecapOutput("Goal: x\r\n\n\n\nDone:\n- a\t\t b\nOpen: c\nNext: d"),
     "Goal: x\n\nDone:\n- a b\nOpen: c\nNext: d",
   );
-  assert.equal(trimRecapOutput("x".repeat(1200)), "x".repeat(1200));
-  assert.equal(trimRecapOutput("x".repeat(1201)), `${"x".repeat(1199)}…`);
+  assert.equal(trimRecapOutput("x".repeat(1201)), "x".repeat(1201));
+  assert.equal(trimRecapOutput("x".repeat(4000)), "x".repeat(4000));
 });
 
 test("recap fails the command outside tui and rpc, changing nothing", async () => {
@@ -191,7 +191,7 @@ test("recap appends one entry per success from a labelled, tool-free request", a
   assert.deepEqual(h.entries, [expected, expected]);
 });
 
-test("recap reports input truncation and stores normalized, capped text", async () => {
+test("recap reports input truncation and stores normalized, uncapped text", async () => {
   const h = harness();
   h.ctx.sessionManager.buildContextEntries = () =>
     [{ type: "message", message: { role: "user", content: "x".repeat(24000) } }] as ReturnType<
@@ -207,7 +207,7 @@ test("recap reports input truncation and stores normalized, capped text", async 
     "info",
   ]);
   assert.equal(h.request()?.input.messages[0]?.content.length, 24000);
-  assert.deepEqual(h.entries, [{ text: `${"x".repeat(1199)}…` }]);
+  assert.deepEqual(h.entries, [{ text: "x".repeat(1201) }]);
 });
 
 test("recap selects configured models and thinking, including classes", async () => {
