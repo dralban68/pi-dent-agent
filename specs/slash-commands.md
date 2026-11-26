@@ -148,9 +148,11 @@ them from model context. Each successful invocation adds an entry; earlier entri
 Session start/shutdown MUST abort an in-flight recap and suppress its late appends and
 notifications. Every completion outcome MUST release the busy state.
 
-> Note (non-normative): in `rpc` mode the client receives the entry through the host's
-> `entry_appended` event and the notifications as `notify` UI requests; the renderer of Section
-> 5.3 applies to `tui` only.
+> Note (non-normative): the client-facing interface is exactly three signals — the `info`
+> notification `Generating recap…` while the request runs, the `pi-dent-recap` custom entry with
+> `data.text` for the recap itself, and the `error` notification `Recap failed.` for any failure.
+> In `rpc` mode the entry arrives through the host's `entry_appended` event and the notifications
+> as `notify` UI requests; the renderer of Section 5.3 applies to `tui` only.
 
 ### 5.3 Rendering and readers
 
