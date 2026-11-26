@@ -32,9 +32,9 @@ const SECTION_2_ENTRIES = [
   "./node_modules/pi-dent-purse/index.ts",
   "./node_modules/pi-dent-terms/index.ts",
   "./node_modules/pi-dent-web/index.ts",
+  "./node_modules/pi-dent-web-search/index.ts",
   "./node_modules/pi-mcp-adapter/index.ts",
   "./node_modules/pi-anthropic-oauth/src/index.ts",
-  "./node_modules/pi-web-access/dist/index.js",
 ];
 
 test("the package is pi-dent and declares exactly the Section 2 entries, in order, each resolving on disk", () => {
