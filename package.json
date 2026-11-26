@@ -44,7 +44,7 @@
     "jszip": "^3.10.2",
     "pi-anthropic-oauth": "0.3.9",
     "pi-dent-markdown": "0.1.0",
-    "pi-dent-purse": "0.2.0",
+    "pi-dent-purse": "0.2.1",
     "pi-dent-terms": "0.1.0",
     "pi-dent-web-fetch": "0.3.1",
     "pi-dent-web-search": "0.1.1",
