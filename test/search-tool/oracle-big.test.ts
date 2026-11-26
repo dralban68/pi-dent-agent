@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { join } from "node:path";
 import {
+  assistantLine,
   cleanupRoots,
   fixture,
   harness,
@@ -301,6 +302,56 @@ test("a stopped windowed scan continues by after and loses nothing (scan path)",
   );
   assert.deepEqual(addresses, expected);
   assert.equal(expected.length, 15);
+});
+
+// specs/search-tool.md#step-limits: the group walk reads one session's part in chunks of
+// `groupChunkRows`; a line of more items than that keeps every item.
+test("the group walk keeps every item of a line with more items than groupChunkRows", async () => {
+  const made = fixture("search-tool-oracle-wide-");
+  const U = 5000;
+  const WIDE = SMALL_LIMITS.groupChunkRows + 10;
+  // The main session: one entry of 60 text parts at second U, then more lines than
+  // `fileModeLines` at earlier seconds, so the call scans.
+  const selfLines = [headerLine("main-session-0001")];
+  selfLines.push(
+    assistantLine(
+      "wide",
+      null,
+      Array.from({ length: WIDE }, (_, part) => ({ type: "text", text: `wide part ${part}` })),
+      U,
+    ),
+  );
+  let parent = "wide";
+  for (let index = 0; index < SMALL_LIMITS.fileModeLines; index += 1) {
+    const id = `s${index}`;
+    selfLines.push(userLine(id, parent, `early ${index}`, index + 1));
+    parent = id;
+  }
+  writeSession(made.mainFile, ...selfLines);
+  // A member with `groupRows` lines at second U: the group at U is above `groupRows`.
+  const memberPath = join(made.sessions, "p1.jsonl");
+  const memberLines = [headerLine("mem1-session-0001")];
+  let memberParent: string | null = null;
+  for (let index = 0; index < SMALL_LIMITS.groupRows; index += 1) {
+    const id = `m${index}`;
+    memberLines.push(userLine(id, memberParent, `late ${index}`, U));
+    memberParent = id;
+  }
+  writeSession(memberPath, ...memberLines);
+  const layout = {
+    self: { key: "self", path: made.mainFile },
+    members: [{ key: "~mem1-session-", path: memberPath }],
+  };
+  const host = { sessionFile: made.mainFile, agentDirectory: made.agentDir, main: true };
+  const h = harness({ db: made.db, limits: SMALL_LIMITS });
+  await h.call(host, { action: "find", query: "warmup", scope: "project", limit: 1 });
+  await h.runtime.backgroundDone();
+  for (const order of ["newest", "oldest"] as const) {
+    const actual = await continued(h, host, { action: "find", scope: "project", order }, 100);
+    const expected = oracle(layout, "project", { order }, Number.MAX_SAFE_INTEGER);
+    assert.equal(expected.filter((address) => address.startsWith("self:wide.")).length, WIDE);
+    assert.deepEqual(actual, expected, order);
+  }
 });
 
 test("the scan path restricted to the call's files, when they are a small part of the index", async () => {

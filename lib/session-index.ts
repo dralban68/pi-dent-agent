@@ -398,7 +398,17 @@ export interface CandidateFilter {
   lineBelow?: number | undefined;
   /** Only items of lines at or above this number. */
   lineAbove?: number | undefined;
-  /** Order rows of equal `time` by line number this way, for those chunks (specs/search-tool.md#abort). */
+  /**
+   * With `lineBelow` or `lineAbove`: on that bound's own line, only items whose `item_id` is
+   * below (`lineBelow`) or above (`lineAbove`) this, so that a chunk can resume inside a line
+   * with more items than one chunk holds (specs/search-tool.md#step-limits).
+   */
+  itemBeyond?: number | undefined;
+  /**
+   * Order rows of equal `time` by line number, then by `item_id`, this way, for those chunks
+   * (specs/search-tool.md#abort). The items of one line are inserted in file order, so their
+   * `item_id`s ascend in it.
+   */
   lineOrder?: "asc" | "desc" | undefined;
 }
 
@@ -2143,13 +2153,19 @@ function candidateWhere(
     conditions.push(`${time} >= ?`);
     params.push(filter.bound);
   }
-  if (filter.lineBelow !== undefined) {
-    conditions.push("i.line <= ?");
-    params.push(filter.lineBelow);
-  }
-  if (filter.lineAbove !== undefined) {
-    conditions.push("i.line >= ?");
-    params.push(filter.lineAbove);
+  const lineBounds: { line: number | undefined; sign: "<" | ">" }[] = [
+    { line: filter.lineBelow, sign: "<" },
+    { line: filter.lineAbove, sign: ">" },
+  ];
+  for (const { line, sign } of lineBounds) {
+    if (line === undefined) continue;
+    if (filter.itemBeyond === undefined) {
+      conditions.push(`i.line ${sign}= ?`);
+      params.push(line);
+    } else {
+      conditions.push(`(i.line ${sign} ? OR (i.line = ? AND i.item_id ${sign} ?))`);
+      params.push(line, line, filter.itemBeyond);
+    }
   }
   const kinds = filter.kinds;
   if (kinds !== undefined) {
@@ -2195,7 +2211,10 @@ function selectCandidates(db: DatabaseSync, filter: CandidateFilter): IndexItemR
   if (where === undefined) return [];
   const { conditions, params } = where;
   const order = filter.newest ? "DESC" : "ASC";
-  const byLine = filter.lineOrder === undefined ? "" : `, i.line ${filter.lineOrder}`;
+  const byLine =
+    filter.lineOrder === undefined
+      ? ""
+      : `, i.line ${filter.lineOrder}, i.item_id ${filter.lineOrder}`;
   const sql = `SELECT ${ITEM_COLUMNS} ${ITEM_JOINS} WHERE ${conditions.join(" AND ")} ORDER BY i.time ${order}${byLine} LIMIT ?`;
   params.push(filter.limit);
   const rows: IndexItemRow[] = [];

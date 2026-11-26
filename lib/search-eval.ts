@@ -1213,6 +1213,16 @@ class FileSource implements Source {
 }
 
 /**
+ * Where the group walk goes on in one session (specs/search-tool.md#step-limits): from `line`,
+ * that line included, or, with `itemId`, after that item of that line.
+ */
+interface GroupChunkStart {
+  fileId: number;
+  line: number;
+  itemId?: number | undefined;
+}
+
+/**
  * The index's candidates of every catch-up session, scanned in the time order of
  * `items_time` in bounded pages (specs/search-tool.md#abort), restricted to the call's files
  * (specs/search-tool.md#evaluation), with the filters SQL can express applied in the statement. Every
@@ -1246,7 +1256,7 @@ class ScanSource implements Source {
   /** True once no further window exists: the remaining items are one open range. */
   private lastWindow = false;
   private groupTime: number | undefined;
-  private groupQueue: Array<{ fileId: number; line: number }> = [];
+  private groupQueue: GroupChunkStart[] = [];
   /** The index's file count, read once (specs/search-tool.md#abort). */
   private fileTotal: number | undefined;
 
@@ -1623,7 +1633,7 @@ class ScanSource implements Source {
    * `oldest` walks the files in that order and `newest` in its reverse
    * (specs/search-tool.md#evaluation and specs/search-tool.md#references).
    */
-  private groupFiles(): Array<{ fileId: number; line: number }> {
+  private groupFiles(): GroupChunkStart[] {
     const entries = [...this.coversByFile.entries()].filter(
       ([fileId]) => !this.droppedFiles.has(fileId),
     );
@@ -1676,6 +1686,7 @@ class ScanSource implements Source {
     };
     if (this.newest) filter.lineBelow = entry.line;
     else filter.lineAbove = entry.line;
+    if (entry.itemId !== undefined) filter.itemBeyond = entry.itemId;
     const trigrams = call.query?.trigrams ?? [];
     if (trigrams.length > 0) filter.trigrams = trigrams;
     const outcome = index.candidatePage(filter);
@@ -1692,17 +1703,18 @@ class ScanSource implements Source {
     }
     let rows = fetched;
     if (fetched.length >= call.limits.groupChunkRows) {
-      // Keep the chunk on whole lines only; the rest of the file continues from
-      // the boundary line in the next chunk, and a line too big for one chunk is
-      // split rather than walked forever.
+      // Keep the chunk on whole lines; the rest of the file continues from the
+      // boundary line in the next chunk. A chunk that is all one line goes on
+      // inside that line, after its last item (specs/search-tool.md#step-limits).
       const edge = fetched[fetched.length - 1];
       if (edge !== undefined) {
         const kept = fetched.filter((row) => row.line !== edge.line);
+        entry.line = edge.line;
         if (kept.length === 0) {
-          entry.line = edge.line + (this.newest ? -1 : 1);
+          entry.itemId = edge.itemId;
         } else {
           rows = kept;
-          entry.line = edge.line;
+          entry.itemId = undefined;
         }
       }
     } else {
