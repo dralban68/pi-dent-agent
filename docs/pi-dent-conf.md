@@ -62,6 +62,13 @@ in the [README](../README.md#configure-pi-dent-in-pi).
   // The web extension's settings (pi-dent-web, specs/web-fetch.md, Section 8). `cache` is
   // "project" (default, <cwd>/.pi/web-cache), "session" or a folder; PI_DENT_WEB_CACHE_DIR overrides it.
   "web": { "reformat": false, "reformatModel": "fast", "cache": ".cache" },
+
+  // The search extension's settings (pi-dent-web-search, specs/web-search.md, Section 7). API keys
+  // fall back to EXA_API_KEY, PERPLEXITY_API_KEY, BRAVE_API_KEY and GEMINI_API_KEY.
+  "webSearch": {
+    "backend": "auto",
+    "order": ["exa", "perplexity", "brave", "google", "duckduckgo"],
+  },
 }
 ```
 

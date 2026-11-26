@@ -247,7 +247,7 @@ test("unknown root keys: exactly one diagnostic naming the file, all keys, and t
   });
 });
 
-for (const key of ["terms", "web"] as const) {
+for (const key of ["terms", "web", "webSearch"] as const) {
   test(`${key} is a known root key: pi-dent reports nothing about its value or subkeys and merges it deeply`, () => {
     assert.ok(SUPPORTED_ROOT_KEYS.includes(key));
     withIsolatedEnv(({ home, project }) => {
