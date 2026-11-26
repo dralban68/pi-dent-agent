@@ -794,6 +794,18 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: evaluation-limit
+    label: evaluation limit
+    meaning: "The time one item's evaluation may take before a Search call passes over it as unmatched."
+    owner: specs/search-tool.md
+    group: search
+    key: confusable
+    status: active
+    distinguish:
+      - step-limit
+    history:
+      - date: 2026-11-26
+        op: add
   - id: extension-command
     label: extension command
     meaning: "A slash command pi-dent registers under a fixed name of its own, as opposed to a plugin command"
@@ -1167,9 +1179,13 @@ terms:
     group: Tools
     key: shared
     status: active
+    reject:
+      - calling session
     history:
       - date: 2026-11-15
         op: add
+      - date: 2026-11-26
+        op: update
   - id: item-address
     label: item address
     meaning: The string naming one transcript item relative to the session that searches it
@@ -2580,6 +2596,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: step-limit
+    label: step limit
+    meaning: "A row or item count that bounds one step of a Search call, such as a page, a window or a collection, changing only how fast a call answers, never its hits."
+    owner: specs/search-tool.md
+    group: search
+    key: confusable
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: target
     label: target
     meaning: "A resolved Fleet destination: a live fleet session, or a live child session of the calling session"
@@ -2784,6 +2810,16 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+  - id: test-seam
+    label: test seam
+    meaning: "A factory option, never a configuration key or environment variable, through which tests replace a value the extension always builds with its specified default."
+    owner: specs/search-tool.md
+    group: search
+    key: shared
+    status: active
+    history:
+      - date: 2026-11-26
+        op: add
   - id: thinking-level
     label: thinking level
     meaning: The effort setting a model string can carry and a model can support
