@@ -3,20 +3,15 @@ import assert from "node:assert/strict";
 import {
   chmodSync,
   existsSync,
-  mkdtempSync,
   readFileSync,
   realpathSync,
-  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { Value } from "typebox/value";
 import type { ToolResult } from "../../lib/engine.ts";
-import type { HostSession } from "../../lib/host.ts";
 import { BashTaskRow } from "../../lib/task-row.ts";
 import { TaskRegistry } from "../../lib/registry.ts";
 import {
@@ -24,101 +19,24 @@ import {
   makeBashTool,
   resolveBashTimeout,
   type BashSettings,
-  type BashToolDeps,
 } from "../../lib/bash-tool.ts";
 import { safeName } from "../../lib/util.ts";
 import { at } from "../support/must.ts";
+import {
+  call,
+  detailsOf,
+  makeFixture,
+  noCtx,
+  processAlive,
+  textOf,
+  waitUntil,
+  type Fixture,
+} from "./support.ts";
 
 /**
  * Bash tool (specs/bash-tool.md): integration tests through the public
  * `execute` surface against a real shell process.
  */
-
-interface Fixture {
-  deps: BashToolDeps;
-  registry: TaskRegistry;
-  root: string;
-  /** The invoking session's agent directory (specs/agent-tool.md#child-session). */
-  agentDir: string;
-  /** The session directory the fixture passes as `PI_DENT_SESSION_DIR` (under `root`). */
-  sessionDir: string;
-  host: HostSession;
-  cleanup: () => void;
-}
-
-interface FixtureOptions {
-  sessionId?: string;
-  settings?: BashSettings;
-  /** Returning a new object on every call lets a test watch the read happen. */
-  settingsFn?: (cwd: string) => BashSettings;
-  extraEnv?: () => Record<string, string> | undefined;
-  host?: Partial<HostSession>;
-}
-
-function makeFixture(options: FixtureOptions = {}): Fixture {
-  const root = mkdtempSync(join(tmpdir(), "pi-dent-bash-"));
-  const sessionId = options.sessionId ?? `sess-bash-${Math.random().toString(36).slice(2)}`;
-  const host: HostSession = {
-    cwd: () => root,
-    sessionId: () => sessionId,
-    sessionFile: () => undefined,
-    sessionDir: () => root,
-    model: () => undefined,
-    thinking: () => undefined,
-    activeTools: () => ["Bash"],
-    inventory: () => [],
-    configuredModels: () => [],
-    contextWindow: () => undefined,
-    compaction: () => undefined,
-    notify: () => {},
-    ...options.host,
-  };
-  const registry = new TaskRegistry(() => host);
-  const base = options.settings ?? {};
-  const agentDir = join(root, "agent");
-  const sessionDir = join(root, "session");
-  const deps: BashToolDeps = {
-    registry: () => registry,
-    hostProvider: () => host,
-    cohortFor: (id) => `cohort-${id}`,
-    agentDir: () => agentDir,
-    settings: options.settingsFn ?? (() => base),
-    extraEnv: options.extraEnv ?? (() => ({ PI_DENT_SESSION_DIR: sessionDir })),
-  };
-  return {
-    deps,
-    registry,
-    root,
-    agentDir,
-    sessionDir,
-    host,
-    cleanup: () => {
-      rmSync(root, { recursive: true, force: true });
-    },
-  };
-}
-
-const noCtx = undefined as unknown as ExtensionToolContext;
-
-async function call(
-  fixture: Fixture,
-  params: Record<string, unknown>,
-  signal?: AbortSignal,
-  onUpdate?: (partial: ToolResult) => void,
-): Promise<ToolResult> {
-  return makeBashTool(fixture.deps).execute("call-1", params as never, signal, onUpdate, noCtx);
-}
-
-function textOf(result: ToolResult): string {
-  assert.equal(result.content.length, 1, "one text content block");
-  const first = at(result.content, 0);
-  if (first.type !== "text") assert.fail(`expected text content, got ${first.type}`);
-  return first.text;
-}
-
-function detailsOf(result: ToolResult): Record<string, unknown> {
-  return result.details;
-}
 
 function outputPathOf(fixture: Fixture, taskId: string): string {
   return join(fixture.agentDir, "output", `${safeName(taskId)}.log`);
@@ -859,8 +777,9 @@ test("leftover: SIGKILL follows SIGTERM when the leftover ignores the term signa
     });
     const elapsed = Date.now() - started;
     assert.equal(detailsOf(result).leftover, true);
+    // The upper bound, the run ending with the SIGKILL before the 1000 ms pipe bound, is
+    // measured in perf/bash-tool.test.ts.
     assert.ok(elapsed >= 200, `took ${elapsed} ms`);
-    assert.ok(elapsed < 950, `took ${elapsed} ms`);
     assert.equal(
       textOf(result),
       "hi\n\nCommand left a process running; it was terminated. Use background: true, not & or nohup.",
@@ -869,25 +788,6 @@ test("leftover: SIGKILL follows SIGTERM when the leftover ignores the term signa
     f.cleanup();
   }
 });
-
-/** True while a process with `pid` exists (signal 0 probes without sending anything). */
-function processAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
-/** Resolves once `check()` holds, polling; rejects after `deadlineMs`. No fixed sleeps. */
-async function waitUntil(check: () => boolean, deadlineMs: number, what: string): Promise<void> {
-  const deadline = Date.now() + deadlineMs;
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((done) => setTimeout(done, 10));
-  }
-}
 
 test("leftover: the SIGKILL still follows when the run ends before it is due", async () => {
   const f = makeFixture();
@@ -1147,86 +1047,41 @@ test("progress: one entry per line once its newline arrived, plus the last line 
   }
 });
 
-test("timing: the first leftover signal follows the exit within 100 ms", async () => {
+// specs/bash-tool.md#execution-model, specs/bash-tool.md#timeout-delivery: after the shell exits,
+// SIGTERM reaches every leftover and a leftover that survives it gets SIGKILL. The time bounds of
+// the two signals are measured in perf/bash-tool.test.ts.
+test("leftover: SIGTERM reaches every leftover, then SIGKILL ends the one that survives it", async () => {
   const f = makeFixture();
-  let polling = true;
-  let observation: Promise<void> | undefined;
+  const pids: number[] = [];
   try {
-    const term = join(f.root, "term");
-    const kill = join(f.root, "kill");
-    // Two group members write a counter every 10 ms: the first dies on SIGTERM,
-    // the second ignores it and dies on the SIGKILL. The shell exits only once
-    // both have written, so the second has installed its trap.
+    const file = (name: string): string => join(f.root, name);
+    // Each member records the SIGTERM with a builtin: the first then exits, the second carries
+    // on, so only the SIGKILL can end it. The shell exits once both have installed their traps.
     const command = [
-      `( i=0; while :; do i=$((i+1)); echo $i > ${term}; sleep 0.01; done ) >/dev/null 2>&1 &`,
-      `( trap '' TERM; j=0; while :; do j=$((j+1)); echo $j > ${kill}; sleep 0.01; done ) >/dev/null 2>&1 &`,
-      `until [ -s ${term} ] && [ -s ${kill} ]; do sleep 0.01; done`,
-      // Observe several counter changes before the shell exits.
-      "sleep 0.5",
+      `( trap ': > ${file("term-got")}; exit 0' TERM; : > ${file("term-ready")}; while :; do sleep 0.05; done ) >/dev/null 2>&1 &`,
+      `echo $! > ${file("term-pid")}`,
+      `( trap ': > ${file("kill-got")}' TERM; : > ${file("kill-ready")}; while :; do sleep 0.05; done ) >/dev/null 2>&1 &`,
+      `echo $! > ${file("kill-pid")}`,
+      `until [ -e ${file("term-ready")} ] && [ -e ${file("kill-ready")} ]; do sleep 0.01; done`,
       "echo hi",
     ].join("\n");
-    const readOr = (path: string): string => {
-      try {
-        return readFileSync(path, "utf8");
-      } catch {
-        return "";
-      }
-    };
-    const last = new Map<string, number>([
-      [term, 0],
-      [kill, 0],
-    ]);
-    const seen = new Map<string, string>([
-      [term, ""],
-      [kill, ""],
-    ]);
-    let exitAt = Infinity;
-    let cadence = 0;
-    observation = (async () => {
-      while (polling && Date.now() < exitAt + 700 + 2 * cadence) {
-        for (const path of [term, kill]) {
-          const content = readOr(path);
-          // Ignore the empty interval between truncating and writing a counter.
-          if (content !== "" && content !== seen.get(path)) {
-            const now = Date.now();
-            const previous = last.get(path) ?? 0;
-            if (now < exitAt && previous !== 0) {
-              cadence = Math.max(cadence, now - previous);
-            }
-            seen.set(path, content);
-            last.set(path, now);
-          }
-        }
-        await new Promise((done) => setTimeout(done, 5));
-      }
-    })();
     const result = await call(f, { command });
-    exitAt = Date.now();
     assert.equal(detailsOf(result).leftover, true);
-    await observation;
-    const termAt = last.get(term) ?? 0;
-    const killAt = last.get(kill) ?? 0;
-    // Measured write/poll lag, with floors preserving the quiet-machine bounds.
-    const firstSlack = Math.max(100, cadence);
-    const earlySlack = Math.max(50, cadence);
-    const lateSlack = Math.max(150, cadence);
-    assert.ok(
-      termAt - exitAt <= 100 + firstSlack,
-      `first signal after ${termAt - exitAt} ms (slack ${firstSlack} ms)`,
-    );
-    assert.ok(killAt > termAt, "the second member survived the SIGTERM");
-    // The grace is 200–300 ms; 250 minus 50 retains the previous lower bound.
-    assert.ok(
-      killAt - termAt >= 250 - earlySlack,
-      `SIGKILL after ${killAt - termAt} ms (slack ${earlySlack} ms)`,
-    );
-    assert.ok(
-      killAt - termAt <= 300 + lateSlack,
-      `SIGKILL after ${killAt - termAt} ms (slack ${lateSlack} ms)`,
-    );
+    for (const name of ["term-pid", "kill-pid"]) {
+      const pid = Number(readFileSync(file(name), "utf8").trim());
+      assert.ok(Number.isInteger(pid) && pid > 0, `${name} holds ${pid}`);
+      pids.push(pid);
+    }
+    const [termPid, killPid] = pids;
+    await waitUntil(() => !processAlive(termPid ?? 0), 5000, "the SIGTERM member to end");
+    await waitUntil(() => !processAlive(killPid ?? 0), 5000, "the SIGKILL member to end");
+    assert.ok(existsSync(file("term-got")), "the first member received SIGTERM");
+    // Its trap ran and did not exit, so it was alive after the SIGTERM; it ended all the same.
+    assert.ok(existsSync(file("kill-got")), "the second member received SIGTERM before its end");
   } finally {
-    polling = false;
-    await observation;
+    for (const pid of pids) {
+      if (processAlive(pid)) process.kill(pid, "SIGKILL");
+    }
     f.cleanup();
   }
 });
