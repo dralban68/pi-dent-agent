@@ -47,7 +47,7 @@
     "pi-dent-purse": "0.2.0",
     "pi-dent-terms": "0.1.0",
     "pi-dent-web-fetch": "0.2.0",
-    "pi-dent-web-search": "0.1.0",
+    "pi-dent-web-search": "0.1.1",
     "pi-mcp-adapter": "7.0.1",
     "semver": "^7.8.3",
     "smol-toml": "^1.9.1"
