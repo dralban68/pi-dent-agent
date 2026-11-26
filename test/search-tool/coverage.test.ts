@@ -19,7 +19,7 @@ import {
   type Fixture,
 } from "./support.ts";
 import { openSessionIndex } from "../../lib/session-index.ts";
-import { searchRuntime, type SearchHost } from "../../lib/search-tool.ts";
+import type { SearchHost } from "../../lib/search-tool.ts";
 
 /**
  * specs/search-tool.md#coverage and specs/search-tool.md#result: covering, its exceptions, the
@@ -306,7 +306,9 @@ test("a call stopped before any item was examined has no stop item", async () =>
 });
 
 test("a window the budget ends keeps the items its evaluation decided", async () => {
-  // The real clock: an item's evaluation limit and the call's budget are wall time.
+  // An item's evaluation limit is wall time; the call's clock runs three times as fast once
+  // the evaluation has started, so the 5000 ms budget ends about 1700 ms in: after the
+  // limit ended the first slow item, while the second is still being evaluated.
   const made = fixture("search-tool-limit-window-");
   const lines = [headerLine("main-session-0001"), userLine("u0", null, "aaaa", 1)];
   let parent: string | null = "u0";
@@ -321,16 +323,33 @@ test("a window the budget ends keeps the items its evaluation decided", async ()
     agentDirectory: made.agentDir,
     main: true,
   };
-  const runtime = searchRuntime({ indexPath: made.db, zone: "UTC" });
-  const result = await runtime.execute({
-    ...host,
-    params: { action: "find", query: "(a+)+$", regex: true, order: "oldest" } as never,
-    signal: undefined,
+  let base = 0;
+  let from: number | undefined;
+  const h = harness({
+    db: made.db,
+    clock: {
+      now: () => (from === undefined ? base : base + (Date.now() - from) * 3),
+      set: (value) => {
+        base = value;
+      },
+      advance: (value) => {
+        base += value;
+      },
+    },
   });
-  await runtime.backgroundDone();
-  const text = result.content.map((part) => (part.type === "text" ? part.text : "")).join("\n");
-  const shown = text.split("\n");
-  const details = result.details ?? {};
+  h.hook((event) => {
+    if (event.phase === "evaluate" && from === undefined) from = Date.now();
+  });
+  const outcome = await h.call(host, {
+    action: "find",
+    query: "(a+)+$",
+    regex: true,
+    order: "oldest",
+  });
+  await h.runtime.backgroundDone();
+  const text = outcome.text;
+  const shown = outcome.lines;
+  const details = outcome.details;
   const unmatched = typeof details.unmatched === "number" ? details.unmatched : -1;
   const next = details.next;
   assert.equal(details.stopped, true, text);
