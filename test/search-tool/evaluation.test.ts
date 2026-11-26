@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { join } from "node:path";
 import {
   cleanupRoots,
   fixture,
   harness,
   headerLine,
   hitAddresses,
-  largestHold,
+  many,
   userLine,
   writeSession,
 } from "./support.ts";
@@ -18,61 +17,12 @@ import type { SearchHost } from "../../lib/search-tool.ts";
 
 /**
  * specs/search-tool.md#coverage, specs/search-tool.md#abort and specs/search-tool.md#evaluation: the evaluation of a query and
- * what bounds it — the event loop yield under a long one, an abort during one, the
- * per-item evaluation limit, a failing evaluation, and the end of a continuation's
- * boot window.
+ * what bounds it — an abort during a long one, the per-item evaluation limit, a failing
+ * evaluation, and the end of a continuation's boot window. The event-loop yield under a
+ * long one is measured in perf/search-tool.test.ts.
  */
 
 after(cleanupRoots);
-
-interface Many {
-  host: SearchHost;
-  db: string;
-  sessions: number;
-  items: number;
-}
-
-/** Many sessions of many items each, in one sessions directory. */
-function many(sessions: number, items: number, prefix = "search-tool-evaluation-"): Many {
-  const made = fixture(prefix);
-  for (let s = 0; s < sessions; s += 1) {
-    const lines: string[] = [headerLine(`session-${String(s).padStart(4, "0")}`)];
-    let parent: string | null = null;
-    for (let i = 0; i < items; i += 1) {
-      const id = `e${s}_${i}`;
-      lines.push(
-        userLine(
-          id,
-          parent,
-          `item ${s} ${i} ${i % 7 === 0 ? "needle" : "haystack"}`,
-          s * items + i,
-        ),
-      );
-      parent = id;
-    }
-    // The invoking session is one of the project's files; the rest are its members.
-    const path =
-      s === 0 ? made.mainFile : join(made.sessions, `s${String(s).padStart(4, "0")}.jsonl`);
-    writeSession(path, ...lines);
-  }
-  return {
-    host: { sessionFile: made.mainFile, agentDirectory: made.agentDir, main: true },
-    db: made.db,
-    sessions,
-    items,
-  };
-}
-
-test("a long evaluation yields to the event loop at least every 250 ms", async () => {
-  const made = many(200, 100);
-  const h = harness({ db: made.db });
-  let outcome: { lines: string[] } | undefined;
-  const gap = await largestHold(async () => {
-    outcome = await h.call(made.host, { action: "find", query: "ǂ", scope: "project-trees" });
-  });
-  assert.ok(outcome !== undefined);
-  assert.equal(gap < 250, true, `the event loop was held for ${gap} ms`);
-});
 
 test("an abort during a long evaluation ends the call well within 1000 ms", async () => {
   const made = many(200, 100);

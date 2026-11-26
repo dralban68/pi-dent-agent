@@ -25,6 +25,7 @@
   "scripts": {
     "prepare": "node scripts/link-local.ts",
     "test": "node --import \"$PWD/lib/strip-types-hook.mjs\" --test --test-timeout=30000 test/",
+    "test:perf": "node --import \"$PWD/lib/strip-types-hook.mjs\" --test --test-timeout=30000 perf/",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "fmt": "oxfmt .",

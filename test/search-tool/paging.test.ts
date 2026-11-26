@@ -1,93 +1,30 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { appendFileSync, copyFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   cleanupRoots,
+  crowded,
   fixture,
   harness,
   headerLine,
   hitAddresses,
-  largestHold,
+  seed,
   testClock,
   threadCpuMs,
   userLine,
   writeSession,
 } from "./support.ts";
 import type { SearchHost } from "../../lib/search-tool.ts";
-import { openSessionIndex } from "../../lib/session-index.ts";
 
 /**
  * specs/search-tool.md#abort, specs/search-tool.md#candidates and specs/search-tool.md#evaluation: how a call pages through
- * candidate rows — a session's own rows whatever the index holds besides, deep
- * paging, a time group above the row cap, the filters a direct read applies, and
- * the bounds a page, a direct read, and a covering under a replaced index keep.
+ * candidate rows — deep paging, a time group above the row cap, the filters a direct read
+ * applies, and the bounds a page, a direct read, and a covering under a replaced index keep.
+ * The time bounds on a crowded index are in perf/search-tool.test.ts.
  */
 
 after(cleanupRoots);
-
-/** A project with one small invoking session and many tiny other sessions. */
-function crowded(
-  sessions: number,
-  prefix = "search-tool-fixes-",
-): {
-  host: SearchHost;
-  db: string;
-  other: string;
-  root: string;
-} {
-  const made = fixture(prefix);
-  writeSession(
-    made.mainFile,
-    headerLine("main-session-0001"),
-    userLine("a", null, "alpha needle a", 1),
-    userLine("b", "a", "alpha b", 2),
-  );
-  const other = join(made.sessions, "m2.jsonl");
-  writeSession(other, headerLine("other-session-0002"), userLine("v1", null, "needle other", 1));
-  for (let index = 0; index < sessions; index += 1) {
-    writeSession(
-      join(made.sessions, `z${String(index).padStart(5, "0")}.jsonl`),
-      headerLine(`noise-${String(index).padStart(6, "0")}`),
-      userLine("n1", null, `noise ${index} haystack`, 2),
-    );
-  }
-  return {
-    host: { sessionFile: made.mainFile, agentDirectory: made.agentDir, main: true },
-    db: made.db,
-    other,
-    root: made.root,
-  };
-}
-
-/** Index every session of the fixture, as a warm-up call would. */
-async function seed(
-  db: string,
-  sessionsDirectory: string,
-  paths: readonly string[],
-): Promise<void> {
-  const opened = openSessionIndex({ path: db });
-  if (!opened.ok) throw new Error(opened.reason);
-  for (const path of paths) await opened.index.catchUp(path);
-  opened.index.close();
-  void sessionsDirectory;
-}
-
-test("a session-scope find does not depend on the other sessions of the index", async () => {
-  const made = crowded(2000);
-  const paths = [made.host.sessionFile ?? "", made.other];
-  await seed(made.db, "", paths);
-  const h = harness({ db: made.db });
-  // Warm the index over every session first, so the call meets a full index.
-  await h.call(made.host, { action: "find", query: "haystack", scope: "project-trees", limit: 1 });
-  await h.runtime.backgroundDone();
-  const started = Date.now();
-  const outcome = await h.call(made.host, { action: "find", query: "needle", scope: "session" });
-  const elapsed = Date.now() - started;
-  assert.deepEqual(hitAddresses(outcome), ["self:a"]);
-  assert.equal(elapsed < 500, true, `session-scope find took ${elapsed} ms`);
-});
 
 test("a call with a clock that never advances still ends, and deep paging reaches the last hit", async () => {
   const made = crowded(400);
@@ -148,27 +85,6 @@ test("a call with a clock that never advances still ends, and deep paging reache
     true,
     `page costs ${firstPageMs} → ${lastPageMs} ms`,
   );
-});
-
-test("an abort during paging is observed within 100 ms", async () => {
-  const made = crowded(2000);
-  const clock = testClock();
-  const h = harness({ db: made.db, clock });
-  await h.call(made.host, { action: "find", query: "haystack", scope: "project-trees", limit: 1 });
-  await h.runtime.backgroundDone();
-  const controller = new AbortController();
-  const pending = h.call(
-    made.host,
-    { action: "find", query: "zzzzabsent", scope: "project-trees" },
-    controller.signal,
-  );
-  await new Promise((done) => setTimeout(done, 20));
-  const abortedAt = Date.now();
-  controller.abort();
-  const outcome = await pending;
-  const elapsed = Date.now() - abortedAt;
-  assert.equal(outcome.text, "Search aborted");
-  assert.equal(elapsed < 100, true, `the abort took ${elapsed} ms`);
 });
 
 test("a direct read applies every filter of specs/search-tool.md#candidates", async () => {
@@ -252,19 +168,6 @@ test("a time group above the row cap is walked in the call's order without repea
   assert.equal(new Set(addresses).size, 100);
 });
 
-test("discovery and a sparse filter scan do not hold the event loop for 250 ms", async () => {
-  const made = crowded(2000);
-  const h = harness({ db: made.db });
-  const gap = await largestHold(async () => {
-    // The first call discovers every session and the second runs a filter that
-    // matches nothing, which scans the whole candidate order.
-    await h.call(made.host, { action: "find", query: "needle", scope: "project-trees", limit: 1 });
-    await h.runtime.backgroundDone();
-    await h.call(made.host, { action: "find", isError: true, scope: "project-trees" });
-  });
-  assert.equal(gap < 250, true, `the event loop was held for ${gap} ms`);
-});
-
 test("get answered from the index uses only entries within the call-start size", async () => {
   const made = fixture("search-tool-fixes-get-");
   writeSession(
@@ -303,7 +206,7 @@ test("get answered from the index uses only entries within the call-start size",
 test("an index replaced during covering keeps the sessions covered", async () => {
   const made = crowded(0);
   const sessions = [made.host.sessionFile ?? "", made.other];
-  await seed(made.db, "", sessions);
+  await seed(made.db, sessions);
   const copy = `${made.db}.copy`;
   copyFileSync(made.db, copy);
   const clock = testClock();

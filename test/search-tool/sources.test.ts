@@ -10,7 +10,6 @@ import {
   harness,
   headerLine,
   hitAddresses,
-  largestHold,
   setMtime,
   userLine,
   writeSession,
@@ -241,44 +240,6 @@ test("an index file deleted during covering keeps the sessions covered", async (
     coveredAfter.toSorted(),
     outcome.text,
   );
-});
-
-test("a filter no item passes ends unstopped and yields to the event loop", async () => {
-  const made = fixture("search-tool-r3-sparse-");
-  writeSession(made.mainFile, headerLine("main-session-0001"), userLine("a", null, "alpha", 1));
-  // 400 project members of 600 items each: 240000 lines, above the per-session bound.
-  for (let member = 0; member < 400; member += 1) {
-    const lines = [headerLine(`member-${String(member).padStart(4, "0")}-sess`)];
-    let parent: string | null = null;
-    for (let index = 0; index < 600; index += 1) {
-      const id = `m${member}x${index}`;
-      lines.push(userLine(id, parent, `plain text ${index}`, 10 + index));
-      parent = id;
-    }
-    writeSession(join(made.sessions, `p${member}.jsonl`), ...lines);
-  }
-  const host: SearchHost = {
-    sessionFile: made.mainFile,
-    agentDirectory: made.agentDir,
-    main: true,
-  };
-  const h = harness({ db: made.db });
-  await h.call(host, { action: "find", query: "warmup", scope: "project" });
-  await h.runtime.backgroundDone();
-  const gap = await largestHold(async () => {
-    for (const params of [
-      { isError: true },
-      { tool: "Bash" },
-      { kinds: ["summary"] },
-      { isError: true, query: "plain text" },
-    ]) {
-      const outcome = await h.call(host, { action: "find", scope: "project", ...params });
-      assert.equal(outcome.isError, false, outcome.text);
-      assert.equal(outcome.details.stopped, false, outcome.text);
-      assert.deepEqual(hitAddresses(outcome), [], JSON.stringify(params));
-    }
-  });
-  assert.ok(gap < 250, `the event loop was held for ${gap} ms`);
 });
 
 test("rows gone between a session's load and its narrowing probe take its cover away", async () => {

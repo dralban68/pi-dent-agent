@@ -13,5 +13,5 @@
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true
   },
-  "include": ["index.ts", "lib/**/*.ts", "test/**/*.ts"]
+  "include": ["index.ts", "lib/**/*.ts", "test/**/*.ts", "perf/**/*.ts"]
 }

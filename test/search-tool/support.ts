@@ -7,6 +7,7 @@ import {
   type SearchProgress,
   type SearchRuntime,
 } from "../../lib/search-tool.ts";
+import { openSessionIndex } from "../../lib/session-index.ts";
 
 /**
  * Fixtures for specs/search-tool.md: a throwaway directory with session files and
@@ -302,4 +303,81 @@ export function fixture(prefix = "search-tool-"): Fixture {
   const agentDir = join(sessions, "m1.agents");
   mkdirSync(agentDir, { recursive: true });
   return { root, sessions, mainFile, agentDir, db: join(root, "search-v3.sqlite") };
+}
+
+/** A project with one small invoking session, one other session, and many tiny other sessions. */
+export function crowded(
+  sessions: number,
+  prefix = "search-tool-fixes-",
+): {
+  host: SearchHost;
+  db: string;
+  other: string;
+  root: string;
+} {
+  const made = fixture(prefix);
+  writeSession(
+    made.mainFile,
+    headerLine("main-session-0001"),
+    userLine("a", null, "alpha needle a", 1),
+    userLine("b", "a", "alpha b", 2),
+  );
+  const other = join(made.sessions, "m2.jsonl");
+  writeSession(other, headerLine("other-session-0002"), userLine("v1", null, "needle other", 1));
+  for (let index = 0; index < sessions; index += 1) {
+    writeSession(
+      join(made.sessions, `z${String(index).padStart(5, "0")}.jsonl`),
+      headerLine(`noise-${String(index).padStart(6, "0")}`),
+      userLine("n1", null, `noise ${index} haystack`, 2),
+    );
+  }
+  return {
+    host: { sessionFile: made.mainFile, agentDirectory: made.agentDir, main: true },
+    db: made.db,
+    other,
+    root: made.root,
+  };
+}
+
+/** Catch every given session file up into the index at `db`, as a warm-up call would. */
+export async function seed(db: string, paths: readonly string[]): Promise<void> {
+  const opened = openSessionIndex({ path: db });
+  if (!opened.ok) throw new Error(opened.reason);
+  for (const path of paths) await opened.index.catchUp(path);
+  opened.index.close();
+}
+
+/** A project of `sessions` sessions of `items` items each; every seventh item holds `needle`. */
+export function many(
+  sessions: number,
+  items: number,
+  prefix = "search-tool-evaluation-",
+): { host: SearchHost; db: string; sessions: number; items: number } {
+  const made = fixture(prefix);
+  for (let s = 0; s < sessions; s += 1) {
+    const lines: string[] = [headerLine(`session-${String(s).padStart(4, "0")}`)];
+    let parent: string | null = null;
+    for (let i = 0; i < items; i += 1) {
+      const id = `e${s}_${i}`;
+      lines.push(
+        userLine(
+          id,
+          parent,
+          `item ${s} ${i} ${i % 7 === 0 ? "needle" : "haystack"}`,
+          s * items + i,
+        ),
+      );
+      parent = id;
+    }
+    // The invoking session is one of the project's files; the rest are its members.
+    const path =
+      s === 0 ? made.mainFile : join(made.sessions, `s${String(s).padStart(4, "0")}.jsonl`);
+    writeSession(path, ...lines);
+  }
+  return {
+    host: { sessionFile: made.mainFile, agentDirectory: made.agentDir, main: true },
+    db: made.db,
+    sessions,
+    items,
+  };
 }

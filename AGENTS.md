@@ -20,6 +20,7 @@ This repository follows the dev repo standard.
 ```sh
 pnpm check        # the done-set: typecheck, lint, fmt:check, then test
 pnpm test         # node --import "$PWD/lib/strip-types-hook.mjs" --test --test-timeout=30000 test/
+pnpm test:perf    # the time bounds in perf/, outside check: run when changing Search and before a release
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # oxlint .
 pnpm fmt          # oxfmt . (rewrites files, Markdown included)

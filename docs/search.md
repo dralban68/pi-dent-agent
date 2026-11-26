@@ -46,11 +46,15 @@ depends on the clock advancing to end.
 
 ## Testing
 
-- `test/search-tool/oracle.test.ts` computes expected hits straight from session files by the
-  spec's rules, using `session-transcript.ts` but none of the evaluation code, and compares `find`
-  over 1024 paged runs (scopes × filters × orders × branches × index usable or not × limits),
-  plus the scan path, oversized time groups and sessions, `after` inside a time group, and stops
-  continued by `after`. Narrowing is asserted by counting items read back (`onItemRead`).
+- `test/search-tool/oracle-support.ts` computes expected hits straight from session files by the
+  spec's rules, using `session-transcript.ts` but none of the evaluation code. `find` is compared
+  with it over 1024 paged runs (`oracle-matrix.test.ts`: scopes × filters × orders × branches ×
+  index usable or not × limits), on a fixture just past the caps of `search-eval.ts` (the scan
+  path, oversized time groups and sessions: `oracle-big.test.ts`), and on `after` inside a time
+  group and stops continued by `after` (`oracle.test.ts`). Narrowing is asserted by counting
+  items read back (`onItemRead`).
+- The time bounds (event-loop holds, abort latency, a session-scope call on a crowded index) are
+  measured in `perf/search-tool.test.ts`, run by `pnpm test:perf`, not by `pnpm check`.
 - A test that fails before its fix stays in the suite. Earlier rounds passed their own tests while
   `find` returned wrong hits; only the oracle caught that.
 - Run measurement scripts with a timeout and an injected clock that may freeze: an unbounded
