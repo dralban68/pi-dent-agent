@@ -14,5 +14,5 @@ minimumReleaseAgeExclude:
   - pi-dent-purse
   - pi-dent-skills
   - pi-dent-terms
-  - pi-dent-web
+  - pi-dent-web-fetch
   - pi-dent-web-search

@@ -31,7 +31,7 @@ const SECTION_2_ENTRIES = [
   "./index.ts",
   "./node_modules/pi-dent-purse/index.ts",
   "./node_modules/pi-dent-terms/index.ts",
-  "./node_modules/pi-dent-web/index.ts",
+  "./node_modules/pi-dent-web-fetch/index.ts",
   "./node_modules/pi-dent-web-search/index.ts",
   "./node_modules/pi-mcp-adapter/index.ts",
   "./node_modules/pi-anthropic-oauth/src/index.ts",

@@ -49,11 +49,11 @@ the diagnostic also names the file and the supported set.
 | `recapModel`    | This section                                        |
 | `script`        | [script-tool.md](script-tool.md), Section 7         |
 | `terms`         | pi-dent-terms `specs/terms-tool.md`, Section 4.2    |
-| `web`           | pi-dent-web `specs/web-fetch.md`, Section 8         |
+| `web`           | pi-dent-web-fetch `specs/web-fetch.md`, Section 8   |
 | `webSearch`     | pi-dent-web-search `specs/web-search.md`, Section 7 |
 
 The root keys `terms`, `web` and `webSearch` are owned by the sibling packages `pi-dent-terms`,
-`pi-dent-web` and `pi-dent-web-search`.
+`pi-dent-web-fetch` and `pi-dent-web-search`.
 pi-dent MUST accept each as a root key, MUST NOT validate its value or the keys within it, and MUST
 NOT report an unknown key within it. Substitution (Section 7) applies to their string values like
 any value. Merge (Section 3) and attribution (Section 4) apply to them like any root key.

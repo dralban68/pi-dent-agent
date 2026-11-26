@@ -32,7 +32,7 @@ The package name is `pi-dent-agent`. The `pi` key of `package.json` holds the pa
 | 1     | pi-dent            | `./index.ts`                                     |
 | 2     | pi-dent-purse      | `./node_modules/pi-dent-purse/index.ts`          |
 | 3     | pi-dent-terms      | `./node_modules/pi-dent-terms/index.ts`          |
-| 4     | pi-dent-web        | `./node_modules/pi-dent-web/index.ts`            |
+| 4     | pi-dent-web-fetch  | `./node_modules/pi-dent-web-fetch/index.ts`      |
 | 5     | pi-dent-web-search | `./node_modules/pi-dent-web-search/index.ts`     |
 | 6     | pi-mcp-adapter     | `./node_modules/pi-mcp-adapter/index.ts`         |
 | 7     | pi-anthropic-oauth | `./node_modules/pi-anthropic-oauth/src/index.ts` |

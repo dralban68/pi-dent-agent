@@ -1,6 +1,6 @@
 # pi extension repositories
 
-Non-normative. What a pi extension or library repository (pi-dent, pi-dent-terms, pi-dent-web, pi-dent-web-search, pi-dent-markdown, pi-dent-purse)
+Non-normative. What a pi extension or library repository (pi-dent, pi-dent-terms, pi-dent-web-fetch, pi-dent-web-search, pi-dent-markdown, pi-dent-purse)
 adds to the dx repo standard (`dx:repo-setup`). pi-dent's own manifest rules are in
 [specs/package.md](../specs/package.md).
 
