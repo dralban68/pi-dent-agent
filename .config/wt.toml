@@ -1,1 +1,1 @@
-pre-start = 'pnpm install --frozen-lockfile && pnpm run --if-present build && if command -v codegraph >/dev/null; then codegraph init .; else echo "codegraph not installed: this worktree has no code index"; fi'
+pre-start = "pnpm install --frozen-lockfile && pnpm run --if-present build && if command -v codegraph >/dev/null; then codegraph init .; else echo 'codegraph not installed: this worktree has no code index'; fi"
