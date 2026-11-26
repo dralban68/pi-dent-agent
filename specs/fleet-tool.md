@@ -263,7 +263,7 @@ A `query` whose invoking session is a child session is a waited query. It differ
 
 - The invoking session's boot window MUST hold an address for the invoking session
   ([session-store.md, membership and lifecycle](session-store.md#membership-lifecycle)) from before the query is enqueued until the
-  session's last waited query ends: the child session record of a invoking session that has one,
+  session's last waited query ends: the child session record of an invoking session that has one,
   else a hidden record.
 - The call MUST NOT return until the query ends. The reply is not delivered as a turn: the invoking
   session's boot window consumes it, marking it `delivered`, and the call returns the text
