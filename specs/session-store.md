@@ -118,13 +118,31 @@ or changes a file, by the boot window that owns it only; a refused session's tur
 record unchanged. Registrations of one session by separate boot windows are serialized: each checks the owner and
 writes the record in one immediate write transaction. The first to commit owns the session; a later
 registration that finds that owner live is refused, and its boot window shows the warning above.
+Before a main session registers at session start, its boot window MUST delete the records whose
+owner process is gone, with the boot locks (below) checked after that session start began.
+
+- A boot window runs in one thread of its process, the main thread or a worker thread. Its boot
+  lock is the lock named `pi-dent-fleet-boot:<id>`, `<id>` its boot window ID, in the host's lock
+  manager (`navigator.locks`): one per process, shared by all its threads, and releasing a
+  thread's locks when the thread ends, by termination or a crash included. From before it writes
+  any record until it closes, a boot window MUST hold its boot lock in mode `shared`. A boot lock
+  is free when an `exclusive` request for it that does not wait (`ifAvailable`) is granted.
+
+  > Note (non-normative): every thread has its own module instances and its own copy of
+  > `process.env`, so only a process-wide lock manager tells one thread that another's boot window
+  > is live.
 
 - The owner process of a record is gone when `owner_pid` is set, the record is not owned by the
   checking boot window, and either the process does not exist (a permission-denied probe counts
   as existing), or `owner_pid` is the checking process's own and `owner_started` is more than
   1000 ms earlier than the checking process's start. A record whose `owner_pid` is the checking
-  process's own and whose `owner_boot` is set is instead gone exactly when that boot window has
-  been torn down in the process.
+  process's own, whose `owner_started` is not that much earlier, and whose `owner_boot` is set is
+  instead gone exactly when its boot window has closed in the checking thread, or, for a boot
+  window of another thread, once a check of its boot lock made after the checking boot window
+  read the record finds the lock free; until such a check it is not gone.
+  - The deletion before a main session registers and the periodic deletion below MUST check the
+    boot lock of each record they read whose boot window is of another thread of the process. The
+    deletion when a boot window opens the store and target resolution check no boot lock.
 - The local session store MUST hold a session's record only while the session is in the fleet,
   or while the dispatch that runs it does:
   - A session that ends MUST have its record deleted at once, by the boot window that owns it; a
