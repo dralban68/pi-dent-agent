@@ -4,9 +4,9 @@ This document specifies the session index: the database in which the pi-dent pro
 machine keep, per session file, where its session entries lie and which transcript items they
 yield, so that a search need not read every file. It owns the index's location, format and
 version, its rows and their invariants, catch-up, concurrent access, failure handling, and the
-index prune. The session entry, the transcript item, and the current lineage are owned by
-[session-transcript.md](session-transcript.md); the `Search` tool
-([search-tool.md](search-tool.md)) is the only reader, and owns how a query is answered.
+index prune, and the session titles read. The session entry, the transcript item, and the current
+lineage are owned by [session-transcript.md](session-transcript.md); the `Search` tool
+([search-tool.md](search-tool.md)) is the only reader of items, and owns how a query is answered.
 
 The session index is derived data: every row can be rebuilt from session files, and no behavior
 other than timing depends on its presence.
@@ -15,20 +15,20 @@ other than timing depends on its presence.
 
 The session index is one SQLite database file in write-ahead-log journal mode, opened with a
 busy timeout of 1000 ms. Its path is the value of the environment variable `PI_DENT_SEARCH_DB` when
-set and non-empty, else `~/.pi/pi-dent/search-v2.sqlite`. It is not the local session store
+set and non-empty, else `~/.pi/pi-dent/search-v3.sqlite`. It is not the local session store
 ([session-store.md](session-store.md)) and MUST NOT share a file with it.
 
 > Note (non-normative): the index is hundreds of megabytes, is written in long bursts, and can be
 > deleted at any time; the local session store is small, is polled every 250 ms for message
 > delivery, and holds state that cannot be rebuilt.
 
-The format version is `2` and is recorded as the database's `user_version`. Opening the index
+The format version is `3` and is recorded as the database's `user_version`. Opening the index
 MUST, in this order:
 
 1. Create the file's directory and the file when absent.
 2. When `user_version` is `0` and the database holds no table: create the schema of Section 2 and
-   set `user_version` to `2`.
-3. When `user_version` is `2`: use the database.
+   set `user_version` to `3`.
+3. When `user_version` is `3`: use the database.
 4. Otherwise: leave the file unchanged; the index is unusable (Section 5).
 
 The check of step 2 and the creation MUST happen inside one transaction begun with
@@ -42,22 +42,27 @@ An index file of another format version (`search-v<n>.sqlite`) MUST NOT be read 
 index file MUST NOT be shrunk: space freed by a reset or a prune is reused, not returned to the file
 system.
 
+> Note (non-normative): no file of an earlier version is migrated: version `3` adds
+> `session_name` and `first_user_message`, which bytes consumed under version `2` never recorded.
+
 ## 2. Schema
 
 The schema is exactly these statements; the index and table names are normative:
 
 ```sql
 CREATE TABLE files (
-  file_id     INTEGER PRIMARY KEY,
-  path        TEXT    NOT NULL UNIQUE,
-  session_id  TEXT    NOT NULL,
-  started     INTEGER NOT NULL,
-  consumed    INTEGER NOT NULL,
-  lines       INTEGER NOT NULL,
-  last_time   INTEGER NOT NULL,
-  mtime       INTEGER NOT NULL,
-  tail_offset INTEGER NOT NULL,
-  tail_hash   TEXT    NOT NULL
+  file_id            INTEGER PRIMARY KEY,
+  path               TEXT    NOT NULL UNIQUE,
+  session_id         TEXT    NOT NULL,
+  started            INTEGER NOT NULL,
+  consumed           INTEGER NOT NULL,
+  lines              INTEGER NOT NULL,
+  last_time          INTEGER NOT NULL,
+  mtime              INTEGER NOT NULL,
+  tail_offset        INTEGER NOT NULL,
+  tail_hash          TEXT    NOT NULL,
+  session_name       TEXT,
+  first_user_message TEXT
 );
 CREATE TABLE entries (
   file_id   INTEGER NOT NULL,
@@ -94,41 +99,61 @@ A `files` row describes the consumed bytes of one session file: its first `consu
 which always end just after a line feed. Times are milliseconds since the Unix epoch, rounded
 down; offsets and lengths are in bytes.
 
-| Table       | Column        | Contract                                                                                                                                             |
-| ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `files`     | `file_id`     | Assigned by the database at insertion.                                                                                                               |
-| `files`     | `path`        | The session file's absolute path with symbolic links resolved.                                                                                       |
-| `files`     | `session_id`  | The `id` of the session header.                                                                                                                      |
-| `files`     | `started`     | The `time` of the session header.                                                                                                                    |
-| `files`     | `consumed`    | The number of consumed bytes.                                                                                                                        |
-| `files`     | `lines`       | The number of lines in the consumed bytes.                                                                                                           |
-| `files`     | `last_time`   | The `time` of the last session entry in the consumed bytes.                                                                                          |
-| `files`     | `mtime`       | The file's modification time as observed by the catch-up that last changed the row (Section 3).                                                      |
-| `files`     | `tail_offset` | The offset of the first byte of the last line of the consumed bytes.                                                                                 |
-| `files`     | `tail_hash`   | The SHA-256 digest ([FIPS 180-4]), in lowercase hexadecimal, of the bytes from `tail_offset` up to, not including, `consumed`.                       |
-| `entries`   | (row)         | One per session entry in the consumed bytes that is not the session header and has a usable entry ID that no entry with a lower line number carries. |
-| `entries`   | `line`        | The entry's line number.                                                                                                                             |
-| `entries`   | `offset`      | The offset of the first byte of the entry's line.                                                                                                    |
-| `entries`   | `bytes`       | The length of the entry's line, its line feed not counted.                                                                                           |
-| `entries`   | `entry_id`    | The entry ID.                                                                                                                                        |
-| `entries`   | `parent_id`   | `parentId` when a string, else null.                                                                                                                 |
-| `entries`   | `time`        | The entry's `time`.                                                                                                                                  |
-| `entries`   | `lineage`     | `1` when the entry is on the current lineage of the consumed bytes taken as a whole session file, else `0`.                                          |
-| `items`     | (row)         | One per transcript item of an `entries` row.                                                                                                         |
-| `items`     | `item_id`     | Assigned by the database at insertion.                                                                                                               |
-| `items`     | `line`        | The line number of the item's entry.                                                                                                                 |
-| `items`     | `part`        | The item's part, or the empty string when it has none.                                                                                               |
-| `items`     | `kind`        | The item kind.                                                                                                                                       |
-| `items`     | `tool`        | For a `tool_call` or `tool_result` item with a tool name, that name with the letters `A–Z` converted to lowercase; else null.                        |
-| `items`     | `is_error`    | `1` for a `tool_result` item that records a tool error, else `0`.                                                                                    |
-| `items`     | `call_id`     | The item's tool-call ID, else null.                                                                                                                  |
-| `items`     | `time`        | The item's `time`.                                                                                                                                   |
-| `item_text` | (row)         | One per `items` row, its `rowid` the `item_id` and its `text` the item's match text ([session-transcript.md](session-transcript.md), Section 2).     |
+| Table       | Column               | Contract                                                                                                                                             |
+| ----------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `files`     | `file_id`            | Assigned by the database at insertion.                                                                                                               |
+| `files`     | `path`               | The session file's absolute path with symbolic links resolved.                                                                                       |
+| `files`     | `session_id`         | The `id` of the session header.                                                                                                                      |
+| `files`     | `started`            | The `time` of the session header.                                                                                                                    |
+| `files`     | `consumed`           | The number of consumed bytes.                                                                                                                        |
+| `files`     | `lines`              | The number of lines in the consumed bytes.                                                                                                           |
+| `files`     | `last_time`          | The `time` of the last session entry in the consumed bytes.                                                                                          |
+| `files`     | `mtime`              | The file's modification time as observed by the catch-up that last changed the row (Section 3).                                                      |
+| `files`     | `tail_offset`        | The offset of the first byte of the last line of the consumed bytes.                                                                                 |
+| `files`     | `tail_hash`          | The SHA-256 digest ([FIPS 180-4]), in lowercase hexadecimal, of the bytes from `tail_offset` up to, not including, `consumed`.                       |
+| `files`     | `session_name`       | The session name of the consumed bytes, else null.                                                                                                   |
+| `files`     | `first_user_message` | The first user line of the consumed bytes, else null.                                                                                                |
+| `entries`   | (row)                | One per session entry in the consumed bytes that is not the session header and has a usable entry ID that no entry with a lower line number carries. |
+| `entries`   | `line`               | The entry's line number.                                                                                                                             |
+| `entries`   | `offset`             | The offset of the first byte of the entry's line.                                                                                                    |
+| `entries`   | `bytes`              | The length of the entry's line, its line feed not counted.                                                                                           |
+| `entries`   | `entry_id`           | The entry ID.                                                                                                                                        |
+| `entries`   | `parent_id`          | `parentId` when a string, else null.                                                                                                                 |
+| `entries`   | `time`               | The entry's `time`.                                                                                                                                  |
+| `entries`   | `lineage`            | `1` when the entry is on the current lineage of the consumed bytes taken as a whole session file, else `0`.                                          |
+| `items`     | (row)                | One per transcript item of an `entries` row.                                                                                                         |
+| `items`     | `item_id`            | Assigned by the database at insertion.                                                                                                               |
+| `items`     | `line`               | The line number of the item's entry.                                                                                                                 |
+| `items`     | `part`               | The item's part, or the empty string when it has none.                                                                                               |
+| `items`     | `kind`               | The item kind.                                                                                                                                       |
+| `items`     | `tool`               | For a `tool_call` or `tool_result` item with a tool name, that name with the letters `A–Z` converted to lowercase; else null.                        |
+| `items`     | `is_error`           | `1` for a `tool_result` item that records a tool error, else `0`.                                                                                    |
+| `items`     | `call_id`            | The item's tool-call ID, else null.                                                                                                                  |
+| `items`     | `time`               | The item's `time`.                                                                                                                                   |
+| `item_text` | (row)                | One per `items` row, its `rowid` the `item_id` and its `text` the item's match text ([session-transcript.md](session-transcript.md), Section 2).     |
 
 The terms of the table — session header, usable entry ID, line number, `time`, part, tool name,
 and tool-call ID — are those of [session-transcript.md](session-transcript.md), Sections 1 and 2;
 tool error is that of [task.md](task.md), Section 5. `file_id` in `entries` and `items` is the
 `file_id` of the `files` row.
+
+In the rules below, white space is that of [session-transcript.md](session-transcript.md),
+Section 2, and a session entry counts whatever its `id`, also when that is not usable or repeats
+an earlier one.
+
+- The session name of the consumed bytes is taken from their last session entry with `type`
+  `session_info`: its `name` with white space trimmed from both ends, when `name` is a string
+  and the result is not empty. There is none when that entry's `name` is absent, not a string,
+  or only white space, or when no such entry exists.
+- The text parts of a session entry with `type` `message` and `message.role` `user` are
+  `message.content` when it is a string, else the string `text` of each object element of the
+  array `message.content` whose `type` is `text`, in order; every other element is left out.
+  Its user line is the first line, the text parts joined by one line feed and split at each line
+  feed, that has a character other than white space, with white space trimmed from both ends and
+  then cut to its first 80 Unicode code points. An entry with no such line has no user line.
+- The first user line of the consumed bytes is the user line of their first session entry with
+  `type` `message`, `message.role` `user`, and a user line; there is none when no entry has one.
+  A later entry never replaces it.
 
 Every committed transaction MUST leave, for each `files` row, exactly the `entries`, `items`, and
 `item_text` rows the table gives for its consumed bytes, and none for a `file_id` without a
@@ -156,7 +181,8 @@ any other step:
 4. Extend the consumed bytes by the lines that follow them and end with a line feed at or before
    offset `<size>`, in order, and set `mtime` to `<mtime>`. A line that
    [session-transcript.md](session-transcript.md), Section 1, skips is consumed and yields no
-   row.
+   row. A transaction MUST derive `session_name` and `first_user_message` from the row's values
+   and the lines it adds, without reading bytes consumed before.
 
 - A file that is absent, or not readable as a session file, has no catch-up: every row of its
   `path` MUST be deleted, in one transaction.
@@ -214,7 +240,7 @@ Several processes, and several sessions of one process, read and write the index
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | The file is absent                                                                                                                                                         | It is created (Section 1); every session file then awaits its first catch-up.                                                                                                                                                                                            |
 | SQLite reports that the file is not a database or is malformed, at opening or in any statement                                                                             | The process MUST delete the file and its `-wal` and `-shm` companions and open the index anew, once per tool call; a second such report in the call makes the index unusable, with the reason `index file is corrupt: <message>`, `<message>` being the error's message. |
-| `user_version` is neither `0` with no table nor `2`                                                                                                                        | The index is unusable, with the reason `unsupported index version <user_version>`; the file MUST NOT be changed.                                                                                                                                                         |
+| `user_version` is neither `0` with no table nor `3`                                                                                                                        | The index is unusable, with the reason `unsupported index version <user_version>`; the file MUST NOT be changed.                                                                                                                                                         |
 | The file cannot be opened or created                                                                                                                                       | The index is unusable, with the reason the error's message.                                                                                                                                                                                                              |
 | The index path and local session store path name the same file (Section 1): when both exist, they have the same device and inode; otherwise their resolved paths are equal | The index is unusable, with the reason `the index file is the session store file`; the file MUST NOT be opened.                                                                                                                                                          |
 | A catch-up or reset transaction cannot begin within the busy timeout                                                                                                       | It is attempted again (Section 4).                                                                                                                                                                                                                                       |
@@ -238,12 +264,41 @@ A session file deleted between prunes keeps its rows until the next prune; they 
 returned, because a search takes its sessions from the file system
 ([search-tool.md](search-tool.md), Section 2.1).
 
-## 7. Normative references
+## 7. Session titles
+
+The session title of a session file is its session name and first user line (Section 2) as its
+`files` row holds them. The index provides a batch read of session titles, for applications other
+than pi-dent, as this method of `SessionIndex`:
+
+```ts
+export interface SessionTitle {
+  sessionName: string | null;
+  firstUserMessage: string | null;
+  complete: boolean;
+}
+titles(paths: readonly string[]): ReadOutcome<Map<string, SessionTitle>>;
+```
+
+- Each given path is resolved against the process's working directory with its symbolic links
+  resolved, and matched to the `files` row of that `path`. A path that cannot be resolved, or
+  has no row, has no key in the map; that is not a failure.
+- Every other path is a key of the map exactly as given, once however often it is given, in the
+  order of its first occurrence. Its value holds the row's `session_name` as `sessionName` and
+  its `first_user_message` as `firstUserMessage`. `complete` is `true` when the row's `consumed`
+  equals the file's current size and its `mtime` the file's current modification time, read as
+  in Section 3, and `false` otherwise, a file whose size cannot be read included.
+- The read MUST take every row from one read transaction, MUST NOT catch up or otherwise
+  change the index, and MUST look rows up through the `path` index, so that its cost grows with
+  the number of paths given, not with the number of rows.
+- A failure of the index is returned as `{ ok: false, reason }`, `reason` being the reason of
+  Section 5, and is not thrown.
+
+## 8. Normative references
 
 - [FIPS 180-4] Secure Hash Standard (SHS), National Institute of Standards and Technology,
   August 2015: the SHA-256 algorithm.
 
-## 8. Specification gaps
+## 9. Specification gaps
 
 - The SQLite file format, the FTS5 extension, its `trigram` tokenizer and that tokenizer's case
   folding are SQLite's.
@@ -251,5 +306,5 @@ returned, because a search takes its sessions from the file system
   at `tail_offset` and the file no shorter than `consumed`, is not detected as changed by a
   catch-up, whatever its size and modification time; only a stale row found later reveals it.
 - A file at the `PI_DENT_SEARCH_DB` path that is a valid SQLite database of another application
-  with `user_version` `2` is used as an index.
+  with `user_version` `3` is used as an index.
 - Rows written by a process that ended inside a transaction are SQLite's to roll back.
