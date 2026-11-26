@@ -56,7 +56,7 @@ Paths in a user-scope `packages` list resolve against `~/.pi/agent`, so `../../s
 
 Listing the package is the whole installation. It loads pi-dent and its bundled extensions, each
 as its own extension: `pi-dent-purse` (the billing service), `pi-dent-terms` (the `Terms` tool),
-`pi-mcp-adapter`, `pi-anthropic-oauth`, and `pi-web-access`, per
+`pi-dent-web` (the `WebFetch` tool), `pi-mcp-adapter`, `pi-anthropic-oauth`, and `pi-web-access`, per
 [specs/package.md](specs/package.md). Those extensions come from this package, so they must not
 also appear in `packages` — a second copy loads twice and its tools collide. Update them with
 `pnpm update` in this repository; `pi update` covers pi packages, not bundled dependencies.
