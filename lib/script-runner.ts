@@ -8,23 +8,23 @@ import { errorCode, errorMessage, isPlainObject } from "./util.ts";
 import { typeStrippingOptions } from "./worker-options.ts";
 
 /**
- * Script tool execution (specs/script-tool.md Sections 3 and 6): spawns one
+ * Script tool execution (specs/script-tool.md#execution-model and specs/script-tool.md#timeout-delivery): spawns one
  * in-process worker thread per call, captures stdout/stderr (1 MiB caps),
  * enforces the timeout, and hard-terminates the worker and its spawned process
- * tree on every settlement (Section 6): the run's own end, timeout, caller
+ * tree on every settlement (specs/script-tool.md#timeout-delivery): the run's own end, timeout, caller
  * abort, or Task kill.
  */
 
 const MAX_STREAM = 1048576;
 const TRUNCATION_MARKER = "\n... [truncated] ...\n";
-/** SIGTERM -> SIGKILL grace before the spawned tree is killed (Section 6). */
+/** SIGTERM -> SIGKILL grace before the spawned tree is killed (specs/script-tool.md#timeout-delivery). */
 const TERM_GRACE_MS = 200;
 /** Extra drain after SIGKILL before the worker is terminated. */
 const KILL_GRACE_MS = 100;
 /** Exit-report poll while draining. */
 const REAP_POLL_MS = 25;
 
-/** Captured stdout/stderr under the 1 MiB per-stream cap (Section 3). */
+/** Captured stdout/stderr under the 1 MiB per-stream cap (specs/script-tool.md#execution-model). */
 export interface StreamCapture {
   text: { stdout: string; stderr: string };
   /** Bytes of kept text per stream (the marker is not counted). */
@@ -47,7 +47,7 @@ function markTruncated(
 /**
  * Append one captured chunk: the first chunk that would exceed the cap is cut
  * at the cap and marked, and output arriving after the cap is dropped but still
- * marked truncated exactly once (Section 3).
+ * marked truncated exactly once (specs/script-tool.md#execution-model).
  */
 export function appendStream(
   capture: StreamCapture,
@@ -79,7 +79,7 @@ export interface ScriptRunRequest {
   cwd: string;
   input: unknown;
   aliases: Record<string, string>;
-  /** Absent imposes no timeout; `Script` passes the foreground default of Section 1 explicitly. */
+  /** Absent imposes no timeout; `Script` passes the foreground default of specs/script-tool.md#parameter-schema explicitly. */
   timeoutMs?: number;
   signal?: AbortSignal;
   /** Fired with each appended chunk (already truncated) for background streaming. */
@@ -90,27 +90,27 @@ export interface ScriptRunRequest {
    * kept (no `env` option).
    */
   extraEnv?: Record<string, string>;
-  /** The tool functions (Section 10); absent binds none. */
+  /** The tool functions (specs/script-tool.md#gaps); absent binds none. */
   tools?: ScriptRunTools;
   /** Whether this run is a plugin UI call (specs/plugin-ui.md). */
   uiCall?: boolean;
   /** Fired with each validated UI message JSON payload before settlement. */
   onUiMessage?: (json: string) => void;
-  /** Plugin namespace when running a plugin script (specs/plugin-state.md Section 6). */
+  /** Plugin namespace when running a plugin script (specs/plugin-state.md#dent-state). */
   pluginNamespace?: string;
   /** Workspace root for `dent.state` (defaults to `cwd`). */
   stateWorkspaceRoot?: string;
   stateUserRoot?: string;
 }
 
-/** Pre-validated return outcome of a plugin UI call (specs/plugin-ui.md Section 5). */
+/** Pre-validated return outcome of a plugin UI call (specs/plugin-ui.md#ui-feed). */
 export type UiReturnOutcome = { ok: true; json: string } | { ok: false; error: string };
 
 /** The tool functions of a run (Section 10.3). */
 export interface ScriptRunTools {
   /** Bound tool names, in declaration order. */
   names: string[];
-  /** Session tool names bound as rejecting stubs (specs/plugin-ui.md Section 4.2). */
+  /** Session tool names bound as rejecting stubs (specs/plugin-ui.md#tool-functions). */
   unavailableNames?: string[];
   /** The tool declarations (Section 10.2), returned by `dent.toolTypes()`. */
   declarations: string;
@@ -122,25 +122,25 @@ export interface ScriptRunResult {
   stdout: string;
   stderr: string;
   truncated: { stdout: boolean; stderr: boolean };
-  /** The return value (JSON-compatible subset) or the non-json marker (Section 5). */
+  /** The return value (JSON-compatible subset) or the non-json marker (specs/script-tool.md#result-contract). */
   returnValue?: unknown;
-  /** Pre-clone render of the return value, computed in the worker (Section 5). */
+  /** Pre-clone render of the return value, computed in the worker (specs/script-tool.md#result-contract). */
   rendered?: string;
   render?: ReturnValueRender;
-  /** Single-line JSON of a JSON-compatible return value (Section 5). */
+  /** Single-line JSON of a JSON-compatible return value (specs/script-tool.md#result-contract). */
   json?: string;
   exitReason: ScriptExitReason;
   exitCode?: number;
   durationMs: number;
   error?: { name: string; message: string; stack: string };
-  /** Pre-validated return outcome of a plugin UI call (specs/plugin-ui.md Section 5). */
+  /** Pre-validated return outcome of a plugin UI call (specs/plugin-ui.md#ui-feed). */
   uiReturn?: UiReturnOutcome;
 }
 
 export interface ScriptRunHandle {
   promise: Promise<ScriptRunResult>;
   cancel: (reason: "killed" | "aborted") => void;
-  /** When the run started (Section 6), in ms since the epoch; absent when none started. */
+  /** When the run started (specs/script-tool.md#timeout-delivery), in ms since the epoch; absent when none started. */
   startedAt: () => number | undefined;
   /**
    * Append one line of the host's own to the run's stderr, until the result is built
@@ -195,7 +195,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
   const promise = new Promise<ScriptRunResult>((resolve) => {
     /** Whether the result was built: nothing reaches the capture after it. */
     let finished = false;
-    /** When the run settled: its end (Section 5), before the termination drain. */
+    /** When the run settled: its end (specs/script-tool.md#result-contract), before the termination drain. */
     let ended: number | undefined;
     const capture: StreamCapture = {
       text: { stdout: "", stderr: "" },
@@ -207,7 +207,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
     const childPids = new Set<number>();
     /**
      * The spawned children that lead their own process group, kept after the
-     * child exits: the group MAY still hold its own children (Section 6).
+     * child exits: the group MAY still hold its own children (specs/script-tool.md#timeout-delivery).
      */
     const groupPids = new Set<number>();
     let worker: Worker | undefined;
@@ -246,7 +246,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
 
     /**
      * Signal one spawned child and, when it leads one, its process group
-     * (Section 6). A child that has exited keeps only its group, which MAY
+     * (specs/script-tool.md#timeout-delivery). A child that has exited keeps only its group, which MAY
      * still hold its own children; a group found empty at its leader's exit
      * has been dropped, so a reused pid is never signalled.
      */
@@ -259,7 +259,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
     const treePids = (): number[] => [...new Set([...childPids, ...groupPids])];
 
     // Terminate the spawned process tree and reap the direct children
-    // (Section 6). The worker's event loop reaps its children while it runs —
+    // (specs/script-tool.md#timeout-delivery). The worker's event loop reaps its children while it runs —
     // including one final pass during worker.terminate() — so the tree must be
     // killed while the worker still exists, or the children linger forever as
     // zombies owned by this process. SIGTERM, drain exits, SIGKILL after the
@@ -280,7 +280,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
     const settle = (partial: Partial<ScriptRunResult>) => {
       if (settled) return;
       settled = true;
-      // The run ends here, at settlement (Section 5): the drain of Section 6 that
+      // The run ends here, at settlement (specs/script-tool.md#result-contract): the drain of specs/script-tool.md#timeout-delivery that
       // follows the spawned tree's termination is not part of its duration.
       ended = Date.now();
       if (timer) clearTimeout(timer);
@@ -310,7 +310,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
     };
 
     // The worker's process.env: the host's, the caller's extra env merged over it, then the
-    // session tmp folder (bash-tool.md, Section 3).
+    // session tmp folder (specs/bash-tool.md#execution-model).
     const workerEnv: NodeJS.ProcessEnv = { ...process.env, ...req.extraEnv };
     applySessionTmp(workerEnv, req.extraEnv);
     const workerUrl = new URL("./script-worker.ts", import.meta.url);
@@ -334,9 +334,9 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
       },
       env: workerEnv,
     });
-    // The run starts here (Section 5): the ms before the worker existed are no run.
+    // The run starts here (specs/script-tool.md#result-contract): the ms before the worker existed are no run.
     started = Date.now();
-    // The timeout deadline counts from the run's start (Section 6).
+    // The timeout deadline counts from the run's start (specs/script-tool.md#timeout-delivery).
     if (req.timeoutMs !== undefined) {
       timer = setTimeout(() => settle({ exitReason: "timeout" }), req.timeoutMs);
       timer.unref?.();
@@ -347,7 +347,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         case "stdout":
           // Termination is asynchronous: chunks the worker posted before it was
           // terminated may still arrive after settlement (timeout, kill, exit),
-          // and they must never land after the tool's exit block (Section 5).
+          // and they must never land after the tool's exit block (specs/script-tool.md#result-contract).
           if (settled) break;
           appendStream(capture, "stdout", msg.chunk, req.onOutput);
           break;
@@ -364,7 +364,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
         case "child-exit":
           childPids.delete(msg.pid);
           // A group that emptied at its leader's exit cannot refill, and the pid
-          // is free to be reused: it is no longer part of the tree (Section 6).
+          // is free to be reused: it is no longer part of the tree (specs/script-tool.md#timeout-delivery).
           if (groupPids.has(msg.pid) && groupIsEmpty(msg.pid)) groupPids.delete(msg.pid);
           break;
         case "tool-call":
@@ -380,7 +380,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
           settle({
             exitReason: "threw",
             // Non-string fields are coerced here too: the worker posts them
-            // user-controllable, and the tool renders them as text (Section 5).
+            // user-controllable, and the tool renders them as text (specs/script-tool.md#result-contract).
             error: {
               name: String(msg.name),
               message: String(msg.message),
@@ -441,7 +441,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
 
     worker.on("error", (err: unknown) => {
       // A worker that throws a non-Error value passes it through raw; normalise
-      // before reading name/message/stack (Section 3: strings).
+      // before reading name/message/stack (specs/script-tool.md#execution-model: strings).
       const error = err instanceof Error ? err : new Error(String(err));
       settle({
         exitReason: "threw",

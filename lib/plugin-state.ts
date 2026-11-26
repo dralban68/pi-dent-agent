@@ -170,7 +170,7 @@ function resolveUserStateRoot(override?: string): string {
   return join(homedir(), ".pi", "pi-dent");
 }
 
-/** Resolve all on-disk paths for a plugin state target (specs/plugin-state.md Section 1). */
+/** Resolve all on-disk paths for a plugin state target (specs/plugin-state.md#layout). */
 export function pluginStatePaths(target: PluginStateTarget): PluginStatePaths {
   validateTarget(target);
   if (target.scope === "workspace") {
@@ -386,7 +386,7 @@ async function notifyInProcessWatchers(storeFile: string): Promise<void> {
   await Promise.all([...watchers].map((entry) => entry.refresh()));
 }
 
-/** Read one entry, distinguishing absent keys from stored values (specs/plugin-state.md Section 5). */
+/** Read one entry, distinguishing absent keys from stored values (specs/plugin-state.md#module-api). */
 export async function readPluginStateEntry(
   target: PluginStateTarget,
   key: string,
@@ -408,7 +408,7 @@ export async function getPluginState(
   return entry.found ? entry.value : defaultValue;
 }
 
-/** Set one key atomically in a plugin state store (specs/plugin-state.md Sections 2-3). */
+/** Set one key atomically in a plugin state store (specs/plugin-state.md#file-format, specs/plugin-state.md#limits). */
 export async function setPluginState(
   target: PluginStateTarget,
   key: string,
@@ -428,12 +428,12 @@ export async function setPluginState(
   await notifyInProcessWatchers(paths.storeFile);
 }
 
-/** Delete one key atomically from a plugin state store (specs/plugin-state.md Sections 1-2). */
+/** Delete one key atomically from a plugin state store (specs/plugin-state.md#layout, specs/plugin-state.md#file-format). */
 export async function deletePluginState(target: PluginStateTarget, key: string): Promise<void> {
   const paths = pluginStatePaths(target);
   const label = storeLabel(target);
   const validKey = validateKey(key);
-  // Missing store file creates nothing (Section 1).
+  // Missing store file creates nothing (specs/plugin-state.md#layout).
   try {
     await access(paths.storeFile);
   } catch (error) {
@@ -452,7 +452,7 @@ export async function deletePluginState(target: PluginStateTarget, key: string):
   if (changed) await notifyInProcessWatchers(paths.storeFile);
 }
 
-/** List all keys in ascending UTF-16 code-unit order (specs/plugin-state.md Section 6). */
+/** List all keys in ascending UTF-16 code-unit order (specs/plugin-state.md#dent-state). */
 export async function listPluginStateKeys(target: PluginStateTarget): Promise<string[]> {
   const paths = pluginStatePaths(target);
   const { entries } = await readStoreEntries(paths.storeFile, storeLabel(target));
@@ -468,7 +468,7 @@ function snapshotOf(entries: Record<string, unknown>): Map<string, string> {
 }
 
 /**
- * Watch a plugin state store across processes (specs/plugin-state.md Section 4).
+ * Watch a plugin state store across processes (specs/plugin-state.md#watching).
  * Invalid targets and non-function listeners throw synchronously. Existing keys
  * at watch start are snapshotted and not emitted; subsequent changes from both
  * own-process and cross-process writes emit in ascending UTF-16 code-unit order.
@@ -525,7 +525,7 @@ export function watchPluginState(
           change.nextJson === undefined ? undefined : JSON.parse(change.nextJson),
         );
       } catch {
-        // Listener errors must not stop subsequent notifications (Section 4).
+        // Listener errors must not stop subsequent notifications (specs/plugin-state.md#watching).
       }
     }
   };

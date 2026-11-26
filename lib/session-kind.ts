@@ -1,6 +1,6 @@
 /**
  * Session kind classification, environment variable, and system prompt mode line
- * (specs/session-tool.md Section 3).
+ * (specs/session-tool.md#session-kind).
  */
 
 export type SessionKind = "user" | "agent";
@@ -18,7 +18,7 @@ export function sessionKindForMain(hasUI: boolean): SessionKind {
   return hasUI ? "user" : "agent";
 }
 
-/** The normative system prompt mode line for a session kind (session-tool.md Section 3.2). */
+/** The normative system prompt mode line for a session kind (specs/session-tool.md#prompt-mode). */
 export function sessionModeLine(kind: SessionKind): string {
   return kind === "user" ? USER_SESSION_MODE_LINE : AGENT_SESSION_MODE_LINE;
 }

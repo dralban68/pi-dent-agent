@@ -41,7 +41,7 @@ export interface ModelGuidance {
 }
 
 export interface GuidedModel {
-  /** Canonical serialization of the key (model-string.md Section 5). */
+  /** Canonical serialization of the key (specs/model-string.md#serialization). */
   model: string;
   provider: string;
   id: string;
@@ -132,7 +132,7 @@ function parseGuidanceRule(value: unknown): GuidanceRule | string {
  */
 export interface ParsedModelGuidance {
   guidance: ModelGuidance;
-  /** `modelGuidance.billing` (specs/billing.md Section 1): `true` unless it is the boolean `false`. */
+  /** `modelGuidance.billing` (specs/billing.md#enablement): `true` unless it is the boolean `false`. */
   billing: boolean;
   diagnostics: string[];
 }
@@ -159,13 +159,12 @@ export function parseModelGuidance(config: BootConfig): ParsedModelGuidance {
   const diagnostics: string[] = [];
   const entries: ModelEntry[] = [];
   const rules: GuidanceRule[] = [];
-  // Exactly one diagnostic per object, naming every unknown key (config-file.md Section 2).
+  // Exactly one diagnostic per object, naming every unknown key (specs/config-file.md#format).
   const unknownKeys = Object.keys(raw).filter(
     (key) => key !== "billing" && key !== "models" && key !== "rules",
   );
   if (unknownKeys.length > 0) {
-    // Exactly one diagnostic per object, each key attributed to its own layer (config-file.md
-    // Section 2); model entries and rules follow the same rule (model-guidance.md Section 1).
+    // Exactly one diagnostic per object, each key attributed to its own layer (specs/config-file.md#format); model entries and rules follow the same rule (specs/model-guidance.md#configuration).
     diagnostics.push(
       `config: ${unknownKeysMessage("modelGuidance", unknownKeys, (key) => attributeKey(config, ["modelGuidance", key]))}`,
     );
@@ -181,7 +180,7 @@ export function parseModelGuidance(config: BootConfig): ParsedModelGuidance {
   if (raw.models !== undefined) {
     if (isPlainObject(raw.models)) {
       // The winner of a duplicate is decided per layer in that layer's own key order
-      // (model-guidance.md Section 1): the project layer first, then the global layer, each
+      // (specs/model-guidance.md#configuration): the project layer first, then the global layer, each
       // using the merged value the boot snapshot holds for that key. The merged object's key
       // order is not a layer's order: a key both layers declare sits at the global position.
       const order: Array<{ key: string; value: unknown }> = [];
@@ -244,7 +243,7 @@ export function parseModelGuidance(config: BootConfig): ParsedModelGuidance {
           rules.push(parsed);
           const unknownFields = unknownFieldsOf(raw.rules[i], ["match", "rule"]);
           if (unknownFields.length > 0) {
-            // A rule array belongs to the layer that declares `rules` (Section 4).
+            // A rule array belongs to the layer that declares `rules` (specs/model-guidance.md#session-rules).
             diagnostics.push(
               `config: ${unknownKeysMessage(`modelGuidance.rules[${i}]`, unknownFields, () => attributeKey(config, ["modelGuidance", "rules"]))}`,
             );
@@ -273,17 +272,17 @@ export function parsedModelGuidance(config: BootConfig): ParsedModelGuidance {
   return result;
 }
 
-/** `modelGuidance.billing` (specs/billing.md Section 1): `true` unless it is the boolean `false`. */
+/** `modelGuidance.billing` (specs/billing.md#enablement): `true` unless it is the boolean `false`. */
 export function billingEnabled(config: BootConfig): boolean {
   return parsedModelGuidance(config).billing;
 }
 
-/** Active iff the guided-model set is non-empty (specs/model-guidance.md Section 1). */
+/** Active iff the guided-model set is non-empty (specs/model-guidance.md#configuration). */
 export function guidanceActive(g: ModelGuidance, available: readonly InventoryModel[]): boolean {
   return guidedModels(g, available).length > 0;
 }
 
-/** Guided models against the inventory; an empty inventory guides nothing (specs/model-guidance.md Section 2). */
+/** Guided models against the inventory; an empty inventory guides nothing (specs/model-guidance.md#guided-models). */
 export function guidedModels(
   g: ModelGuidance,
   available: readonly InventoryModel[],
@@ -323,7 +322,7 @@ export function guidedModels(
   return result;
 }
 
-/** Guidance billing providers: the billing providers of the guided models (billing.md Section 3). */
+/** Guidance billing providers: the billing providers of the guided models (specs/billing.md#providers). */
 export function guidanceBillingProviders(
   g: ModelGuidance,
   available: readonly InventoryModel[],
@@ -331,24 +330,23 @@ export function guidanceBillingProviders(
   return billingProviders(guidedModels(g, available).map((item) => item.provider));
 }
 
-/** Model catalog of a model list (specs/model-guidance.md Section 6); empty when guidance is inactive. */
+/** Model catalog of a model list (specs/model-guidance.md#model-catalog); empty when guidance is inactive. */
 export function modelCatalog(g: ModelGuidance, available: readonly InventoryModel[]): string {
   return guidedModels(g, available)
     .map((item) => `- ${item.model}: ${item.when}`)
     .join("\n");
 }
 
-/** Rule texts matching a session model given as canonical `provider/id` (specs/model-guidance.md Section 4). */
+/** Rule texts matching a session model given as canonical `provider/id` (specs/model-guidance.md#session-rules). */
 export function sessionRules(g: ModelGuidance, model: string | undefined): string[] {
   if (!model) return [];
   return g.rules.filter((r) => r.match.test(model)).map((r) => r.rule);
 }
 
 /**
- * Sections 1 and 2 of the guidance message content (specs/model-guidance.md
- * Section 5): the `Model billing:` lines of the guided models with a billing
+ * specs/model-guidance.md#configuration and specs/model-guidance.md#guided-models of the guidance message content (specs/model-guidance.md#guidance-message): the `Model billing:` lines of the guided models with a billing
  * annotation, and the billing note, both only while guidance billing text is
- * present (specs/billing.md Section 6.1).
+ * present (specs/billing.md#presence).
  */
 function guidanceSections(
   g: ModelGuidance,
@@ -367,7 +365,7 @@ function guidanceSections(
   return [...billingLines, billingNote(billing)];
 }
 
-/** Complete guidance message content (specs/model-guidance.md Section 5). */
+/** Complete guidance message content (specs/model-guidance.md#guidance-message). */
 export function guidanceContent(
   g: ModelGuidance,
   available: readonly InventoryModel[],
@@ -382,7 +380,7 @@ export function guidanceContent(
   return sections.join("\n\n");
 }
 
-/** Child guidance (specs/model-guidance.md Section 4): sections 1 and 2; empty without guided models. */
+/** Child guidance (specs/model-guidance.md#session-rules): sections 1 and 2; empty without guided models. */
 export function childGuidance(
   g: ModelGuidance,
   available: readonly InventoryModel[],
@@ -391,7 +389,7 @@ export function childGuidance(
   return guidanceSections(g, available, billing).join("\n\n");
 }
 
-/** Match dispatch model and thinking against guided models (specs/model-guidance.md Section 3). */
+/** Match dispatch model and thinking against guided models (specs/model-guidance.md#dispatch-restriction). */
 export function isGuidedDispatch(
   guided: GuidedModel[],
   provider: string,

@@ -33,12 +33,12 @@ export {
 
 export const SPILL_THRESHOLD = 8000;
 
-/** Every issued taskId; adopted rows keep theirs, so uniqueness spans the task tree (Section 2). */
+/** Every issued taskId; adopted rows keep theirs, so uniqueness spans the task tree (specs/task-registry.md#task-row). */
 const issuedTaskIds = new Set<string>();
 
 export const PROGRESS_CAP = 1000;
 
-/** Registering into a task registry that is not live must fail the invocation (Section 1). */
+/** Registering into a task registry that is not live must fail the invocation (specs/task-registry.md#ownership). */
 export class RegistryNotLiveError extends Error {
   constructor() {
     super("task registry is not live: the owning session has ended");
@@ -46,7 +46,7 @@ export class RegistryNotLiveError extends Error {
   }
 }
 
-/** What a `register` call tells the task ledger beyond the row (task-ledger.md Sections 2.2 and 3.1). */
+/** What a `register` call tells the task ledger beyond the row (specs/task-ledger.md#ledger-row and specs/task-ledger.md#parent-row). */
 export interface RegisterCall {
   /** The tool call that registers the row; absent for a `Fleet` query dispatch. */
   toolCallId?: string | undefined;
@@ -56,7 +56,7 @@ export interface RegisterCall {
 
 /**
  * Observes `register`, a changing `amend`, and `settle` of the registry's rows, after each is
- * applied: the task ledger's writes (task-ledger.md Section 3.2). A throwing observer affects
+ * applied: the task ledger's writes (specs/task-ledger.md#write-rules). A throwing observer affects
  * neither the operation nor the task.
  */
 export interface TaskObserver {
@@ -72,9 +72,9 @@ interface RegisterInput<K extends TaskKind> extends RegisterCall {
   background: boolean;
   /** `agent` rows: the task text of the dispatch. */
   task?: string | undefined;
-  /** `bash` rows: the call's `command` text, unchanged (task-registry.md Section 2). */
+  /** `bash` rows: the call's `command` text, unchanged (specs/task-registry.md#task-row). */
   command?: string | undefined;
-  /** `script` rows: the call's script source (task-registry.md Section 2). */
+  /** `script` rows: the call's script source (specs/task-registry.md#task-row). */
   code?: string | undefined;
 }
 
@@ -82,26 +82,26 @@ export class TaskRegistry {
   private readonly owned: TaskRow[] = [];
   private isLive = true;
 
-  /** Registries that attach this one as `children`; the emit recursion follows it (Section 7). */
+  /** Registries that attach this one as `children`; the emit recursion follows it (specs/task-registry.md#registry-changes). */
   private readonly parents = new Set<TaskRegistry>();
-  /** The registry that attached this one as `children`; the adoption chain follows it (Section 4). */
+  /** The registry that attached this one as `children`; the adoption chain follows it (specs/task-registry.md#registry-end). */
   private adopter: TaskRegistry | undefined;
   private readonly notifiedCohorts = new Set<string>();
-  /** Cohorts whose failed completion notification was already reported (Section 5). */
+  /** Cohorts whose failed completion notification was already reported (specs/task-registry.md#cohorts). */
   private readonly reportedCohorts = new Set<string>();
-  /** Whether the failed interrupted notification was already reported (Section 5). */
+  /** Whether the failed interrupted notification was already reported (specs/task-registry.md#cohorts). */
   private interruptedReported = false;
   private readonly listeners = new Set<() => void>();
 
   private readonly hostProvider: () => HostSession | null | undefined;
   private readonly nextTaskId: () => string;
-  /** Reports a notification the host did not deliver to the boot window's UI (Section 5). */
+  /** Reports a notification the host did not deliver to the boot window's UI (specs/task-registry.md#cohorts). */
   private readonly report?: ((message: string) => void) | undefined;
   private readonly observer?: TaskObserver | undefined;
 
   /**
    * `nextTaskId` supplies the candidates a new row's `taskId` is drawn from: `shortUuid` by
-   * default, a fake in a test that needs a collision (Section 2). `report` is the boot window's
+   * default, a fake in a test that needs a collision (specs/task-registry.md#task-row). `report` is the boot window's
    * diagnostic sink; a registry without one, a child session's, reports nothing. `observer`
    * writes the task ledger.
    */
@@ -117,7 +117,7 @@ export class TaskRegistry {
     this.observer = observer;
   }
 
-  /** Tell the observer; its failure never reaches the operation (task-ledger.md Section 3). */
+  /** Tell the observer; its failure never reaches the operation (specs/task-ledger.md#writes). */
   private observe(notice: (observer: TaskObserver) => void): void {
     if (this.observer === undefined) return;
     try {
@@ -127,7 +127,7 @@ export class TaskRegistry {
     }
   }
 
-  /** Whether the owning session is still current (Sections 1 and 4). */
+  /** Whether the owning session is still current (specs/task-registry.md#ownership and specs/task-registry.md#registry-end). */
   get live(): boolean {
     return this.isLive;
   }
@@ -138,9 +138,9 @@ export class TaskRegistry {
   }
 
   /**
-   * Appends a `running` row with a fresh `taskId` and `startedAt` (Sections 2-3);
-   * a late background joiner re-opens an already-notified cohort (Section 5).
-   * Throws RegistryNotLiveError when the registry is not live (Section 1).
+   * Appends a `running` row with a fresh `taskId` and `startedAt` (specs/task-registry.md#task-row, specs/task-registry.md#operations);
+   * a late background joiner re-opens an already-notified cohort (specs/task-registry.md#cohorts).
+   * Throws RegistryNotLiveError when the registry is not live (specs/task-registry.md#ownership).
    */
   register(input: RegisterInput<"agent">): AgentTaskRow;
   register(input: RegisterInput<"script">): ScriptTaskRow;
@@ -173,20 +173,20 @@ export class TaskRegistry {
     return row;
   }
 
-  /** The row with the given taskId, or none (Section 3 `get`). */
+  /** The row with the given taskId, or none (specs/task-registry.md#operations `get`). */
   get(taskId: string): TaskRow | undefined {
     return this.owned.find((row) => row.taskId === taskId);
   }
 
-  /** Every row in registration order (Section 3 `list`). */
+  /** Every row in registration order (specs/task-registry.md#operations `list`). */
   list(): TaskRow[] {
     return [...this.owned];
   }
 
   /**
    * Settle a row once; the first committed outcome is preserved; clears `cancel`
-   * and `children` (Section 3). `interrupted` is set only by a rebuild, never
-   * by `settle` (Section 2), so the status type admits only SettleStatus.
+   * and `children` (specs/task-registry.md#operations). `interrupted` is set only by a rebuild, never
+   * by `settle` (specs/task-registry.md#task-row), so the status type admits only SettleStatus.
    */
   settle(
     row: TaskRow,
@@ -215,7 +215,7 @@ export class TaskRegistry {
 
   /**
    * Send a cohort's completion notification, then consume the rows it lists, in that order
-   * (Section 5): a notification no host accepted leaves the rows unconsumed and the cohort
+   * (specs/task-registry.md#cohorts): a notification no host accepted leaves the rows unconsumed and the cohort
    * unnotified, so its next notification lists them again, and is reported once for that cohort.
    */
   private notifyCohort(cohort: string): void {
@@ -230,11 +230,11 @@ export class TaskRegistry {
     }
     this.notifiedCohorts.add(cohort);
     // Marked consumed without deleting the record: only `Task` read/kill and resume delete it
-    // (task-record.md Section 2).
+    // (specs/task-record.md#lifecycle).
     for (const row of notification.rows) row.consumed = true;
   }
 
-  /** Send `message` into the session's conversation; the failure when no host accepted it (Section 5). */
+  /** Send `message` into the session's conversation; the failure when no host accepted it (specs/task-registry.md#cohorts). */
   private send(
     message: string | undefined,
   ): { delivered: true } | { delivered: false; error: unknown } {
@@ -250,12 +250,12 @@ export class TaskRegistry {
     }
   }
 
-  /** Section 5: one warning through the boot window's UI, and nothing at all without one. */
+  /** specs/task-registry.md#cohorts: one warning through the boot window's UI, and nothing at all without one. */
   private reportNotDelivered(error: unknown): void {
     this.report?.(`task notification was not delivered: ${errorMessage(error)}`);
   }
 
-  /** Replace `label` and kind-specific fields of a running row; a no-op on a settled row (Section 3). */
+  /** Replace `label` and kind-specific fields of a running row; a no-op on a settled row (specs/task-registry.md#operations). */
   amend<R extends TaskRow>(row: R, fields: TaskAmendment<R>): void {
     const owner = this.holder(row);
     if (owner !== this) {
@@ -269,7 +269,7 @@ export class TaskRegistry {
     this.emit();
   }
 
-  /** Append one progress line, keeping the latest 1000; a no-op on a settled row (Section 3). */
+  /** Append one progress line, keeping the latest 1000; a no-op on a settled row (specs/task-registry.md#operations). */
   progress(row: TaskRow, line: string): void {
     const owner = this.holder(row);
     if (owner !== this) {
@@ -284,9 +284,9 @@ export class TaskRegistry {
   }
 
   /**
-   * Mark the completion notification as consumed (Section 5). A consumed
+   * Mark the completion notification as consumed (specs/task-registry.md#cohorts). A consumed
    * `agent` row's task record is deleted, and a delete failure must never
-   * throw out of consume (task-record.md Section 2). A running row keeps its
+   * throw out of consume (specs/task-record.md#lifecycle). A running row keeps its
    * record: the task is still live and settles later.
    */
   consume(row: TaskRow): void {
@@ -296,16 +296,16 @@ export class TaskRegistry {
       try {
         deleteRecord(row.recordPath);
       } catch {
-        // The record may be undeletable; consumption stands (task-record.md Section 2).
+        // The record may be undeletable; consumption stands (specs/task-record.md#lifecycle).
       }
     }
-    // Consumption can remove a row from a widget's content (task.md Section 4).
+    // Consumption can remove a row from a widget's content (specs/task.md#task-tree-widget).
     if (changed) this.emit();
   }
 
   /**
    * Set `browserKill` when the cancel is a browser kill, then invoke the row's cancellation
-   * handler while running; a no-op on a settled row (Section 3).
+   * handler while running; a no-op on a settled row (specs/task-registry.md#operations).
    */
   cancel(row: TaskRow, browserKill = false): void {
     if (row.status !== "running") return;
@@ -313,12 +313,12 @@ export class TaskRegistry {
     row.cancel?.();
   }
 
-  /** Invoke `cancel` on every running row (Section 3). */
+  /** Invoke `cancel` on every running row (specs/task-registry.md#operations). */
   cancelAll(): void {
     for (const row of this.owned) this.cancel(row);
   }
 
-  /** Set or replace `children` of a running `agent` row (Sections 3 and 6). */
+  /** Set or replace `children` of a running `agent` row (specs/task-registry.md#operations and specs/task-registry.md#nesting). */
   attach(row: AgentTaskRow, children: TaskRegistry): void {
     const owner = this.holder(row);
     if (owner !== this) {
@@ -334,14 +334,14 @@ export class TaskRegistry {
     this.emit();
   }
 
-  /** Whether the registry currently holding `row` is live (agent-tool.md Section 8). */
+  /** Whether the registry currently holding `row` is live (specs/agent-tool.md#recovery). */
   holderLive(row: TaskRow): boolean {
     return this.holder(row).isLive;
   }
 
   /**
    * Stop being live; adopt every running and every unconsumed row into the nearest live
-   * registry in the attach chain, else `cancelAll` (Section 4).
+   * registry in the attach chain, else `cancelAll` (specs/task-registry.md#registry-end).
    */
   end(): void {
     this.isLive = false;
@@ -361,7 +361,7 @@ export class TaskRegistry {
     for (const row of adopted) {
       row.orphan = true;
       target.owned.push(row);
-      // The adopter becomes the attacher of the row's children (Section 4).
+      // The adopter becomes the attacher of the row's children (specs/task-registry.md#registry-end).
       const children = row instanceof AgentTaskRow ? row.children : undefined;
       if (children) {
         children.parents.delete(this);
@@ -370,16 +370,16 @@ export class TaskRegistry {
       }
     }
     target.emit();
-    // Adoption may leave an adopted cohort with no running row (Section 5).
+    // Adoption may leave an adopted cohort with no running row (specs/task-registry.md#cohorts).
     for (const cohort of new Set(adopted.map((row) => row.cohort))) target.notifyCohort(cohort);
   }
 
   /**
-   * Insert pre-built rows restored from task records (task-record.md Section 3):
+   * Insert pre-built rows restored from task records (specs/task-record.md#rebuild):
    * skip a row whose taskId a row of this registry already carries, reserve the
    * taskIds of the rest, append them in order with one change event each, then
    * send one interrupted notification for the inserted interrupted rows, which
-   * is never consumed (Section 5). Rows an earlier rebuild inserted are neither
+   * is never consumed (specs/task-registry.md#cohorts). Rows an earlier rebuild inserted are neither
    * inserted nor listed again. Returns the inserted rows. A no-op on a registry
    * that is not live.
    */
@@ -408,13 +408,13 @@ export class TaskRegistry {
     return inserted;
   }
 
-  /** Register a listener for registry changes (Section 7); returns the unsubscribe handle. */
+  /** Register a listener for registry changes (specs/task-registry.md#registry-changes); returns the unsubscribe handle. */
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  /** The summary line of task-tool.md Section 2.3, with the display label (task-registry.md Section 2). */
+  /** The summary line of specs/task-tool.md#list, with the display label (specs/task-registry.md#task-row). */
   listLine(row: TaskRow): string {
     return `${row.taskId} · ${row.status} · ${labelText(row.label)}`;
   }
@@ -425,7 +425,7 @@ export class TaskRegistry {
 
   /**
    * Exactly one completion notification per background cohort, after every task joined;
-   * none from a registry that is not live (Section 5). Returns the message to send and the
+   * none from a registry that is not live (specs/task-registry.md#cohorts). Returns the message to send and the
    * rows it lists, which the sender consumes once the host accepted the message.
    */
   private cohortNotification(cohort: string): { message: string; rows: TaskRow[] } | undefined {
@@ -434,7 +434,7 @@ export class TaskRegistry {
     if (cohortRows.length === 0 || cohortRows.some((row) => row.status === "running")) return;
     if (this.notifiedCohorts.has(cohort)) return;
     // Only completed, failed, or cancelled rows qualify; interrupted rows never
-    // fire and are never consumed by the completion notification (Section 5).
+    // fire and are never consumed by the completion notification (specs/task-registry.md#cohorts).
     const unconsumed = cohortRows.filter(
       (row) =>
         row.background &&
@@ -455,7 +455,7 @@ export class TaskRegistry {
     };
   }
 
-  /** A taskId no row of any registry of this process carries yet (Section 2). */
+  /** A taskId no row of any registry of this process carries yet (specs/task-registry.md#task-row). */
   private uniqueTaskId(): string {
     let taskId = this.nextTaskId();
     while (issuedTaskIds.has(taskId)) taskId = this.nextTaskId();
@@ -471,7 +471,7 @@ export class TaskRegistry {
     row.children = undefined;
   }
 
-  /** The nearest live registry in the attach chain, or none (Section 4). */
+  /** The nearest live registry in the attach chain, or none (specs/task-registry.md#registry-end). */
   private liveAdopter(): TaskRegistry | undefined {
     for (let r: TaskRegistry | undefined = this.adopter; r; r = r.adopter) {
       if (r.isLive) return r;
@@ -479,7 +479,7 @@ export class TaskRegistry {
     return undefined;
   }
 
-  /** The registry in the attach chain currently holding `row`; itself when local (Section 4). */
+  /** The registry in the attach chain currently holding `row`; itself when local (specs/task-registry.md#registry-end). */
   private holder(row: TaskRow): TaskRegistry {
     if (this.owned.includes(row)) return this;
     for (let r = this.adopter; r; r = r.adopter) {
@@ -491,7 +491,7 @@ export class TaskRegistry {
   /**
    * Call every listener of this registry and of every attaching ancestor once
    * per change, after the change is applied; a throwing listener must not
-   * affect the operation or other listeners (Section 7).
+   * affect the operation or other listeners (specs/task-registry.md#registry-changes).
    */
   private emit(): void {
     if (!this.isLive) {
@@ -519,7 +519,7 @@ export class TaskRegistry {
 }
 
 /**
- * The cancellation path of `Task` `kill` (task-tool.md Section 2.2): invoke the
+ * The cancellation path of `Task` `kill` (specs/task-tool.md#kill): invoke the
  * row's cancellation handler and consume the row, so the model's own kill is not
  * delivered to it. Settlement stays the owning contract's and asynchronous.
  */
@@ -529,7 +529,7 @@ export function killTask(registry: TaskRegistry, row: TaskRow): void {
 }
 
 /**
- * The task browser's kill key (task-browser.md Section 4.4): the same cancel, in
+ * The task browser's kill key (specs/task-browser.md#kill-key): the same cancel, in
  * the registry that holds the row, marked as a browser kill and not consumed, so
  * the settlement is delivered as any other settled task of its delivery mode is.
  */

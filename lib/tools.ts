@@ -60,7 +60,7 @@ The child sees only its system prompt and \`task\`, nothing of this conversation
 Children that share a working directory share its files and Git state.`;
 
 /**
- * Agent description (specs/agent-tool.md Section 1): the base text, the baked
+ * Agent description (specs/agent-tool.md#registration): the base text, the baked
  * boot-snapshot agent catalog, and the model catalog when non-empty.
  */
 export function buildAgentDescription(boot: BootSnapshot, models: string): string {
@@ -247,7 +247,7 @@ export const fleetParameterSchema = Type.Object(
 export type FleetToolParams = Static<typeof fleetParameterSchema>;
 
 /**
- * Cohort grouping (agent-tool.md Section 4.1): background Agent calls from one
+ * Cohort grouping (specs/agent-tool.md#invocation-lifecycle): background Agent calls from one
  * assistant message share the first such call's tool-call ID as cohort ID.
  */
 export class CohortTracker {
@@ -270,7 +270,7 @@ export class CohortTracker {
 
 interface AgentToolDeps {
   boot: BootSnapshot;
-  /** The model catalog of the configured models (model-guidance.md Section 6); empty for none. */
+  /** The model catalog of the configured models (specs/model-guidance.md#model-catalog); empty for none. */
   modelCatalog: string;
   dispatch: DispatchFn;
   hostProvider: () => HostSession | undefined;
@@ -285,7 +285,7 @@ function textError(message: string): ToolResult {
 const resultPanels = new Map<string, Text>();
 
 /**
- * The main session's `Agent` registration (agent-tool.md Section 1): registered
+ * The main session's `Agent` registration (specs/agent-tool.md#registration): registered
  * with the model catalog of each refresh, and again only when its description
  * differs from the registered one; every other field is unchanged.
  */
@@ -327,7 +327,7 @@ export function makeAgentTool(deps: AgentToolDeps) {
     ): Promise<ToolResult> {
       // A missing host (no live main session) flows through dispatch, which
       // registers the pre-start rejection row and fails the plan with
-      // missing-tool-authority (agent-tool.md Sections 3.1 and 4.1).
+      // missing-tool-authority (specs/agent-tool.md#tools and specs/agent-tool.md#invocation-lifecycle).
       return deps.dispatch({
         toolCallId,
         params,
@@ -371,11 +371,11 @@ export function makeAgentTool(deps: AgentToolDeps) {
 
 export interface TaskToolView {
   registry: () => TaskRegistry;
-  /** The extension instance's task ledger, for `list` (task-tool.md Section 2.3). */
+  /** The extension instance's task ledger, for `list` (specs/task-tool.md#list). */
   ledger?: (() => TaskLedger | undefined) | undefined;
 }
 
-/** The header forms of a Bash excerpt, up to its path ([bash-tool.md](../specs/bash-tool.md) Section 4). */
+/** The header forms of a Bash excerpt, up to its path (specs/bash-tool.md#output-capture). */
 const HEADER_FORMS = [
   /^\[Lines 1–\d+ of \d+ not shown$/,
   /^\[Line 1 of \d+ not shown$/,
@@ -386,7 +386,7 @@ const HEADER_FORMS = [
 
 /**
  * Whether `line` is exactly a header line of a `bash` row for `resultPath`
- * (task-tool.md Section 2.1); no other row kind and no other path qualifies.
+ * (specs/task-tool.md#read); no other row kind and no other path qualifies.
  */
 function isOwnHeaderLine(line: string, resultPath: string): boolean {
   const tail = `; full output: ${resultPath}. Search it with rg or Read it.]`;
@@ -395,14 +395,14 @@ function isOwnHeaderLine(line: string, resultPath: string): boolean {
   return HEADER_FORMS.some((form) => form.test(head));
 }
 
-/** Whether `line` is exactly a `--- tool calls` line of a `script` row for `taskId` (script-tool.md Section 6). */
+/** Whether `line` is exactly a `--- tool calls` line of a `script` row for `taskId` (specs/script-tool.md#timeout-delivery). */
 function isOwnToolCallsLine(line: string, taskId: string): boolean {
   const tail = `; Search it with session ${taskId} ---`;
   return /^--- tool calls: \d+; log: ./.test(line) && line.endsWith(tail);
 }
 
 /**
- * The preview of a settled result that spilled (task-tool.md Section 2.1): each line cut
+ * The preview of a settled result that spilled (specs/task-tool.md#read): each line cut
  * to 120 characters, but a `bash` row's own header line and a `script` row's own tool-calls
  * line kept whole, and no `Full output:` line when the preview already carries that header line.
  */
@@ -438,7 +438,7 @@ function taskRead(registry: TaskRegistry, row: TaskRow): ToolResult {
   let text: string;
   if (row.status === "interrupted") {
     // An interrupted task is resumed, not read: the single resume line, and the
-    // row is never consumed (task-tool.md Section 2.1).
+    // row is never consumed (specs/task-tool.md#read).
     return {
       content: [{ type: "text", text: `(interrupted, resume with Agent resume=${row.taskId})` }],
       details: { action: "read", taskId: row.taskId, status: row.status },
@@ -452,13 +452,13 @@ function taskRead(registry: TaskRegistry, row: TaskRow): ToolResult {
   } else if (row.resultPath) {
     const spill = spillText(row, row.resultPath);
     // An unreadable result file is reported rather than previewed, and the row keeps its
-    // record: it is not consumed (task-tool.md Section 2.1).
+    // record: it is not consumed (specs/task-tool.md#read).
     if ("error" in spill) {
       return textError(`cannot read the result file ${row.resultPath}: ${spill.error}`);
     }
     text = previewSpill(spill.text, row.kind, row.resultPath, row.taskId);
   } else {
-    // A rebuilt settled row keeps no result (task-record.md Section 3).
+    // A rebuilt settled row keeps no result (specs/task-record.md#rebuild).
     text = row.result ?? `(result not retained; resume with Agent resume=${row.taskId})`;
   }
   // Reading a settled background task consumes its pending completion notification.
@@ -473,8 +473,8 @@ function taskRead(registry: TaskRegistry, row: TaskRow): ToolResult {
 }
 
 /**
- * What a `wait` returns for a row that has stopped running (task-tool.md Section 2.4): exactly
- * the read result of Section 2.1 — its consuming rule and result-file error included — with
+ * What a `wait` returns for a row that has stopped running (specs/task-tool.md#wait): exactly
+ * the read result of specs/task-tool.md#read — its consuming rule and result-file error included — with
  * `wait` in place of `read` in the details.
  */
 function taskWaitResult(registry: TaskRegistry, row: TaskRow): ToolResult {
@@ -483,18 +483,18 @@ function taskWaitResult(registry: TaskRegistry, row: TaskRow): ToolResult {
   return { ...read, details: { ...read.details, action: "wait" } };
 }
 
-/** The default wait deadline of task-tool.md Section 1.1, and the largest delay setTimeout accepts. */
+/** The default wait deadline of specs/task-tool.md#parameter-schema, and the largest delay setTimeout accepts. */
 const WAIT_DEFAULT_TIMEOUT = 600_000;
 const MAX_SETTIMEOUT_DELAY = 2_147_483_647;
 
-/** The tool error for a `timeout` paired with a non-`wait` action (task-tool.md Section 1). */
+/** The tool error for a `timeout` paired with a non-`wait` action (specs/task-tool.md#registration). */
 const TIMEOUT_ONLY_WITH_WAIT = 'timeout is only valid when action is "wait"';
 
 /** The host's result for an aborted tool call. */
 const abortResult = (): ToolResult => textError("Operation aborted");
 
 /**
- * `wait` per task-tool.md Section 2.4: the first of the row's settlement, the deadline, or
+ * `wait` per specs/task-tool.md#wait: the first of the row's settlement, the deadline, or
  * the call's abort ends the wait. The row is touched only through the read path, so an
  * expiry or abort leaves it unconsumed and its completion notification unaffected.
  */
@@ -520,7 +520,7 @@ function taskWait(
     };
     const onDeadline = (): void =>
       finish(() => textError(`Task ${row.taskId} still running after ${timeout}ms`));
-    // Above 2147483647 there is no deadline: setTimeout would overflow (Section 1.1).
+    // Above 2147483647 there is no deadline: setTimeout would overflow (specs/task-tool.md#parameter-schema).
     const deadline = timeout <= MAX_SETTIMEOUT_DELAY ? setTimeout(onDeadline, timeout) : undefined;
     const onAbort = (): void => finish(abortResult);
     const unsubscribe = registry.subscribe(() => {
@@ -535,7 +535,7 @@ function taskWait(
 }
 
 function taskKill(registry: TaskRegistry, row: TaskRow): ToolResult {
-  // The same cancellation path the task browser's kill key uses (task-browser.md Section 4.4).
+  // The same cancellation path the task browser's kill key uses (specs/task-browser.md#kill-key).
   killTask(registry, row);
   const details: Record<string, unknown> = {
     action: "kill",
@@ -548,7 +548,7 @@ function taskKill(registry: TaskRegistry, row: TaskRow): ToolResult {
   };
 }
 
-/** `list` (task-tool.md Section 2.3): one ledger read for every row, none without rows. */
+/** `list` (specs/task-tool.md#list): one ledger read for every row, none without rows. */
 async function taskList(
   registry: TaskRegistry,
   ledger: TaskLedger | undefined,
@@ -587,7 +587,7 @@ async function taskList(
       entry.usage = figures.own;
       entry.total = figures.total;
       entry.descendantMs = figures.descendantMs;
-      // task-tool.md Section 2.3: absent for a bash row, never 0 in its place.
+      // specs/task-tool.md#list: absent for a bash row, never 0 in its place.
       if (figures.toolCalls !== undefined) entry.toolCalls = figures.toolCalls;
     }
     return entry;
@@ -614,7 +614,7 @@ export function makeTaskTool(view: TaskToolView) {
     ): Promise<ToolResult> {
       const registry = view.registry();
       const action = params.action;
-      // The checks of Section 1, in this order, the first failure reported.
+      // The checks of specs/task-tool.md#registration, in this order, the first failure reported.
       if (action === "list") {
         if (params.taskId !== undefined) {
           return textError('taskId must be omitted when action is "list"');
@@ -655,7 +655,7 @@ export function makeTaskTool(view: TaskToolView) {
   });
 }
 
-/** Load one skill reference (skill-tool.md Section 2); the reference must be a contained path of `references/` (plugin.md Section 7). */
+/** Load one skill reference (specs/skill-tool.md#execution-contract); the reference must be a contained path of `references/` (specs/plugin.md#contained-paths). */
 function loadSkillReference(name: string, skill: SkillEntry, reference: string): ToolResult {
   if (reference.trim() === "") {
     return textError("reference must be non-empty when provided");
@@ -692,9 +692,9 @@ export interface SessionToolDeps {
   hostProvider: () => HostSession | undefined;
   /** Fixed session kind (e.g. `"agent"` for a child session); omitted for main sessions. */
   sessionKind?: SessionKind | undefined;
-  /** The main session's billing service; absent while billing is disabled (billing.md Section 1). */
+  /** The main session's billing service; absent while billing is disabled (specs/billing.md#enablement). */
   billing?: BillingService | undefined;
-  /** Where the usage figures are read (session-tool.md Section 2); `ledger` unavailable without. */
+  /** Where the usage figures are read (specs/session-tool.md#result); `ledger` unavailable without. */
   ledger?: SessionLedgerSource | undefined;
 }
 
@@ -741,12 +741,12 @@ export function makeSessionTool(deps: SessionToolDeps) {
             thinking: level !== undefined && isThinkingLevel(level) ? level : undefined,
           })
         : null;
-      // The inventory is always a list; a missing one matches nothing (model-string.md Section 4).
+      // The inventory is always a list; a missing one matches nothing (specs/model-string.md#resolution).
       const available = ctx?.modelRegistry?.getAvailable() ?? [];
       const isActive = guidanceActive(guidance, available);
       const guided = isActive ? guidedModels(guidance, available) : [];
       const catalog = modelCatalog(guidance, available);
-      // Guided models keep the order of model-guidance.md Section 2: re-sorting
+      // Guided models keep the order of specs/model-guidance.md#guided-models: re-sorting
       // provider/id would reorder them (`-` sorts before `:`).
       const models = isActive
         ? [...new Set(guided.map((g) => `${g.provider}/${g.id}`))]
@@ -758,11 +758,11 @@ export function makeSessionTool(deps: SessionToolDeps) {
             ),
           ].toSorted();
       const modelClasses = serializeModelClasses(mergedObject(deps.boot.config, "modelClasses"));
-      // session-tool.md Section 1: `details.modelGuidance` carries `model` and `when` only.
+      // specs/session-tool.md#registration: `details.modelGuidance` carries `model` and `when` only.
       const report = isActive
         ? guided.map((item) => ({ model: item.model, when: item.when }))
         : null;
-      // Provider and id of each listed model, for the billing report (billing.md Section 7).
+      // Provider and id of each listed model, for the billing report (specs/billing.md#billing-report).
       const refs: ModelRef[] = isActive
         ? guided.map((g) => ({ provider: g.provider, id: g.id }))
         : available.map((entry) => ({ provider: entry.provider, id: entry.id }));
@@ -939,11 +939,10 @@ export function makeFleetTool(deps: FleetToolDeps) {
       if (!callerSessionId && (action !== "list" || params.scope === "children")) {
         return textError(`no live session identity for Fleet action "${action}"`);
       }
-      // The identity of the caller decides what it may do (specs/session-store.md
-      // Section 4; specs/fleet-tool.md Section 1): a session this boot window did
+      // The identity of the caller decides what it may do (specs/session-store.md#membership-lifecycle; specs/fleet-tool.md#parameter-schema): a session this boot window did
       // not register is refused every action but `list`; a child session
       // may `send` and its `query` waits for the reply
-      // (Section 4.1).
+      // (specs/fleet-tool.md#waited-query).
       const identity = fleet.classifyCaller(callerSessionId);
       if (action !== "list" && identity === "foreign") {
         return textError(`no live session identity for Fleet action "${action}"`);
@@ -1155,7 +1154,7 @@ export function makeFleetTool(deps: FleetToolDeps) {
         const resolved = fleet.resolveRecipient(params.target, callerSessionId);
         if ("error" in resolved) return textError(resolved.error);
         if (identity === "child") {
-          // A child session's query waits for the reply (fleet-tool.md Section 4.1).
+          // A child session's query waits for the reply (specs/fleet-tool.md#waited-query).
           let waited: ReturnType<FleetCoordinator["queryAndWait"]>;
           try {
             waited = fleet.queryAndWait({

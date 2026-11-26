@@ -58,7 +58,7 @@ function stripComments(text: string): string {
     if (c === "/" && text[i + 1] === "*") {
       const end = text.indexOf("*/", i + 2);
       // An unterminated block comment is a parse failure, never a silent truncation
-      // of the rest of the document (config-file.md Section 2).
+      // of the rest of the document (specs/config-file.md#format).
       if (end === -1) throw new SyntaxError("unterminated block comment");
       i = end + 2;
       emit(" ");
@@ -117,7 +117,7 @@ export function firstLine(text: string, max = 120): string {
   return line.length > max ? line.slice(0, max) : line;
 }
 
-/** Text for the terminal, the agent directory's path written as `$PI_DENT_SESSION_DIR` (agent-tool.md Section 4.2). */
+/** Text for the terminal, the agent directory's path written as `$PI_DENT_SESSION_DIR` (specs/agent-tool.md#child-session). */
 export function shortenSessionDir(text: string, dir = process.env.PI_DENT_SESSION_DIR): string {
   return dir ? text.split(dir).join("$PI_DENT_SESSION_DIR") : text;
 }

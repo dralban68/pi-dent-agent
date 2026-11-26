@@ -1,4 +1,4 @@
-// Local links (specs/package.md, Section 5): symlinks in node_modules to sibling checkouts,
+// Local links (specs/package.md#local-links): symlinks in node_modules to sibling checkouts,
 // declared in the gitignored .local-links file of the package root.
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
@@ -24,7 +24,7 @@ function namesPackage(path: string, name: string): boolean {
   return isPlainObject(manifest) && manifest.name === name;
 }
 
-/** The links `text` declares; throws the Section 5.1 error message of the first invalid line. */
+/** The links `text` declares; throws the specs/package.md#file-format error message of the first invalid line. */
 export function parseLocalLinks(text: string): LocalLink[] {
   const links: LocalLink[] = [];
   for (const [index, raw] of text.split("\n").entries()) {
@@ -93,7 +93,7 @@ export function applyLocalLinks(root: string): string[] {
   return lines;
 }
 
-/** The load-time check of Section 5.3. */
+/** The load-time check of specs/package.md#load-time-check. */
 export function localLinkDiagnostics(root: string): Diagnostic[] {
   let links: LocalLink[];
   try {

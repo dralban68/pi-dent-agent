@@ -47,21 +47,21 @@ const STATUS_COLOR: Record<TaskStatus, string> = {
 
 const LIST_HINT = "↑↓ select · g/G top/bottom · f running/all · enter details · esc close";
 
-/** The list page's filter (Section 3): `all` at every open, kept across a details visit. */
+/** The list page's filter (specs/task-browser.md#list-page): `all` at every open, kept across a details visit. */
 export type ListFilter = "all" | "running";
 const AGENT_BASE_HINT = "↑↓ select · g/G top/bottom · enter expand · e/c all";
-/** The armed agent line has no `g/G top/bottom`, so it fits 80 columns (task-browser.md Section 4.1). */
+/** The armed agent line has no `g/G top/bottom`, so it fits 80 columns (specs/task-browser.md#agent-details). */
 const AGENT_ARMED_BASE_HINT = "↑↓ select · enter expand · e/c all";
 const SCRIPT_BASE_HINT = "↑↓ scroll · g/G top/bottom";
-/** The kill key of every details page (Section 4.4). */
+/** The kill key of every details page (specs/task-browser.md#kill-key). */
 const KILL_KEY = "ctrl+k";
 
-/** `g` is an alias of `home`, `G` of `end` (browser-navigation.md, Section 4); `G` is matched on the raw input, as the host folds case. */
+/** `g` is an alias of `home`, `G` of `end` (specs/browser-navigation.md#home-end-keys); `G` is matched on the raw input, as the host folds case. */
 const isTop = (data: string): boolean => matchesKey(data, "home") || data === "g";
 const isBottom = (data: string): boolean => matchesKey(data, "end") || data === "G";
 const MAX_EVENT_LINES = 200;
 
-/** The details page's key-hint line (Sections 4.1, 4.2, 4.4): the kill segment only where it applies. */
+/** The details page's key-hint line (specs/task-browser.md#agent-details, specs/task-browser.md#script-bash, specs/task-browser.md#kill-key): the kill segment only where it applies. */
 function detailsHint(row: TaskRow, killable: boolean, armed: boolean): string {
   const base =
     row instanceof AgentTaskRow
@@ -73,20 +73,20 @@ function detailsHint(row: TaskRow, killable: boolean, armed: boolean): string {
   return `${base}${kill} · esc back`;
 }
 
-/** `<time>` per Section 2: `HH:MM:SS` in the local zone. */
+/** `<time>` per specs/task-browser.md#common-rendering: `HH:MM:SS` in the local zone. */
 function clock(ms: number, zone: string): string {
   return localStampIn(ms, zone).slice(11, 19);
 }
 
-/** `<datetime>` per Section 2: `YYYY-MM-DD HH:MM:SS` in the local zone. */
+/** `<datetime>` per specs/task-browser.md#common-rendering: `YYYY-MM-DD HH:MM:SS` in the local zone. */
 function dateTime(ms: number, zone: string): string {
   const stamp = localStampIn(ms, zone);
   return `${stamp.slice(0, 10)} ${stamp.slice(11, 19)}`;
 }
 
 /**
- * The list page's paint (Section 2): the task line's channels, plus `<time>`. The list page
- * leaves `<detail>` uncolored where the widget paints it `dim` (task.md Section 4), and
+ * The list page's paint (specs/task-browser.md#common-rendering): the task line's channels, plus `<time>`. The list page
+ * leaves `<detail>` uncolored where the widget paints it `dim` (specs/task.md#task-tree-widget), and
  * colors every status by its own palette.
  */
 function listPaint(theme: BrowserTheme): TaskPaint {
@@ -129,7 +129,7 @@ function json(value: unknown, indent?: number): string {
   return (indent === undefined ? JSON.stringify(value) : JSON.stringify(value, null, indent)) ?? "";
 }
 
-/** The text of a message (Section 4.3): string content, else text blocks and `[<type>]` lines. */
+/** The text of a message (specs/task-browser.md#session-events): string content, else text blocks and `[<type>]` lines. */
 function messageText(message: Record<string, unknown>): string {
   const content = message.content;
   if (typeof content === "string") return content;
@@ -148,7 +148,7 @@ function assistantEvents(
   message: Record<string, unknown>,
   time: string,
 ): SessionEvent[] {
-  // A string `message.content` is one `text` block (Section 4.3).
+  // A string `message.content` is one `text` block (specs/task-browser.md#session-events).
   const content =
     typeof message.content === "string"
       ? [{ type: "text", text: message.content }]
@@ -165,7 +165,7 @@ function assistantEvents(
       content: text,
       isError: false,
     });
-    // A blank `text` or `thinking` block yields no session event (Section 4.3).
+    // A blank `text` or `thinking` block yields no session event (specs/task-browser.md#session-events).
     if (isObject(block) && (type === "text" || type === "thinking")) {
       const text = str(type === "text" ? block.text : block.thinking);
       if (text.trim() === "") return [];
@@ -179,7 +179,7 @@ function assistantEvents(
   });
 }
 
-/** The session events of one entry line at `entryIndex` (Section 4.3). */
+/** The session events of one entry line at `entryIndex` (specs/task-browser.md#session-events). */
 function entryEvents(line: string, entryIndex: number): SessionEvent[] {
   let parsed: unknown;
   try {
@@ -197,7 +197,7 @@ function entryEvents(line: string, entryIndex: number): SessionEvent[] {
     return [{ key, time, kind: type, summary: "", content: json(parsed, 2), isError: false }];
   }
   const message = isObject(parsed.message) ? parsed.message : {};
-  // A `message` without a string `role` has `<kind>` `message` (Section 4.3).
+  // A `message` without a string `role` has `<kind>` `message` (specs/task-browser.md#session-events).
   const role = typeof message.role === "string" ? message.role : undefined;
   if (role === "assistant") return assistantEvents(entryIndex, message, time);
   const content = messageText(message);
@@ -219,7 +219,7 @@ function entryEvents(line: string, entryIndex: number): SessionEvent[] {
   ];
 }
 
-/** Session events of a session file (Section 4.3), derived from its lines in file order. */
+/** Session events of a session file (specs/task-browser.md#session-events), derived from its lines in file order. */
 export function deriveSessionEvents(text: string): SessionEvent[] {
   const events: SessionEvent[] = [];
   text.split(/\r?\n/).forEach((line, entryIndex) => {
@@ -237,8 +237,8 @@ export interface SessionStep {
 }
 
 /**
- * Incremental session-file reader (Section 4.3): parses only the appended complete lines of
- * the file. Shared by the details page and the task detail feed (task.md Section 4.2).
+ * Incremental session-file reader (specs/task-browser.md#session-events): parses only the appended complete lines of
+ * the file. Shared by the details page and the task detail feed (specs/task.md#task-detail-feed).
  */
 export class SessionEventReader {
   /** Consumed length, partial line, and entry index of the file read so far. */
@@ -264,7 +264,7 @@ export class SessionEventReader {
     }
     // A trailing U+FFFD may be a half-written multi-byte character that completes on the
     // next read; consuming it now shifts every later index and garbles the appended text.
-    // Hold it back: re-read it whole once the file grows, or at settlement (Section 4.3).
+    // Hold it back: re-read it whole once the file grows, or at settlement (specs/task-browser.md#session-events).
     let usable = text;
     if (!final && text.endsWith("\uFFFD")) usable = text.slice(0, -1);
     let restarted = false;
@@ -312,14 +312,14 @@ export interface ListEntry {
   prefix: string;
 }
 
-/** The list page's content (Section 3): every task of the tree, or only the running ones. */
+/** The list page's content (specs/task-browser.md#list-page): every task of the tree, or only the running ones. */
 export function listEntries(registry: TaskRegistry, filter: ListFilter = "all"): ListEntry[] {
   return flattenTree(
     filter === "running" ? collectRunningTasks(registry) : collectAllTasks(registry),
   );
 }
 
-/** The title's counts: those of the whole task tree under either filter (Section 3). */
+/** The title's counts: those of the whole task tree under either filter (specs/task-browser.md#list-page). */
 export function treeCounts(registry: TaskRegistry): { running: number; total: number } {
   const entries = flattenTree(collectAllTasks(registry));
   return {
@@ -328,7 +328,7 @@ export function treeCounts(registry: TaskRegistry): { running: number; total: nu
   };
 }
 
-/** List row line (Section 3) without theme coloring of the selection: the row line plus `<time>`. */
+/** List row line (specs/task-browser.md#list-page) without theme coloring of the selection: the row line plus `<time>`. */
 export function renderListLine(
   entry: ListEntry,
   now: number,
@@ -340,14 +340,14 @@ export function renderListLine(
 }
 
 /**
- * The registry that holds `row` while the kill key applies to it (Section 4.4): the row is
+ * The registry that holds `row` while the kill key applies to it (specs/task-browser.md#kill-key): the row is
  * `running` and a registry of the task tree from `root` holds it. Otherwise undefined.
  */
 export function killHolder(root: TaskRegistry, row: TaskRow): TaskRegistry | undefined {
   return row.status === "running" ? holderIn(root, row) : undefined;
 }
 
-/** The registry of the task tree from `root` that holds `row` (Section 4.4). */
+/** The registry of the task tree from `root` that holds `row` (specs/task-browser.md#kill-key). */
 function holderIn(root: TaskRegistry, row: TaskRow): TaskRegistry | undefined {
   const seen = new Set<TaskRegistry>();
   const walk = (registry: TaskRegistry): TaskRegistry | undefined => {
@@ -369,7 +369,7 @@ interface PageArgs {
   width: number;
   height: number;
   theme: BrowserTheme;
-  /** The local zone of billing.md Section 5; `UTC` when the caller names none. */
+  /** The local zone of specs/billing.md#billing-text; `UTC` when the caller names none. */
   zone?: string | undefined;
 }
 
@@ -392,14 +392,14 @@ function pageView(
 
 export interface ListPageArgs extends PageArgs {
   entries: readonly ListEntry[];
-  /** The whole task tree's counts, which the title shows under either filter (Section 3). */
+  /** The whole task tree's counts, which the title shows under either filter (specs/task-browser.md#list-page). */
   counts: { running: number; total: number };
   filter?: ListFilter | undefined;
   selected?: number | undefined;
   scroll?: number | undefined;
 }
 
-/** List page (Section 3): the filtered task rows, one selected, exactly `height` lines. */
+/** List page (specs/task-browser.md#list-page): the filtered task rows, one selected, exactly `height` lines. */
 export function renderList(args: ListPageArgs): string[] {
   const { entries, counts, now, width, height, theme } = args;
   const filter = args.filter ?? "all";
@@ -444,7 +444,7 @@ function deliveryValue(row: TaskRow, theme: BrowserTheme): string {
 
 const shownPath = (path: string): string => shortenSessionDir(plainText(path));
 
-/** One `<name>: <value>` line of a details section (Sections 4.1, 4.2). */
+/** One `<name>: <value>` line of a details section (specs/task-browser.md#agent-details, specs/task-browser.md#script-bash). */
 export interface DetailField {
   name: string;
   value: string;
@@ -452,7 +452,7 @@ export interface DetailField {
 
 const fieldLine = (field: DetailField): string => `${field.name}: ${field.value}`;
 
-/** The `Agent` section fields of Section 4.1, absent values omitted. */
+/** The `Agent` section fields of specs/task-browser.md#agent-details, absent values omitted. */
 export function agentFields(row: AgentTaskRow, theme: BrowserTheme, zone: string): DetailField[] {
   const fields: DetailField[] = [];
   if (row.agent !== undefined) fields.push({ name: "agent", value: plainText(row.agent) });
@@ -469,7 +469,7 @@ export function agentFields(row: AgentTaskRow, theme: BrowserTheme, zone: string
   return fields;
 }
 
-/** The `Task` section of Section 4.1: every line of the task text, wrapped to the body width. */
+/** The `Task` section of specs/task-browser.md#agent-details: every line of the task text, wrapped to the body width. */
 function taskLines(task: string, width: number): string[] {
   return task
     .split(/\r?\n/)
@@ -478,7 +478,7 @@ function taskLines(task: string, width: number): string[] {
     );
 }
 
-/** The `Error` section of Section 4.1: a failed row's result text, wrapped to the body width. */
+/** The `Error` section of specs/task-browser.md#agent-details: a failed row's result text, wrapped to the body width. */
 function errorSection(row: AgentTaskRow, width: number): Section[] {
   if (row.status !== "failed" || row.result === undefined) return [];
   const lines = row.result
@@ -488,9 +488,8 @@ function errorSection(row: AgentTaskRow, width: number): Section[] {
 }
 
 /**
- * The `Command` section of Section 4.2: a `bash` row's command, one line per text line, each
- * wrapped to the body width, the agent directory as `$PI_DENT_SESSION_DIR` (agent-tool.md Section
- * 4.2); a tab is 2 spaces, as in the expanded content of Section 4.3.
+ * The `Command` section of specs/task-browser.md#script-bash: a `bash` row's command, one line per text line, each
+ * wrapped to the body width, the agent directory as `$PI_DENT_SESSION_DIR` (specs/agent-tool.md#child-session); a tab is 2 spaces, as in the expanded content of specs/task-browser.md#session-events.
  */
 function commandSection(row: BashTaskRow, width: number): Section {
   const lines = row.command
@@ -501,7 +500,7 @@ function commandSection(row: BashTaskRow, width: number): Section {
   return { name: "Command", lines };
 }
 
-/** Syntax highlighting of script source (task-browser.md Section 4.2); absent where the extension instance provides none. */
+/** Syntax highlighting of script source (specs/task-browser.md#script-bash); absent where the extension instance provides none. */
 export type HighlightCode = (code: string, lang?: string) => readonly string[];
 
 /** Cached `Code` section lines, keyed by row and code length: the owning contract sets `code` once. */
@@ -511,9 +510,9 @@ interface CachedCodeLines {
 }
 
 /**
- * The `Code` section of Section 4.2: a `script` row's code, one line per text line, each wrapped
+ * The `Code` section of specs/task-browser.md#script-bash: a `script` row's code, one line per text line, each wrapped
  * to the body width, a tab as 2 spaces, highlighted as TypeScript where the browser has a
- * highlighter. Shown per agent-tool.md Section 4.2, like `Command`.
+ * highlighter. Shown per specs/agent-tool.md#child-session, like `Command`.
  */
 function codeSection(
   row: ScriptTaskRow,
@@ -532,7 +531,7 @@ function codeSection(
   return { name: "Code", lines };
 }
 
-/** The section fields of Section 4.2, shared by `script` and `bash` rows. */
+/** The section fields of specs/task-browser.md#script-bash, shared by `script` and `bash` rows. */
 export function scriptFields(row: TaskRow, theme: BrowserTheme, zone: string): DetailField[] {
   const fields: DetailField[] = [
     { name: "label", value: shownLabel(row.label) },
@@ -574,7 +573,7 @@ function renderEventLines(
   }
   const textWidth = Math.max(1, width - 2);
   for (const source of event.content.split(/\r?\n/)) {
-    // A tab is 2 spaces, before control-character removal (Section 4.3).
+    // A tab is 2 spaces, before control-character removal (specs/task-browser.md#session-events).
     const text = plainText(source.replaceAll("\t", "  "));
     for (const wrapped of wrapTextWithAnsi(text, textWidth)) lines.push(`  ${wrapped}`);
   }
@@ -601,7 +600,7 @@ function eventLines(
       cache.set(event.key, cached);
     }
     const [header, ...content] = cached.lines;
-    // At most 200 wrapped content lines, then `… <n> more lines` (Section 4.3).
+    // At most 200 wrapped content lines, then `… <n> more lines` (specs/task-browser.md#session-events).
     const shown = content.slice(0, MAX_EVENT_LINES);
     const headerLine = header ?? "";
     lines.push(event.key === selected ? theme.bg("selectedBg", headerLine) : headerLine);
@@ -686,15 +685,15 @@ export interface DetailsPageArgs extends PageArgs {
   expanded?: ReadonlyMap<string, boolean> | undefined;
   selected?: string | undefined;
   scroll?: number | undefined;
-  /** Whether the kill key applies to `row` (Section 4.4); absent means it does not. */
+  /** Whether the kill key applies to `row` (specs/task-browser.md#kill-key); absent means it does not. */
   killable?: boolean | undefined;
-  /** Whether the kill key is armed (Section 4.4). */
+  /** Whether the kill key is armed (specs/task-browser.md#kill-key). */
   armed?: boolean | undefined;
-  /** Syntax highlighting of a `script` row's `Code` section (Section 4.2); absent leaves the lines plain. */
+  /** Syntax highlighting of a `script` row's `Code` section (specs/task-browser.md#script-bash); absent leaves the lines plain. */
   highlightCode?: HighlightCode | undefined;
 }
 
-/** Details page of one task row (Sections 4.1, 4.2), exactly `height` lines. */
+/** Details page of one task row (specs/task-browser.md#agent-details, specs/task-browser.md#script-bash), exactly `height` lines. */
 export function renderDetails(args: DetailsPageArgs): string[] {
   const layout = buildDetails(
     args.row,
@@ -722,18 +721,18 @@ export function renderDetails(args: DetailsPageArgs): string[] {
 
 export interface TaskBrowserOptions {
   registry: TaskRegistry;
-  /** The local zone of billing.md Section 5, read once by the extension instance. */
+  /** The local zone of specs/billing.md#billing-text, read once by the extension instance. */
   zone: string;
   now?: (() => number) | undefined;
   height?: (() => number) | undefined;
   readSession?: ((path: string) => string | undefined) | undefined;
   theme?: BrowserTheme | undefined;
-  /** Syntax highlighting of a `script` row's `Code` section (Section 4.2); absent leaves the lines plain. */
+  /** Syntax highlighting of a `script` row's `Code` section (specs/task-browser.md#script-bash); absent leaves the lines plain. */
   highlightCode?: HighlightCode | undefined;
 }
 
 /**
- * Task browser state machine (Sections 3-4): owns page, selection, expansion,
+ * Task browser state machine (specs/task-browser.md#list-page, specs/task-browser.md#details-page): owns page, selection, expansion,
  * and scroll; the caller feeds registry changes and the refresh timer through
  * `refresh`, closes on the shortcut, and renders on demand.
  */
@@ -746,7 +745,7 @@ export class TaskBrowserState {
   private readonly theme: BrowserTheme;
 
   private page: "list" | "details" = "list";
-  /** `all` at every open, kept across a details visit (Section 3). */
+  /** `all` at every open, kept across a details visit (specs/task-browser.md#list-page). */
   private filter: ListFilter = "all";
   private entries: ListEntry[] = [];
   private counts = { running: 0, total: 0 };
@@ -762,7 +761,7 @@ export class TaskBrowserState {
   private bodyScroll = 0;
   private stick = true;
   private settledRead = false;
-  /** Whether the kill key is armed (Section 4.4). */
+  /** Whether the kill key is armed (specs/task-browser.md#kill-key). */
   private armed = false;
   private width = 80;
   private eventCache = new Map<string, CachedEventLines>();
@@ -782,16 +781,16 @@ export class TaskBrowserState {
     this.select(this.entries.length - 1);
   }
 
-  /** Registry change (Sections 2, 4.3): re-sync the content; read only at the row's settlement. */
+  /** Registry change (specs/task-browser.md#common-rendering, specs/task-browser.md#session-events): re-sync the content; read only at the row's settlement. */
   refresh(): void {
     this.syncList();
     if (this.page !== "details") return;
-    // Arming ends when the shown row settles (Section 4.4).
+    // Arming ends when the shown row settles (specs/task-browser.md#kill-key).
     if (this.killTarget() === undefined) this.armed = false;
     this.settlementRead();
   }
 
-  /** 1000 ms refresh tick (Section 2): re-read the session file only while the row is `running`. */
+  /** 1000 ms refresh tick (specs/task-browser.md#common-rendering): re-read the session file only while the row is `running`. */
   tick(): void {
     const row = this.detail;
     if (this.page !== "details" || !(row instanceof AgentTaskRow)) return;
@@ -799,7 +798,7 @@ export class TaskBrowserState {
     this.readEvents(false);
   }
 
-  /** Whether the task tree has a running task (Section 2 refresh-timer rule). */
+  /** Whether the task tree has a running task (specs/task-browser.md#common-rendering refresh-timer rule). */
   hasRunning(): boolean {
     return hasRunningTask(this.registry);
   }
@@ -809,12 +808,12 @@ export class TaskBrowserState {
       this.armed = false;
       return this.keyList(data);
     }
-    // The kill key of every details page (Section 4.4).
+    // The kill key of every details page (specs/task-browser.md#kill-key).
     if (matchesKey(data, KILL_KEY)) {
       this.pressKill();
       return undefined;
     }
-    // Any other key disarms the kill key and is handled per its own rule (Section 4.4).
+    // Any other key disarms the kill key and is handled per its own rule (specs/task-browser.md#kill-key).
     this.armed = false;
     if (this.detail instanceof AgentTaskRow) this.keyAgent(data);
     else this.keyScript(data);
@@ -822,7 +821,7 @@ export class TaskBrowserState {
   }
 
   /**
-   * The shown row while the kill key applies to it (Section 4.4): `running`, with a registry
+   * The shown row while the kill key applies to it (specs/task-browser.md#kill-key): `running`, with a registry
    * that holds it reachable from the browser's registry through the task tree.
    */
   private killTarget(): { registry: TaskRegistry; row: TaskRow } | undefined {
@@ -832,7 +831,7 @@ export class TaskBrowserState {
     return registry === undefined ? undefined : { registry, row };
   }
 
-  /** First press arms, the next cancels in the holding registry, any other row does nothing (Section 4.4). */
+  /** First press arms, the next cancels in the holding registry, any other row does nothing (specs/task-browser.md#kill-key). */
   private pressKill(): void {
     const target = this.killTarget();
     if (!target) {
@@ -908,7 +907,7 @@ export class TaskBrowserState {
       this.selectedId === undefined
         ? -1
         : this.entries.findIndex((entry) => entry.row.taskId === this.selectedId);
-    // With no previous selection, the content became non-empty: select the last row (Section 3).
+    // With no previous selection, the content became non-empty: select the last row (specs/task-browser.md#list-page).
     const index =
       found >= 0
         ? found
@@ -957,7 +956,7 @@ export class TaskBrowserState {
     return undefined;
   }
 
-  /** Switch the filter between `all` and `running`; the selection follows its taskId (Section 3). */
+  /** Switch the filter between `all` and `running`; the selection follows its taskId (specs/task-browser.md#list-page). */
   private switchFilter(): void {
     this.filter = this.filter === "all" ? "running" : "all";
     this.syncList();
@@ -997,7 +996,7 @@ export class TaskBrowserState {
   }
 
   /**
-   * Read the session file through the shared reader (Section 4.3). `final` also parses a
+   * Read the session file through the shared reader (specs/task-browser.md#session-events). `final` also parses a
    * trailing line without a newline.
    */
   private readEvents(final: boolean): void {
@@ -1035,7 +1034,7 @@ export class TaskBrowserState {
       this.selectedEvent = this.events[this.events.length - 1]?.key;
       this.tail = true;
     }
-    // Move the scroll only when the selection changes (Section 4.1).
+    // Move the scroll only when the selection changes (specs/task-browser.md#agent-details).
     if (this.selectedEvent !== previous) this.keepEventVisible();
   }
 
@@ -1071,7 +1070,7 @@ export class TaskBrowserState {
   private keyAgent(data: string): void {
     const view = Math.max(1, this.bodyHeight());
     if (this.events.length === 0) {
-      // No session event: the Section 4.2 keys scroll the body.
+      // No session event: the specs/task-browser.md#script-bash keys scroll the body.
       if (matchesKey(data, "up") || matchesKey(data, "k")) this.scrollBody(-1);
       else if (matchesKey(data, "down") || matchesKey(data, "j")) this.scrollBody(1);
       else if (matchesKey(data, "pageUp")) this.scrollBody(-view);
@@ -1241,10 +1240,10 @@ export interface TaskBrowserOverlayOptions {
   tui: TaskBrowserTui;
   theme: BrowserTheme;
   shortcut: KeyId;
-  /** The local zone of billing.md Section 5, read once by the extension instance. */
+  /** The local zone of specs/billing.md#billing-text, read once by the extension instance. */
   zone: string;
   readSession: (path: string) => string | undefined;
-  /** Syntax highlighting of a `script` row's `Code` section (Section 4.2); absent leaves the lines plain. */
+  /** Syntax highlighting of a `script` row's `Code` section (specs/task-browser.md#script-bash); absent leaves the lines plain. */
   highlightCode?: HighlightCode | undefined;
   done: () => void;
   /** Called once when the overlay is disposed, even when `done` is never called. */
@@ -1252,13 +1251,13 @@ export interface TaskBrowserOverlayOptions {
   /**
    * Called with the message of an error thrown by the browser's refresh or its timer tick. The
    * overlay keeps running: those callbacks run in a microtask and a timer, where a throw would be
-   * an unhandled exception, and execution MUST NOT depend on the browser (task-browser.md Section 1).
+   * an unhandled exception, and execution MUST NOT depend on the browser (specs/task-browser.md#activation).
    */
   onError?: ((message: string) => void) | undefined;
 }
 
 /**
- * Overlay component (task-browser.md Section 1): consumes all input; the
+ * Overlay component (specs/task-browser.md#activation): consumes all input; the
  * shortcut closes it; the 1000 ms timer runs only while a task is running.
  */
 export class TaskBrowserOverlay {
@@ -1267,7 +1266,7 @@ export class TaskBrowserOverlay {
   private timer: ReturnType<typeof setInterval> | undefined;
   private closed = false;
   private pending = false;
-  /** Whether this browser has already reported a failure (Section 1). */
+  /** Whether this browser has already reported a failure (specs/task-browser.md#activation). */
   private reported = false;
 
   private readonly options: TaskBrowserOverlayOptions;
@@ -1287,7 +1286,7 @@ export class TaskBrowserOverlay {
   }
 
   render(width: number): string[] {
-    // Section 1: a browser failure is reported, never thrown into the host TUI;
+    // specs/task-browser.md#activation: a browser failure is reported, never thrown into the host TUI;
     // the page renders empty for that frame and the next one may recover.
     try {
       return this.state.render(width);
@@ -1343,7 +1342,7 @@ export class TaskBrowserOverlay {
     }
   }
 
-  /** 1000 ms tick (Section 2): advance durations and re-read a running row's session file. */
+  /** 1000 ms tick (specs/task-browser.md#common-rendering): advance durations and re-read a running row's session file. */
   private onTick(): void {
     try {
       this.state.tick();
@@ -1356,7 +1355,7 @@ export class TaskBrowserOverlay {
 
   /**
    * A browser failure never reaches the user as an unhandled exception, nor goes unreported:
-   * one report per opened browser (Section 1), as the tick repeats a lasting failure.
+   * one report per opened browser (specs/task-browser.md#activation), as the tick repeats a lasting failure.
    */
   private report(error: unknown): void {
     if (this.reported) return;

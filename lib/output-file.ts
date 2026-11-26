@@ -8,11 +8,11 @@ import type {
 import { safeName } from "./util.ts";
 
 /**
- * A task's output file (specs/script-tool.md Section 6, used by `Bash` too,
- * specs/bash-tool.md Section 4): `<agentDir>/output/<safeTaskId>.log`, where
+ * A task's output file (specs/script-tool.md#timeout-delivery, used by `Bash` too,
+ * specs/bash-tool.md#output-capture): `<agentDir>/output/<safeTaskId>.log`, where
  * `<agentDir>` is the agent directory of the session that invoked the task
- * (specs/agent-tool.md Section 4.2). It lives inside that directory, so the
- * retention sweep deletes it with it (Section 10), and nothing else removes it.
+ * (specs/agent-tool.md#child-session). It lives inside that directory, so the
+ * retention sweep deletes it with it (specs/agent-tool.md#retention-sweep), and nothing else removes it.
  */
 
 /** Create `<agentDir>/output/`, and `<agentDir>` itself, when absent; never fails. */
@@ -20,7 +20,7 @@ export function ensureOutputDir(agentDir: string): void {
   try {
     mkdirSync(join(agentDir, "output"), { recursive: true });
   } catch {
-    // A failure to create the directory never fails the call (Section 6).
+    // A failure to create the directory never fails the call (specs/script-tool.md#timeout-delivery).
   }
 }
 
@@ -31,7 +31,7 @@ export function outputPathsFor(agentDir: string, taskId: string): { outputPath: 
 
 const OUTPUT_LOG_NAME = /^[A-Za-z0-9._-]+\.log$/;
 
-/** Scan bounds of the read hint (specs/script-tool.md Section 6). */
+/** Scan bounds of the read hint (specs/script-tool.md#timeout-delivery). */
 const HINT_MAX_ENTRIES = 10000;
 const HINT_MAX_DEPTH = 16;
 
@@ -103,7 +103,7 @@ function scanOutput(dir: string, depth: number, scan: HintScan): boolean {
 }
 
 /**
- * The `read` error hint of specs/script-tool.md Section 6: the failed `read`
+ * The `read` error hint of specs/script-tool.md#timeout-delivery: the failed `read`
  * result with its `Did you mean <path>?` line, or `undefined` when it does not apply.
  * `root` is the session's search root; `undefined` means no hint.
  */
@@ -139,8 +139,7 @@ export function readErrorHint(
 }
 
 /**
- * Register the read hint on a session's `tool_result` events (specs/script-tool.md
- * Section 6). `root` gives the session's search root at each event.
+ * Register the read hint on a session's `tool_result` events (specs/script-tool.md#timeout-delivery). `root` gives the session's search root at each event.
  */
 export function registerReadErrorHint(
   pi: Pick<ExtensionAPI, "on">,

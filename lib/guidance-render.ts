@@ -1,6 +1,6 @@
 import { Text } from "@earendil-works/pi-tui";
 
-/** The guidance message renderer (specs/model-guidance.md Section 5). */
+/** The guidance message renderer (specs/model-guidance.md#guidance-message). */
 
 export interface GuidanceTheme {
   fg(color: "customMessageLabel" | "muted", text: string): string;

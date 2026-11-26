@@ -1,5 +1,5 @@
 /**
- * Usage sums, the usage tally, and their rendering (specs/agent-tool.md Section 13).
+ * Usage sums, the usage tally, and their rendering (specs/agent-tool.md#usage).
  */
 
 /** A usage sum: token counts, cost in US dollars, and assistant turns. */
@@ -86,7 +86,7 @@ export const USAGE_STATUS_KEY = "pi-dent-agents";
 
 /**
  * `<agents>`: `<tasks> <accent>agents</> · <usage>` (`agent` for one), the segment the footer shows and the
- * status line starts with (agent-tool.md Section 13).
+ * status line starts with (specs/agent-tool.md#usage).
  */
 export function agentSegment(
   tasks: number,
@@ -101,7 +101,7 @@ export function agentSegment(
   )}${dot}${paint("warning", cost)}`;
 }
 
-/** `<partial>`: ` (partial)` while the usage tally is partial, else empty (agent-tool.md Section 13). */
+/** `<partial>`: ` (partial)` while the usage tally is partial, else empty (specs/agent-tool.md#usage). */
 export function partialMarker(partial: boolean, paint: StatusPaint = plainPaint): string {
   return partial ? ` ${paint("dim", "(partial)")}` : "";
 }
@@ -113,7 +113,7 @@ export function partialMarker(partial: boolean, paint: StatusPaint = plainPaint)
 export class UsageTally {
   tasks = 0;
   sum: UsageSum = zeroUsageSum();
-  /** True from `reset` until the seed read completes (agent-tool.md Section 13). */
+  /** True from `reset` until the seed read completes (specs/agent-tool.md#usage). */
   partial = false;
   /** Which `reset` a seed belongs to: a seed of an earlier session start is not applied. */
   private generation = 0;
@@ -170,7 +170,7 @@ export class UsageTally {
         listener();
       } catch {
         // A status line that cannot update leaves the tally intact; no failure is reported
-        // (agent-tool.md Section 13).
+        // (specs/agent-tool.md#usage).
       }
     }
   }

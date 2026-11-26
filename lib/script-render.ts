@@ -1,7 +1,7 @@
 import { inspect } from "node:util";
 
 /**
- * Section 5 return rendering: JSON-compatibility detection, the rendered
+ * specs/script-tool.md#result-contract return rendering: JSON-compatibility detection, the rendered
  * return string with 500-character string clipping, the 10000-character
  * aggregate cap, and the single-line JSON of a JSON-compatible value.
  */
@@ -26,7 +26,7 @@ export interface RenderedReturn {
   rendered: string;
   /** The JSON-compatible value for details.returnValue, or undefined when not compatible. */
   jsonValue?: unknown;
-  /** The single-line JSON of a JSON-compatible value (Section 5). */
+  /** The single-line JSON of a JSON-compatible value (specs/script-tool.md#result-contract). */
   json?: string | undefined;
   render: ReturnValueRender;
 }
@@ -46,7 +46,7 @@ export function isJsonCompatible(value: unknown, ancestors: Set<object> = new Se
     if (ancestors.has(value)) return false;
     // An array with missing elements (a hole) is not JSON-compatible: the
     // members check skips holes, but JSON.stringify renders them as `null`,
-    // which does not round-trip (Section 5).
+    // which does not round-trip (specs/script-tool.md#result-contract).
     if (Array.isArray(value) && Object.keys(value).length !== value.length) return false;
     ancestors.add(value);
     const members = Array.isArray(value) ? value : Object.values(value);
@@ -123,7 +123,7 @@ function renderValue(
   return String(value);
 }
 
-/** The single-line JSON of `value`, or `undefined` when `JSON.stringify` throws (Section 5). */
+/** The single-line JSON of `value`, or `undefined` when `JSON.stringify` throws (specs/script-tool.md#result-contract). */
 function jsonOf(value: unknown): string | undefined {
   try {
     return JSON.stringify(value);

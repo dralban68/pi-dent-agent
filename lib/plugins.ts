@@ -37,7 +37,7 @@ export interface PluginMcpOAuth {
 }
 
 export interface PluginMcpServer {
-  /** Server key in `mcpServers` (plugin.md Section 2). */
+  /** Server key in `mcpServers` (specs/plugin.md#plugin-manifest). */
   name: string;
   /** Validated `https:` URL verbatim. */
   url: string;
@@ -52,14 +52,14 @@ export interface PluginMcpServer {
 }
 
 export interface PluginEntry {
-  /** The manifest `name`: the plugin identity and `Plugin` tool namespace (plugin.md Section 3). */
+  /** The manifest `name`: the plugin identity and `Plugin` tool namespace (specs/plugin.md#identity-namespace). */
   name: string;
   /** Absolute plugin directory (the manifest's parent). */
   root: string;
   commands: PluginCommand[];
-  /** The normalized root `context.md` text (plugin.md Section 10); undefined when there is none. */
+  /** The normalized root `context.md` text (specs/plugin.md#plugin-context); undefined when there is none. */
   context?: string | undefined;
-  /** Valid `mcpServers` declarations from `plugin.json` in UTF-16 key order (plugin.md Section 2). */
+  /** Valid `mcpServers` declarations from `plugin.json` in UTF-16 key order (specs/plugin.md#plugin-manifest). */
   mcpServers?: PluginMcpServer[] | undefined;
 }
 
@@ -273,7 +273,7 @@ function parseMcpServers(
   return servers;
 }
 
-/** The plugin manifest fields of an admitted plugin (plugin.md Section 2), raw: the inventory shapes them. */
+/** The plugin manifest fields of an admitted plugin (specs/plugin.md#plugin-manifest), raw: the inventory shapes them. */
 export interface PluginManifest {
   name: string;
   /** The manifest `description` verbatim, whatever its type; kept when it is a string. */
@@ -340,7 +340,7 @@ function enumerateCommands(root: string, diagnostics: Diagnostic[]): PluginComma
   const dir = join(root, "commands");
   const commands: PluginCommand[] = [];
   // Only the directory read reports: a command file that cannot be read at boot is still
-  // registered, without a description and without a diagnostic (plugin.md Section 5).
+  // registered, without a description and without a diagnostic (specs/plugin.md#slash-commands).
   for (const name of markdownFileNames(dir, diagnostics, "commands", "keep")) {
     const cmdName = name.replace(/\.md$/, "");
     if (!isValidName(cmdName)) continue;
@@ -375,7 +375,7 @@ function enumerateCommands(root: string, diagnostics: Diagnostic[]): PluginComma
 
 /**
  * The path of a command file that cannot be resolved because its own stat fails with a
- * code other than absence (plugin.md Section 5), else undefined: such a command is
+ * code other than absence (specs/plugin.md#slash-commands), else undefined: such a command is
  * registered, and one that is not a contained path is skipped.
  */
 function unreadableTarget(root: string, file: string): string | undefined {
@@ -436,7 +436,7 @@ function leadsInside(root: string, file: string): boolean {
 const CONTEXT_FILE = "context.md";
 
 /**
- * The plugin context of one admitted plugin (plugin.md Section 10): the root `context.md`
+ * The plugin context of one admitted plugin (specs/plugin.md#plugin-context): the root `context.md`
  * text, or undefined when the file is absent or skipped with one diagnostic.
  */
 function readPluginContext(root: string, diagnostics: Diagnostic[]): string | undefined {
@@ -459,7 +459,7 @@ function readPluginContext(root: string, diagnostics: Diagnostic[]): string | un
   }
   let text: string;
   try {
-    // A leading byte-order mark is dropped by the decoder (skill.md Section 2).
+    // A leading byte-order mark is dropped by the decoder (specs/skill.md#content-rules).
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
     return skipContext("not valid UTF-8");
@@ -470,7 +470,7 @@ function readPluginContext(root: string, diagnostics: Diagnostic[]): string | un
 }
 
 /**
- * Append each admitted plugin's context block, in the order given (plugin.md Section 10):
+ * Append each admitted plugin's context block, in the order given (specs/plugin.md#plugin-context):
  * one block per plugin with a context, each preceded by a blank line.
  */
 export function appendPluginContext(prompt: string, plugins: readonly PluginEntry[]): string {
@@ -482,23 +482,23 @@ export function appendPluginContext(prompt: string, plugins: readonly PluginEntr
   return out;
 }
 
-/** One plugin candidate (plugin.md Section 11): a merged `plugins` entry and what discovery made of it. */
+/** One plugin candidate (specs/plugin.md#plugin-inventory): a merged `plugins` entry and what discovery made of it. */
 export interface PluginCandidate {
   /** The entry key. */
   key: string;
-  /** The owning layer's file path for `plugins.<key>.path` (config-file.md Section 4). */
+  /** The owning layer's file path for `plugins.<key>.path` (specs/config-file.md#attribution). */
   configFile: string;
-  /** The absolute path the entry's `path` resolves to (plugin.md Section 4); null when malformed or remote. */
+  /** The absolute path the entry's `path` resolves to (specs/plugin.md#discovery); null when malformed or remote. */
   resolvedRoot: string | null;
   /** The admitted plugin; undefined when the candidate was skipped. */
   plugin?: PluginEntry;
-  /** The admitted plugin's manifest (plugin.md Section 2); undefined when skipped. */
+  /** The admitted plugin's manifest (specs/plugin.md#plugin-manifest); undefined when skipped. */
   manifest?: PluginManifest;
-  /** This candidate's diagnostics, in production order (plugin.md Sections 2-5 and 10). */
+  /** This candidate's diagnostics, in production order (specs/plugin.md#plugin-manifest, specs/plugin.md#identity-namespace, specs/plugin.md#discovery, specs/plugin.md#slash-commands and specs/plugin.md#plugin-context). */
   diagnostics: Diagnostic[];
 }
 
-/** Plugin discovery with the diagnostics grouped per candidate (plugin.md Section 11). */
+/** Plugin discovery with the diagnostics grouped per candidate (specs/plugin.md#plugin-inventory). */
 export interface PluginDiscovery {
   catalog: PluginCatalog;
   /** One candidate per merged `plugins` entry, in lexicographic key order; empty without an object value. */
@@ -563,7 +563,7 @@ export function discoverPluginCandidates(config: BootConfig): PluginDiscovery {
       continue;
     }
     // A relative path resolves against the owning layer directory: the directory of
-    // the file that declares plugins.<key>.path (plugin.md Section 4).
+    // the file that declares plugins.<key>.path (specs/plugin.md#discovery).
     const dir = isAbsolute(rawPath) ? resolve(rawPath) : resolve(dirname(owningFile), rawPath);
     candidate.resolvedRoot = dir;
     if (!isDirectory(dir)) {
@@ -613,7 +613,7 @@ export function discoverPlugins(config: BootConfig, diagnostics: Diagnostic[]): 
 
 /**
  * Tokenize a command argument string: its maximal runs of non-whitespace
- * characters, with no quoting and no escapes (plugin.md Section 6).
+ * characters, with no quoting and no escapes (specs/plugin.md#argument-substitution).
  */
 export function tokenizeArgs(args: string): string[] {
   return args.split(/\s+/).filter((token) => token !== "");
@@ -623,7 +623,7 @@ const ARGUMENTS_TOKEN = "$ARGUMENTS";
 const DIGITS = /[1-9]\d*/y;
 
 /**
- * Substitute argument tokens in one pass over the body (plugin.md Section 6):
+ * Substitute argument tokens in one pass over the body (specs/plugin.md#argument-substitution):
  * `$ARGUMENTS` expands to the full args string, `$N` to the Nth 1-based token
  * (digits greedy, missing indices empty); `$0` and every other `$` sequence
  * stay literal. Inserted values are never re-scanned.
@@ -668,7 +668,7 @@ function isValidResourceShape(segments: readonly string[]): boolean {
   }
   if (root === "skills") {
     if (segments.length === 3 && segments[2] === "SKILL.md") return true;
-    // references/**: Markdown only (plugin.md Section 1), at any depth.
+    // references/**: Markdown only (specs/plugin.md#plugin-layout), at any depth.
     if (segments.length < 4 || segments[2] !== "references") return false;
     const last = segments[segments.length - 1];
     if (last === undefined) return false;
@@ -688,7 +688,7 @@ function isValidScriptShape(segments: readonly string[]): boolean {
 }
 
 /**
- * Lexical part of the contained-path rule (plugin.md Section 7): reject an
+ * Lexical part of the contained-path rule (specs/plugin.md#contained-paths): reject an
  * absolute or drive-prefixed path, and a `..` segment (`\` treated as `/`).
  */
 export function relativeSegments(path: string): { segments: string[] } | { error: string } {
@@ -705,7 +705,7 @@ export function relativeSegments(path: string): { segments: string[] } | { error
 }
 
 /**
- * The shared contained-path check (plugin.md Section 7) for plugin resources,
+ * The shared contained-path check (specs/plugin.md#contained-paths) for plugin resources,
  * plugin scripts, and skill references: the path is lexically contained under
  * `root`, and its resolution (symlinks followed) stays inside `root`. An
  * existing target must be a regular file; a missing target resolves to its
@@ -814,8 +814,7 @@ function resolveContainedFile(
 }
 
 /**
- * Execution-time path validation (plugin-tool.md Section 2, plugin.md
- * Sections 1 and 7): the path must be a contained path of the plugin root
+ * Execution-time path validation (specs/plugin-tool.md#path-rules, specs/plugin.md#plugin-layout and specs/plugin.md#contained-paths): the path must be a contained path of the plugin root
  * and match the `commands/*.md`, `agents/*.md`, `skills/<name>/SKILL.md`, or
  * `skills/<name>/references/**` shapes.
  */
@@ -840,8 +839,7 @@ export function resolvePluginResourcePath(
 }
 
 /**
- * Execution-time path validation for plugin scripts (script-tool.md
- * Section 2, plugin.md Sections 1 and 7): the path must be a contained path of
+ * Execution-time path validation for plugin scripts (specs/script-tool.md#validation, specs/plugin.md#plugin-layout and specs/plugin.md#contained-paths): the path must be a contained path of
  * the plugin root and match the scripts glob shape (any depth under scripts/,
  * ending in a JS/TS extension).
  */
@@ -863,12 +861,12 @@ export function resolvePluginScriptPath(
   return resolveContainedFile(root, segments, path);
 }
 
-/** Read a command body fresh (re-validating containment) and apply invocation arguments (Section 5). */
+/** Read a command body fresh (re-validating containment) and apply invocation arguments (specs/plugin.md#slash-commands). */
 export function renderPluginCommand(root: string, commandName: string, args: string): string {
   const resolved = resolvePluginResourcePath(root, `commands/${commandName}.md`);
   if ("error" in resolved) throw new Error(resolved.error);
   // The host parser drops the byte-order mark and normalises line endings; the trim
-  // completes the skill.md Section 2 normalisation when no frontmatter block closes.
+  // completes the specs/skill.md#content-rules normalisation when no frontmatter block closes.
   const text = readFileSync(resolved.path, "utf8");
   const { body } = parseMarkdown(text, resolved.path, undefined, "commands");
   const normalized = body.trim();

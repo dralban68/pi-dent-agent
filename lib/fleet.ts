@@ -17,7 +17,7 @@ import {
  * Local fleet coordination per specs/fleet-tool.md over the local session store
  * (specs/session-store.md): repo/machine discovery (`list`), unicast/fan-out `send` with `steer` and
  * `followUp` delivery modes, isolated background `query` with `followUp`
- * reply, waited `query` from a child session (Section 4.1), and
+ * reply, waited `query` from a child session (specs/fleet-tool.md#waited-query), and
  * boot-window-scoped transport `status`.
  *
  * The store is shared by every pi-dent process on the machine (SQLite, WAL).
@@ -28,7 +28,7 @@ import {
  * not a fleet member: its child session record gives it an address, makes it
  * reachable by its parent only, and its boot window delivers into its own
  * conversation; a hidden record gives a child session without one an address
- * for a waited-query reply and nothing else (specs/session-store.md, Section 4).
+ * for a waited-query reply and nothing else (specs/session-store.md#membership-lifecycle).
  */
 
 export type FleetAction = "list" | "send" | "query" | "status";
@@ -41,26 +41,25 @@ export type FleetMessageStatus = "pending" | "delivered" | "rejected" | "unknown
 
 /**
  * The identity of a `Fleet` caller or `/fleet` invoker in this boot window
- * (specs/session-store.md Section 4, specs/fleet-tool.md Section 1).
+ * (specs/session-store.md#membership-lifecycle, specs/fleet-tool.md#parameter-schema).
  */
 export type FleetCallerIdentity = "endpoint" | "child" | "foreign";
 
 /**
  * What a child registration did: `refused` when a live boot window owns the record,
  * `own` when the session ID is this boot window's own session or endpoint, `closed`
- * when this boot window's store is gone (specs/session-store.md, Section 4).
+ * when this boot window's store is gone (specs/session-store.md#membership-lifecycle).
  */
 export type ChildRegistration = "registered" | "refused" | "own" | "closed";
 
 /**
- * The warning of a session record another live boot window owns (specs/session-store.md,
- * Section 4), without the `pi-dent: ` prefix its channel adds.
+ * The warning of a session record another live boot window owns (specs/session-store.md#membership-lifecycle), without the `pi-dent: ` prefix its channel adds.
  */
 export function ownedElsewhereWarning(sessionId: string): string {
   return `session ${sessionId} is already owned by another live boot window; Fleet delivery to this session is disabled`;
 }
 
-/** The warning of a child session ID that is this boot window's own session (specs/session-store.md, Section 4). */
+/** The warning of a child session ID that is this boot window's own session (specs/session-store.md#membership-lifecycle). */
 export function ownSessionWarning(sessionId: string): string {
   return `session ${sessionId} is this boot window's own session; Fleet delivery to this session is disabled`;
 }
@@ -85,13 +84,13 @@ export interface FleetSessionRecord {
   agentsDir?: string | undefined;
   /** A hidden record: an address for a waited-query reply, never a fleet session. */
   hidden: boolean;
-  /** The dispatching session's ID: a child session record (session-store.md, Section 4). */
+  /** The dispatching session's ID: a child session record (specs/session-store.md#membership-lifecycle). */
   parentSessionId?: string | undefined;
 }
 
 export interface FleetEndpoint {
   sessionId: string;
-  /** The session's agent directory (agent-tool.md Section 4.2), recorded for the retention sweep. */
+  /** The session's agent directory (specs/agent-tool.md#child-session), recorded for the retention sweep. */
   agentsDir?: string | undefined;
   cwd(): string;
   isIdle(): boolean;
@@ -101,7 +100,7 @@ export interface FleetEndpoint {
   runBuiltinCommand?: ((name: string, args: string) => boolean) | undefined;
   /**
    * Report a Fleet failure this session's user can act on, as a user-visible
-   * message (fleet-tool.md Section 4). A throwing report never fails delivery.
+   * message (specs/fleet-tool.md#query). A throwing report never fails delivery.
    */
   notify?: ((message: string) => void) | undefined;
   runQuery?:
@@ -114,11 +113,11 @@ export interface FleetEndpoint {
     | undefined;
 }
 
-/** The store's file name under `~/.pi/pi-dent/` (session-store.md, Section 1). */
+/** The store's file name under `~/.pi/pi-dent/` (specs/session-store.md#location). */
 const STORE_FILE_NAME = "fleet-v2.sqlite";
-/** The format version recorded in `user_version` (session-store.md, Section 1). */
+/** The format version recorded in `user_version` (specs/session-store.md#location). */
 const STORE_FORMAT_VERSION = 2;
-/** The store's tables (session-store.md, Sections 2 and 3). */
+/** The store's tables (specs/session-store.md#session-records and specs/session-store.md#messages). */
 const STORE_SCHEMA = `
 	CREATE TABLE fleet_sessions (
 		session_id TEXT PRIMARY KEY,
@@ -131,7 +130,7 @@ const STORE_SCHEMA = `
 		owner_boot TEXT,
 		owner_started INTEGER NOT NULL,
 		agents_dir TEXT,
-		-- 1 for a hidden record: an address for a waited-query reply (session-store.md Section 4).
+		-- 1 for a hidden record: an address for a waited-query reply (specs/session-store.md#membership-lifecycle).
 		hidden INTEGER NOT NULL,
 		-- The dispatching session of a child session record; NULL for a fleet session.
 		parent_session_id TEXT
@@ -168,13 +167,13 @@ const MAX_TURNS = 5;
 const RETENTION_MS = 7 * 24 * 60 * 60_000;
 const SWEEP_INTERVAL_MS = 2000;
 const POLL_INTERVAL_MS = 250;
-/** A waited-query reply quotes its correlation ID on its first line (fleet-tool.md Section 4.1). */
+/** A waited-query reply quotes its correlation ID on its first line (specs/fleet-tool.md#waited-query). */
 const QUERY_REPLY_PREFIX = /^\[Fleet query reply correlationId=([^\]]+)\]\n/;
 
 /** Approximate start time of this process, to detect pid reuse. */
 const PROCESS_STARTED_MS = Date.now() - Math.round(process.uptime() * 1000);
 
-/** The rejection reason of a host refusal (specs/session-store.md, Section 5). */
+/** The rejection reason of a host refusal (specs/session-store.md#delivery). */
 function deliveryFailedReason(error: unknown): string {
   return `delivery failed: ${errorMessage(error)}`;
 }
@@ -182,7 +181,7 @@ function deliveryFailedReason(error: unknown): string {
 /**
  * Boot windows alive in this process (reference counts, by boot ID): a record
  * owned by one of them has a live owner, so it is not gone
- * (specs/session-store.md, Section 4).
+ * (specs/session-store.md#membership-lifecycle).
  */
 const liveBootWindows = new Map<string, number>();
 
@@ -211,7 +210,7 @@ function isPidAlive(pid: number): boolean {
 
 /**
  * Resolve the canonical Git repository root for `cwd` so linked worktrees of
- * the same repository share one identity (specs/session-store.md, Section 2).
+ * the same repository share one identity (specs/session-store.md#session-records).
  * Not cached: the root is derived when a record is written, so a `git init`
  * after an earlier write is picked up.
  */
@@ -236,7 +235,7 @@ export function resolveRepoRoot(cwd: string): string | undefined {
             return realpathSync(dirname(commonGitDir));
           }
         }
-        // Any other `.git` file marks this ancestor as the root (fleet-tool.md Section 2).
+        // Any other `.git` file marks this ancestor as the root (specs/fleet-tool.md#list).
         return realpathSync(current);
       }
     } catch {
@@ -297,7 +296,7 @@ type PreparedDelivery =
   | { kind: "builtin"; name: string; args: string }
   | { kind: "rejected"; reason: string };
 
-/** One outstanding waited query (fleet-tool.md, Section 4.1). */
+/** One outstanding waited query (specs/fleet-tool.md#waited-query). */
 interface QueryWaiter {
   correlationId: string;
   /** `fleet_messages.message_id` of the query row, once enqueued. */
@@ -331,24 +330,24 @@ export class FleetCoordinator {
    * The child sessions this boot window runs, by session ID — the dispatches it
    * started. Kept apart from `endpoints`, whose sessions are fleet members with a
    * live session identity: a child session stays a `child` caller even while its
-   * child session record gives it an address (session-store.md, Section 4).
+   * child session record gives it an address (specs/session-store.md#membership-lifecycle).
    */
   private readonly childEndpoints = new Map<string, FleetEndpoint>();
   /**
    * Child sessions whose registration another live boot window refused. They are
    * child sessions all the same: their `Fleet` calls are never refused
-   * (specs/fleet-tool.md, Section 1).
+   * (specs/fleet-tool.md#parameter-schema).
    */
   private readonly refusedChildren = new Set<string>();
   /**
    * Sessions whose hidden record this boot window wrote as a waited-query
    * address: only such a record is deleted with the session's last wait, never a
-   * child session record (fleet-tool.md, Section 4.1).
+   * child session record (specs/fleet-tool.md#waited-query).
    */
   private readonly hiddenOwned = new Set<string>();
   /**
    * Session IDs this boot window tried to register as main sessions through
-   * `registerEndpoint`, whether or not that succeeded (session-store.md, Section 4).
+   * `registerEndpoint`, whether or not that succeeded (specs/session-store.md#membership-lifecycle).
    * Forgotten when the session ends.
    */
   private readonly mainSessionIds = new Set<string>();
@@ -368,7 +367,7 @@ export class FleetCoordinator {
   >();
   /**
    * Outstanding waited queries, by waiting session ID then correlation ID
-   * (fleet-tool.md Section 4.1). A session with an entry here has a hidden
+   * (specs/fleet-tool.md#waited-query). A session with an entry here has a hidden
    * record; the entry goes when its last wait ends.
    */
   private readonly queryWaiters = new Map<string, Map<string, QueryWaiter>>();
@@ -391,7 +390,7 @@ export class FleetCoordinator {
     try {
       this.db.exec("PRAGMA busy_timeout = 5000;");
       this.openFormat();
-      // After the version check: a file of another format is left unchanged (Section 1).
+      // After the version check: a file of another format is left unchanged (specs/fleet-tool.md#parameter-schema).
       this.db.exec("PRAGMA journal_mode = WAL;");
     } catch (error) {
       this.db.close();
@@ -405,7 +404,7 @@ export class FleetCoordinator {
   /**
    * Create the tables of an empty file, use a file of this format version, and
    * refuse any other, the check and the creation in one transaction
-   * (specs/session-store.md, Section 1).
+   * (specs/session-store.md#location).
    */
   private openFormat(): void {
     this.db.exec("BEGIN IMMEDIATE");
@@ -436,7 +435,7 @@ export class FleetCoordinator {
   /**
    * Register or update a live session endpoint in this boot window. Returns
    * false when a live boot window already owns the session — the caller must
-   * not deliver to it (specs/session-store.md, Section 4: one live owner).
+   * not deliver to it (specs/session-store.md#membership-lifecycle: one live owner).
    */
   registerEndpoint(endpoint: FleetEndpoint, initialState: FleetSessionState = "idle"): boolean {
     this.markMainSession(endpoint.sessionId);
@@ -471,8 +470,7 @@ export class FleetCoordinator {
   }
 
   /**
-   * Run one ownership claim in an immediate write transaction (specs/session-store.md,
-   * Section 4). The claim returns false to roll back and give up; true commits. A
+   * Run one ownership claim in an immediate write transaction (specs/session-store.md#membership-lifecycle). The claim returns false to roll back and give up; true commits. A
    * rollback that fails throws an aggregate of the claim's error and the rollback's.
    */
   private claimRecord(claim: () => boolean): boolean {
@@ -499,16 +497,16 @@ export class FleetCoordinator {
    * Register a child session this boot window runs — one `Agent` dispatch —
    * before its first prompt, and report `refused` when the record belongs to
    * another live boot window, `closed` when this window's store is gone
-   * (specs/session-store.md, Section 4). The record carries the dispatch's task
+   * (specs/session-store.md#membership-lifecycle). The record carries the dispatch's task
    * as its one turn, keeps `running` for its life, gives the child an address and
    * makes it reachable by `parentSessionId` only. Its endpoint is kept apart from
    * `endpoints`: the session has no live session identity
-   * (specs/session-store.md, Section 4).
+   * (specs/session-store.md#membership-lifecycle).
    */
   registerChild(parentSessionId: string, endpoint: FleetEndpoint, task: string): ChildRegistration {
     if (this.closed) return "closed";
     // A main session or a registered endpoint of this window is no child session: its
-    // record stays the session's own (specs/session-store.md, Section 4).
+    // record stays the session's own (specs/session-store.md#membership-lifecycle).
     if (this.mainSessionIds.has(endpoint.sessionId) || this.endpoints.has(endpoint.sessionId)) {
       return "own";
     }
@@ -524,7 +522,7 @@ export class FleetCoordinator {
       }
       // One turn record, always this dispatch's task — a recovery attempt
       // continues the same child session and rewrites the same one turn
-      // (specs/session-store.md, Section 4).
+      // (specs/session-store.md#membership-lifecycle).
       this.upsertSessionRow({
         sessionId: endpoint.sessionId,
         cwd: endpoint.cwd(),
@@ -537,15 +535,15 @@ export class FleetCoordinator {
     });
     if (!claimed) {
       // Refused, but still a child session: the session itself is never refused send
-      // or query (specs/fleet-tool.md, Section 1).
+      // or query (specs/fleet-tool.md#parameter-schema).
       this.refusedChildren.add(endpoint.sessionId);
       return "refused";
     }
-    // Only a committed record has a runnable child behind it (Section 4).
+    // Only a committed record has a runnable child behind it (specs/fleet-tool.md#query).
     this.childEndpoints.set(endpoint.sessionId, endpoint);
     this.refusedChildren.delete(endpoint.sessionId);
     // Its child session record is the session's address now: it is not a hidden
-    // record this boot window deletes with a wait (Section 4.1).
+    // record this boot window deletes with a wait (specs/fleet-tool.md#waited-query).
     this.hiddenOwned.delete(endpoint.sessionId);
     this.ensurePollLoop();
     this.drainForTarget(endpoint.sessionId);
@@ -555,7 +553,7 @@ export class FleetCoordinator {
   /**
    * Delete a child session's record when its dispatch settles, in either
    * delivery mode, and reject every message still queued for it
-   * (specs/session-store.md, Section 4).
+   * (specs/session-store.md#membership-lifecycle).
    */
   unregisterChild(sessionId: string): void {
     this.refusedChildren.delete(sessionId);
@@ -585,15 +583,14 @@ export class FleetCoordinator {
           "Query cancelled: the target session ended or reloaded.",
         );
       } catch (error) {
-        // A failed reply is spent, never retried (fleet-tool.md, Section 4).
+        // A failed reply is spent, never retried (specs/fleet-tool.md#query).
         this.reportReplyFailure(query.endpoint, query.row, error);
       }
     }
   }
 
   /**
-   * Report a reply the store refused to the target's user (fleet-tool.md, Section
-   * 4). The reply itself is spent: it is never resent.
+   * Report a reply the store refused to the target's user (specs/fleet-tool.md#query). The reply itself is spent: it is never resent.
    */
   private reportReplyFailure(endpoint: FleetEndpoint, row: StoredMessageRow, error: unknown): void {
     try {
@@ -607,7 +604,7 @@ export class FleetCoordinator {
 
   /**
    * Record a session as this boot window's main session, before anything in its start can
-   * fail: a main session is never a child, registered or not (session-store.md, Section 4).
+   * fail: a main session is never a child, registered or not (specs/session-store.md#membership-lifecycle).
    */
   markMainSession(sessionId: string): void {
     this.mainSessionIds.add(sessionId);
@@ -619,7 +616,7 @@ export class FleetCoordinator {
     this.cancelInFlightQueries(sessionId);
     // A refused registration holds no endpoint: the record and its messages
     // belong to the boot window that owns the session, which alone deletes
-    // them (specs/session-store.md, Section 4).
+    // them (specs/session-store.md#membership-lifecycle).
     if (!this.endpoints.delete(sessionId)) return;
     this.deliveringFollowUp.delete(sessionId);
     this.turnStarted.delete(sessionId);
@@ -629,7 +626,7 @@ export class FleetCoordinator {
   }
 
   /**
-   * Release a session for a `/reload` (specs/session-store.md, Section 4): ownership
+   * Release a session for a `/reload` (specs/session-store.md#membership-lifecycle): ownership
    * is dropped so a new boot window can re-register the session ID, but the
    * session stays a live fleet member and its pending queues are untouched.
    */
@@ -637,7 +634,7 @@ export class FleetCoordinator {
     this.cancelInFlightQueries(sessionId);
     // A refused registration holds no endpoint: only the owning boot window
     // releases ownership, so a live owner keeps the session exclusively
-    // (specs/session-store.md, Section 4).
+    // (specs/session-store.md#membership-lifecycle).
     if (!this.endpoints.delete(sessionId)) return;
     this.deliveringFollowUp.delete(sessionId);
     this.turnStarted.delete(sessionId);
@@ -651,14 +648,14 @@ export class FleetCoordinator {
   }
 
   /**
-   * Clear sent-message rows from this boot window (specs/session-store.md, Section 4).
+   * Clear sent-message rows from this boot window (specs/session-store.md#membership-lifecycle).
    * With `keepPending`, rows still `pending` survive the boundary: a `/reload`
    * neither ends a session nor cancels a pending message.
    */
   clearBootWindow(opts: { keepPending?: boolean } = {}): void {
     if (this.closed) return;
     // A child session record goes with the boot window that ran its dispatch
-    // (specs/session-store.md, Section 4): the dispatch cannot outlive it.
+    // (specs/session-store.md#membership-lifecycle): the dispatch cannot outlive it.
     this.releaseChildSessions();
     const sql = opts.keepPending
       ? "DELETE FROM fleet_messages WHERE boot_id = ? AND status != 'pending'"
@@ -725,7 +722,7 @@ export class FleetCoordinator {
     agentsDir?: string | undefined;
     /** Write a hidden record: a child session's address for a waited query (fleet-tool.md 4.1). */
     hidden?: boolean | undefined;
-    /** Written for a child session record (session-store.md, Section 4). */
+    /** Written for a child session record (specs/session-store.md#membership-lifecycle). */
     parentSessionId?: string | undefined;
   }): void {
     const existing = this.getSessionIncludingHidden(input.sessionId);
@@ -764,18 +761,18 @@ export class FleetCoordinator {
         agentsDir ?? null,
         input.hidden === true ? 1 : 0,
         // Each writer states the column: a later upsert without a parent keeps none,
-        // never another record's (session-store.md, Section 2).
+        // never another record's (specs/session-store.md#session-records).
         input.parentSessionId ?? null,
       );
   }
 
   /**
    * Record a user message on `sessionId`: it starts a turn unless one is in
-   * progress, which it joins (specs/session-store.md Section 2). A turn is
+   * progress, which it joins (specs/session-store.md#session-records). A turn is
    * tracked apart from `state`: the host already reports a run when the user
    * message that starts the turn arrives. Only a session this boot window holds
    * an endpoint for is recorded: a refused session's record belongs to its live
-   * owner and MUST be left unchanged (specs/session-store.md Section 4).
+   * owner and MUST be left unchanged (specs/session-store.md#membership-lifecycle).
    */
   recordTurnStart(sessionId: string, cwd: string, command: string, goal = ""): void {
     if (!this.endpoints.has(sessionId)) return;
@@ -794,7 +791,7 @@ export class FleetCoordinator {
         ].slice(-MAX_TURNS);
     this.turnStarted.add(sessionId);
     // The delivered followUp turn has started, so it is no longer awaiting its
-    // turn start and stops gating later deliveries (session-store.md Section 5).
+    // turn start and stops gating later deliveries (specs/session-store.md#delivery).
     this.deliveringFollowUp.delete(sessionId);
     this.upsertSession({ sessionId, cwd, state: "running", turns });
   }
@@ -802,7 +799,7 @@ export class FleetCoordinator {
   /**
    * A turn of a child session this boot window runs has started: a delivered
    * `followUp` no longer awaits its turn start and stops gating later deliveries
-   * (specs/session-store.md Section 5). Its record keeps its one turn.
+   * (specs/session-store.md#delivery). Its record keeps its one turn.
    */
   recordChildTurnStart(sessionId: string): void {
     if (!this.childEndpoints.has(sessionId)) return;
@@ -867,7 +864,7 @@ export class FleetCoordinator {
 
   /**
    * Classify the caller of a `Fleet` call or the `/fleet` command
-   * (specs/session-store.md Section 4, specs/fleet-tool.md Section 1):
+   * (specs/session-store.md#membership-lifecycle, specs/fleet-tool.md#parameter-schema):
    * `endpoint` when this boot window registered the session and was not
    * refused, `child` when it runs the session's dispatch, when the store holds no
    * visible record of it, or when its record is hidden (whose session is a child
@@ -880,9 +877,9 @@ export class FleetCoordinator {
     if (this.endpoints.has(sessionId)) return "endpoint";
     // A child session record gives the session an address, not a live session
     // identity: the boot window that runs its dispatch still sees it as a child
-    // (specs/session-store.md, Section 4). A child whose record another live boot
+    // (specs/session-store.md#membership-lifecycle). A child whose record another live boot
     // window refused is a child session too, never a foreign session
-    // (specs/fleet-tool.md, Section 1).
+    // (specs/fleet-tool.md#parameter-schema).
     if (this.childEndpoints.has(sessionId) || this.refusedChildren.has(sessionId)) return "child";
     if (this.getSession(sessionId) === undefined) {
       return this.mainSessionIds.has(sessionId) ? "foreign" : "child";
@@ -890,7 +887,7 @@ export class FleetCoordinator {
     return "foreign";
   }
 
-  /** A fleet session by ID. A hidden record is not a session (session-store.md Section 4). */
+  /** A fleet session by ID. A hidden record is not a session (specs/session-store.md#membership-lifecycle). */
   getSession(sessionId: string): FleetSessionRecord | undefined {
     return this.selectSession(sessionId, { includeHidden: false });
   }
@@ -916,11 +913,11 @@ export class FleetCoordinator {
   }
 
   /**
-   * List sessions in the store, grouped with `running` sessions first (Section 2). Read-only.
+   * List sessions in the store, grouped with `running` sessions first (specs/fleet-tool.md#list). Read-only.
    *
    * `machine` and `repo` list fleet sessions only — never a child session record
    * — while `children` lists the live child sessions of `callerSessionId`, with
-   * no repository filter (specs/fleet-tool.md, Section 2).
+   * no repository filter (specs/fleet-tool.md#list).
    */
   listSessions(
     scope: FleetScope,
@@ -930,20 +927,20 @@ export class FleetCoordinator {
     if (this.closed) return [];
     const rows = this.db.prepare(`SELECT ${SESSION_COLUMNS} FROM fleet_sessions`).all();
     // A record whose owner process is gone is omitted, never deleted here, and a
-    // hidden record is not a session at all (session-store.md Section 4).
+    // hidden record is not a session at all (specs/session-store.md#membership-lifecycle).
     let sessions = rows
       .map((row) => this.hydrateSession(row))
       .filter((s) => !s.hidden && !this.isGone(s));
     if (scope === "children") {
       // Grandchildren are not in it: a child session's parent is the session that
-      // dispatched it (fleet-tool.md Section 2).
+      // dispatched it (specs/fleet-tool.md#list).
       sessions = sessions.filter(
         (session) =>
           session.parentSessionId !== undefined && this.isTargetCandidate(session, callerSessionId),
       );
     } else {
       // Scope `machine` and `repo` list fleet sessions only, so no `broadcast` of
-      // either reaches a child session (fleet-tool.md Sections 2 and 3.1).
+      // either reaches a child session (specs/fleet-tool.md#list and specs/fleet-tool.md#result).
       sessions = sessions.filter((session) => session.parentSessionId === undefined);
       if (scope === "repo") {
         const callerRepo = resolveRepoRoot(callerCwd);
@@ -964,7 +961,7 @@ export class FleetCoordinator {
 
   /**
    * A child session is a target only for the session that spawned it, so it is an
-   * unknown target for every other caller (specs/fleet-tool.md, Section 1).
+   * unknown target for every other caller (specs/fleet-tool.md#parameter-schema).
    */
   private isTargetCandidate(
     session: FleetSessionRecord,
@@ -976,9 +973,9 @@ export class FleetCoordinator {
 
   /**
    * Resolve a recipient token among live sessions: exact session ID first,
-   * then unique session-ID prefix (specs/fleet-tool.md Section 1). A session
+   * then unique session-ID prefix (specs/fleet-tool.md#parameter-schema). A session
    * that has ended is an unknown target, and so is one whose owner process is
-   * gone: its record is deleted here (specs/session-store.md Section 4). A child
+   * gone: its record is deleted here (specs/session-store.md#membership-lifecycle). A child
    * session of another session's is filtered out before ambiguity is decided, so
    * it neither resolves nor makes a prefix ambiguous.
    */
@@ -989,7 +986,7 @@ export class FleetCoordinator {
     if (this.closed) return { error: "fleet store is closed" };
     const target = rawTarget.trim();
     // A caller checks emptiness first, so this is the spec's own error for a
-    // target no session ID extends (fleet-tool.md, Section 1).
+    // target no session ID extends (specs/fleet-tool.md#parameter-schema).
     if (target === "") return { error: 'unknown target session ""' };
     const exact = this.getSession(target);
     if (exact && !this.reapIfGone(exact) && this.isTargetCandidate(exact, callerSessionId)) {
@@ -1016,7 +1013,7 @@ export class FleetCoordinator {
     }
     if (matches.length > 1) {
       // The host's default locale-sensitive comparison, as the listing order of
-      // fleet-tool.md Section 2 states; code-unit order would differ.
+      // specs/fleet-tool.md#list states; code-unit order would differ.
       const ids = matches.map((m) => m.sessionId);
       ids.sort((a, b) => a.localeCompare(b));
       return {
@@ -1030,7 +1027,7 @@ export class FleetCoordinator {
    * Enqueue a `send` message to one resolved recipient session. Plain-text
    * bodies are enveloped once here; slash-command bodies are stored raw and
    * classified and rendered by the target at delivery time, against the
-   * delivering coordinator's plugin catalog (specs/fleet-tool.md Section 3.2).
+   * delivering coordinator's plugin catalog (specs/fleet-tool.md#delivery-modes).
    */
   enqueueSend(input: {
     senderSessionId: string;
@@ -1039,7 +1036,7 @@ export class FleetCoordinator {
     body: string;
     deliver: FleetDeliverMode;
     abort: boolean;
-    /** A query reply carries its query's boot id (session-store.md Section 3). */
+    /** A query reply carries its query's boot id (specs/session-store.md#messages). */
     bootId?: string | undefined;
   }): {
     messageId: number;
@@ -1057,7 +1054,7 @@ export class FleetCoordinator {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       // The target's record can be deleted between resolution and this write
-      // (session-store.md, Section 4): read and insert in one immediate
+      // (specs/session-store.md#membership-lifecycle): read and insert in one immediate
       // transaction, so the row never waits for a session that is gone.
       pending = this.hasSessionRecord(input.target.sessionId);
       const result = this.db
@@ -1100,7 +1097,7 @@ export class FleetCoordinator {
     };
   }
 
-  /** Enqueue a `query` request to one resolved recipient session (Section 4). */
+  /** Enqueue a `query` request to one resolved recipient session (specs/fleet-tool.md#query). */
   enqueueQuery(input: {
     senderSessionId: string;
     target: FleetSessionRecord;
@@ -1116,7 +1113,7 @@ export class FleetCoordinator {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       // As for a send: a target whose record is gone cannot run the query
-      // (session-store.md, Section 4).
+      // (specs/session-store.md#membership-lifecycle).
       pending = this.hasSessionRecord(input.target.sessionId);
       const result = this.db
         .prepare(
@@ -1157,11 +1154,11 @@ export class FleetCoordinator {
   /**
    * Enqueue a `query` for a calling session this boot window holds no endpoint
    * for — a child session — and block until its reply arrives
-   * (specs/fleet-tool.md Section 4.1). The address written first gives the reply
+   * (specs/fleet-tool.md#waited-query). The address written first gives the reply
    * somewhere to go: its child session record when it has one, else a hidden
    * record this boot window owns. This boot window consumes the reply itself and
    * deletes a hidden record when the session's last wait ends
-   * (session-store.md Section 4).
+   * (specs/session-store.md#membership-lifecycle).
    */
   queryAndWait(input: {
     senderSessionId: string;
@@ -1173,7 +1170,7 @@ export class FleetCoordinator {
   }): QueuedQuery & { reply: Promise<string> } {
     // A child session whose record another live boot window owns takes no wait of
     // this one: the reply would arrive in that window's conversation, and this wait
-    // could never end (fleet-tool.md, Section 4.1).
+    // could never end (specs/fleet-tool.md#waited-query).
     if (this.refusedChildren.has(input.senderSessionId)) {
       throw new Error(`session ${input.senderSessionId} is owned by another live boot window`);
     }
@@ -1218,7 +1215,7 @@ export class FleetCoordinator {
     }
     waiter.queryMessageId = queued.messageId;
     // A target that ended before its row was written leaves nothing to wait for
-    // (session-store.md, Section 4): the wait ends now, not on the next poll.
+    // (specs/session-store.md#membership-lifecycle): the wait ends now, not on the next poll.
     const enqueued = this.getMessageById(waiter.queryMessageId);
     if (enqueued?.status === "rejected") {
       this.settleWaiter(input.senderSessionId, waiter, {
@@ -1247,7 +1244,7 @@ export class FleetCoordinator {
   /**
    * Give a waiting child session an address before its query is enqueued: its
    * own child session record when it has one, else a hidden record this boot
-   * window writes and therefore owns (fleet-tool.md Section 4.1). A record that
+   * window writes and therefore owns (specs/fleet-tool.md#waited-query). A record that
    * is not hidden belongs to the session and is left to it.
    */
   private ensureWaitAddress(sessionId: string, cwd: string): void {
@@ -1256,7 +1253,7 @@ export class FleetCoordinator {
     // The session's own record — a fleet session's, or its child session record —
     // is left to it; a hidden record another boot window wrote is rewritten as
     // this boot window's, which then deletes it with the session's last wait
-    // (fleet-tool.md, Section 4.1).
+    // (specs/fleet-tool.md#waited-query).
     if (existing !== undefined && !existing.hidden) return;
     this.upsertSessionRow({ sessionId, cwd, state: "running", hidden: true });
     this.hiddenOwned.add(sessionId);
@@ -1265,7 +1262,7 @@ export class FleetCoordinator {
   /**
    * Settle one waited query. A hidden record exists only while the session has a
    * wait, so the last settlement deletes that record — which also dead-letters
-   * any row still queued for the address (session-store.md Section 4). A child
+   * any row still queued for the address (specs/session-store.md#membership-lifecycle). A child
    * session record is not the wait's to delete: it goes with its dispatch.
    */
   private settleWaiter(sessionId: string, waiter: QueryWaiter, outcome: QueryWaiterOutcome): void {
@@ -1286,7 +1283,7 @@ export class FleetCoordinator {
   /**
    * Drop one wait's registration; a hidden record this boot window wrote goes
    * with the session's last wait, and an idle coordinator stops polling
-   * (Section 4.1).
+   * (specs/fleet-tool.md#waited-query).
    */
   private releaseWaiter(sessionId: string, waiter: QueryWaiter): void {
     const byCorrelation = this.queryWaiters.get(sessionId);
@@ -1311,7 +1308,7 @@ export class FleetCoordinator {
     this.markRejected(waiter.queryMessageId, "cancelled");
   }
 
-  /** Fail every wait of one session with `reason` (boot-window close, Section 4.1). */
+  /** Fail every wait of one session with `reason` (boot-window close, specs/fleet-tool.md#waited-query). */
   private failSessionWaiters(sessionId: string, reason: string): void {
     const byCorrelation = this.queryWaiters.get(sessionId);
     if (!byCorrelation) return;
@@ -1323,7 +1320,7 @@ export class FleetCoordinator {
 
   /**
    * Consume pending rows addressed to a session with a waited query
-   * (Section 4.1): a query reply settles its wait. Any other message is rejected
+   * (specs/fleet-tool.md#waited-query): a query reply settles its wait. Any other message is rejected
    * when the address is a hidden record — that exists only for replies — and is
    * left to the endpoint's delivery when the session has a child session record,
    * which takes its messages as a session does.
@@ -1356,7 +1353,7 @@ export class FleetCoordinator {
   }
 
   /**
-   * Fail waits no reply can end (Section 4.1): the query row is `rejected`, or
+   * Fail waits no reply can end (specs/fleet-tool.md#waited-query): the query row is `rejected`, or
    * the target's record is gone. The target's existence is read before pending
    * replies are consumed, so a reply that arrived — even one written together
    * with the deletion of the target's record — always wins over the failure, and
@@ -1398,7 +1395,7 @@ export class FleetCoordinator {
     return row !== undefined;
   }
 
-  /** Read transport status of a message sent by `callerSessionId` in this boot window (Section 5). */
+  /** Read transport status of a message sent by `callerSessionId` in this boot window (specs/fleet-tool.md#status). */
   getMessageStatus(
     callerSessionId: string,
     messageId: number,
@@ -1424,8 +1421,7 @@ export class FleetCoordinator {
 
   /**
    * The endpoint this boot window delivers to for `sessionId`: a session it
-   * registered, or a child session whose dispatch it runs (session-store.md,
-   * Section 5).
+   * registered, or a child session whose dispatch it runs (specs/session-store.md#delivery).
    */
   private endpointFor(sessionId: string): FleetEndpoint | undefined {
     return this.endpoints.get(sessionId) ?? this.childEndpoints.get(sessionId);
@@ -1434,7 +1430,7 @@ export class FleetCoordinator {
   /**
    * Deliver any pending messages for `targetSessionId` if its endpoint is
    * registered here. A waited query is consumed first: its reply settles the
-   * call rather than becoming a turn (fleet-tool.md, Section 4.1).
+   * call rather than becoming a turn (specs/fleet-tool.md#waited-query).
    */
   drainForTarget(targetSessionId: string): void {
     if (this.closed) return;
@@ -1462,14 +1458,14 @@ export class FleetCoordinator {
         this.drainForTarget(targetId);
       } catch {
         // One failing target never stops the others; a periodic pass reports no
-        // failure (session-store.md, Section 5).
+        // failure (specs/session-store.md#delivery).
       }
     }
   }
 
   private processPendingRows(endpoint: FleetEndpoint, rows: StoredMessageRow[]): void {
     // A followUp host command ends the pass for its session: later followUp
-    // rows wait for the next pass (specs/session-store.md, Section 5).
+    // rows wait for the next pass (specs/session-store.md#delivery).
     let followUpHostApplied = false;
     for (const row of rows) {
       if (this.endpointFor(row.target_session_id) !== endpoint) return;
@@ -1491,7 +1487,7 @@ export class FleetCoordinator {
               endpoint.abortTurn();
             } catch (error) {
               // A stale host context cannot abort: the row is refused
-              // (session-store.md Section 5) and its request is dropped.
+              // (specs/session-store.md#delivery) and its request is dropped.
               this.abortRequested.delete(row.message_id);
               this.failDelivery(endpoint.sessionId, row, "steer", error);
             }
@@ -1500,7 +1496,7 @@ export class FleetCoordinator {
         }
         this.abortRequested.delete(row.message_id);
         // A slash body is classified once, for both modes: a rejection carries the bare
-        // reason and a built-in applies directly (fleet-tool.md Section 3.2).
+        // reason and a built-in applies directly (specs/fleet-tool.md#delivery-modes).
         const steerPrepared = this.prepareDelivery(row);
         if (steerPrepared.kind !== "turn") {
           this.applyTerminal(endpoint, row, steerPrepared);
@@ -1534,7 +1530,7 @@ export class FleetCoordinator {
 
   /**
    * Apply a prepared outcome that starts no turn: a rejection with its bare
-   * reason (fleet-tool.md Section 3.2), or a host command. Shared by both modes.
+   * reason (specs/fleet-tool.md#delivery-modes), or a host command. Shared by both modes.
    */
   private applyTerminal(
     endpoint: FleetEndpoint,
@@ -1563,7 +1559,7 @@ export class FleetCoordinator {
 
   /**
    * An endpoint's idle report. A stale host context throws instead of reporting,
-   * so an unknown state counts as `running` (session-store.md Section 2): no
+   * so an unknown state counts as `running` (specs/session-store.md#session-records): no
    * caller throws either way.
    */
   private endpointIsIdle(endpoint: FleetEndpoint): boolean {
@@ -1579,7 +1575,7 @@ export class FleetCoordinator {
    * command for the caller to apply, or a terminal rejection. Pure — built-ins
    * are applied by the caller at the right point of the delivery flow (spec 3.2
    * idle gating). Plugin commands render here, at delivery, against this
-   * coordinator's plugin catalog (the target's, per Section 3.2).
+   * coordinator's plugin catalog (the target's, per specs/fleet-tool.md#delivery-modes).
    */
   private prepareDelivery(row: StoredMessageRow): PreparedDelivery {
     if (row.deliver_text !== null) return { kind: "turn", text: row.deliver_text };
@@ -1597,7 +1593,7 @@ export class FleetCoordinator {
     text: string,
   ): void {
     // A re-entrant drain (the host pumping its own queue from inside `deliverTurn`)
-    // must not inject the same row twice (session-store.md Section 5).
+    // must not inject the same row twice (specs/session-store.md#delivery).
     if (this.inFlightMessages.has(row.message_id)) return;
     let outcome: void | Promise<void>;
     try {
@@ -1641,7 +1637,7 @@ export class FleetCoordinator {
 
   /**
    * Write a session's `state`. A child session record's stays `running` for its
-   * life (session-store.md, Section 4).
+   * life (specs/session-store.md#membership-lifecycle).
    */
   private writeState(sessionId: string, state: FleetSessionState): void {
     if (this.childEndpoints.has(sessionId)) return;
@@ -1670,7 +1666,7 @@ export class FleetCoordinator {
     };
     inFlight.add(queryHandle);
 
-    // Exactly one reply (fleet-tool.md Section 4): settle the dispatch through
+    // Exactly one reply (specs/fleet-tool.md#query): settle the dispatch through
     // the two-argument `then` so a failure is never routed into both reply
     // paths, and swallow any throw from the reply itself — a failed reply is
     // spent, never retried as a second reply.
@@ -1685,7 +1681,7 @@ export class FleetCoordinator {
         this.replyToSender(endpoint, correlationId, row, text);
       } catch (error) {
         // The reply itself failed; never rethrow into the failure reply, and
-        // never retry it: the target's user learns instead (fleet-tool.md, Section 4).
+        // never retry it: the target's user learns instead (specs/fleet-tool.md#query).
         this.reportReplyFailure(endpoint, row, error);
       }
     };
@@ -1700,7 +1696,7 @@ export class FleetCoordinator {
       });
     } catch (error) {
       // A stale host context throws instead of rejecting: the querier still
-      // gets its one reply, with the same text (fleet-tool.md Section 4).
+      // gets its one reply, with the same text (specs/fleet-tool.md#query).
       reply(`Query error: ${errorMessage(error)}`);
       return;
     }
@@ -1737,7 +1733,7 @@ export class FleetCoordinator {
     | { kind: "plugin"; rendered: string }
     | { kind: "builtin"; name: string; args: string }
     | { kind: "rejected"; reason: string } {
-    // The command token ends at the first U+0020 space (slash-commands.md Section 1).
+    // The command token ends at the first U+0020 space (specs/slash-commands.md#registration).
     const firstSpace = body.indexOf(" ");
     const token = (firstSpace === -1 ? body.slice(1) : body.slice(1, firstSpace)).trim();
     const args = firstSpace === -1 ? "" : body.slice(firstSpace + 1).trim();
@@ -1795,7 +1791,7 @@ export class FleetCoordinator {
     return Number(res.changes) > 0;
   }
 
-  /** Delete a session record and reject every message still queued for it (session-store.md, Section 4). */
+  /** Delete a session record and reject every message still queued for it (specs/session-store.md#membership-lifecycle). */
   private deleteSession(sessionId: string, reason: string): void {
     this.db.prepare("DELETE FROM fleet_sessions WHERE session_id = ?").run(sessionId);
     this.deadLetterPending(sessionId, reason);
@@ -1803,7 +1799,7 @@ export class FleetCoordinator {
 
   /**
    * Delete only the record a read found, and reject its pending messages with it,
-   * in one immediate transaction (session-store.md, Section 4). A record another
+   * in one immediate transaction (specs/session-store.md#membership-lifecycle). A record another
    * boot window registered as its own after that read matches neither condition,
    * so it and its messages are left alone; true when the row was deleted.
    */
@@ -1847,12 +1843,12 @@ export class FleetCoordinator {
     const endpoint = this.endpoints.get(session.sessionId);
     if (endpoint) {
       // A delivered followUp still awaiting its turn start makes the session
-      // running, as its record and the listing read it (session-store.md, Section 2).
+      // running, as its record and the listing read it (specs/session-store.md#session-records).
       return !this.endpointIsIdle(endpoint) || this.deliveringFollowUp.has(session.sessionId)
         ? "running"
         : "idle";
     }
-    // No local endpoint: report the record's own state (fleet-tool.md Section 3.1).
+    // No local endpoint: report the record's own state (specs/fleet-tool.md#result).
     return session.state;
   }
 
@@ -1885,7 +1881,7 @@ export class FleetCoordinator {
   private reapIfGone(session: FleetSessionRecord): boolean {
     if (!this.isGone(session)) return false;
     // Only the record that was read: a session that re-registered since the
-    // sweep's snapshot keeps its record and its queued messages (session-store.md, Section 4).
+    // sweep's snapshot keeps its record and its queued messages (specs/session-store.md#membership-lifecycle).
     return this.deleteIfUnchanged(
       "DELETE FROM fleet_sessions WHERE session_id = ? AND owner_pid IS ? AND owner_boot IS ? AND owner_started IS ?",
       [session.sessionId, session.ownerPid, session.ownerBoot ?? null, session.ownerStarted],
@@ -1908,7 +1904,7 @@ export class FleetCoordinator {
 
   /**
    * The agent directories of live sessions: records whose owner process is not
-   * gone (agent-tool.md Section 10). Undefined when the store cannot be read or
+   * gone (specs/agent-tool.md#retention-sweep). Undefined when the store cannot be read or
    * a live record has no recorded directory — the caller must then delete nothing.
    */
   liveAgentDirs(): string[] | undefined {
@@ -1918,7 +1914,7 @@ export class FleetCoordinator {
       for (const row of this.db.prepare(`SELECT ${SESSION_COLUMNS} FROM fleet_sessions`).all()) {
         const session = this.hydrateSession(row);
         // A hidden record has no agent directory and is not a live session; it
-        // must not disable the sweep (session-store.md Section 4).
+        // must not disable the sweep (specs/session-store.md#membership-lifecycle).
         if (session.hidden) continue;
         if (this.isGone(session)) continue;
         if (!session.agentsDir) return undefined;
@@ -1963,7 +1959,7 @@ export class FleetCoordinator {
     const parentSessionId =
       typeof row.parent_session_id === "string" ? row.parent_session_id : undefined;
     // A hidden record and a child session record stay `running` for their life
-    // (specs/session-store.md, Section 4).
+    // (specs/session-store.md#membership-lifecycle).
     const state: FleetSessionState =
       row.hidden === 1 || parentSessionId !== undefined
         ? "running"
@@ -1993,7 +1989,7 @@ export class FleetCoordinator {
   /**
    * Record each owned session's condition as its `state`, so other boot windows
    * see a run no user message started and a compaction outside a turn
-   * (specs/session-store.md Section 2).
+   * (specs/session-store.md#session-records).
    */
   private syncStates(): void {
     for (const [sessionId, endpoint] of this.endpoints) {
@@ -2021,7 +2017,7 @@ export class FleetCoordinator {
 
   /**
    * One poll tick. A tick never throws, and a failing step or endpoint never
-   * stops the rest of the tick (session-store.md Section 5).
+   * stops the rest of the tick (specs/session-store.md#delivery).
    */
   private runPollTick(): void {
     if (this.closed) return;
@@ -2047,14 +2043,14 @@ export class FleetCoordinator {
       run();
     } catch {
       // The next tick retries it; a periodic pass reports no failure
-      // (session-store.md, Section 5).
+      // (specs/session-store.md#delivery).
     }
   }
 
   /**
    * Stop the poll loop only when this boot window has nothing left to poll for:
    * no registered session, no child session and no outstanding waited query
-   * (Section 4.1).
+   * (specs/fleet-tool.md#waited-query).
    */
   private stopPollLoopIfIdle(): void {
     if (this.endpoints.size > 0 || this.childEndpoints.size > 0 || this.queryWaiters.size > 0)
@@ -2067,13 +2063,13 @@ export class FleetCoordinator {
 
 /**
  * A listed session's kind, relative to the listing process: `instance` when
- * this process owns it, else `machine` (specs/fleet-tool.md Section 2).
+ * this process owns it, else `machine` (specs/fleet-tool.md#list).
  */
 export function fleetSessionKind(session: FleetSessionRecord): "instance" | "machine" {
   return session.ownerPid === process.pid ? "instance" : "machine";
 }
 
-/** The `json` list's `<session>` object of one session (specs/fleet-tool.md Section 2). */
+/** The `json` list's `<session>` object of one session (specs/fleet-tool.md#list). */
 export function fleetListSession(s: FleetSessionRecord): {
   sessionId: string;
   kind: "instance" | "machine";
@@ -2089,7 +2085,7 @@ export function fleetListSession(s: FleetSessionRecord): {
     state: s.state,
     cwd: s.cwd,
     ...(s.repoRoot === undefined ? {} : { repoRoot: s.repoRoot }),
-    // A child session names the session that spawned it (fleet-tool.md Section 2).
+    // A child session names the session that spawned it (specs/fleet-tool.md#list).
     ...(s.parentSessionId === undefined ? {} : { parent: s.parentSessionId }),
     turns: s.turns,
   };
@@ -2127,12 +2123,12 @@ export function formatFleetList(
     });
     return [...blocks, caveat].join("\n\n");
   }
-  // Default format: compact (specs/fleet-tool.md Section 2).
+  // Default format: compact (specs/fleet-tool.md#list).
   const lines = sessions.map(formatFleetCompactLine);
   return [...lines, caveat].join("\n");
 }
 
-/** The `compact` line of one session (specs/fleet-tool.md Section 2). */
+/** The `compact` line of one session (specs/fleet-tool.md#list). */
 export function formatFleetCompactLine(session: FleetSessionRecord): string {
   const last = session.turns[session.turns.length - 1];
   const summary = last?.goal || last?.command || "(no turns yet)";

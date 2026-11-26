@@ -116,7 +116,7 @@ interface BootWindow {
   reported: boolean;
   swept: boolean;
   activeSessions: Set<string>;
-  /** The shell-settings files already reported (bash-tool.md Section 3). */
+  /** The shell-settings files already reported (specs/bash-tool.md#execution-model). */
   settingsWarnings: Set<string>;
 }
 
@@ -160,7 +160,7 @@ function reportDiagnostics(ctx: ExtensionContext, window: BootWindow): void {
   }
 }
 
-/** Theme paint for the task tree widget (task.md Section 4). */
+/** Theme paint for the task tree widget (specs/task.md#task-tree-widget). */
 export function themePaint(theme: { fg(name: string, text: string): string }): TaskPaint {
   return {
     status: (text, status) => theme.fg(status === "interrupted" ? "warning" : "accent", text),
@@ -186,15 +186,15 @@ export function shutdownStep(
   }
 }
 
-/** bash-tool.md Section 7: the block reason for a built-in `bash` call. */
+/** specs/bash-tool.md#builtin-suppression: the block reason for a built-in `bash` call. */
 const BASH_BLOCKED_REASON = "The `bash` tool is disabled: use `Bash`.";
 
-/** bash-tool.md Section 7: the warning of a selection with no shell tool. */
+/** specs/bash-tool.md#builtin-suppression: the warning of a selection with no shell tool. */
 const NO_SHELL_NOTICE =
   "pi-dent: the tool selection names `bash`, which is disabled, and omits `Bash`: the session has no shell tool";
 
 /**
- * ask-user-question-tool.md Section 1.4: in a session without a user interface the
+ * specs/ask-user-question-tool.md#activation: in a session without a user interface the
  * tool leaves the active tool set before the session's first model request, every
  * other tool's activity unchanged; with one, its activity stays as the host set it.
  */
@@ -206,7 +206,7 @@ function hideAskUserQuestionWithoutUi(pi: ExtensionAPI, ctx: ExtensionContext): 
 }
 
 /**
- * schedule-tool.md Section 1.3: in an agent session (no user interface) `Schedule`
+ * specs/schedule-tool.md#activation: in an agent session (no user interface) `Schedule`
  * leaves the active tool set before the session's first model request, every other
  * tool's activity unchanged; in a user session, its activity stays as the host set it.
  */
@@ -218,7 +218,7 @@ function hideScheduleWithoutUi(pi: ExtensionAPI, ctx: ExtensionContext): void {
 }
 
 /**
- * bash-tool.md Section 7: every session_start deactivates the built-in `bash`,
+ * specs/bash-tool.md#builtin-suppression: every session_start deactivates the built-in `bash`,
  * and a selection that still names it while omitting `Bash` leaves the session
  * without a shell tool.
  */
@@ -235,10 +235,10 @@ export default function (pi: ExtensionAPI) {
   const boot = window.snapshot;
   const fleet = window.fleet;
   const { guidance, billing } = parsedModelGuidance(boot.config);
-  // The local zone is read once here (billing.md Section 5) and shared by every
+  // The local zone is read once here (specs/billing.md#billing-text) and shared by every
   // text that renders local time.
   const zone = readLocalZone();
-  // billing.md Section 4.5: a diagnostic is shown at once while a session of this
+  // specs/billing.md#diagnostics: a diagnostic is shown at once while a session of this
   // instance is open, and held for the next session_start otherwise.
   let sessionUi: ExtensionContext["ui"] | undefined;
   const heldDiagnostics: Diagnostic[] = [];
@@ -252,18 +252,18 @@ export default function (pi: ExtensionAPI) {
     }
     heldDiagnostics.push(diagnostic);
   };
-  // package.md Section 5.3: a declared local link that is missing, or in use, is told at load.
+  // specs/package.md#load-time-check: a declared local link that is missing, or in use, is told at load.
   for (const diagnostic of localLinkDiagnostics(dirname(fileURLToPath(import.meta.url)))) {
     reportDiagnostic(diagnostic);
   }
-  // footer.md Section 1.1: the configuration is read once per boot window, and its diagnostics
+  // specs/footer.md#configuration: the configuration is read once per boot window, and its diagnostics
   // hold until the session's UI shows them.
   const footerSettings = parseFooter(boot.config);
   for (const message of footerSettings.diagnostics) {
     reportDiagnostic({ level: "warning", message });
   }
   // One per extension instance: subscribes to the billing service's change
-  // channel on this instance's own event bus (billing.md Section 4.1).
+  // channel on this instance's own event bus (specs/billing.md#held-billing).
   const guidanceCtl = new GuidanceController({
     guidance,
     timeZone: zone,
@@ -277,7 +277,7 @@ export default function (pi: ExtensionAPI) {
 
   let currentHost: HostSession | undefined;
   let currentSessionKind: SessionKind | undefined;
-  // bash-tool.md Section 3: one settings reader per boot window, shared by the main session's
+  // specs/bash-tool.md#execution-model: one settings reader per boot window, shared by the main session's
   // Bash and every child session's, so each unreadable file is reported once per boot window.
   const bashSettings = (cwd: string) =>
     readBashSettings(
@@ -286,12 +286,12 @@ export default function (pi: ExtensionAPI) {
       window.settingsWarnings,
     );
   // One per main session: every dispatch, child and Fleet query of it adds to this tally
-  // (agent-tool.md Section 13), whose status line follows it while an interactive TUI is open.
+  // (specs/agent-tool.md#usage), whose status line follows it while an interactive TUI is open.
   const usageTally = new UsageTally();
-  // task-ledger.md Section 1: one task ledger per extension instance, opened at its main
+  // specs/task-ledger.md#location: one task ledger per extension instance, opened at its main
   // session's first session_start and shared with every child and query engine.
   const ledgerHolder = new LedgerHolder();
-  // The main session's identity and nested calls, as its rows are filed (Sections 2.2 and 3.1).
+  // The main session's identity and nested calls, as its rows are filed (specs/task-ledger.md#ledger-row and specs/task-ledger.md#parent-row).
   let ledgerSessionId: string | undefined;
   let ledgerCwd: string | undefined;
   const mainCalls = new NestedCalls();
@@ -301,7 +301,7 @@ export default function (pi: ExtensionAPI) {
     cwd: () => currentHost?.cwd() ?? ledgerCwd,
     calls: mainCalls,
   };
-  /** Section 3.3: the main session's ledger session row, from the host's entries and header. */
+  /** specs/task-ledger.md#session-row-writes: the main session's ledger session row, from the host's entries and header. */
   const writeSessionRow = (ctx: ExtensionContext | undefined, ended?: unknown): void => {
     const ledger = ledgerHolder.ledger;
     if (ledger === undefined || ctx === undefined) return;
@@ -330,7 +330,7 @@ export default function (pi: ExtensionAPI) {
     pi.events,
     {
       bashSettings,
-      // task-registry.md Section 5: a notification the host did not deliver is shown once.
+      // specs/task-registry.md#cohorts: a notification the host did not deliver is shown once.
       reportNotification: (message) => reportDiagnostic({ level: "warning", message }),
       usageTally,
       ledger: ledgerScope,
@@ -361,13 +361,12 @@ export default function (pi: ExtensionAPI) {
   );
   agentTool.refresh("");
   // Schedules live in the process, keyed by session ID, and survive a reload
-  // (schedule-tool.md Section 5).
+  // (specs/schedule-tool.md#lifecycle).
   const schedules = scheduleRuntime({ zone });
   // The search tool answers from the shared session index, one call at a time
-  // (search-tool.md Sections 1 and 2.2).
+  // (specs/search-tool.md#registration and specs/search-tool.md#coverage).
   const search = searchRuntime({ zone });
-  // The questions of the main session, one call at a time (ask-user-question-tool.md
-  // Section 2).
+  // The questions of the main session, one call at a time (specs/ask-user-question-tool.md#asking).
   const questions = askUserRuntime();
   const recap = recapRuntime(boot.config, (data) => pi.appendEntry("pi-dent-recap", data));
   const scriptToolsAllow = parseScript(boot.config).toolsAllow ?? DEFAULT_TOOLS_ALLOW;
@@ -402,7 +401,7 @@ export default function (pi: ExtensionAPI) {
     },
     pi.events,
   );
-  // plugin-ui.md Section 7: UI-agnostic extension event seam.
+  // specs/plugin-ui.md#extension-event-seam: UI-agnostic extension event seam.
   if (typeof pi.events?.on === "function") {
     try {
       pi.events.on(PLUGIN_UI_CANCEL_TAG_EVENT, (raw: unknown) => {
@@ -425,19 +424,19 @@ export default function (pi: ExtensionAPI) {
     }
   }
   let taskWidget: TaskWidgetHandle | undefined;
-  // Feeds for an RPC client (task.md Section 4.1, fleet-tool.md Section 6).
+  // Feeds for an RPC client (specs/task.md#task-feed, specs/fleet-tool.md#fleet-feed).
   let taskFeed: FeedHandle | undefined;
   let fleetFeed: FeedHandle | undefined;
-  // The watched task's details feed (task.md Section 4.2), announced sessions only.
+  // The watched task's details feed (specs/task.md#task-detail-feed), announced sessions only.
   let taskDetail: TaskDetailFeed | undefined;
   let closeTaskBrowser: (() => void) | undefined;
   // The usage status line's subscription, one per open main session.
   let stopUsageStatus: (() => void) | undefined;
-  // specs/footer.md Section 1: how to take pi-dent's footer down again, while one is set.
+  // specs/footer.md#activation: how to take pi-dent's footer down again, while one is set.
   let stopFooter: (() => void) | undefined;
 
   /**
-   * agent-tool.md Section 13: the usage status line and its redraws, for a session pi-dent draws no
+   * specs/agent-tool.md#usage: the usage status line and its redraws, for a session pi-dent draws no
    * footer for. A UI that cannot set the text reports nothing.
    */
   const followTallyStatus = (ui: ExtensionContext["ui"]): (() => void) => {
@@ -448,7 +447,7 @@ export default function (pi: ExtensionAPI) {
           usageTally.statusText((color, text) => ui.theme.fg(color, text)),
         );
       } catch {
-        // The dispatch and the tally are unaffected and no failure is reported (Section 13).
+        // The dispatch and the tally are unaffected and no failure is reported (specs/agent-tool.md#usage).
       }
     };
     const unsubscribe = usageTally.subscribe(update);
@@ -457,12 +456,12 @@ export default function (pi: ExtensionAPI) {
   };
 
   /**
-   * specs/footer.md Section 1: draw pi-dent's footer for this session and return whether it is
+   * specs/footer.md#activation: draw pi-dent's footer for this session and return whether it is
    * pi-dent's. A host that refuses it keeps its own footer and is told so.
    */
   const installFooter = (ctx: ExtensionContext): boolean => {
     const ui = ctx.ui;
-    // Section 2.2: the effective compaction settings of the session's working directory; unknown
+    // specs/footer.md#stats-line: the effective compaction settings of the session's working directory; unknown
     // settings count as enabled. Read once, so a render never touches the settings files.
     let autoCompact = true;
     try {
@@ -492,8 +491,8 @@ export default function (pi: ExtensionAPI) {
       if (stopped) return;
       stop();
       stopFooter = undefined;
-      // Section 1: the built-in footer comes back and the failure is shown once. pi-dent no longer
-      // draws the footer, so the tally's status line takes over (agent-tool.md Section 13).
+      // specs/footer.md#activation: the built-in footer comes back and the failure is shown once. pi-dent no longer
+      // draws the footer, so the tally's status line takes over (specs/agent-tool.md#usage).
       try {
         ui.notify(`pi-dent: footer failed: ${errorMessage(error)}`, "error");
         ui.setFooter(undefined);
@@ -550,7 +549,7 @@ export default function (pi: ExtensionAPI) {
       ui.notify(`pi-dent: footer could not be set: ${errorMessage(error)}`, "error");
       return false;
     }
-    // agent-tool.md Section 13: the key stays clear while the footer shows the tally.
+    // specs/agent-tool.md#usage: the key stays clear while the footer shows the tally.
     try {
       ui.setStatus(USAGE_STATUS_KEY, undefined);
     } catch {
@@ -581,7 +580,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("message_end", async (event, ctx) => {
-    // task-ledger.md Section 3.3: every message end of the main session rewrites its row. The
+    // specs/task-ledger.md#session-row-writes: every message end of the main session rewrites its row. The
     // host saves the message only after this event; the row counts it all the same.
     writeSessionRow(ctx, event.message);
     if (event.message?.role === "assistant") {
@@ -592,7 +591,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("tool_execution_start", async (event) => {
     cohorts.onToolExecutionStart(event.toolCallId, event.toolName);
-    // task-ledger.md Section 3.1, rule 1: the calling tool call of a nested call.
+    // specs/task-ledger.md#parent-row, rule 1: the calling tool call of a nested call.
     mainCalls.started(event.toolCallId, event.parentToolCallId);
   });
 
@@ -631,24 +630,24 @@ export default function (pi: ExtensionAPI) {
     await pluginUi.disposeProxy();
     currentProjectTrusted =
       typeof ctx.isProjectTrusted === "function" ? ctx.isProjectTrusted() : false;
-    // billing.md Section 4.5: the diagnostics held with no open session go out first.
+    // specs/billing.md#diagnostics: the diagnostics held with no open session go out first.
     sessionUi = ctx.ui;
     for (const diagnostic of heldDiagnostics.splice(0)) showDiagnostic(diagnostic);
-    // plugin.md Section 12: register admitted plugins' HTTPS MCP servers with pi-mcp-adapter.
+    // specs/plugin.md#mcp-servers: register admitted plugins' HTTPS MCP servers with pi-mcp-adapter.
     pluginMcp.register();
-    // Section 7: removed before the handler returns, whatever fails later.
+    // specs/bash-tool.md#builtin-suppression: removed before the handler returns, whatever fails later.
     deactivateBuiltinBash(pi, ctx);
-    // ask-user-question-tool.md Section 1.4 and schedule-tool.md Section 1.3:
+    // specs/ask-user-question-tool.md#activation and specs/schedule-tool.md#activation:
     // hidden in print and JSON mode (agent sessions) before the first model request.
     hideAskUserQuestionWithoutUi(pi, ctx);
     hideScheduleWithoutUi(pi, ctx);
-    // session-tool.md Section 3.1: expose the main session's kind in process.env.
+    // specs/session-tool.md#environment-variable: expose the main session's kind in process.env.
     currentSessionKind = sessionKindForMain(ctx.hasUI);
     process.env[SESSION_KIND_ENV] = currentSessionKind;
     agentTool.refresh(modelCatalog(guidance, ctx.modelRegistry?.getAvailable() ?? []));
     currentHost = hostFromContext(pi, ctx);
     engine.resetRegistry();
-    // agent-tool.md Section 13 and footer.md Section 1: the tally restarts with the session.
+    // specs/agent-tool.md#usage and specs/footer.md#activation: the tally restarts with the session.
     // While pi-dent draws the footer the tally is one of its segments and the key stays clear;
     // otherwise the status line follows every change while an interactive terminal UI is open.
     // The reset fires the listener installed here, which clears the key when there is no tally.
@@ -671,7 +670,7 @@ export default function (pi: ExtensionAPI) {
     const drewFooter = interactive && footerSettings.enabled ? installFooter(ctx) : false;
     if (interactive && !drewFooter) stopUsageStatus = followTallyStatus(ctx.ui);
     const sessionId = ctx.sessionManager.getSessionId();
-    // task-ledger.md Section 1: opened once per extension instance, before its first read or
+    // specs/task-ledger.md#location: opened once per extension instance, before its first read or
     // write; an unusable ledger is told once through the session's UI.
     ledgerHolder.ledger ??= openTaskLedger({
       notify: (message) =>
@@ -681,7 +680,7 @@ export default function (pi: ExtensionAPI) {
     ledgerSessionId = sessionId;
     ledgerCwd = ctx.cwd;
     writeSessionRow(ctx);
-    // agent-tool.md Section 13: the tally restarts partial and is seeded by a read issued now,
+    // specs/agent-tool.md#usage: the tally restarts partial and is seeded by a read issued now,
     // applied in the ledger order; a read that is not ok leaves it partial.
     const seed = usageTally.reset();
     void ledger.readAgentFigures(sessionId).then((read) => {
@@ -689,7 +688,7 @@ export default function (pi: ExtensionAPI) {
     });
     window.activeSessions.add(sessionId);
     fleet.markMainSession(sessionId);
-    // schedule-tool.md Sections 4 and 6: wired before any step that may throw,
+    // specs/schedule-tool.md#firing and specs/schedule-tool.md#schedule-status-line: wired before any step that may throw,
     // so a reload's pending schedules resume even when a later step fails. The
     // window reads live host state, so it is dropped at session_shutdown.
     const scheduleWindow: ScheduleWindow = {
@@ -733,31 +732,31 @@ export default function (pi: ExtensionAPI) {
       ctx.isIdle() ? "idle" : "running",
     );
     if (registered) {
-      // task-record.md Section 3: the rebuild belongs to the boot window that owns
+      // specs/task-record.md#rebuild: the rebuild belongs to the boot window that owns
       // the session; a refused registration inserts no row and changes no record.
       rebuildInterruptedTasks(
         engine.registry,
         agentsDir,
         undefined,
         (message) => ctx.ui.notify(message, "warning"),
-        // task-ledger.md Section 4.2: each inserted row finds its ledger row.
+        // specs/task-ledger.md#rebuild: each inserted row finds its ledger row.
         { ledger, sessionId },
       );
     } else {
       ctx.ui.notify(`pi-dent: ${ownedElsewhereWarning(sessionId)}`, "warning");
     }
     // The retention sweep runs once per boot window, after this session's agent
-    // directory exists and its record is written (agent-tool.md Section 10).
+    // directory exists and its record is written (specs/agent-tool.md#retention-sweep).
     if (!window.swept) {
       window.swept = true;
       retentionSweep(boot.sessionTtlDays, fleet.liveAgentDirs());
       // The index prune runs after the sweep, whether or not it deleted anything
-      // (agent-tool.md Section 10; session-index.md Section 6).
+      // (specs/agent-tool.md#retention-sweep; specs/session-index.md#index-prune).
       void pruneSessionIndex().catch(() => {
         // A prune that fails reports nothing and deletes no file.
       });
     }
-    // Task tree widget (task.md Section 4): only with an interactive TUI,
+    // Task tree widget (specs/task.md#task-tree-widget): only with an interactive TUI,
     // placed above the editor; stopping clears it.
     closeTaskBrowser?.();
     taskWidget?.stop();
@@ -815,14 +814,14 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_compact", async (_event, ctx) => {
-    // task-ledger.md Section 3.3: a compaction summary rewrites the ledger session row; the host
+    // specs/task-ledger.md#session-row-writes: a compaction summary rewrites the ledger session row; the host
     // saved the compaction entry before this event, as it saves a branch summary's below.
     writeSessionRow(ctx);
     await guidanceCtl.sessionCompact(ctx);
   });
 
   pi.on("session_tree", async (event, ctx) => {
-    // task-ledger.md Section 3.3: so does a branch summary.
+    // specs/task-ledger.md#session-row-writes: so does a branch summary.
     if (event.summaryEntry !== undefined) writeSessionRow(ctx);
   });
 
@@ -833,12 +832,11 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_shutdown", async (event, ctx) => {
     recap.abort();
     await pluginMcp.dispose();
-    // Every open question ends with the shutdown result (ask-user-question-tool.md
-    // Section 5), whatever fails later in this handler.
+    // Every open question ends with the shutdown result (specs/ask-user-question-tool.md#no-answers), whatever fails later in this handler.
     const questionSessionId = ctx?.sessionManager?.getSessionId?.() ?? currentHost?.sessionId();
     if (questionSessionId) questions.sessionShutdown(questionSessionId);
     guidanceCtl.shutdown();
-    // Ending the main session clears the widget (task.md Section 4); the UI
+    // Ending the main session clears the widget (specs/task.md#task-tree-widget); the UI
     // may already be gone at shutdown.
     // Each stop runs on its own, so a failing one cannot leave the fleet feed's timer running.
     for (const stop of [
@@ -857,13 +855,13 @@ export default function (pi: ExtensionAPI) {
     taskWidget = undefined;
     taskFeed = undefined;
     fleetFeed = undefined;
-    // agent-tool.md Section 13: the usage status line ends with the session, a reload's too.
+    // specs/agent-tool.md#usage: the usage status line ends with the session, a reload's too.
     stopUsageStatus?.();
     stopUsageStatus = undefined;
     try {
       ctx?.ui?.setStatus(USAGE_STATUS_KEY, undefined);
     } catch {
-      // The UI may already be gone at shutdown; no failure is reported (Section 13).
+      // The UI may already be gone at shutdown; no failure is reported (specs/agent-tool.md#usage).
     }
     taskDetail = undefined;
     // Owned tasks live and die with the main session. Each step runs on its own and reports its
@@ -872,7 +870,7 @@ export default function (pi: ExtensionAPI) {
     const reportShutdown = (message: string): void => {
       ctx?.ui?.notify(message, "warning");
     };
-    // footer.md Section 1: the built-in footer comes back with the session, a reload's too.
+    // specs/footer.md#activation: the built-in footer comes back with the session, a reload's too.
     if (stopFooter) {
       const restore = stopFooter;
       stopFooter = undefined;
@@ -880,7 +878,7 @@ export default function (pi: ExtensionAPI) {
     }
     shutdownStep("ending owned tasks", () => engine.registry.end(), reportShutdown);
     shutdownStep("cancelling owned task runs", () => engine.cancelAll(), reportShutdown);
-    // task-ledger.md Section 3.3, then Section 5: the connection closes once the writes issued so
+    // specs/task-ledger.md#session-row-writes, then specs/task-ledger.md#concurrent-access: the connection closes once the writes issued so
     // far are applied; a settlement issued later opens it again.
     shutdownStep("writing the task ledger session row", () => writeSessionRow(ctx), reportShutdown);
     shutdownStep("closing the task ledger", () => ledgerHolder.ledger?.close(), reportShutdown);
@@ -895,7 +893,7 @@ export default function (pi: ExtensionAPI) {
       reportShutdown(`pi-dent: disposing plugin UI tool proxy failed: ${errorMessage(error)}`);
     }
     // The Search tool's continuations of catch-up end with the boot window
-    // (search-tool.md Section 2.2).
+    // (specs/search-tool.md#coverage).
     shutdownStep("stopping Search", () => search.stop(), reportShutdown);
     const sid = ctx?.sessionManager?.getSessionId?.() ?? currentHost?.sessionId();
     if (sid) {
@@ -905,11 +903,11 @@ export default function (pi: ExtensionAPI) {
         () => schedules.sessionShutdown({ sessionId: sid, reason: event.reason }),
         reportShutdown,
       );
-      // Refresh the directory's age before the record leaves the store (agent-tool.md Section 10).
+      // Refresh the directory's age before the record leaves the store (specs/agent-tool.md#retention-sweep).
       closeMainSessionDir(ctx?.sessionManager?.getSessionFile?.(), sid);
       if (event.reason === "reload") {
         // A reload neither ends the session nor cancels pending messages
-        // (specs/fleet-tool.md Section 5): release ownership, keep queues.
+        // (specs/fleet-tool.md#status): release ownership, keep queues.
         fleet.releaseEndpointForReload(sid);
       } else {
         fleet.unregisterEndpoint(sid);
@@ -923,14 +921,14 @@ export default function (pi: ExtensionAPI) {
         fleet.close(event.reason === "reload" ? { keepPending: true } : undefined);
       }
     }
-    // session-tool.md Section 3.1: unset PI_DENT_SESSION_KIND when it still holds this session's value.
+    // specs/session-tool.md#environment-variable: unset PI_DENT_SESSION_KIND when it still holds this session's value.
     if (currentSessionKind !== undefined && process.env[SESSION_KIND_ENV] === currentSessionKind) {
       delete process.env[SESSION_KIND_ENV];
     }
     currentSessionKind = undefined;
     // The pi ctx behind the host is stale from here on.
     currentHost = undefined;
-    // billing.md Section 4.5: the next diagnostic waits for the next session_start.
+    // specs/billing.md#diagnostics: the next diagnostic waits for the next session_start.
     sessionUi = undefined;
   });
 
@@ -991,7 +989,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("tasks", {
     description: "Open the task browser",
     handler: async (args, ctx) => {
-      // With arguments the verbs serve an RPC client (slash-commands.md Section 3).
+      // With arguments the verbs serve an RPC client (specs/slash-commands.md#tasks).
       if (args.trim() === "") return toggleTaskBrowser(ctx);
       runTasksVerb(args, {
         feed: taskDetail,
@@ -1004,7 +1002,7 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const sessionId = ctx.sessionManager?.getSessionId?.() ?? currentHost?.sessionId();
       // A session without a live identity has no siblings and no sender
-      // (specs/slash-commands.md Section 4).
+      // (specs/slash-commands.md#fleet).
       if (!sessionId) return;
       await runFleetCommand(args, {
         fleet,
@@ -1034,8 +1032,8 @@ export default function (pi: ExtensionAPI) {
   );
   // The main session binds `Skill` and carries the skill catalog like any
   // child whose tool cap includes it, clearing the host's own skill list on
-  // every turn (skill-tool.md Section 1). Plugin context blocks follow the
-  // skill catalog on every turn (plugin.md Section 10).
+  // every turn (specs/skill-tool.md#binding). Plugin context blocks follow the
+  // skill catalog on every turn (specs/plugin.md#plugin-context).
   if (boot.skills.length > 0) registerOwnedTool(makeSkillTool(boot));
   pi.on("before_agent_start", async (event, ctx) => {
     if (event.systemPromptOptions?.skills) event.systemPromptOptions.skills.length = 0;
@@ -1056,7 +1054,7 @@ export default function (pi: ExtensionAPI) {
       hostProvider: () => currentHost,
       cohortFor: (toolCallId) => cohorts.cohortFor(toolCallId),
       agentDir: agentDirForHost,
-      // script-tool.md Section 8; its diagnostics are boot diagnostics.
+      // specs/script-tool.md#tool-functions; its diagnostics are boot diagnostics.
       toolsAllow: () => scriptToolsAllow,
     }),
   );
@@ -1066,19 +1064,19 @@ export default function (pi: ExtensionAPI) {
       hostProvider: () => currentHost,
       cohortFor: (toolCallId) => cohorts.cohortFor(toolCallId),
       agentDir: agentDirForHost,
-      // bash-tool.md Section 3: a settings file that cannot be read is reported once
+      // specs/bash-tool.md#execution-model: a settings file that cannot be read is reported once
       // per boot window through this instance's diagnostics.
       settings: bashSettings,
     }),
   );
   // The main session schedules into itself; a child never binds Schedule
-  // (agent-tool.md Section 3.1).
+  // (specs/agent-tool.md#tools).
   registerOwnedTool(makeScheduleTool(schedules));
   // The main session asks the user; a child never binds AskUserQuestion
-  // (agent-tool.md Section 3.1).
+  // (specs/agent-tool.md#tools).
   pi.registerTool(makeAskUserQuestionTool(questions));
   // `Search` is registered for the main session, which reaches its own session
-  // tree and, on request, its project (search-tool.md Section 1).
+  // tree and, on request, its project (specs/search-tool.md#registration).
   registerOwnedTool(
     makeSearchTool({
       runtime: search,
@@ -1091,10 +1089,10 @@ export default function (pi: ExtensionAPI) {
   );
   // `Markdown` reads and restructures one Markdown file by its headings
   // (pi-dent-markdown specs/markdown-tool.md Section 1); a child session binds it under the tool cap
-  // (agent-tool.md Section 3.1).
+  // (specs/agent-tool.md#tools).
   registerOwnedTool(makeMarkdownTool(markdownRuntime()));
 
-  // Plugin slash commands (specs/plugin.md Section 5): one command per
+  // Plugin slash commands (specs/plugin.md#slash-commands): one command per
   // commands/*.md resource of the first-admitted plugin per namespace,
   // invoked as /<namespace>:<command>; the body is read fresh, substituted,
   // and delivered as one user message.

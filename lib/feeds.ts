@@ -1,5 +1,5 @@
 /**
- * The feed announcement (specs/task.md Section 4.1, specs/fleet-tool.md Section 6): a feed
+ * The feed announcement (specs/task.md#task-feed, specs/fleet-tool.md#fleet-feed): a feed
  * is set only in pi's RPC mode with an interactive host surface, and only when the client
  * announces it with `PI_DENT_FEEDS` set to `1`. The host values are parameters so tests inject them.
  */
@@ -13,7 +13,7 @@ export interface FeedHost {
   mode: string;
 }
 
-/** Whether a session at start announces the feeds (task.md Section 4.1). */
+/** Whether a session at start announces the feeds (specs/task.md#task-feed). */
 export function feedsAnnounced(host: FeedHost): boolean {
   return host.hasUI && host.mode === "rpc" && host.env[FEEDS_ENV] === "1";
 }

@@ -1,7 +1,7 @@
 /**
  * The `Schedule` tool (specs/schedule-tool.md): schedules held in the memory of the
- * process, keyed by session ID (Section 5), fired into the session that created
- * them (Section 4), plus the lifecycle calls the extension's handlers make.
+ * process, keyed by session ID (specs/schedule-tool.md#lifecycle), fired into the session that created
+ * them (specs/schedule-tool.md#firing), plus the lifecycle calls the extension's handlers make.
  */
 
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -13,20 +13,20 @@ import { MAX_INSTANT, localStamp, parseDateTime } from "./schedule-time.ts";
 import { firstLine, errorMessage, isPlainObject, shortUuid } from "./util.ts";
 
 /**
- * Checks run at most this far apart (Section 4.1): half the bound, so the next check is armed
+ * Checks run at most this far apart (specs/schedule-tool.md#checks): half the bound, so the next check is armed
  * before a whole interval can pass while the previous one runs.
  */
 const CHECK_INTERVAL_MS = 500;
-/** The `setStatus` key of Section 6. */
+/** The `setStatus` key of specs/schedule-tool.md#schedule-status-line. */
 export const SCHEDULE_TOOL_NAME = "Schedule";
 
 export const SCHEDULE_UNAVAILABLE_TEXT =
   "Schedule is unavailable: this is an agent session with no user input.";
 
 export const SCHEDULE_STATUS_KEY = "pi-dent-schedule";
-/** The `customType` of a scheduled message (Section 4.2). */
+/** The `customType` of a scheduled message (specs/schedule-tool.md#insertion). */
 export const SCHEDULE_CUSTOM_TYPE = "pi-dent-schedule";
-/** A preview is cut to this many characters (Section 3.2). */
+/** A preview is cut to this many characters (specs/schedule-tool.md#list). */
 const PREVIEW_LENGTH = 120;
 
 /** The `action` values, in schema order. */
@@ -34,7 +34,7 @@ export const SCHEDULE_ACTIONS = ["create", "list", "cancel"] as const;
 
 export type ScheduleAction = (typeof SCHEDULE_ACTIONS)[number];
 
-// Section 1.1: every field but `action` is optional, and a null value counts as
+// specs/schedule-tool.md#parameter-schema: every field but `action` is optional, and a null value counts as
 // absent, so a null passes the schema and the checks treat it as absent.
 export const scheduleParameterSchema = Type.Object(
   {
@@ -81,7 +81,7 @@ export const scheduleParameterSchema = Type.Object(
 
 export type ScheduleToolParams = Static<typeof scheduleParameterSchema>;
 
-/** A schedule of Section 2.1. */
+/** A schedule of specs/schedule-tool.md#schedule. */
 interface Schedule {
   scheduleId: string;
   message: string;
@@ -93,29 +93,29 @@ interface Schedule {
   queued: boolean;
   /** The due time of the queued occurrence, while `queued`. */
   queuedDueAt: number | undefined;
-  /** Creation order within the session, for ties (Section 2.1). */
+  /** Creation order within the session, for ties (specs/schedule-tool.md#schedule). */
   order: number;
-  /** The `<error>` of the last undelivered hand-off shown (Section 4.2), while pending. */
+  /** The `<error>` of the last undelivered hand-off shown (specs/schedule-tool.md#insertion), while pending. */
   deliveryFailure: string | undefined;
 }
 
 /** What a session handler supplies to the runtime: the host and UI it may use. */
 export interface ScheduleWindow {
-  /** Hands one scheduled message to the host `sendMessage` API (Section 4.2). */
+  /** Hands one scheduled message to the host `sendMessage` API (specs/schedule-tool.md#insertion). */
   send(message: ScheduledMessage): void;
-  /** Sets the status line, or clears it with `undefined` (Section 6). */
+  /** Sets the status line, or clears it with `undefined` (specs/schedule-tool.md#schedule-status-line). */
   setStatus(text: string | undefined): void;
-  /** Shows a notification to the user (Sections 4.2 and 6), through the host `notify` API. */
+  /** Shows a notification to the user (specs/schedule-tool.md#insertion and specs/schedule-tool.md#schedule-status-line), through the host `notify` API. */
   notify?(text: string): void;
   /** Whether the session has an interactive terminal UI. */
   interactive: boolean;
-  /** Whether an agent run is in progress (Section 4). */
+  /** Whether an agent run is in progress (specs/schedule-tool.md#firing). */
   isRunning(): boolean;
-  /** Whether the session is idle (Section 4). */
+  /** Whether the session is idle (specs/schedule-tool.md#firing). */
   isIdle(): boolean;
 }
 
-/** One entry of a scheduled message's `details.schedules` (Section 4.2). */
+/** One entry of a scheduled message's `details.schedules` (specs/schedule-tool.md#insertion). */
 export interface ScheduledOccurrence {
   scheduleId: string;
   createdAt: number;
@@ -123,7 +123,7 @@ export interface ScheduledOccurrence {
   occurrence?: number;
 }
 
-/** A message handed to the host `sendMessage` API (Section 4.2). */
+/** A message handed to the host `sendMessage` API (specs/schedule-tool.md#insertion). */
 export interface ScheduledMessage {
   customType: string;
   content: string;
@@ -141,18 +141,18 @@ export interface ScheduleClock {
 /** The schedules of one session. */
 export interface ScheduleSession {
   schedules: Schedule[];
-  /** The creation order of its next schedule (Section 2.1). */
+  /** The creation order of its next schedule (specs/schedule-tool.md#schedule). */
   order: number;
   window: ScheduleWindow | undefined;
   cancelCheck: (() => void) | undefined;
-  /** The `<error>` of the last check failure shown (Section 6), so it is not repeated. */
+  /** The `<error>` of the last check failure shown (specs/schedule-tool.md#schedule-status-line), so it is not repeated. */
   checkFailure: string | undefined;
 }
 
-/** The schedules of every session of the process (Section 5). */
+/** The schedules of every session of the process (specs/schedule-tool.md#lifecycle). */
 export interface ScheduleStore {
   sessions: Map<string, ScheduleSession>;
-  /** The schedule IDs created in this process, so they stay unique (Section 2.1). */
+  /** The schedule IDs created in this process, so they stay unique (specs/schedule-tool.md#schedule). */
   ids: Set<string>;
 }
 
@@ -162,17 +162,17 @@ export type ScheduleShutdownReason = "quit" | "reload" | "new" | "resume" | "for
 export interface ScheduleRuntime {
   clock: ScheduleClock;
   store: ScheduleStore;
-  /** `session_start`: adopt the window and resume checking (Section 5). */
+  /** `session_start`: adopt the window and resume checking (specs/schedule-tool.md#lifecycle). */
   sessionStart(options: {
     sessionId: string;
     reason: ScheduleStartReason;
     window: ScheduleWindow;
   }): void;
-  /** `session_shutdown`: stop checking, and keep the schedules only for a reload (Section 5). */
+  /** `session_shutdown`: stop checking, and keep the schedules only for a reload (specs/schedule-tool.md#lifecycle). */
   sessionShutdown(options: { sessionId: string; reason: ScheduleShutdownReason }): void;
-  /** `message_start`: the host inserted a scheduled message, or started someone else's (Section 4.2). */
+  /** `message_start`: the host inserted a scheduled message, or started someone else's (specs/schedule-tool.md#insertion). */
   messageStarted(options: { sessionId: string; message: unknown }): void;
-  /** One `Schedule` call of the session (Sections 1.2, 1.3, and 3). */
+  /** One `Schedule` call of the session (specs/schedule-tool.md#validation, specs/schedule-tool.md#activation, and specs/schedule-tool.md#actions). */
   execute(options: {
     sessionId: string;
     params: ScheduleToolParams;
@@ -205,7 +205,7 @@ const systemClock: ScheduleClock = {
   },
 };
 
-/** A firing, as Sections 2.3 and 4.2 need it after the schedule has moved on. */
+/** A firing, as specs/schedule-tool.md#repeating-schedules and specs/schedule-tool.md#insertion need it after the schedule has moved on. */
 interface Firing {
   scheduleId: string;
   createdAt: number;
@@ -218,14 +218,14 @@ interface Firing {
   final: "count" | "late" | undefined;
 }
 
-/** What a firing leaves of its schedule, held back until the hand-off succeeds (Section 4.2). */
+/** What a firing leaves of its schedule, held back until the hand-off succeeds (specs/schedule-tool.md#insertion). */
 interface FiringPlan {
   firing: Firing;
   /** The schedule's next due time, or `undefined` when this firing ends it. */
   nextDueAt: number | undefined;
 }
 
-/** A due schedule and its planned firing (Section 4.2). */
+/** A due schedule and its planned firing (specs/schedule-tool.md#insertion). */
 interface PlannedFiring {
   schedule: Schedule;
   plan: FiringPlan;
@@ -244,7 +244,7 @@ function millisecondsOf(value: unknown): number | undefined {
   return value;
 }
 
-/** A positive integer (Section 1.1), or undefined when the value is not one. */
+/** A positive integer (specs/schedule-tool.md#parameter-schema), or undefined when the value is not one. */
 function positiveIntegerOf(value: unknown): number | undefined {
   if (typeof value !== "number") return;
   return Number.isInteger(value) && value >= 1 ? value : undefined;
@@ -254,7 +254,7 @@ function orderedSchedules(schedules: readonly Schedule[]): Schedule[] {
   return schedules.toSorted((left, right) => left.dueAt - right.dueAt || left.order - right.order);
 }
 
-/** The first due time of Section 2.1. */
+/** The first due time of specs/schedule-tool.md#schedule. */
 function firstDueAt(
   createdAt: number,
   delaySeconds: number | undefined,
@@ -266,7 +266,7 @@ function firstDueAt(
   return everySeconds === undefined ? createdAt : createdAt + everySeconds * 1000;
 }
 
-/** The first due time of the grid later than `now` (Section 2.3, step 3). */
+/** The first due time of the grid later than `now` (specs/schedule-tool.md#repeating-schedules, step 3). */
 function gridAfter(now: number, dueAt: number, step: number): number {
   return dueAt + step * (Math.floor((now - dueAt) / step) + 1);
 }
@@ -283,7 +283,7 @@ function envelopeRepeat(firing: Firing): string {
   return `; occurrence ${occurrence}, every ${firing.everySeconds} s${finalMarker(firing.final)}`;
 }
 
-/** The message envelope of Section 4.2, message verbatim after one line break. */
+/** The message envelope of specs/schedule-tool.md#insertion, message verbatim after one line break. */
 function envelope(firing: Firing, zone: string): string {
   const head = `[Scheduled message ${firing.scheduleId} — set by you at ${localStamp(firing.createdAt, zone)}, due ${localStamp(firing.dueAt, zone)}${envelopeRepeat(firing)}; not from the user]`;
   return `${head}\n${firing.message}`;
@@ -307,14 +307,14 @@ function scheduledMessage(firings: readonly Firing[], zone: string): ScheduledMe
   };
 }
 
-/** `create` repeat clause of Section 3.1. */
+/** `create` repeat clause of specs/schedule-tool.md#create. */
 function createRepeat(schedule: Schedule): string {
   if (schedule.everySeconds === undefined) return "";
   const base = `, repeating every ${schedule.everySeconds} s`;
   return schedule.count === undefined ? base : `${base} for ${schedule.count} occurrences`;
 }
 
-/** `list` repeat clause of Section 3.2. */
+/** `list` repeat clause of specs/schedule-tool.md#list. */
 function listRepeat(schedule: Schedule): string {
   if (schedule.everySeconds === undefined) return "";
   const occurrences =
@@ -330,7 +330,7 @@ function listLine(schedule: Schedule, zone: string): string {
   return `${schedule.scheduleId} · due ${localStamp(schedule.dueAt, zone)}${listRepeat(schedule)} · ${preview}`;
 }
 
-/** The status line of Section 6, or undefined with no pending schedule. */
+/** The status line of specs/schedule-tool.md#schedule-status-line, or undefined with no pending schedule. */
 function statusText(schedules: readonly Schedule[], zone: string): string | undefined {
   const pending = orderedSchedules(schedules);
   const first = pending[0];
@@ -344,7 +344,7 @@ function textError(message: string): ToolResult {
   return { content: [{ type: "text", text: message }], details: {}, isError: true };
 }
 
-/** The schedules a message carries in its `details`, if it is a scheduled message (Section 4.2). */
+/** The schedules a message carries in its `details`, if it is a scheduled message (specs/schedule-tool.md#insertion). */
 function carriedOccurrences(message: unknown): ScheduledOccurrence[] {
   if (!isPlainObject(message)) return [];
   if (message.role !== "custom" || message.customType !== SCHEDULE_CUSTOM_TYPE) return [];
@@ -394,7 +394,7 @@ export function scheduleRuntime(settings: {
 }): ScheduleRuntime {
   const clock = settings.clock ?? systemClock;
   const store = settings.store ?? processStore();
-  // Read once where the extension instance reads it (billing.md Section 5).
+  // Read once where the extension instance reads it (specs/billing.md#billing-text).
   const zone = settings.zone;
 
   function sessionOf(sessionId: string): ScheduleSession {
@@ -418,14 +418,14 @@ export function scheduleRuntime(settings: {
   }
 
   /**
-   * Shows one notification to the user (Sections 4.2 and 6). A host whose `notify` API throws
-   * has no channel left: the call or check carries on and no failure is reported (Section 6).
+   * Shows one notification to the user (specs/schedule-tool.md#insertion and specs/schedule-tool.md#schedule-status-line). A host whose `notify` API throws
+   * has no channel left: the call or check carries on and no failure is reported (specs/schedule-tool.md#schedule-status-line).
    */
   function notifyUser(session: ScheduleSession, text: string): void {
     try {
       session.window?.notify?.(text);
     } catch {
-      // Section 6: the report channel itself failed.
+      // specs/schedule-tool.md#schedule-status-line: the report channel itself failed.
     }
   }
 
@@ -440,7 +440,7 @@ export function scheduleRuntime(settings: {
     if (cancel !== undefined) cancel();
   }
 
-  /** Arms the next check, unless one is armed or nothing is pending (Section 4.1). */
+  /** Arms the next check, unless one is armed or nothing is pending (specs/schedule-tool.md#checks). */
   function scheduleCheck(session: ScheduleSession, delayMs = CHECK_INTERVAL_MS): void {
     if (session.cancelCheck !== undefined) return;
     if (session.window === undefined || session.schedules.length === 0) return;
@@ -454,19 +454,19 @@ export function scheduleRuntime(settings: {
       session.checkFailure = undefined;
     } catch (error) {
       // A host query the check needs threw: the schedules are untouched, and the failure is
-      // shown once (Section 6). The next check reads the live window again.
+      // shown once (specs/schedule-tool.md#schedule-status-line). The next check reads the live window again.
       reportCheckFailure(session, error);
     }
     try {
       updateStatus(session);
     } catch {
-      // Section 6: at a check, no failure is reported when the host `setStatus` API throws.
+      // specs/schedule-tool.md#schedule-status-line: at a check, no failure is reported when the host `setStatus` API throws.
     } finally {
       scheduleCheck(session);
     }
   }
 
-  /** Section 6: one notification per distinct check failure, and none for a repeated `<error>`. */
+  /** specs/schedule-tool.md#schedule-status-line: one notification per distinct check failure, and none for a repeated `<error>`. */
   function reportCheckFailure(session: ScheduleSession, error: unknown): void {
     const failure = errorMessage(error);
     if (session.checkFailure === failure) return;
@@ -474,7 +474,7 @@ export function scheduleRuntime(settings: {
     notifyUser(session, `pi-dent: schedule check failed: ${failure}`);
   }
 
-  /** Fires and skips the due schedules of Section 4.1, handing one message to the host. */
+  /** Fires and skips the due schedules of specs/schedule-tool.md#checks, handing one message to the host. */
   function runCheck(session: ScheduleSession): void {
     const window = session.window;
     if (window === undefined) return;
@@ -496,7 +496,7 @@ export function scheduleRuntime(settings: {
         continue;
       }
       if (!fireable) continue;
-      // Nothing changes on the schedule until the hand-off succeeds (Section 4.2).
+      // Nothing changes on the schedule until the hand-off succeeds (specs/schedule-tool.md#insertion).
       planned.push({ schedule, plan: planFiring(schedule, now) });
     }
     if (planned.length === 0) return;
@@ -514,7 +514,7 @@ export function scheduleRuntime(settings: {
     for (const { schedule, plan } of planned) commitFiring(session, schedule, plan);
   }
 
-  /** Section 4.2: the schedules stay pending, and the user learns that the hand-off failed. */
+  /** specs/schedule-tool.md#insertion: the schedules stay pending, and the user learns that the hand-off failed. */
   function reportUndelivered(
     session: ScheduleSession,
     planned: readonly PlannedFiring[],
@@ -530,7 +530,7 @@ export function scheduleRuntime(settings: {
     }
   }
 
-  /** Section 2.3 step 3 for a skip: the occurrence stays queued. */
+  /** specs/schedule-tool.md#repeating-schedules step 3 for a skip: the occurrence stays queued. */
   function advanceSkipped(session: ScheduleSession, schedule: Schedule, now: number): void {
     const every = schedule.everySeconds;
     if (every === undefined) return;
@@ -543,8 +543,8 @@ export function scheduleRuntime(settings: {
   }
 
   /**
-   * Section 2.3 for a firing, as the envelope and the schedule's next state need it, without
-   * changing the schedule: the hand-off comes first (Section 4.2).
+   * specs/schedule-tool.md#repeating-schedules for a firing, as the envelope and the schedule's next state need it, without
+   * changing the schedule: the hand-off comes first (specs/schedule-tool.md#insertion).
    */
   function planFiring(schedule: Schedule, now: number): FiringPlan {
     const dueAt = schedule.dueAt;
@@ -573,7 +573,7 @@ export function scheduleRuntime(settings: {
     return { firing, nextDueAt: next };
   }
 
-  /** Applies a firing whose hand-off the host accepted (Sections 2.3 and 4.2). */
+  /** Applies a firing whose hand-off the host accepted (specs/schedule-tool.md#repeating-schedules and specs/schedule-tool.md#insertion). */
   function commitFiring(session: ScheduleSession, schedule: Schedule, plan: FiringPlan): void {
     schedule.deliveryFailure = undefined;
     schedule.occurrences += 1;
@@ -591,7 +591,7 @@ export function scheduleRuntime(settings: {
     params: ScheduleToolParams;
     hasUI?: boolean | undefined;
   }): ToolResult {
-    // Section 1.3: an agent session has no user input, so Schedule is unavailable.
+    // specs/schedule-tool.md#activation: an agent session has no user input, so Schedule is unavailable.
     if (options.hasUI === false) return textError(SCHEDULE_UNAVAILABLE_TEXT);
     const { params } = options;
     const action = actionOf(params);
@@ -606,7 +606,7 @@ export function scheduleRuntime(settings: {
       }
     }
     const session = sessionOf(options.sessionId);
-    // Section 6: a failing status call is reported, and neither fails the call nor undoes it.
+    // specs/schedule-tool.md#schedule-status-line: a failing status call is reported, and neither fails the call nor undoes it.
     const refresh = (): void => {
       try {
         updateStatus(session);

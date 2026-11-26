@@ -8,7 +8,7 @@ import type { TaskKind, TaskStatus } from "./task-row.ts";
 import { errorMessage, isPlainObject } from "./util.ts";
 import { zeroUsageSum, type UsageSum } from "./usage.ts";
 
-/** The schema of Section 2, verbatim. */
+/** The schema of specs/task-ledger.md#schema, verbatim. */
 export const LEDGER_SCHEMA = `
 CREATE TABLE sessions (
   session_id   TEXT    PRIMARY KEY,
@@ -70,14 +70,14 @@ function sqliteCode(error: unknown): number | undefined {
   return typeof code === "number" ? code & 0xff : undefined;
 }
 
-/** A transaction that cannot begin now: attempted again, never a failure (Section 5). */
+/** A transaction that cannot begin now: attempted again, never a failure (specs/task-ledger.md#concurrent-access). */
 export function isBusyError(error: unknown): boolean {
   const code = sqliteCode(error);
   if (code !== undefined) return code === SQLITE_BUSY;
   return errorMessage(error).toLowerCase().includes("database is locked");
 }
 
-/** SQLite reports the file is not a database or is malformed (Section 7). */
+/** SQLite reports the file is not a database or is malformed (specs/task-ledger.md#failures). */
 export function isCorruptError(error: unknown): boolean {
   const code = sqliteCode(error);
   if (code !== undefined) return code === SQLITE_CORRUPT || code === SQLITE_NOTADB;
@@ -85,7 +85,7 @@ export function isCorruptError(error: unknown): boolean {
   return message.includes("not a database") || message.includes("malformed");
 }
 
-/** The unusable reason of a failure that is not a busy database (Section 7). */
+/** The unusable reason of a failure that is not a busy database (specs/task-ledger.md#failures). */
 export function failureReason(error: unknown): string {
   const message = errorMessage(error);
   return isCorruptError(error) ? `task ledger file is corrupt: ${message}` : message;
@@ -115,7 +115,7 @@ function stringOf(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-/** The columns of a `tasks` row that the derived figures read (Section 6). */
+/** The columns of a `tasks` row that the derived figures read (specs/task-ledger.md#derived-figures). */
 export interface LedgerFigureRow {
   rowId: string;
   parentId: string | null;
@@ -145,7 +145,7 @@ function isStatus(value: unknown): value is TaskStatus {
   return typeof value === "string" && STATUSES.includes(value);
 }
 
-/** A usage sum of six usage columns; a zero usage sum when they are null (Section 6). */
+/** A usage sum of six usage columns; a zero usage sum when they are null (specs/task-ledger.md#derived-figures). */
 export function usageOfColumns(row: Record<string, unknown>): UsageSum {
   const zero = zeroUsageSum();
   return {

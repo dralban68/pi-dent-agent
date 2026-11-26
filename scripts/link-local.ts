@@ -1,4 +1,4 @@
-// Puts the local links of .local-links in place (specs/package.md, Section 5.2). Runs as the
+// Puts the local links of .local-links in place (specs/package.md#link-script). Runs as the
 // `prepare` script, so after every `pnpm install` that changed something.
 // Usage: node scripts/link-local.ts
 import { resolve } from "node:path";

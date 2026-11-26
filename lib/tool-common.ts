@@ -11,7 +11,7 @@ import { errorMessage, firstLine } from "./util.ts";
  * progress line splitter, and pre-start rejections.
  */
 
-/** Code points a line's progress entry keeps, and an excerpt line cuts at (bash-tool.md, Section 4). */
+/** Code points a line's progress entry keeps, and an excerpt line cuts at (specs/bash-tool.md#output-capture). */
 export const LINE_CHARACTERS = 500;
 
 /** A tool error result: the message as content, no details. */
@@ -81,18 +81,18 @@ export function pointCount(text: string): number {
   return count;
 }
 
-/** The cut note of a progress entry (bash-tool.md, Section 4). */
+/** The cut note of a progress entry (specs/bash-tool.md#output-capture). */
 export function omissionNote(count: number): string {
   return ` … [${count} ${count === 1 ? "character" : "characters"} omitted]`;
 }
 
 /**
- * Script's progress lines (script-tool.md, Section 6): a line is the text
+ * Script's progress lines (specs/script-tool.md#timeout-delivery): a line is the text
  * between two `\n` characters, a final `\n` starting no further line, and the
  * text after the last `\n` is the unterminated last line. Each line becomes its
  * progress entry as it completes, so a chunk costs O(chunk) and the pending
  * line keeps only an entry's worth of text — its first 500 code points, a final
- * `\r` excepted, and its length (bash-tool.md, Section 4).
+ * `\r` excepted, and its length (specs/bash-tool.md#output-capture).
  */
 export class ProgressLines {
   /** The first `LINE_CHARACTERS` code points of the pending line. */

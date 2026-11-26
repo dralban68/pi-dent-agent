@@ -2,7 +2,7 @@ import { fleetListSession, type FleetCoordinator, type FleetSessionRecord } from
 import type { FeedHandle, FeedWidgetHost } from "./task-feed.ts";
 
 /**
- * Fleet feed (specs/fleet-tool.md Section 6): a machine-scope `list` as one JSON widget line
+ * Fleet feed (specs/fleet-tool.md#fleet-feed): a machine-scope `list` as one JSON widget line
  * for an RPC client, computed at start and every 5 seconds, set only when its text changes.
  * Reading it is not a `Fleet` call and changes no fleet state.
  */
@@ -30,13 +30,13 @@ export const systemFleetFeedTimers: FleetFeedTimers = {
   },
 };
 
-/** `summary` of a feed session (fleet-tool.md Section 6): goal, else command, else `null`. */
+/** `summary` of a feed session (specs/fleet-tool.md#fleet-feed): goal, else command, else `null`. */
 export function fleetFeedSummary(session: FleetSessionRecord): string | null {
   const last = session.turns[session.turns.length - 1];
   return last?.goal || last?.command || null;
 }
 
-/** The fleet feed's JSON text (fleet-tool.md Section 6): the machine `list` plus `summary`. */
+/** The fleet feed's JSON text (specs/fleet-tool.md#fleet-feed): the machine `list` plus `summary`. */
 export function fleetFeedText(fleet: FeedFleet, sessionId: string, cwd: string): string {
   const sessions = fleet
     .listSessions("machine", cwd)
@@ -44,7 +44,7 @@ export function fleetFeedText(fleet: FeedFleet, sessionId: string, cwd: string):
   return JSON.stringify({ piDent: "fleet/1", sessionId, sessions });
 }
 
-/** Whether the session is a member of the fleet with a live session identity (fleet-tool.md Section 6). */
+/** Whether the session is a member of the fleet with a live session identity (specs/fleet-tool.md#fleet-feed). */
 function isFleetMember(fleet: FeedFleet, sessionId: string): boolean {
   if (sessionId === "") return false;
   try {
@@ -55,7 +55,7 @@ function isFleetMember(fleet: FeedFleet, sessionId: string): boolean {
 }
 
 /**
- * Starts the fleet feed of a session at its start (fleet-tool.md Section 6). Without a live
+ * Starts the fleet feed of a session at its start (specs/fleet-tool.md#fleet-feed). Without a live
  * identity it starts nothing. Its timer belongs to the returned handle: `stop` ends it and
  * clears the widget. Failures compute nothing and leave the widget as it is.
  */

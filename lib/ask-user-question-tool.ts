@@ -1,9 +1,9 @@
 /**
  * The `AskUserQuestion` tool (specs/ask-user-question-tool.md): the registration surface and
- * model-facing texts of Section 1, the execution-time validation of Section 1.2, the question
- * queue of Section 2, the dialog sequence of Section 4 and the question form request of
- * Section 4.4 in RPC mode, the results of Section 6,
- * and the conversation rendering of Section 7. The terminal panel of Section 3 lives in
+ * model-facing texts of specs/ask-user-question-tool.md#registration, the execution-time validation of specs/ask-user-question-tool.md#validation, the question
+ * queue of specs/ask-user-question-tool.md#asking, the dialog sequence of specs/ask-user-question-tool.md#dialog-sequence and the question form request of
+ * specs/ask-user-question-tool.md#form-request in RPC mode, the results of specs/ask-user-question-tool.md#results,
+ * and the conversation rendering of specs/ask-user-question-tool.md#rendering. The terminal panel of specs/ask-user-question-tool.md#question-panel lives in
  * `lib/ask-user-question-panel.ts`, together with the answer model both surfaces share.
  *
  * Everything host-specific is a parameter — the session ID, the run mode, whether the host
@@ -46,20 +46,20 @@ import {
 import { isPlainObject } from "./util.ts";
 
 // ---------------------------------------------------------------------------
-// Section 1.3: model-facing texts, verbatim
+// specs/ask-user-question-tool.md#prompt-texts: model-facing texts, verbatim
 // ---------------------------------------------------------------------------
 
 export const ASK_USER_TOOL_NAME = "AskUserQuestion";
 
-/** The tool's `description` (Section 1.3). */
+/** The tool's `description` (specs/ask-user-question-tool.md#prompt-texts). */
 export const ASK_USER_DESCRIPTION =
   'Ask the user 1 to 4 multiple-choice questions and wait for the answers, instead of ending your turn to ask in prose. Use it when a decision only the user can make blocks your work: a requirement, a preference, or a choice between approaches. Each question has a short header, 2 to 4 options with a label and a description, and multiSelect to allow several options. The user can always answer in their own words instead; do not add an "Other" option. The result lists each answer by question number, as options chosen or as free text.';
 
-/** The tool's `promptSnippet` (Section 1.3). */
+/** The tool's `promptSnippet` (specs/ask-user-question-tool.md#prompt-texts). */
 export const ASK_USER_PROMPT_SNIPPET =
   "Ask the user multiple-choice questions and wait for the answers";
 
-/** The `description` of each schema property, verbatim from Section 1.3. */
+/** The `description` of each schema property, verbatim from specs/ask-user-question-tool.md#prompt-texts. */
 export const ASK_USER_PARAMETER_DESCRIPTIONS = {
   questions: "1 to 4 questions, asked together.",
   question: "The question, one line, ending with a question mark.",
@@ -73,7 +73,7 @@ export const ASK_USER_PARAMETER_DESCRIPTIONS = {
 const DESCRIPTIONS = ASK_USER_PARAMETER_DESCRIPTIONS;
 
 // ---------------------------------------------------------------------------
-// Section 1.1: parameter schema
+// specs/ask-user-question-tool.md#parameter-schema: parameter schema
 // ---------------------------------------------------------------------------
 
 const askOptionSchema = Type.Object(
@@ -104,23 +104,23 @@ export const askUserQuestionParameterSchema = Type.Object(
 export type AskUserQuestionParams = Static<typeof askUserQuestionParameterSchema>;
 
 // ---------------------------------------------------------------------------
-// Section 1.2: validation
+// specs/ask-user-question-tool.md#validation: validation
 // ---------------------------------------------------------------------------
 
 export type AskValidation = { ok: true; questions: AskQuestion[] } | { ok: false; error: string };
 
-/** Every string of the call is used with leading and trailing white space removed (Section 1.1). */
+/** Every string of the call is used with leading and trailing white space removed (specs/ask-user-question-tool.md#parameter-schema). */
 function trimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-/** A string is one line when it holds neither a line feed nor a carriage return (Section 1.1). */
+/** A string is one line when it holds neither a line feed nor a carriage return (specs/ask-user-question-tool.md#parameter-schema). */
 function isOneLine(text: string): boolean {
   return !text.includes("\n") && !text.includes("\r");
 }
 
 /**
- * Section 1.2: check 1, then checks 2 to 6 and 7 to 11 and 12 of each question in array
+ * specs/ask-user-question-tool.md#validation: check 1, then checks 2 to 6 and 7 to 11 and 12 of each question in array
  * order, and the first failing check's error text.
  */
 export function validateAskQuestions(params: unknown): AskValidation {
@@ -173,7 +173,7 @@ export function validateAskQuestions(params: unknown): AskValidation {
       if (label.toLowerCase() === "other") {
         return { ok: false, error: `question ${i} option ${j}: label "Other" is reserved` };
       }
-      // Section 1.2 check 10: labels are compared as shown, after the cleaning of Section 3.3.
+      // specs/ask-user-question-tool.md#validation check 10: labels are compared as shown, after the cleaning of specs/ask-user-question-tool.md#panel-content.
       if (labels.includes(cleanValue(label))) {
         return { ok: false, error: `question ${i} option ${j}: duplicate label "${label}"` };
       }
@@ -197,45 +197,45 @@ export function validateAskQuestions(params: unknown): AskValidation {
 }
 
 // ---------------------------------------------------------------------------
-// Sections 6.2 and 6.3: result texts
+// specs/ask-user-question-tool.md#other-results and specs/ask-user-question-tool.md#details: result texts
 // ---------------------------------------------------------------------------
 
-/** The no-UI result text (Section 6.2). */
+/** The no-UI result text (specs/ask-user-question-tool.md#other-results). */
 export const ASK_USER_NO_UI_TEXT =
   "AskUserQuestion is unavailable: this session has no interactive terminal UI. Ask in your reply instead.";
-/** The dismissed result text (Section 6.2). */
+/** The dismissed result text (specs/ask-user-question-tool.md#other-results). */
 export const ASK_USER_DISMISSED_TEXT =
   "The user declined to answer the questions. Proceed on your own judgement, or ask in your reply.";
-/** The stopped result text (Section 6.2). */
+/** The stopped result text (specs/ask-user-question-tool.md#other-results). */
 export const ASK_USER_STOPPED_TEXT =
   "The user declined to answer the questions and stopped the agent run. Do not assume an answer; end your turn and wait for the user.";
-/** The aborted result text (Section 6.2). */
+/** The aborted result text (specs/ask-user-question-tool.md#other-results). */
 export const ASK_USER_ABORTED_TEXT =
   "The questions were withdrawn because the agent run was aborted; the user did not answer.";
-/** The shutdown result text (Section 6.2). */
+/** The shutdown result text (specs/ask-user-question-tool.md#other-results). */
 export const ASK_USER_SHUTDOWN_TEXT =
   "The questions were withdrawn because the session ended or reloaded; the user did not answer.";
-/** The first line of the answered result text (Section 6.1). */
+/** The first line of the answered result text (specs/ask-user-question-tool.md#answered-result). */
 export const ASK_USER_ANSWERED_TITLE = "The user answered your questions:";
 
-/** The blocked-on-user message of the panel (Section 3). */
+/** The blocked-on-user message of the panel (specs/ask-user-question-tool.md#question-panel). */
 export const ASK_BLOCKED_MESSAGE = "The agent is asking you a question";
 
-/** The dialog texts of Sections 4.1 to 4.3. */
+/** The dialog texts of specs/ask-user-question-tool.md#questions, specs/ask-user-question-tool.md#review, specs/ask-user-question-tool.md#dismissal-choice. */
 export const ASK_DIALOG = {
-  /** Section 4.2: the review's title. */
+  /** specs/ask-user-question-tool.md#review: the review's title. */
   reviewTitle: REVIEW_TITLE,
-  /** Section 4.2: the review's submit option. */
+  /** specs/ask-user-question-tool.md#review: the review's submit option. */
   reviewSubmit: "Submit",
-  /** Section 4.3: the dismissal choice's title and options. */
+  /** specs/ask-user-question-tool.md#dismissal-choice: the dismissal choice's title and options. */
   dismissalTitle: "Dismiss the questions?",
   skip: "Skip: let the agent continue without answers",
   stop: "Stop: end the agent run",
   back: "Back to the questions",
-  /** Section 4.1: the `input` placeholder and the multi-select title suffix. */
+  /** specs/ask-user-question-tool.md#questions: the `input` placeholder and the multi-select title suffix. */
   inputPlaceholder: "Type your answer",
   multiSelectSuffix: " — choose one or more, then Done",
-  /** Section 4.1: the multi-select question's last option. */
+  /** specs/ask-user-question-tool.md#questions: the multi-select question's last option. */
   done: "Done",
 } as const;
 
@@ -258,7 +258,7 @@ const ASK_OUTCOMES: readonly AskOutcome[] = [
   "invalid",
 ];
 
-/** One entry of `details.answers` (Section 6.3). */
+/** One entry of `details.answers` (specs/ask-user-question-tool.md#details). */
 export interface AskAnswerDetails {
   header: string;
   question: string;
@@ -266,7 +266,7 @@ export interface AskAnswerDetails {
   text: string | null;
 }
 
-/** The `details` of every result (Section 6.3). */
+/** The `details` of every result (specs/ask-user-question-tool.md#details). */
 export type AskDetails = {
   outcome: AskOutcome;
   answers: AskAnswerDetails[];
@@ -310,7 +310,7 @@ function answerAt(answers: readonly AskAnswer[], index: number): AskAnswer {
   return answers[index] ?? emptyAnswer();
 }
 
-/** Section 6.1: the answered result text and its `details`. */
+/** specs/ask-user-question-tool.md#answered-result: the answered result text and its `details`. */
 export function answeredResult(
   questions: readonly AskQuestion[],
   answers: readonly AskAnswer[],
@@ -373,10 +373,10 @@ function askDetailsOf(value: unknown): AskDetails | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Section 2: the question queue
+// specs/ask-user-question-tool.md#asking: the question queue
 // ---------------------------------------------------------------------------
 
-/** The run mode the host reports (Section 1.4); the host package exports no name for it. */
+/** The run mode the host reports (specs/ask-user-question-tool.md#activation); the host package exports no name for it. */
 export type AskRunMode = ExtensionContext["mode"];
 
 /** The slice of the host UI surface the tool drives. */
@@ -385,7 +385,7 @@ export type AskUi = Pick<ExtensionUIContext, "custom" | "select" | "input" | "ed
 /** One call of the tool. */
 export interface AskInvocation {
   sessionId: string;
-  /** The tool call ID the host passes to the tool's execution (Section 4.4). */
+  /** The tool call ID the host passes to the tool's execution (specs/ask-user-question-tool.md#form-request). */
   toolCallId: string;
   params: unknown;
   signal: AbortSignal | undefined;
@@ -399,9 +399,9 @@ interface PendingCall {
   signal: AbortSignal | undefined;
   ui: AskUi;
   mode: AskRunMode;
-  /** The tool call ID of the call (Section 4.4). */
+  /** The tool call ID of the call (specs/ask-user-question-tool.md#form-request). */
   toolCallId: string;
-  /** Whether an RPC call is asked through the question form request (Section 4.4). */
+  /** Whether an RPC call is asked through the question form request (specs/ask-user-question-tool.md#form-request). */
   askForm: boolean;
   resolve: (result: AskToolResult) => void;
   reject: (error: unknown) => void;
@@ -413,21 +413,21 @@ interface PendingCall {
 }
 
 interface AskSession {
-  /** The open calls that passed step 2, in the order they reached step 3 (Section 2). */
+  /** The open calls that passed step 2, in the order they reached step 3 (specs/ask-user-question-tool.md#asking). */
   queue: PendingCall[];
   asking: PendingCall | undefined;
-  /** Aborts when the session ends; every dialog of the session is passed it (Section 4). */
+  /** Aborts when the session ends; every dialog of the session is passed it (specs/ask-user-question-tool.md#dialog-sequence). */
   shutdown: AbortController;
 }
 
 export interface AskUserRuntime {
   /** One `AskUserQuestion` call. */
   execute(invocation: AskInvocation): Promise<AskToolResult>;
-  /** `session_shutdown`: every open call of the session ends with the shutdown result (Section 5). */
+  /** `session_shutdown`: every open call of the session ends with the shutdown result (specs/ask-user-question-tool.md#no-answers). */
   sessionShutdown(sessionId: string): void;
 }
 
-/** The host's editor component, styled like the panel (Section 3.4). */
+/** The host's editor component, styled like the panel (specs/ask-user-question-tool.md#keys). */
 function hostEditor(tui: TUI, theme: Theme): Editor {
   const editorTheme: EditorTheme = {
     borderColor: (text) => theme.fg("accent", text),
@@ -454,7 +454,7 @@ function panelToolResult(
   return abortedResult();
 }
 
-/** The question title of Section 4.1. */
+/** The question title of specs/ask-user-question-tool.md#questions. */
 function questionTitle(question: AskQuestion, index: number, total: number): string {
   const base = `${cleanValue(question.header)} (${index + 1} of ${total}): ${cleanValue(question.question)}`;
   return question.multiSelect ? `${base}${ASK_DIALOG.multiSelectSuffix}` : base;
@@ -466,7 +466,7 @@ interface DialogEntry {
   index: number;
 }
 
-/** The option strings of Section 4.1, in option order, then Other, then Done. */
+/** The option strings of specs/ask-user-question-tool.md#questions, in option order, then Other, then Done. */
 function optionEntries(question: AskQuestion, answer: AskAnswer): DialogEntry[] {
   const entries: DialogEntry[] = [];
   for (const [index, option] of question.options.entries()) {
@@ -501,7 +501,7 @@ type Step =
   | { kind: "submit" }
   | { kind: "review" };
 
-/** The signal every dialog of a call gets: the call's, combined with the session's (Section 4). */
+/** The signal every dialog of a call gets: the call's, combined with the session's (specs/ask-user-question-tool.md#dialog-sequence). */
 function callSignal(session: AskSession, call: PendingCall): AbortSignal {
   return AbortSignal.any([
     session.shutdown.signal,
@@ -509,12 +509,12 @@ function callSignal(session: AskSession, call: PendingCall): AbortSignal {
   ]);
 }
 
-/** The result of a call that ends while it is asked: shutdown when the session ended (Section 5). */
+/** The result of a call that ends while it is asked: shutdown when the session ended (specs/ask-user-question-tool.md#no-answers). */
 function endedResult(session: AskSession): AskToolResult {
   return session.shutdown.signal.aborted ? shutdownResult() : abortedResult();
 }
 
-/** Section 4.3: the dismissal choice; `Back to the questions` and a cancel both come back as `back`. */
+/** specs/ask-user-question-tool.md#dismissal-choice: the dismissal choice; `Back to the questions` and a cancel both come back as `back`. */
 async function dismissalChoice(call: PendingCall, signal: AbortSignal): Promise<DismissalOutcome> {
   const options = [ASK_DIALOG.skip, ASK_DIALOG.stop, ASK_DIALOG.back];
   for (;;) {
@@ -554,12 +554,12 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T | 
   });
 }
 
-/** Section 4.4: the title of the question form request's editor. */
+/** specs/ask-user-question-tool.md#form-request: the title of the question form request's editor. */
 export const ASK_FORM_TITLE = "AskUserQuestion";
-/** Section 4.4: the `piDent` field of the form payload. */
+/** specs/ask-user-question-tool.md#form-request: the `piDent` field of the form payload. */
 export const ASK_FORM_VERSION = "ask-form/1";
 
-/** Section 4.4: the form payload, the JSON text of the cleaned call. */
+/** specs/ask-user-question-tool.md#form-request: the form payload, the JSON text of the cleaned call. */
 export function formPayload(toolCallId: string, questions: readonly AskQuestion[]): string {
   return JSON.stringify({
     piDent: ASK_FORM_VERSION,
@@ -576,7 +576,7 @@ export function formPayload(toolCallId: string, questions: readonly AskQuestion[
   });
 }
 
-/** A parsed form answer (Section 4.4). */
+/** A parsed form answer (specs/ask-user-question-tool.md#form-request). */
 export type FormAnswer =
   | { kind: "answered"; answers: AskAnswer[] }
   | { kind: "dismissed" }
@@ -584,8 +584,8 @@ export type FormAnswer =
 
 /**
  * One question's entry of an answered form answer, or `undefined` when it is not valid for the
- * question (Section 4.4): labels of the question, none twice, a text or `null`, answered per
- * Section 2.1, and a single-select question with exactly one of an option and a free text.
+ * question (specs/ask-user-question-tool.md#form-request): labels of the question, none twice, a text or `null`, answered per
+ * specs/ask-user-question-tool.md#answers, and a single-select question with exactly one of an option and a free text.
  */
 function formAnswerOf(entry: unknown, question: AskQuestion): AskAnswer | undefined {
   if (!isPlainObject(entry)) return undefined;
@@ -613,7 +613,7 @@ function formAnswerOf(entry: unknown, question: AskQuestion): AskAnswer | undefi
   return answer;
 }
 
-/** Section 4.4: parses the text the editor returned, or `undefined` when it is not a valid form answer. */
+/** specs/ask-user-question-tool.md#form-request: parses the text the editor returned, or `undefined` when it is not a valid form answer. */
 export function parseFormAnswer(
   text: string,
   questions: readonly AskQuestion[],
@@ -640,7 +640,7 @@ export function parseFormAnswer(
 }
 
 /**
- * Section 4.4: the question form request. One `editor` dialog asks the whole call; its text is
+ * specs/ask-user-question-tool.md#form-request: the question form request. One `editor` dialog asks the whole call; its text is
  * parsed as the form answer, and an invalid text shows the same editor again.
  */
 async function formRequest(session: AskSession, call: PendingCall): Promise<AskToolResult> {
@@ -648,7 +648,7 @@ async function formRequest(session: AskSession, call: PendingCall): Promise<AskT
   const signal = callSignal(session, call);
   const payload = formPayload(call.toolCallId, questions);
   for (;;) {
-    // `editor` takes no abort signal: the call's signal ends the wait instead (Section 4.4).
+    // `editor` takes no abort signal: the call's signal ends the wait instead (specs/ask-user-question-tool.md#form-request).
     const text = await untilAborted(call.ui.editor(ASK_FORM_TITLE, payload), signal);
     if (text === ABORTED || signal.aborted) return endedResult(session);
     if (text === undefined) {
@@ -666,8 +666,8 @@ async function formRequest(session: AskSession, call: PendingCall): Promise<AskT
 }
 
 /**
- * The dialog sequence of Section 4, run for one call in RPC mode. Every dialog gets the
- * call's abort signal combined with the session's, and no timeout (Section 4).
+ * The dialog sequence of specs/ask-user-question-tool.md#dialog-sequence, run for one call in RPC mode. Every dialog gets the
+ * call's abort signal combined with the session's, and no timeout (specs/ask-user-question-tool.md#dialog-sequence).
  */
 async function dialogSequence(session: AskSession, call: PendingCall): Promise<AskToolResult> {
   const questions = call.questions;
@@ -692,7 +692,7 @@ async function dialogSequence(session: AskSession, call: PendingCall): Promise<A
         return dismissal;
       }
       if (list.includes(value)) return { kind: "value", value };
-      // A value that is not one of the option strings shows the same dialog again (Section 4).
+      // A value that is not one of the option strings shows the same dialog again (specs/ask-user-question-tool.md#dialog-sequence).
     }
   }
 
@@ -787,13 +787,13 @@ async function dialogSequence(session: AskSession, call: PendingCall): Promise<A
   }
 }
 
-/** The question queue of Section 2 and the endings of Section 5. */
+/** The question queue of specs/ask-user-question-tool.md#asking and the endings of specs/ask-user-question-tool.md#no-answers. */
 export interface AskUserRuntimeOptions {
   /** Creates the panel's editor: the host's editor component, or a recorder in tests. */
   editor?: (tui: TUI, theme: Theme) => AskEditorLike;
   /**
    * The environment of the pi process, read at each call; `PI_DENT_ASK_FORM` `1` selects the
-   * question form request in RPC mode (Section 2). Defaults to `process.env`.
+   * question form request in RPC mode (specs/ask-user-question-tool.md#asking). Defaults to `process.env`.
    */
   env?: Readonly<Record<string, string | undefined>>;
 }
@@ -831,7 +831,7 @@ export function askUserRuntime(options: AskUserRuntimeOptions = {}): AskUserRunt
       else result = await dialogSequence(session, call);
       settle(session, call, result);
     } catch (error) {
-      // A host surface that fails is not one of the endings of Section 5: the call rejects, and
+      // A host surface that fails is not one of the endings of specs/ask-user-question-tool.md#no-answers: the call rejects, and
       // the host reports its own error result for the call.
       fail(session, call, error);
     }
@@ -862,11 +862,11 @@ export function askUserRuntime(options: AskUserRuntimeOptions = {}): AskUserRunt
     call.resolve(result);
     interrupt?.();
     // The next queued call is asked after a dismissed, a stopped, or an aborted result;
-    // after `session_shutdown` none is (Section 5).
+    // after `session_shutdown` none is (specs/ask-user-question-tool.md#no-answers).
     if (!session.shutdown.signal.aborted) startNext(session);
   }
 
-  /** Section 3: the panel, as an overlay centred in the terminal (Section 3.1). */
+  /** specs/ask-user-question-tool.md#question-panel: the panel, as an overlay centred in the terminal (specs/ask-user-question-tool.md#size-border). */
   async function throughPanel(session: AskSession, call: PendingCall): Promise<AskToolResult> {
     let panel: AskQuestionPanel | undefined;
     const result = await call.ui.custom<AskPanelResult>(
@@ -880,7 +880,7 @@ export function askUserRuntime(options: AskUserRuntimeOptions = {}): AskUserRunt
         });
         panel = created;
         if (call.settled) {
-          // The call ended before the host built the panel: close it at once (Section 5).
+          // The call ended before the host built the panel: close it at once (specs/ask-user-question-tool.md#no-answers).
           created.finish({ kind: session.shutdown.signal.aborted ? "shutdown" : "aborted" });
           return created;
         }
@@ -933,11 +933,11 @@ export function askUserRuntime(options: AskUserRuntimeOptions = {}): AskUserRunt
   async function execute(invocation: AskInvocation): Promise<AskToolResult> {
     const validation = validateAskQuestions(invocation.params);
     if (!validation.ok) return invalidResult(validation.error);
-    // Section 2, step 1: a session without a user interface shows nothing.
+    // specs/ask-user-question-tool.md#asking, step 1: a session without a user interface shows nothing.
     if (!invocation.hasUI) return noUiResult();
-    // Section 2, step 2.
+    // specs/ask-user-question-tool.md#asking, step 2.
     if (invocation.signal?.aborted === true) return abortedResult();
-    // Section 2, step 3: the form request replaces the dialog sequence when announced.
+    // specs/ask-user-question-tool.md#asking, step 3: the form request replaces the dialog sequence when announced.
     const env = options.env ?? process.env;
     return ask(invocation, validation.questions, env.PI_DENT_ASK_FORM === "1");
   }
@@ -958,10 +958,10 @@ export function askUserRuntime(options: AskUserRuntimeOptions = {}): AskUserRunt
 }
 
 // ---------------------------------------------------------------------------
-// Section 7: rendering in the conversation
+// specs/ask-user-question-tool.md#rendering: rendering in the conversation
 // ---------------------------------------------------------------------------
 
-/** Section 7: the call's line and one line per question, while the arguments stream. */
+/** specs/ask-user-question-tool.md#rendering: the call's line and one line per question, while the arguments stream. */
 function callLines(args: unknown, theme: Theme): string {
   const questions = isPlainObject(args) && Array.isArray(args.questions) ? args.questions : [];
   const lines = [theme.fg("toolTitle", theme.bold(ASK_USER_TOOL_NAME))];
@@ -975,7 +975,7 @@ function callLines(args: unknown, theme: Theme): string {
   return lines.join("\n");
 }
 
-/** The `AskUserQuestion` tool definition the host registers (Section 1). */
+/** The `AskUserQuestion` tool definition the host registers (specs/ask-user-question-tool.md#registration). */
 export function makeAskUserQuestionTool(runtime: AskUserRuntime) {
   return defineTool({
     name: ASK_USER_TOOL_NAME,

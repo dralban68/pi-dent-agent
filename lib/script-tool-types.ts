@@ -18,7 +18,7 @@ export interface ToolSelection<T extends CallableTool> {
   unbound: T[];
 }
 
-/** Default of `script.tools.allow` (Section 8). */
+/** Default of `script.tools.allow` (specs/script-tool.md#tool-functions). */
 export const DEFAULT_TOOLS_ALLOW: readonly string[] = ["*"];
 
 /** Whether an allow entry admits `name` (Section 10.1): equal, or a `*`-terminated prefix. */

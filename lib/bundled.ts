@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 
 /**
  * The fixed implementation-defined set of bundled packages importable by name
- * from Script (specs/script-tool.md Section 3). They are declared as
- * dependencies (specs/package.md Section 1) so scripts can `import` them by
+ * from Script (specs/script-tool.md#execution-model). They are declared as
+ * dependencies (specs/package.md#package-manifest) so scripts can `import` them by
  * name in an install that omits development dependencies; jiti resolves each
  * name to its installed package directory via the `alias` option.
  */

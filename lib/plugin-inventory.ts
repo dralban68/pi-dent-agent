@@ -15,14 +15,14 @@ import {
 import { errorCode, errorMessage, isPlainObject, type Diagnostic } from "./util.ts";
 
 /**
- * The plugin inventory (specs/plugin.md Section 11): the layers, every plugin candidate with
+ * The plugin inventory (specs/plugin.md#plugin-inventory): the layers, every plugin candidate with
  * what it contributes or why it was skipped, and the diagnostics, read anew per call. It is a
  * second view of the rules boot applies, sharing their implementation (lib/config.ts,
  * lib/plugins.ts, lib/catalogs.ts); nothing in boot reads it, it touches no boot snapshot, and
  * it never reports through the host.
  */
 
-/** One resource of a plugin, as the inventory lists it (plugin.md Section 11.1). */
+/** One resource of a plugin, as the inventory lists it (specs/plugin.md#shape). */
 export interface InventoryResource {
   name: string;
   description: string | null;
@@ -30,13 +30,13 @@ export interface InventoryResource {
   file: string;
 }
 
-/** A manifest `author` object, `name` and `email` each a string or null (plugin.md Section 11.1). */
+/** A manifest `author` object, `name` and `email` each a string or null (specs/plugin.md#shape). */
 export interface InventoryPluginAuthor {
   name: string | null;
   email: string | null;
 }
 
-/** One valid plugin-declared HTTPS MCP server in the inventory (plugin.md Section 11.1). */
+/** One valid plugin-declared HTTPS MCP server in the inventory (specs/plugin.md#shape). */
 export interface InventoryMcpServer {
   name: string;
   url: string;
@@ -45,13 +45,13 @@ export interface InventoryMcpServer {
   description: string | null;
 }
 
-/** An admitted plugin, per plugin.md Section 11.1. */
+/** An admitted plugin, per specs/plugin.md#shape. */
 export interface InventoryPlugin {
   namespace: string;
   description: string | null;
   version: string | null;
   author: string | InventoryPluginAuthor | null;
-  /** Whether the plugin has a plugin context (plugin.md Section 10). */
+  /** Whether the plugin has a plugin context (specs/plugin.md#plugin-context). */
   context: boolean;
   commands: InventoryResource[];
   agents: InventoryResource[];
@@ -60,7 +60,7 @@ export interface InventoryPlugin {
   mcpServers: InventoryMcpServer[];
 }
 
-/** One plugin candidate, per plugin.md Section 11.1. */
+/** One plugin candidate, per specs/plugin.md#shape. */
 export interface InventoryCandidate {
   key: string;
   layer: "global" | "project";
@@ -71,14 +71,14 @@ export interface InventoryCandidate {
   diagnostics: string[];
 }
 
-/** One configuration layer, per plugin.md Section 11.1. */
+/** One configuration layer, per specs/plugin.md#shape. */
 export interface InventoryLayer {
   layer: "global" | "project";
   file: string;
   state: "missing" | "dropped" | "read";
 }
 
-/** The plugin inventory of one working directory, per plugin.md Section 11.1. */
+/** The plugin inventory of one working directory, per specs/plugin.md#shape. */
 export interface PluginInventory {
   cwd: string;
   layers: InventoryLayer[];
@@ -91,12 +91,12 @@ function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** A manifest string field: the value when it is a string, null otherwise (plugin.md Section 11.1). */
+/** A manifest string field: the value when it is a string, null otherwise (specs/plugin.md#shape). */
 function stringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
-/** The manifest `author` shaped per plugin.md Section 11.1: string, `{ name, email }`, or null. */
+/** The manifest `author` shaped per specs/plugin.md#shape: string, `{ name, email }`, or null. */
 function authorOf(author: unknown): string | InventoryPluginAuthor | null {
   if (typeof author === "string") return author;
   if (isPlainObject(author)) {
@@ -106,10 +106,10 @@ function authorOf(author: unknown): string | InventoryPluginAuthor | null {
 }
 
 /**
- * The plugin scripts of one admitted plugin (plugin.md Section 11.2): the files found by
+ * The plugin scripts of one admitted plugin (specs/plugin.md#script-listing): the files found by
  * walking `scripts/`, without reading a `node_modules` directory and without following a
  * symbolic link to a directory (both counted), each judged by the plugin script path pattern
- * (Section 1) and the contained-path rule (Section 7) exactly as a `Script` call's path check
+ * (specs/plugin.md#plugin-layout) and the contained-path rule (specs/plugin.md#contained-paths) exactly as a `Script` call's path check
  * judges it. An entry whose name holds `\`, or whose resolved path does not exist as a regular
  * file at that moment, is left out without a diagnostic. A directory of the walk whose entries
  * cannot be read reports and the walk continues; when directories were left out, the summary
@@ -125,7 +125,7 @@ function listPluginScripts(root: string, diagnostics: Diagnostic[]): InventoryRe
       entries = readdirSync(dir, { withFileTypes: true });
     } catch (error) {
       const code = errorCode(error);
-      // A missing `scripts/`, or one that is not a directory, adds nothing (Section 11.2).
+      // A missing `scripts/`, or one that is not a directory, adds nothing (specs/plugin.md#script-listing).
       if (walkRoot && (code === "ENOENT" || code === "ENOTDIR")) return;
       diagnostics.push({
         level: "warning",
@@ -145,7 +145,7 @@ function listPluginScripts(root: string, diagnostics: Diagnostic[]): InventoryRe
       }
       if (entry.isSymbolicLink()) {
         // A symbolic link to a directory is not followed and is counted; any other link
-        // is judged by the contained-path rule like any file (plugin.md Section 11.2).
+        // is judged by the contained-path rule like any file (specs/plugin.md#script-listing).
         let target;
         try {
           target = statSync(child);
@@ -162,7 +162,7 @@ function listPluginScripts(root: string, diagnostics: Diagnostic[]): InventoryRe
       const file = [...segments, entry.name].join("/");
       const resolved = resolvePluginScriptPath(root, file);
       // Not pattern-matched or not contained, or the resolved path missing or not a regular
-      // file at that moment (a dangling link): left out without a diagnostic (Section 11.2).
+      // file at that moment (a dangling link): left out without a diagnostic (specs/plugin.md#script-listing).
       if ("error" in resolved) continue;
       let stat;
       try {
@@ -185,7 +185,7 @@ function listPluginScripts(root: string, diagnostics: Diagnostic[]): InventoryRe
 }
 
 /**
- * The plugin inventory (plugin.md Sections 11.1 and 11.2) of `cwd`, read anew: the layers with
+ * The plugin inventory (specs/plugin.md#shape and specs/plugin.md#script-listing) of `cwd`, read anew: the layers with
  * their states, the merged `plugins` entries as candidates with their diagnostics, and the
  * diagnostics belonging to no candidate. Synchronous; changes nothing on disk, registers
  * nothing with the host, imports and runs no plugin file, and reports nothing through the host.
@@ -203,8 +203,8 @@ export function readPluginInventory(cwd: string): PluginInventory {
   const discovery = discoverPluginCandidates(config);
   for (const diagnostic of discovery.diagnostics) diagnostics.push(diagnostic.message);
 
-  // Catalog composition (plugin.md Section 9) over empty base catalogs: bare keys are disjoint
-  // from `namespace:name` keys (Section 9), so the plugin entries composed, their order, and
+  // Catalog composition (specs/plugin.md#catalog-composition) over empty base catalogs: bare keys are disjoint
+  // from `namespace:name` keys (specs/plugin.md#catalog-composition), so the plugin entries composed, their order, and
   // their diagnostics are those a boot with the same `<cwd>` composes.
   const agents: AgentDefinition[] = [];
   const skills: SkillEntry[] = [];
@@ -250,7 +250,7 @@ export function readPluginInventory(cwd: string): PluginInventory {
     if (entries === undefined) {
       throw new Error(`plugin inventory: no catalog entries for plugin ${plugin.name}`);
     }
-    // Section 11.2's diagnostics are the candidate's last (plugin.md Section 11.1).
+    // specs/plugin.md#script-listing's diagnostics are the candidate's last (specs/plugin.md#shape).
     const scripts = listPluginScripts(plugin.root, candidate.diagnostics);
     return {
       key: candidate.key,

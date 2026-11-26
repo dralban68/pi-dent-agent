@@ -34,29 +34,29 @@ import { errorMessage } from "./util.ts";
  * timeout, kill and abort. Replaces pi's built-in `bash`, which pi-dent disables.
  */
 
-/** Lines an excerpt shows at most: the line bound (Section 4). */
+/** Lines an excerpt shows at most: the line bound (specs/bash-tool.md#output-capture). */
 const EXCERPT_LINE_BOUND = 50;
-/** Code points of line text an excerpt may retain in total (Section 4). */
+/** Code points of line text an excerpt may retain in total (specs/bash-tool.md#output-capture). */
 const EXCERPT_BUDGET = 4000;
-/** Largest `setTimeout` delay in ms; a larger `timeout` imposes no timeout (Section 1). */
+/** Largest `setTimeout` delay in ms; a larger `timeout` imposes no timeout (specs/bash-tool.md#parameter-schema). */
 const MAX_TIMEOUT_MS = 2147483647;
-/** The timeout of a foreground call that omits `timeout` (Section 1). */
+/** The timeout of a foreground call that omits `timeout` (specs/bash-tool.md#parameter-schema). */
 export const DEFAULT_TIMEOUT_MS = 600000;
-/** Delay between SIGTERM and SIGKILL of the process group (Section 6: 200-300 ms). */
+/** Delay between SIGTERM and SIGKILL of the process group (specs/bash-tool.md#timeout-delivery: 200-300 ms). */
 const KILL_GRACE_MS = 250;
-/** The run ends at most this long after the shell exits, pipes still open (Section 3). */
+/** The run ends at most this long after the shell exits, pipes still open (specs/bash-tool.md#execution-model). */
 const PIPE_GRACE_MS = 1000;
-/** Partial-result report interval for a foreground call (Section 4: within 1000 ms). */
+/** Partial-result report interval for a foreground call (specs/bash-tool.md#output-capture: within 1000 ms). */
 const PARTIAL_INTERVAL_MS = 150;
 
 const LEFTOVER_NOTICE =
   "Command left a process running; it was terminated. Use background: true, not & or nohup.";
-/** The body line of a filter-piped call (Section 5). */
+/** The body line of a filter-piped call (specs/bash-tool.md#result-contract). */
 const PIPE_NOTICE =
   "Note: the saved output holds only what the final pipe printed; rerun without the pipe to keep it all.";
 const REDIRECT_NOTICE =
   "Note: output redirected to a file is not shown or saved by Bash; run the command plainly to have its output saved for Read or rg.";
-/** The pipeline stages that make a call filter-piped (Section 5). */
+/** The pipeline stages that make a call filter-piped (specs/bash-tool.md#result-contract). */
 const FILTER_STAGES = ["head", "tail", "grep"] as const;
 
 export const bashParameterSchema = Type.Object(
@@ -92,27 +92,26 @@ export interface BashToolDeps {
   hostProvider: () => HostSession | undefined;
   cohortFor: (toolCallId: string) => string;
   /**
-   * The agent directory of the session that invokes the task (agent-tool.md
-   * Section 4.2); the output file goes under its `output/` (script-tool.md Section 6).
+   * The agent directory of the session that invokes the task (specs/agent-tool.md#child-session); the output file goes under its `output/` (specs/script-tool.md#timeout-delivery).
    */
   agentDir: (host: HostSession) => string;
   /** Extra environment variables for the shell, merged over the built environment. */
   extraEnv?: () => Record<string, string> | undefined;
   /**
-   * The host settings the call reads (Section 3), `readBashSettings` bound to the boot window's
+   * The host settings the call reads (specs/bash-tool.md#execution-model), `readBashSettings` bound to the boot window's
    * reporter: a settings file that cannot be read is reported there, so the read cannot be silent.
    */
   settings: (cwd: string) => BashSettings;
 }
 
-/** The two host settings Bash reads at each call (Section 3). */
+/** The two host settings Bash reads at each call (specs/bash-tool.md#execution-model). */
 export interface BashSettings {
   shellPath?: string | undefined;
   shellCommandPrefix?: string | undefined;
 }
 
 /**
- * The settings files read, and their failures reported (Section 3): a file that cannot
+ * The settings files read, and their failures reported (specs/bash-tool.md#execution-model): a file that cannot
  * be read or parsed contributes neither setting and is passed to `report` once per file
  * in `reported`, so one boot window reports each file once. The message is
  * `<file>: <error>`; the reporting layer prefixes `pi-dent: `.
@@ -141,7 +140,7 @@ function expandHome(path: string): string {
   return path;
 }
 
-/** First existing `name` in the host process PATH (Section 3). */
+/** First existing `name` in the host process PATH (specs/bash-tool.md#execution-model). */
 export function findOnPath(name: string): string | undefined {
   const env = process.env;
   const key =
@@ -158,7 +157,7 @@ export function findOnPath(name: string): string | undefined {
   return undefined;
 }
 
-/** The platform view shell resolution reads (Section 3); tests inject it. */
+/** The platform view shell resolution reads (specs/bash-tool.md#execution-model); tests inject it. */
 export interface ShellLookup {
   platform: NodeJS.Platform;
   exists: (path: string) => boolean;
@@ -166,7 +165,7 @@ export interface ShellLookup {
   env: NodeJS.ProcessEnv;
 }
 
-/** Shell resolution (Section 3): the configured path, else the platform defaults. */
+/** Shell resolution (specs/bash-tool.md#execution-model): the configured path, else the platform defaults. */
 export function resolveShell(settings: BashSettings): { path: string } | { error: string } {
   return resolveShellIn(settings, {
     platform: process.platform,
@@ -205,7 +204,7 @@ export function resolveShellIn(
   return { path: lookup.find("sh") ?? "sh" };
 }
 
-/** The shell environment (Section 3). */
+/** The shell environment (specs/bash-tool.md#execution-model). */
 export function buildBashEnv(
   host: HostSession,
   extraEnv?: Record<string, string> | undefined,
@@ -244,11 +243,11 @@ interface ShownLine {
   /** The last 501 code points: a cut keeps 500 after its final `\r` is dropped. */
   end: string;
   count: number;
-  /** Whether the line ends in `\r`, which display drops (Section 4). */
+  /** Whether the line ends in `\r`, which display drops (specs/bash-tool.md#output-capture). */
   endsCR: boolean;
 }
 
-/** The display code points of a line: its count without a final `\r` (Section 4). */
+/** The display code points of a line: its count without a final `\r` (specs/bash-tool.md#output-capture). */
 function displayCount(line: ShownLine): number {
   return line.count - (line.endsCR ? 1 : 0);
 }
@@ -267,7 +266,7 @@ function suffixPoints(text: string, limit: number): string {
   return points.join("");
 }
 
-/** The index of the last top-level `|` in `command`, or `-1` when it has none (Section 5). */
+/** The index of the last top-level `|` in `command`, or `-1` when it has none (specs/bash-tool.md#result-contract). */
 function lastTopLevelPipe(command: string): number {
   let quote: "'" | '"' | undefined;
   let last = -1;
@@ -299,7 +298,7 @@ function lastTopLevelPipe(command: string): number {
   return last;
 }
 
-/** Whether the call is filter-piped: a head, tail, or grep stage after the last top-level `|` (Section 5). */
+/** Whether the call is filter-piped: a head, tail, or grep stage after the last top-level `|` (specs/bash-tool.md#result-contract). */
 export function isFilterPiped(command: string): boolean {
   const pipe = lastTopLevelPipe(command);
   if (pipe < 0) return false;
@@ -314,7 +313,7 @@ interface FileRedirection {
   stdout: boolean;
 }
 
-/** Whether a top-level trailing redirection sends output to a file (Section 5). */
+/** Whether a top-level trailing redirection sends output to a file (specs/bash-tool.md#result-contract). */
 export function fileRedirection(command: string): FileRedirection {
   const text = command.trimEnd();
   let quote: "'" | '"' | undefined;
@@ -397,14 +396,14 @@ export function fileRedirection(command: string): FileRedirection {
   return { redirected: files.length > 0, stdout: files.some(({ stdout }) => stdout) };
 }
 
-/** A progress entry: the first code points of the line's display text (Section 4). */
+/** A progress entry: the first code points of the line's display text (specs/bash-tool.md#output-capture). */
 function progressLine(line: ShownLine): string {
   const count = line.endsCR ? line.count - 1 : line.count;
   const head = line.endsCR && line.count <= LINE_CHARACTERS ? line.head.slice(0, -1) : line.head;
   return head + (count > LINE_CHARACTERS ? omissionNote(count - LINE_CHARACTERS) : "");
 }
 
-/** The header line of a truncated excerpt (Section 4). */
+/** The header line of a truncated excerpt (specs/bash-tool.md#output-capture). */
 function headerLine(
   total: number,
   shown: number,
@@ -424,7 +423,7 @@ function headerLine(
 }
 
 /**
- * The captured output's excerpt state and capped progress lines (Section 4). Each
+ * The captured output's excerpt state and capped progress lines (specs/bash-tool.md#output-capture). Each
  * `append` takes whole code points, as a `StringDecoder` emits them: a surrogate pair
  * split between two calls would be counted, and could be cut, as two characters.
  */
@@ -432,7 +431,7 @@ export class CapturedOutput {
   private readonly last: ShownLine[] = [];
   private current: ShownLine = { head: "", end: "", count: 0, endsCR: false };
   private complete = 0;
-  /** Raw bytes received from both pipes, as the saved file holds them (Section 4). */
+  /** Raw bytes received from both pipes, as the saved file holds them (specs/bash-tool.md#output-capture). */
   private received = 0;
 
   append(text: string, bytes: number): string[] {
@@ -479,7 +478,7 @@ export class CapturedOutput {
   excerpt(outputPath?: string): { text: string; truncated: boolean } {
     const total = this.lineCount();
     const candidates = [...this.last, ...(this.current.count === 0 ? [] : [this.current])];
-    // Tail (Section 4): the last lines, within the line bound and the character budget.
+    // Tail (specs/bash-tool.md#output-capture): the last lines, within the line bound and the character budget.
     const lines: ShownLine[] = [];
     let budget = 0;
     for (let i = candidates.length - 1; i >= 0 && lines.length < EXCERPT_LINE_BOUND; i -= 1) {
@@ -520,7 +519,7 @@ export interface BashRunOutcome {
   durationMs: number;
 }
 
-/** The status line of a settled run (Section 5); undefined when there is none. */
+/** The status line of a settled run (specs/bash-tool.md#result-contract); undefined when there is none. */
 export function statusLine(
   outcome: BashRunOutcome,
   timeoutMs: number | undefined,
@@ -542,7 +541,7 @@ export function statusLine(
   }
 }
 
-/** The task status of a settled run (Section 5). */
+/** The task status of a settled run (specs/bash-tool.md#result-contract). */
 export function taskStatusOf(outcome: BashRunOutcome): BashTaskStatus {
   if (outcome.exitReason === "exited") return outcome.exitCode === 0 ? "completed" : "failed";
   if (outcome.exitReason === "timeout" || outcome.exitReason === "spawn-failed") return "failed";
@@ -568,7 +567,7 @@ export interface BashRun {
 }
 
 /**
- * Spawn the shell and follow the run to its end (Sections 3, 4 and 6):
+ * Spawn the shell and follow the run to its end (specs/bash-tool.md#execution-model, specs/bash-tool.md#output-capture and specs/bash-tool.md#timeout-delivery):
  * process-group leader, piped capture, timeout, kill and abort, leftover reap.
  */
 export function runBash(
@@ -589,7 +588,7 @@ export function runBash(
   let resolveOutcome: (outcome: BashRunOutcome) => void = () => {};
   /**
    * SIGKILL to the group 250 ms after SIGTERM. Not tracked in `timers`: the
-   * sequence completes even when the run ends first (Sections 3 and 6).
+   * sequence completes even when the run ends first (specs/bash-tool.md#execution-model and specs/bash-tool.md#timeout-delivery).
    */
   const scheduleGroupKill = (pid: number): void => {
     const timer = setTimeout(() => {
@@ -605,7 +604,7 @@ export function runBash(
   let message: string | undefined;
   let leftover = false;
   let finished = false;
-  /** Set by the shell's `exit` handler: the run cannot end before it (Section 3). */
+  /** Set by the shell's `exit` handler: the run cannot end before it (specs/bash-tool.md#execution-model). */
   let shellExited = false;
   let pipesOpen = 2;
   let partialTimer: NodeJS.Timeout | undefined;
@@ -642,7 +641,7 @@ export function runBash(
     if (req.signal !== undefined) req.signal.removeEventListener("abort", onAbort);
     child?.stdout?.destroy();
     child?.stderr?.destroy();
-    // An incomplete UTF-8 sequence at the end decodes as U+FFFD (Section 4).
+    // An incomplete UTF-8 sequence at the end decodes as U+FFFD (specs/bash-tool.md#output-capture).
     emit(output.append(decoders.stdout.end(), 0));
     emit(output.append(decoders.stderr.end(), 0));
     const pending = output.pending();
@@ -701,7 +700,7 @@ export function runBash(
     try {
       appendFileSync(req.outputPath, chunk);
     } catch {
-      // A file failure never fails the call (Section 4).
+      // A file failure never fails the call (specs/bash-tool.md#output-capture).
     }
     try {
       emit(output.append(decoders[stream].write(chunk), chunk.length));
@@ -711,7 +710,7 @@ export function runBash(
     }
   };
 
-  // The cancellation handler is installed before the shell is spawned (Section 6).
+  // The cancellation handler is installed before the shell is spawned (specs/bash-tool.md#timeout-delivery).
   onCancelReady?.(cancel);
 
   try {
@@ -797,7 +796,7 @@ interface FormattedBash {
   };
 }
 
-/** The result body, status and details of a settled run (Section 5). */
+/** The result body, status and details of a settled run (specs/bash-tool.md#result-contract). */
 export function formatBashOutcome(
   outcome: BashRunOutcome,
   output: CapturedOutput,
@@ -831,7 +830,7 @@ export function formatBashOutcome(
 }
 
 /**
- * The timeout a call imposes (Section 1): an omitted `timeout` gives a foreground call
+ * The timeout a call imposes (specs/bash-tool.md#parameter-schema): an omitted `timeout` gives a foreground call
  * `DEFAULT_TIMEOUT_MS` and imposes none on a background call; above `MAX_TIMEOUT_MS` imposes none.
  */
 export function resolveBashTimeout(
@@ -842,7 +841,7 @@ export function resolveBashTimeout(
   return timeout > MAX_TIMEOUT_MS ? undefined : timeout;
 }
 
-/** The row label of the call (Section 6). */
+/** The row label of the call (specs/bash-tool.md#timeout-delivery). */
 function bashLabel(params: BashToolParams): string {
   if (typeof params.description === "string" && params.description.trim() !== "")
     return params.description;
@@ -866,7 +865,7 @@ export function makeBashTool(deps: BashToolDeps) {
       const registry = deps.registry();
       const background = params.background === true;
 
-      // One row per invocation, registered before any validation (Section 6).
+      // One row per invocation, registered before any validation (specs/bash-tool.md#timeout-delivery).
       let row: BashTaskRow;
       try {
         row = registry.register({
@@ -880,14 +879,14 @@ export function makeBashTool(deps: BashToolDeps) {
       } catch (error) {
         return textError(`Bash error: ${errorMessage(error)}`);
       }
-      // A Section 2 failure is a pre-start rejection: the row is consumed and
+      // A specs/bash-tool.md#validation failure is a pre-start rejection: the row is consumed and
       // settles failed with the error text, and no output file is created.
       const reject = (message: string): ToolResult => rejectCall(registry, row, message);
 
       const host = deps.hostProvider();
       if (!host) return reject("pi-dent: no live host session for the Bash call");
 
-      // Section 2, in order: cwd, then the shell.
+      // specs/bash-tool.md#validation, in order: cwd, then the shell.
       const sessionCwd = host.cwd();
       const resolvedCwd = resolveCwdParam(params.cwd, sessionCwd);
       if ("error" in resolvedCwd) return reject(resolvedCwd.error);
@@ -896,7 +895,7 @@ export function makeBashTool(deps: BashToolDeps) {
       const settings = deps.settings(sessionCwd);
       const shell = resolveShell(settings);
       if ("error" in shell) return reject(shell.error);
-      // The checks of Section 2 passed (task-ledger.md Section 2.2).
+      // The checks of specs/bash-tool.md#validation passed (specs/task-ledger.md#ledger-row).
       ledgerDispatched(row, cwd);
       // Above 2147483647 the call imposes no timeout; an omitted one defaults for foreground only.
       const timeoutMs = resolveBashTimeout(params.timeout, background);
@@ -911,7 +910,7 @@ export function makeBashTool(deps: BashToolDeps) {
       const outputPath = outputPathsFor(agentDir, row.taskId).outputPath;
       const output = new CapturedOutput();
 
-      // An already-aborted tool-call signal prevents the spawn (Section 6).
+      // An already-aborted tool-call signal prevents the spawn (specs/bash-tool.md#timeout-delivery).
       const preSettled = (reason: BashExitReason): ToolResult => {
         const outcome: BashRunOutcome = { exitReason: reason, leftover: false, durationMs: 0 };
         const text = statusLine(outcome, timeoutMs) ?? "(no output)";
@@ -930,7 +929,7 @@ export function makeBashTool(deps: BashToolDeps) {
           isError: true,
         };
       };
-      // A background call ignores the tool-call signal (Section 6), an
+      // A background call ignores the tool-call signal (specs/bash-tool.md#timeout-delivery), an
       // already-aborted one included: only a foreground call can abort.
       if (!background && signal?.aborted === true) return preSettled("aborted");
 
@@ -938,7 +937,7 @@ export function makeBashTool(deps: BashToolDeps) {
       try {
         writeFileSync(outputPath, "");
       } catch {
-        // Creating the output file never fails the call (Section 4).
+        // Creating the output file never fails the call (specs/bash-tool.md#output-capture).
       }
 
       const request: BashRunRequest = {

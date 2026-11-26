@@ -5,7 +5,7 @@ import { AgentTaskRow } from "./task-row.ts";
 import { recordFileName, scanRecords } from "./task-record.ts";
 
 /**
- * Rebuild interrupted tasks per specs/task-record.md Section 3: scan the main
+ * Rebuild interrupted tasks per specs/task-record.md#rebuild: scan the main
  * session's agent directory for task records and insert one task row per
  * record into the live registry. A `running` record becomes an `interrupted`
  * row settled at rebuild time; a terminal record keeps its own status,
@@ -18,7 +18,7 @@ import { recordFileName, scanRecords } from "./task-record.ts";
  * number of rows inserted (0 when `scanRecords` returns `[]`, without calling
  * `rebuild`). A record whose taskId is already a row of the registry is skipped
  * by `rebuild` and not counted. With `ledger`, each inserted row is linked to the ledger row
- * task-ledger.md Section 4.2 finds, which an `interrupted` row makes `interrupted`.
+ * specs/task-ledger.md#rebuild finds, which an `interrupted` row makes `interrupted`.
  */
 export function rebuildInterruptedTasks(
   registry: TaskRegistry,

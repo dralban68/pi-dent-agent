@@ -9,7 +9,7 @@ export type ProviderConfigInput = Parameters<ModelRuntime["registerProvider"]>[1
 /** A provider object as a model runtime registers it. */
 export type NativeProvider = Parameters<ModelRuntime["registerNativeProvider"]>[0];
 
-/** One extension provider of a session's model runtime (agent-tool.md Section 4.2). */
+/** One extension provider of a session's model runtime (specs/agent-tool.md#child-session). */
 export type HostExtensionProvider =
   | { readonly id: string; readonly kind: "config"; readonly config: ProviderConfigInput }
   | { readonly id: string; readonly kind: "native"; readonly provider: NativeProvider };
@@ -45,7 +45,7 @@ export interface CompactionSettings {
 
 /**
  * One tool of a session's complete configured inventory; the engine reads its name
- * and file source path (agent-tool.md Section 3.1).
+ * and file source path (specs/agent-tool.md#tools).
  */
 export interface HostToolInfo {
   readonly name: string;
@@ -62,7 +62,7 @@ export interface HostSession {
   sessionFile(): string | undefined;
   /** Directory of the session file (default session dir when not persisted). */
   sessionDir(): string;
-  /** Session kind (`"user"` or `"agent"`, session-tool.md Section 3). */
+  /** Session kind (`"user"` or `"agent"`, specs/session-tool.md#session-kind). */
   sessionKind?(): SessionKind;
   model(): { provider: string; id: string } | undefined;
   thinking(): ThinkingLevel | undefined;
@@ -70,19 +70,19 @@ export interface HostSession {
   activeTools(): string[];
   /**
    * Every configured tool of the session, active or inactive, in inventory
-   * order (agent-tool.md Section 3.1); absent when the host exposes none.
+   * order (specs/agent-tool.md#tools); absent when the host exposes none.
    */
   allTools?(): readonly HostToolInfo[];
   /**
    * The providers extensions registered in the session's model runtime, as it holds
-   * them now (agent-tool.md Section 4.2); absent when the host exposes none.
+   * them now (specs/agent-tool.md#child-session); absent when the host exposes none.
    */
   extensionProviders?(): readonly HostExtensionProvider[];
   /** The host pi runtime's registered model list. */
   inventory(): readonly Model<Api>[];
   /**
    * The configured model list the guidance message is computed from
-   * (specs/model-guidance.md Section 2): only models whose provider has
+   * (specs/model-guidance.md#guided-models): only models whose provider has
    * authentication configured.
    */
   configuredModels(): readonly Model<Api>[] | undefined;
@@ -92,7 +92,7 @@ export interface HostSession {
   notify(message: string): void;
   /**
    * Warn without starting a model turn: the main session's UI (stderr without a
-   * UI), or a displayed message in a child (agent-tool.md Section 3.1). Absent
+   * UI), or a displayed message in a child (specs/agent-tool.md#tools). Absent
    * on a host that predates the channel, which falls back to `notify`.
    */
   warn?(message: string): void;

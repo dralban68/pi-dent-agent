@@ -76,7 +76,7 @@ function validateModelId(id: string): void {
   }
 }
 
-/** Parse the grammar of Section 1. Throws ModelStringError with code invalid-plan. */
+/** Parse the grammar of specs/model-string.md#grammar. Throws ModelStringError with code invalid-plan. */
 export function parseModelString(raw: unknown): {
   selector: Parsed;
   thinking?: ThinkingLevel | undefined;
@@ -123,7 +123,7 @@ export function parseModelString(raw: unknown): {
 export interface ResolveContext<TModel extends InventoryModel = InventoryModel> {
   /** Active modelClasses mapping (raw merged config values). */
   classes: Record<string, unknown> | undefined;
-  /** Host pi runtime's registered model list; always an array, possibly empty (model-string.md Section 4). */
+  /** Host pi runtime's registered model list; always an array, possibly empty (specs/model-string.md#resolution). */
   inventory: readonly TModel[];
   /** File path to attribute modelClasses diagnostics to. */
   attributeClassPath(name: string): string;
@@ -216,7 +216,7 @@ function mappingToDescriptor(name: string, value: unknown): Descriptor {
 }
 
 /**
- * Boot-time validation of the `modelClasses` mapping (Section 3): keys must be
+ * Boot-time validation of the `modelClasses` mapping (specs/model-string.md#model-classes): keys must be
  * well-formed class names and values well-formed concrete mappings. Problems
  * are reported; entries are kept so reference-time resolution is unchanged.
  * Unknown descriptor fields are reported by `modelClassDiagnostics`, which can
@@ -297,7 +297,7 @@ export interface ResolvedModel<TModel extends InventoryModel = InventoryModel> {
 }
 
 /**
- * Resolve a model string per Section 4. Grammar and ambiguity violations fail
+ * Resolve a model string per specs/model-string.md#resolution. Grammar and ambiguity violations fail
  * without fallback; no-match outcomes fall back through the `fallback` class
  * when it is defined.
  */
@@ -341,7 +341,7 @@ export function resolveModelString<TModel extends InventoryModel>(
   return resolved;
 }
 
-/** Canonical serialization per Section 5. */
+/** Canonical serialization per specs/model-string.md#serialization. */
 export function serializeDescriptor(descriptor: Descriptor): string {
   const base = `${descriptor.provider}/${descriptor.id}`;
   return descriptor.thinking === undefined ? base : `${base}:${descriptor.thinking}`;
@@ -381,7 +381,7 @@ export function resolveContextFromConfig<TModel extends InventoryModel>(
   };
 }
 
-/** Boot validation of modelClasses (Section 3), each problem attributed to its owning layer. */
+/** Boot validation of modelClasses (specs/model-string.md#model-classes), each problem attributed to its owning layer. */
 export function modelClassDiagnostics(config: BootConfig): string[] {
   const raw = config.merged.modelClasses;
   if (raw === undefined) return [];
@@ -392,7 +392,7 @@ export function modelClassDiagnostics(config: BootConfig): string[] {
   }
   const diagnostics: string[] = [];
   for (const [name, value] of Object.entries(raw)) {
-    // Unknown descriptor fields are ignored and the class still resolves (config-file.md Section 2).
+    // Unknown descriptor fields are ignored and the class still resolves (specs/config-file.md#format).
     const unknownFields = unknownDescriptorFields(value);
     if (unknownFields.length > 0) {
       diagnostics.push(

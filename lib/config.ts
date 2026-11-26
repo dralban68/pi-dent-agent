@@ -27,7 +27,7 @@ export const SUPPORTED_ROOT_KEYS = [
   "footer",
   "recapModel",
   "script",
-  // Owned by sibling packages (config-file.md, Section 2): pi-dent never validates them.
+  // Owned by sibling packages (specs/config-file.md#format): pi-dent never validates them.
   "terms",
   "web",
   "webSearch",
@@ -179,14 +179,14 @@ export interface LayerLoad {
   state: "missing" | "dropped" | "read";
   /** The layer's post-substitution values; present only when `state` is `read`. */
   layer?: LayerRead;
-  /** This layer's read diagnostics, in production order (config-file.md Sections 2 and 7). */
+  /** This layer's read diagnostics, in production order (specs/config-file.md#format and specs/config-file.md#value-substitution). */
   diagnostics: string[];
 }
 
 /** The configuration read with each layer's outcome kept apart: the plugin inventory's view. */
 export interface ConfigRead {
   config: BootConfig;
-  /** Per-layer read outcomes (config-file.md Section 1), for the plugin inventory (plugin.md Section 11). */
+  /** Per-layer read outcomes (specs/config-file.md#layers), for the plugin inventory (specs/plugin.md#plugin-inventory). */
   layerLoads: { global: LayerLoad; project: LayerLoad };
 }
 
@@ -246,7 +246,7 @@ function loadLayers(cwd: string): { global: LayerLoad; project: LayerLoad } {
 /**
  * Set `key` as an ordinary own data property: a JSON `"__proto__"` key must stay
  * an own key so it survives iteration, gets the unknown-key diagnostic, and cannot
- * pollute prototypes (config-file.md Section 2).
+ * pollute prototypes (specs/config-file.md#format).
  */
 function setOwnKey(out: Record<string, unknown>, key: string, value: unknown): void {
   if (key === "__proto__") {
@@ -276,10 +276,10 @@ function mergeDeep(base: unknown, override: unknown): unknown {
   return override;
 }
 
-/** An upper bound on a liveness deadline, in milliseconds (agent-tool.md Section 4.2). */
+/** An upper bound on a liveness deadline, in milliseconds (specs/agent-tool.md#child-session). */
 const MAX_DEADLINE_MS = 2147483647;
 
-/** Whether `value` is an integer from 0 to 2147483647 inclusive (agent-tool.md Section 4.2). */
+/** Whether `value` is an integer from 0 to 2147483647 inclusive (specs/agent-tool.md#child-session). */
 function isDeadline(value: unknown): value is number {
   return isNonNegativeInteger(value) && value <= MAX_DEADLINE_MS;
 }
@@ -290,7 +290,7 @@ function resolveEnvDeadline(envVar: string, diagnostics: Diagnostic[]): number |
   const envRaw = process.env[envVar];
   if (envRaw !== undefined && envRaw !== "") {
     const value = Number(envRaw);
-    // Decimal digits only, within the deadline range (agent-tool.md Section 4.2).
+    // Decimal digits only, within the deadline range (specs/agent-tool.md#child-session).
     if (!/^\d+$/.test(envRaw) || !isDeadline(value)) {
       report(diagnostics, `config: ${envVar} ${DEADLINE_RULE}`);
     } else {
@@ -335,8 +335,8 @@ export function readConfig(cwd: string): BootConfig {
 
 /**
  * `readConfig` with each layer's outcome kept apart: the boot configuration plus, per layer,
- * its state and its own read diagnostics (config-file.md Sections 1, 2 and 7). The plugin
- * inventory reads this (plugin.md Section 11); boot itself needs only `config`.
+ * its state and its own read diagnostics (specs/config-file.md#layers, specs/config-file.md#format and specs/config-file.md#value-substitution). The plugin
+ * inventory reads this (specs/plugin.md#plugin-inventory); boot itself needs only `config`.
  */
 export function readConfigDetailed(cwd: string): ConfigRead {
   const layerLoads = loadLayers(cwd);
@@ -433,8 +433,8 @@ export function attributeKey(config: BootConfig, path: string[]): string {
 }
 
 /**
- * The one unknown-key diagnostic of an object (config-file.md Section 2): the object,
- * every unknown key, and each key's owning file (Section 4), named once when all keys
+ * The one unknown-key diagnostic of an object (specs/config-file.md#format): the object,
+ * every unknown key, and each key's owning file (specs/config-file.md#attribution), named once when all keys
  * share one file.
  */
 export function unknownKeysMessage(
@@ -531,7 +531,7 @@ const NAMED_KEY_NAMES = new Set([
 ]);
 
 /**
- * Whether `value` is a host key identifier (task-browser.md Section 1.1): `+`-joined modifier
+ * Whether `value` is a host key identifier (specs/task-browser.md#configuration): `+`-joined modifier
  * names, each at most once, then one key name. The grammar is the host's `KeyId` type, which
  * ships no runtime validator.
  */
@@ -548,7 +548,7 @@ function isKeyId(value: string): value is KeyId {
   return /^[a-z0-9]$/.test(rest) || SYMBOL_KEY_NAMES.has(rest) || NAMED_KEY_NAMES.has(rest);
 }
 
-/** The task browser shortcut (task-browser.md Section 1.1) with its diagnostics. */
+/** The task browser shortcut (specs/task-browser.md#configuration) with its diagnostics. */
 export function parseTaskBrowser(config: BootConfig): {
   shortcut: KeyId;
   diagnostics: string[];
@@ -589,7 +589,7 @@ export function parseTaskBrowser(config: BootConfig): {
 }
 
 /**
- * The `script` configuration (script-tool.md Section 8) with its diagnostics: the allow lists,
+ * The `script` configuration (specs/script-tool.md#tool-functions) with its diagnostics: the allow lists,
  * `undefined` where the key is absent or ignored.
  */
 export function parseScript(config: BootConfig): {
@@ -646,7 +646,7 @@ export function parseScript(config: BootConfig): {
   return out;
 }
 
-/** The footer configuration (footer.md Section 1.1) with its diagnostics. */
+/** The footer configuration (specs/footer.md#configuration) with its diagnostics. */
 export function parseFooter(config: BootConfig): { enabled: boolean; diagnostics: string[] } {
   const raw = config.merged.footer;
   const out: { enabled: boolean; diagnostics: string[] } = { enabled: true, diagnostics: [] };

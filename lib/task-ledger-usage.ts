@@ -1,11 +1,10 @@
 /**
- * The usage and tool-call count of a main session's ledger session row (specs/task-ledger.md
- * Section 2.1), from the session entries and header the host holds.
+ * The usage and tool-call count of a main session's ledger session row (specs/task-ledger.md#session-row), from the session entries and header the host holds.
  */
 
 import { zeroUsageSum, type UsageSum } from "./usage.ts";
 
-/** A host `usage` (agent-tool.md Section 13). */
+/** A host `usage` (specs/agent-tool.md#usage). */
 export interface LedgerEntryUsage {
   input: number;
   output: number;
@@ -14,7 +13,7 @@ export interface LedgerEntryUsage {
   cost: { total: number };
 }
 
-/** The parts of a host session entry that Section 2.1 reads. */
+/** The parts of a host session entry that specs/task-ledger.md#session-row reads. */
 export interface LedgerSessionEntry {
   type: string;
   timestamp?: string | undefined;
@@ -30,16 +29,16 @@ export interface LedgerSessionEntry {
     | undefined;
 }
 
-/** The parts of the host session header that Section 2.1 reads. */
+/** The parts of the host session header that specs/task-ledger.md#session-row reads. */
 export interface LedgerSessionHeader {
   timestamp?: string | undefined;
   parentSession?: unknown;
 }
 
 /**
- * The usage sum of a ledger session row: the entries footer.md Section 2.2 sums, on every branch,
+ * The usage sum of a ledger session row: the entries specs/footer.md#stats-line sums, on every branch,
  * less `Agent` tool results and, in a fork, the entries copied from the parent session
- * (Section 2.1). `turns` counts every assistant message not copied by a fork, with or without a
+ * (specs/task-ledger.md#session-row). `turns` counts every assistant message not copied by a fork, with or without a
  * host `usage`.
  */
 export function sessionRowUsage(
@@ -61,7 +60,7 @@ export function sessionRowUsage(
 }
 
 /**
- * The `tool_calls` of a ledger session row (Section 2.1): the tool calls of the assistant messages
+ * The `tool_calls` of a ledger session row (specs/task-ledger.md#session-row): the tool calls of the assistant messages
  * whose entries `turns` counts.
  */
 export function sessionRowToolCalls(
@@ -75,7 +74,7 @@ export function sessionRowToolCalls(
   return count;
 }
 
-/** The tool calls of an assistant message (agent-tool.md Section 13): its `toolCall` parts. */
+/** The tool calls of an assistant message (specs/agent-tool.md#usage): its `toolCall` parts. */
 export function toolCallCount(content: unknown): number {
   if (!Array.isArray(content)) return 0;
   let count = 0;

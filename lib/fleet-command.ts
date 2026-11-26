@@ -2,7 +2,7 @@ import { type FleetCoordinator, type FleetSessionRecord, formatFleetCompactLine 
 import { errorMessage } from "./util.ts";
 
 /**
- * `/fleet` command logic (specs/slash-commands.md Section 4): list the
+ * `/fleet` command logic (specs/slash-commands.md#fleet): list the
  * machine's sibling sessions and query one, either through a `select` +
  * `input` dialog or as `<target> <query>`. Never adds a conversation message
  * or starts a turn; the query reply arrives as a followUp message.
@@ -27,8 +27,8 @@ export interface FleetCommandDeps {
 export async function runFleetCommand(args: string, deps: FleetCommandDeps): Promise<void> {
   // The command refuses exactly the caller a `Fleet` call from it refuses: a
   // session with no live session identity in this boot window
-  // (specs/session-store.md Section 4; specs/fleet-tool.md Section 1;
-  // specs/slash-commands.md Section 4). A record this window does not own —
+  // (specs/session-store.md#membership-lifecycle; specs/fleet-tool.md#parameter-schema;
+  // specs/slash-commands.md#fleet). A record this window does not own —
   // another live window's, or one released by a reload — is refused; a child
   // session is not.
   if (deps.fleet.classifyCaller(deps.sessionId) === "foreign") return;

@@ -1,11 +1,10 @@
 /**
- * The question panel of the `AskUserQuestion` tool (specs/ask-user-question-tool.md,
- * Section 3), and the answer model of Section 2.1 that the dialog sequence (Section 4)
+ * The question panel of the `AskUserQuestion` tool (specs/ask-user-question-tool.md#question-panel), and the answer model of specs/ask-user-question-tool.md#answers that the dialog sequence (specs/ask-user-question-tool.md#dialog-sequence)
  * shares with it.
  *
  * The panel is a state machine over (questions, answers, page, highlighted rows, text
- * entry, dismissal) rendered on demand inside a border of fixed size (Section 3.1): every
- * rule of Sections 3.1 to 3.6 is a pure function of that state and the terminal size, so the
+ * entry, dismissal) rendered on demand inside a border of fixed size (specs/ask-user-question-tool.md#size-border): every
+ * rule of specs/ask-user-question-tool.md#size-border, specs/ask-user-question-tool.md#rows-tabs, specs/ask-user-question-tool.md#panel-content, specs/ask-user-question-tool.md#keys, specs/ask-user-question-tool.md#text-entry, specs/ask-user-question-tool.md#dismissal is a pure function of that state and the terminal size, so the
  * panel is testable without a terminal. The host's editor component is injected, and the
  * theme is the host theme, or an identity theme in tests.
  */
@@ -21,16 +20,16 @@ import {
 } from "@earendil-works/pi-tui";
 
 // ---------------------------------------------------------------------------
-// Section 2.1: answers
+// specs/ask-user-question-tool.md#answers: answers
 // ---------------------------------------------------------------------------
 
-/** One option of a question, after Section 1.2 validation. */
+/** One option of a question, after specs/ask-user-question-tool.md#validation validation. */
 export interface AskOption {
   label: string;
   description: string;
 }
 
-/** One question of a call, after Section 1.2 validation. */
+/** One question of a call, after specs/ask-user-question-tool.md#validation validation. */
 export interface AskQuestion {
   header: string;
   question: string;
@@ -38,7 +37,7 @@ export interface AskQuestion {
   multiSelect: boolean;
 }
 
-/** One question's answer (Section 2.1): chosen option indexes, and the free-text answer. */
+/** One question's answer (specs/ask-user-question-tool.md#answers): chosen option indexes, and the free-text answer. */
 export interface AskAnswer {
   /** Indexes into the question's `options`, in option order. */
   chosen: number[];
@@ -50,20 +49,20 @@ export function emptyAnswer(): AskAnswer {
   return { chosen: [], text: null };
 }
 
-/** A single-select question's answer chooses one option and drops the free-text answer (Section 2.1). */
+/** A single-select question's answer chooses one option and drops the free-text answer (specs/ask-user-question-tool.md#answers). */
 export function chooseOption(answer: AskAnswer, index: number): void {
   answer.chosen = [index];
   answer.text = null;
 }
 
-/** A multi-select option toggles; the free-text answer stays (Section 2.1). */
+/** A multi-select option toggles; the free-text answer stays (specs/ask-user-question-tool.md#answers). */
 export function toggleOption(answer: AskAnswer, index: number): void {
   answer.chosen = answer.chosen.includes(index)
     ? answer.chosen.filter((chosen) => chosen !== index)
     : [...answer.chosen, index].toSorted((left, right) => left - right);
 }
 
-/** Records a free-text answer; a single-select question keeps no chosen option (Section 2.1). */
+/** Records a free-text answer; a single-select question keeps no chosen option (specs/ask-user-question-tool.md#answers). */
 export function recordFreeText(
   answer: AskAnswer,
   question: AskQuestion,
@@ -73,7 +72,7 @@ export function recordFreeText(
   if (!question.multiSelect) answer.chosen = [];
 }
 
-/** A question is answered per Section 2.1. */
+/** A question is answered per specs/ask-user-question-tool.md#answers. */
 export function isAnswered(question: AskQuestion, answer: AskAnswer): boolean {
   if (answer.text !== null) return true;
   return question.multiSelect ? answer.chosen.length > 0 : answer.chosen.length === 1;
@@ -90,7 +89,7 @@ export function chosenLabels(question: AskQuestion, answer: AskAnswer): string[]
 }
 
 /**
- * The answer summary of Section 2.1: the labels joined by `, `, then the free-text
+ * The answer summary of specs/ask-user-question-tool.md#answers: the labels joined by `, `, then the free-text
  * answer in quotes with ` …` when it has more lines.
  */
 export function summaryOf(labels: readonly string[], text: string | null): string {
@@ -107,7 +106,7 @@ export function answerSummary(question: AskQuestion, answer: AskAnswer): string 
   return summaryOf(chosenLabels(question, answer), answer.text);
 }
 
-/** A free-text answer as Section 2.1 records it: CRLF to LF, trimmed, empty records none. */
+/** A free-text answer as specs/ask-user-question-tool.md#answers records it: CRLF to LF, trimmed, empty records none. */
 export function normalizeFreeText(text: string): string | null {
   const normalized = text.replace(/\r\n/g, "\n").trim();
   return normalized === "" ? null : normalized;
@@ -119,14 +118,14 @@ export function firstLineOf(text: string): string {
   return end < 0 ? text : text.slice(0, end);
 }
 
-/** A call is direct when it has exactly one question and that question is single-select (Section 2.1). */
+/** A call is direct when it has exactly one question and that question is single-select (specs/ask-user-question-tool.md#answers). */
 export function isDirectCall(questions: readonly AskQuestion[]): boolean {
   const only = questions[0];
   return questions.length === 1 && only !== undefined && !only.multiSelect;
 }
 
 // ---------------------------------------------------------------------------
-// Section 3.3: cleaned values
+// specs/ask-user-question-tool.md#panel-content: cleaned values
 // ---------------------------------------------------------------------------
 
 /** Where the escape sequence that starts at `start` ends. */
@@ -158,7 +157,7 @@ function skipEscape(text: string, start: number): number {
   return Math.min(text.length, index + 1);
 }
 
-/** Section 3.3: ANSI escape sequences and control characters other than the line feed removed. */
+/** specs/ask-user-question-tool.md#panel-content: ANSI escape sequences and control characters other than the line feed removed. */
 export function cleanValue(text: string): string {
   let out = "";
   let index = 0;
@@ -177,10 +176,10 @@ export function cleanValue(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Section 3.3: the texts the panel shows
+// specs/ask-user-question-tool.md#panel-content: the texts the panel shows
 // ---------------------------------------------------------------------------
 
-/** The key-hint lines of Section 3.3, the first that applies. */
+/** The key-hint lines of specs/ask-user-question-tool.md#panel-content, the first that applies. */
 export const PANEL_HINTS = {
   armed: "Dismiss the questions? s skip, the agent continues · x stop the agent run · esc back",
   textEntry: "enter save · esc back",
@@ -190,41 +189,41 @@ export const PANEL_HINTS = {
   multi: "↑↓ move · space toggle · tab/←→ question · esc dismiss",
 } as const;
 
-/** The Other row's text without a free-text answer (Section 3.3). */
+/** The Other row's text without a free-text answer (specs/ask-user-question-tool.md#panel-content). */
 export const OTHER_ROW_TEXT = "Other: type your own answer";
-/** The line above the editor in text entry (Section 3.3). */
+/** The line above the editor in text entry (specs/ask-user-question-tool.md#panel-content). */
 export const TEXT_ENTRY_LABEL = "Your answer:";
-/** The Submit tab's first line (Section 3.3). */
+/** The Submit tab's first line (specs/ask-user-question-tool.md#panel-content). */
 export const REVIEW_TITLE = "Review your answers";
-/** The Submit tab's line when every question is answered (Section 3.3). */
+/** The Submit tab's line when every question is answered (specs/ask-user-question-tool.md#panel-content). */
 export const REVIEW_READY = "Press enter to submit.";
-/** The Submit tab's prefix when a question is unanswered (Section 3.3). */
+/** The Submit tab's prefix when a question is unanswered (specs/ask-user-question-tool.md#panel-content). */
 export const REVIEW_UNANSWERED = "Unanswered: ";
-/** A question's line on the Submit tab when it is unanswered (Section 3.3). */
+/** A question's line on the Submit tab when it is unanswered (specs/ask-user-question-tool.md#panel-content). */
 export const REVIEW_MISSING = "(unanswered)";
-/** The Submit tab's label in the tab bar (Section 3.3). */
+/** The Submit tab's label in the tab bar (specs/ask-user-question-tool.md#panel-content). */
 export const SUBMIT_TAB_LABEL = "Submit";
-/** The tab bar's answered and unanswered marks (Section 3.3). */
+/** The tab bar's answered and unanswered marks (specs/ask-user-question-tool.md#panel-content). */
 export const TAB_MARK = { answered: "■", unanswered: "□" } as const;
 
-/** The indent of an option row's description line (Section 3.1: 5 columns). */
+/** The indent of an option row's description line (specs/ask-user-question-tool.md#size-border: 5 columns). */
 const DESCRIPTION_INDENT = "     ";
-/** The 2 columns of an option row before its number: `> ` or `  ` (Section 3.3). */
+/** The 2 columns of an option row before its number: `> ` or `  ` (specs/ask-user-question-tool.md#panel-content). */
 const ROW_PREFIX = "  ";
-/** The multi-select mark of an option row (Section 3.3: 4 columns). */
+/** The multi-select mark of an option row (specs/ask-user-question-tool.md#panel-content: 4 columns). */
 const MULTI_MARK = "[ ] ";
-/** The digit keys of Section 3.4, in order. */
+/** The digit keys of specs/ask-user-question-tool.md#keys, in order. */
 const DIGIT_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 // ---------------------------------------------------------------------------
-// Section 3.1: size and border
+// specs/ask-user-question-tool.md#size-border: size and border
 // ---------------------------------------------------------------------------
 
-/** The title in the top border (Section 3.1). */
+/** The title in the top border (specs/ask-user-question-tool.md#size-border). */
 export const PANEL_TITLE = "Question";
-/** The top border before the fill: `┌─ Question ` (Section 3.1). */
+/** The top border before the fill: `┌─ Question ` (specs/ask-user-question-tool.md#size-border). */
 export const PANEL_TOP_PREFIX = `┌─ ${PANEL_TITLE} `;
-/** The box-drawing characters of Section 3.1. */
+/** The box-drawing characters of specs/ask-user-question-tool.md#size-border. */
 export const PANEL_BORDER = {
   topLeft: "┌",
   horizontal: "─",
@@ -233,22 +232,22 @@ export const PANEL_BORDER = {
   bottomLeft: "└",
   bottomRight: "┘",
 } as const;
-/** The indicator of a page body taller than the body area: space, U+25B2, U+25BC, space (Section 3.1). */
+/** The indicator of a page body taller than the body area: space, U+25B2, U+25BC, space (specs/ask-user-question-tool.md#size-border). */
 export const SCROLL_INDICATOR = " ▲▼ ";
-/** The last column of a line cut to the inner width: U+2026 (Section 3.3). */
+/** The last column of a line cut to the inner width: U+2026 (specs/ask-user-question-tool.md#panel-content). */
 export const TRUNCATION_MARK = "…";
-/** The panel's largest width in columns (Section 3.1). */
+/** The panel's largest width in columns (specs/ask-user-question-tool.md#size-border). */
 export const PANEL_MAX_WIDTH = 100;
-/** The panel's smallest width in columns, unless the terminal is narrower (Section 3.1). */
+/** The panel's smallest width in columns, unless the terminal is narrower (specs/ask-user-question-tool.md#size-border). */
 export const PANEL_MIN_WIDTH = 40;
-/** The columns the terminal width minus this bound the panel's width (Section 3.1). */
+/** The columns the terminal width minus this bound the panel's width (specs/ask-user-question-tool.md#size-border). */
 export const PANEL_SIDE_COLUMNS = 4;
-/** The panel's smallest height in lines (Section 3.1). */
+/** The panel's smallest height in lines (specs/ask-user-question-tool.md#size-border). */
 export const PANEL_MIN_HEIGHT = 3;
-/** The editor lines the panel shows in text entry (Section 3.1). */
+/** The editor lines the panel shows in text entry (specs/ask-user-question-tool.md#size-border). */
 export const EDITOR_LINES = 3;
 
-/** The panel's width in columns for a terminal width (Section 3.1). */
+/** The panel's width in columns for a terminal width (specs/ask-user-question-tool.md#size-border). */
 export function panelWidth(terminalColumns: number): number {
   const columns = Math.max(1, Math.floor(terminalColumns));
   return Math.min(
@@ -262,24 +261,24 @@ function wrapLines(text: string, width: number): string[] {
   return wrapTextWithAnsi(text, Math.max(1, width));
 }
 
-/** The tab bar's text without theme colors; the marks have one column each (Section 3.3). */
+/** The tab bar's text without theme colors; the marks have one column each (specs/ask-user-question-tool.md#panel-content). */
 function plainTabBar(questions: readonly AskQuestion[]): string {
   const tabs = questions.map((question) => `${TAB_MARK.unanswered} ${cleanValue(question.header)}`);
   tabs.push(SUBMIT_TAB_LABEL);
   return tabs.join("  ");
 }
 
-/** An option row as Section 3.3 renders it, in its unhighlighted form: `  2. [ ] label`. */
+/** An option row as specs/ask-user-question-tool.md#panel-content renders it, in its unhighlighted form: `  2. [ ] label`. */
 function optionRowText(question: AskQuestion, index: number, label: string): string {
   const mark = question.multiSelect ? MULTI_MARK : "";
   return `${ROW_PREFIX}${index + 1}. ${mark}${label}`;
 }
 
-/** A question page's body lines, text entry included (Section 3.1). */
+/** A question page's body lines, text entry included (specs/ask-user-question-tool.md#size-border). */
 export function questionBodyHeight(question: AskQuestion, inner: number): number {
   let lines = wrapLines(cleanValue(question.question), inner).length + 1;
   for (const [index, option] of question.options.entries()) {
-    // Each option row is counted as Section 3.3 renders it, prefix and mark included.
+    // Each option row is counted as specs/ask-user-question-tool.md#panel-content renders it, prefix and mark included.
     lines += wrapLines(optionRowText(question, index, cleanValue(option.label)), inner).length;
     lines += wrapLines(`${DESCRIPTION_INDENT}${cleanValue(option.description)}`, inner).length;
   }
@@ -287,7 +286,7 @@ export function questionBodyHeight(question: AskQuestion, inner: number): number
   return lines + 1 + 1 + 1 + EDITOR_LINES;
 }
 
-/** The Submit tab's body lines, for the longer of its two submit lines (Section 3.1). */
+/** The Submit tab's body lines, for the longer of its two submit lines (specs/ask-user-question-tool.md#size-border). */
 export function submitBodyHeight(questions: readonly AskQuestion[], inner: number): number {
   const headers = questions.map((question) => cleanValue(question.header)).join(", ");
   const ready = wrapLines(REVIEW_READY, inner).length;
@@ -295,7 +294,7 @@ export function submitBodyHeight(questions: readonly AskQuestion[], inner: numbe
   return 1 + 1 + questions.length + 1 + Math.max(ready, unanswered);
 }
 
-/** The largest page height of Section 3.1, which caps the overlay and the panel's height. */
+/** The largest page height of specs/ask-user-question-tool.md#size-border, which caps the overlay and the panel's height. */
 export function largestPageHeight(questions: readonly AskQuestion[], width: number): number {
   const inner = Math.max(1, width - 2);
   const direct = isDirectCall(questions);
@@ -308,7 +307,7 @@ export function largestPageHeight(questions: readonly AskQuestion[], width: numb
   return 2 + tabLines + Math.max(0, ...bodies) + hintLines;
 }
 
-/** The panel's height for the terminal rows, capped at the rows minus 2 (Section 3.1). */
+/** The panel's height for the terminal rows, capped at the rows minus 2 (specs/ask-user-question-tool.md#size-border). */
 export function panelHeight(largest: number, terminalRows: number): number {
   return Math.max(PANEL_MIN_HEIGHT, Math.min(largest, Math.floor(terminalRows) - 2));
 }
@@ -324,7 +323,7 @@ export const identityPanelTheme: AskPanelTheme = {
   bg: (_color, text) => text,
 };
 
-/** The slice of the host editor component the panel drives (Section 3.5). */
+/** The slice of the host editor component the panel drives (specs/ask-user-question-tool.md#text-entry). */
 export interface AskEditorLike {
   handleInput(data: string): void;
   render(width: number): string[];
@@ -340,7 +339,7 @@ export interface AskPanelTui {
   terminal: { rows: number; columns: number };
 }
 
-/** What the panel returns to the caller (Sections 6.1 and 6.2). */
+/** What the panel returns to the caller (specs/ask-user-question-tool.md#answered-result and specs/ask-user-question-tool.md#other-results). */
 export type AskPanelResult =
   | { kind: "answered"; answers: AskAnswer[] }
   | { kind: "dismissed" }
@@ -362,7 +361,7 @@ interface Body {
   span: { first: number; last: number } | undefined;
 }
 
-/** The smallest line offset that shows `span` inside `area` lines (Section 3.1). */
+/** The smallest line offset that shows `span` inside `area` lines (specs/ask-user-question-tool.md#size-border). */
 function scrollOffset(span: Body["span"], area: number, total: number): number {
   if (span === undefined || total <= area) return 0;
   const wanted = Math.min(span.first, span.last - area + 1);
@@ -370,24 +369,24 @@ function scrollOffset(span: Body["span"], area: number, total: number): number {
 }
 
 /**
- * The question panel (Sections 3.1 to 3.6). The caller feeds keys through `handleInput`,
+ * The question panel (specs/ask-user-question-tool.md#size-border, specs/ask-user-question-tool.md#rows-tabs, specs/ask-user-question-tool.md#panel-content, specs/ask-user-question-tool.md#keys, specs/ask-user-question-tool.md#text-entry, specs/ask-user-question-tool.md#dismissal). The caller feeds keys through `handleInput`,
  * renders through `render`, and ends the interaction through `finish` when the call is
- * aborted or the session ends (Section 5).
+ * aborted or the session ends (specs/ask-user-question-tool.md#no-answers).
  */
 export class AskQuestionPanel implements Component, Focusable {
   private readonly questions: readonly AskQuestion[];
   private readonly answers: AskAnswer[];
-  /** A direct call has one page, the question page of its question (Section 2.1). */
+  /** A direct call has one page, the question page of its question (specs/ask-user-question-tool.md#answers). */
   private readonly direct: boolean;
   private readonly tui: AskPanelTui;
   private readonly theme: AskPanelTheme;
   private readonly editor: AskEditorLike;
   private readonly done: (result: AskPanelResult) => void;
-  /** The highlighted row of each question, initially row 1 (Section 3.2). */
+  /** The highlighted row of each question, initially row 1 (specs/ask-user-question-tool.md#rows-tabs). */
   private readonly highlighted: number[];
-  /** The width fixed when the panel opens (Section 3.1). */
+  /** The width fixed when the panel opens (specs/ask-user-question-tool.md#size-border). */
   private readonly windowWidth: number;
-  /** The largest page height, which does not change while the panel is open (Section 3.1). */
+  /** The largest page height, which does not change while the panel is open (specs/ask-user-question-tool.md#size-border). */
   private readonly largestHeight: number;
   /** The current tab: a question index, or the Submit tab at `questions.length`. */
   private tab = 0;
@@ -422,7 +421,7 @@ export class AskQuestionPanel implements Component, Focusable {
     this.editor.focused = value;
   }
 
-  /** The host overlay options of Section 3: centred, as wide as the panel, capped by its largest page height. */
+  /** The host overlay options of specs/ask-user-question-tool.md#question-panel: centred, as wide as the panel, capped by its largest page height. */
   overlayOptions(): OverlayOptions {
     return {
       anchor: "center",
@@ -432,12 +431,12 @@ export class AskQuestionPanel implements Component, Focusable {
     };
   }
 
-  /** The panel's height at the current terminal rows (Section 3.1). */
+  /** The panel's height at the current terminal rows (specs/ask-user-question-tool.md#size-border). */
   height(): number {
     return panelHeight(this.largestHeight, this.tui.terminal.rows);
   }
 
-  /** The answers at this moment, for the answered result (Section 6.1). */
+  /** The answers at this moment, for the answered result (specs/ask-user-question-tool.md#answered-result). */
   answersNow(): AskAnswer[] {
     return this.answers.map((answer) => ({ chosen: [...answer.chosen], text: answer.text }));
   }
@@ -455,13 +454,13 @@ export class AskQuestionPanel implements Component, Focusable {
   }
 
   // -------------------------------------------------------------------------
-  // Section 3.4 and 3.6: keys
+  // specs/ask-user-question-tool.md#keys and specs/ask-user-question-tool.md#dismissal: keys
   // -------------------------------------------------------------------------
 
   handleInput(data: string): void {
     if (this.closed) return;
     if (this.textEntry) {
-      // Section 3.5: every key goes to the editor except `escape`.
+      // specs/ask-user-question-tool.md#text-entry: every key goes to the editor except `escape`.
       if (matchesKey(data, "escape")) {
         this.leaveTextEntry();
         return;
@@ -533,14 +532,14 @@ export class AskQuestionPanel implements Component, Focusable {
     return !this.direct && this.tab >= this.questions.length;
   }
 
-  /** The tab order is cyclic, the Submit tab included (Section 3.2). */
+  /** The tab order is cyclic, the Submit tab included (specs/ask-user-question-tool.md#rows-tabs). */
   private moveTab(delta: number): void {
     if (this.direct) return;
     const total = this.questions.length + 1;
     this.tab = (this.tab + delta + total) % total;
   }
 
-  /** Acting on the highlighted row (Section 3.4). */
+  /** Acting on the highlighted row (specs/ask-user-question-tool.md#keys). */
   private act(index: number, question: AskQuestion): void {
     const answer = this.answers[index];
     if (answer === undefined) return;
@@ -557,7 +556,7 @@ export class AskQuestionPanel implements Component, Focusable {
     this.advance();
   }
 
-  /** Advancing submits a direct call; otherwise it moves to the next tab (Section 3.4). */
+  /** Advancing submits a direct call; otherwise it moves to the next tab (specs/ask-user-question-tool.md#keys). */
   private advance(): void {
     if (this.direct) {
       this.submit();
@@ -576,7 +575,7 @@ export class AskQuestionPanel implements Component, Focusable {
   }
 
   // -------------------------------------------------------------------------
-  // Section 3.5: text entry
+  // specs/ask-user-question-tool.md#text-entry: text entry
   // -------------------------------------------------------------------------
 
   private startTextEntry(): void {
@@ -603,7 +602,7 @@ export class AskQuestionPanel implements Component, Focusable {
     }
     const text = normalizeFreeText(value);
     if (text === null) {
-      // Section 3.5: recording none removes the earlier free-text answer and keeps the choice.
+      // specs/ask-user-question-tool.md#text-entry: recording none removes the earlier free-text answer and keeps the choice.
       answer.text = null;
       this.refresh();
       return;
@@ -624,7 +623,7 @@ export class AskQuestionPanel implements Component, Focusable {
   }
 
   // -------------------------------------------------------------------------
-  // Section 3.1 and 3.3: the panel's lines
+  // specs/ask-user-question-tool.md#size-border and specs/ask-user-question-tool.md#panel-content: the panel's lines
   // -------------------------------------------------------------------------
 
   render(width: number): string[] {
@@ -658,7 +657,7 @@ export class AskQuestionPanel implements Component, Focusable {
     ];
   }
 
-  /** The top border of Section 3.1: the title, the fill, and the scroll indicator. */
+  /** The top border of specs/ask-user-question-tool.md#size-border: the title, the fill, and the scroll indicator. */
   private topBorder(width: number, scrolled: boolean): string {
     const inner = Math.max(1, width - 2);
     const border = PANEL_BORDER;
@@ -693,7 +692,7 @@ export class AskQuestionPanel implements Component, Focusable {
     );
   }
 
-  /** The tab bar of Section 3.3: one line of tabs separated by two spaces. */
+  /** The tab bar of specs/ask-user-question-tool.md#panel-content: one line of tabs separated by two spaces. */
   private tabBar(): string {
     const tabs: string[] = [];
     for (const [index, question] of this.questions.entries()) {
@@ -712,7 +711,7 @@ export class AskQuestionPanel implements Component, Focusable {
     return tabs.join("  ");
   }
 
-  /** The current page's body (Section 3.3). */
+  /** The current page's body (specs/ask-user-question-tool.md#panel-content). */
   private body(inner: number): Body {
     if (this.onSubmitTab()) return { lines: this.reviewLines(inner), span: undefined };
     return this.questionBody(inner);
@@ -738,7 +737,7 @@ export class AskQuestionPanel implements Component, Focusable {
       const text = option === undefined ? this.otherRowText(answer) : cleanValue(option.label);
       const plain = `${prefix}${row + 1}. ${mark}${text}`;
       const painted = row === highlighted ? this.theme.fg("accent", plain) : plain;
-      // The Other row is cut to the inner width; an option row wraps (Section 3.3).
+      // The Other row is cut to the inner width; an option row wraps (specs/ask-user-question-tool.md#panel-content).
       if (option === undefined) lines.push(truncateToWidth(painted, inner, TRUNCATION_MARK));
       else lines.push(...wrapLines(painted, inner));
       if (option !== undefined) {
@@ -759,7 +758,7 @@ export class AskQuestionPanel implements Component, Focusable {
     return { lines, span };
   }
 
-  /** The Submit tab of Section 3.3; its question lines are cut to the inner width. */
+  /** The Submit tab of specs/ask-user-question-tool.md#panel-content; its question lines are cut to the inner width. */
   private reviewLines(inner: number): string[] {
     const lines = [REVIEW_TITLE, ""];
     const missing: string[] = [];
@@ -781,7 +780,7 @@ export class AskQuestionPanel implements Component, Focusable {
   }
 
   /**
-   * Section 3.5: 3 lines of the editor, around the line holding its cursor mark, else its
+   * specs/ask-user-question-tool.md#text-entry: 3 lines of the editor, around the line holding its cursor mark, else its
    * last 3; the content scrolls inside the panel.
    */
   private editorWindow(inner: number): string[] {
@@ -805,7 +804,7 @@ export class AskQuestionPanel implements Component, Focusable {
     return `Other: ${firstLineOf(cleanValue(answer.text))}`;
   }
 
-  /** The key-hint line of Section 3.3, the first that applies. */
+  /** The key-hint line of specs/ask-user-question-tool.md#panel-content, the first that applies. */
   private hint(): string {
     if (this.armed) return PANEL_HINTS.armed;
     if (this.textEntry) return PANEL_HINTS.textEntry;

@@ -27,7 +27,7 @@ export interface SkillEntry {
   description: string;
   body: string;
   source: string;
-  /** The skill's `references/` directory, when the skill has one (specs/skill-tool.md Section 2). */
+  /** The skill's `references/` directory, when the skill has one (specs/skill-tool.md#execution-contract). */
   referencesDir?: string | undefined;
 }
 
@@ -50,7 +50,7 @@ export interface RawMarkdown {
   body: string;
 }
 
-/** One skip line for a malformed or unreadable Markdown resource (agent.md Section 1). */
+/** One skip line for a malformed or unreadable Markdown resource (specs/agent.md#definition-files). */
 function reportMarkdownSkip(
   diagnostics: Diagnostic[] | undefined,
   kind: MarkdownKind | undefined,
@@ -67,7 +67,7 @@ function reportMarkdownSkip(
 /**
  * One report line for a discovery path whose stat or directory read failed with an error
  * other than absence: the directory, file, or symlink target is lost and says so
- * (skill.md Section 1, agent.md Section 1).
+ * (specs/skill.md#skill-files, specs/agent.md#definition-files).
  */
 function reportMarkdownUnreadable(
   diagnostics: Diagnostic[] | undefined,
@@ -84,20 +84,20 @@ function reportMarkdownUnreadable(
 
 /**
  * A path that does not exist is absent: discovery of an absent folder or file is silent
- * (config-file.md Section 1). Every other stat or directory-read failure is reported.
+ * (specs/config-file.md#layers). Every other stat or directory-read failure is reported.
  */
 function isAbsentPath(error: unknown): boolean {
   return errorCode(error) === "ENOENT";
 }
 
-/** A leading byte-order mark removed and line endings normalised to `\n` (skill.md Section 2). */
+/** A leading byte-order mark removed and line endings normalised to `\n` (specs/skill.md#content-rules). */
 function normalizeMarkdown(text: string): string {
   return text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
 }
 
 /**
  * The frontmatter block and the body after it, with the delimiters checked on whole lines
- * (skill.md Section 1): opened by a first line `---` and closed by the next line `---`. A
+ * (specs/skill.md#skill-files): opened by a first line `---` and closed by the next line `---`. A
  * file without that pair has no frontmatter, and the whole text is its body.
  */
 function delimitFrontmatter(text: string): { block: string; body: string } {
@@ -115,7 +115,7 @@ function delimitFrontmatter(text: string): { block: string; body: string } {
 /**
  * Parse one Markdown resource's text into its frontmatter and body. The frontmatter
  * MUST be a mapping; one that is not MUST produce one diagnostic and MUST be read as
- * empty (skill.md Section 1, the owning rule). A frontmatter that fails to parse is
+ * empty (specs/skill.md#skill-files, the owning rule). A frontmatter that fails to parse is
  * thrown to the caller, which owns that diagnostic.
  */
 export function parseMarkdown(
@@ -175,7 +175,7 @@ export function readMarkdown(
 /**
  * `*.md` regular-file names in a flat resource directory, in code-unit order, symlinks followed:
  * an entry whose own stat fails is reported and left out, or — with `unreadableEntry` "keep" —
- * kept as a name (plugin.md Section 5).
+ * kept as a name (specs/plugin.md#slash-commands).
  */
 export function markdownFileNames(
   dir: string,
@@ -213,7 +213,7 @@ function scanMarkdownDir(
 }
 
 function scopePaths(cwd: string, kind: "agents" | "skills"): { global: string; project: string } {
-  // The layer directories are the config files' directories (config-file.md Section 1).
+  // The layer directories are the config files' directories (specs/config-file.md#layers).
   const paths = configLayerPaths(cwd);
   return {
     global: join(dirname(paths.global), kind),
@@ -221,7 +221,7 @@ function scopePaths(cwd: string, kind: "agents" | "skills"): { global: string; p
   };
 }
 
-/** The frontmatter keys a resource kind does not define (config-file.md Section 2). */
+/** The frontmatter keys a resource kind does not define (specs/config-file.md#format). */
 export function unknownFrontmatterKeys(
   frontmatter: Record<string, unknown>,
   known: readonly string[],
@@ -229,7 +229,7 @@ export function unknownFrontmatterKeys(
   return Object.keys(frontmatter).filter((key) => !known.includes(key));
 }
 
-/** Agent definition from one file under agent.md Section 1 skip/warning rules (scope rules excluded). */
+/** Agent definition from one file under specs/agent.md#definition-files skip/warning rules (scope rules excluded). */
 export function agentFromMarkdown(
   raw: RawMarkdown,
   diagnostics: Diagnostic[],
@@ -275,7 +275,7 @@ export function agentFromMarkdown(
   };
 }
 
-/** Skill entry from one file under skill.md Section 1 skip/warning rules (scope rules excluded). */
+/** Skill entry from one file under specs/skill.md#skill-files skip/warning rules (scope rules excluded). */
 export function skillFromMarkdown(
   raw: RawMarkdown,
   diagnostics: Diagnostic[],
@@ -307,7 +307,7 @@ export function skillFromMarkdown(
   return { name: frontmatter.name, description: frontmatter.description, body, source: file };
 }
 
-/** Pi-dent's own agent definitions (agent.md Section 1); the override applies after plugin composition. */
+/** Pi-dent's own agent definitions (specs/agent.md#definition-files); the override applies after plugin composition. */
 export function discoverAgents(cwd: string, diagnostics: Diagnostic[]): AgentDefinition[] {
   const paths = scopePaths(cwd, "agents");
   const byName = new Map<string, AgentDefinition>();
@@ -338,14 +338,14 @@ export function discoverAgents(cwd: string, diagnostics: Diagnostic[]): AgentDef
   return [...byName.values()].toSorted(byNameCodeUnit);
 }
 
-/** The `agents` configuration override (agent.md Section 2) over the composed agent catalog. */
+/** The `agents` configuration override (specs/agent.md#agents-override) over the composed agent catalog. */
 export function applyAgentsOverride(
   config: BootConfig,
   agents: AgentDefinition[],
   diagnostics: Diagnostic[],
 ): void {
   // Read config.merged.agents directly: mergedObject maps a non-object value to
-  // undefined, which must be reported, not silently ignored (config-file.md Section 4).
+  // undefined, which must be reported, not silently ignored (specs/config-file.md#attribution).
   const rawOverride = config.merged.agents;
   if (rawOverride === undefined) return;
   if (!isPlainObject(rawOverride)) {
@@ -380,7 +380,7 @@ export function applyAgentsOverride(
 }
 
 /**
- * Pi-dent's own skills (skill.md Section 1): `<name>/SKILL.md` directories in each
+ * Pi-dent's own skills (specs/skill.md#skill-files): `<name>/SKILL.md` directories in each
  * layer's `skills/` folder. A project skill shadows a global skill of the same name;
  * the directory name makes names unique within a scope.
  */
@@ -396,7 +396,7 @@ export function discoverSkills(cwd: string, diagnostics: Diagnostic[]): SkillEnt
   return [...byName.values()].toSorted(byNameCodeUnit);
 }
 
-/** Minimal plugin shape for catalog composition (plugin.md Section 9). */
+/** Minimal plugin shape for catalog composition (specs/plugin.md#catalog-composition). */
 export interface PluginCatalogSource {
   /** The plugin's namespace (the manifest `name`). */
   name: string;
@@ -431,9 +431,9 @@ export function isDirectory(
 }
 
 /**
- * Whether a directory entry is a regular file, following a symlink (agent.md Section 1). A
+ * Whether a directory entry is a regular file, following a symlink (specs/agent.md#definition-files). A
  * symbolic link whose stat fails with a code other than absence is reported and left out, or —
- * with `unreadableEntry` "keep" — kept (plugin.md Section 5).
+ * with `unreadableEntry` "keep" — kept (specs/plugin.md#slash-commands).
  */
 export function isFileEntry(
   dir: string,
@@ -449,14 +449,14 @@ export function isFileEntry(
     return statSync(path).isFile();
   } catch (error) {
     if (isAbsentPath(error)) return false;
-    // plugin.md Section 5 keeps a command file that cannot be read at boot.
+    // specs/plugin.md#slash-commands keeps a command file that cannot be read at boot.
     if (unreadableEntry === "keep") return true;
     reportMarkdownUnreadable(diagnostics, kind, path, error);
     return false;
   }
 }
 
-/** Whether a directory entry is a directory, following a symlink (skill.md Section 1). */
+/** Whether a directory entry is a directory, following a symlink (specs/skill.md#skill-files). */
 function isDirectoryEntry(
   dir: string,
   entry: Dirent,
@@ -486,7 +486,7 @@ function scanPluginAgents(root: string, diagnostics: Diagnostic[]): RawMarkdown[
   return files;
 }
 
-/** Skill directory names under a `skills/` folder in lexicographic order (skill.md Section 1). */
+/** Skill directory names under a `skills/` folder in lexicographic order (specs/skill.md#skill-files). */
 function scanSkillDirs(
   skillsDir: string,
   diagnostics?: Diagnostic[],
@@ -506,7 +506,7 @@ function scanSkillDirs(
 }
 
 /**
- * One skill from `<skillsDir>/<dirName>/SKILL.md` (skill.md Section 1): the
+ * One skill from `<skillsDir>/<dirName>/SKILL.md` (specs/skill.md#skill-files): the
  * frontmatter `name` must equal the directory name. The skill carries
  * `referencesDir` when it has a `references/` folder.
  */
@@ -534,7 +534,7 @@ function skillFromDirectory(
   };
 }
 
-/** One plugin catalog entry as the plugin inventory lists it (plugin.md Section 11.1). */
+/** One plugin catalog entry as the plugin inventory lists it (specs/plugin.md#shape). */
 export interface PluginResourceEntry {
   /** The definition's `name` without the namespace. */
   name: string;
@@ -544,15 +544,14 @@ export interface PluginResourceEntry {
   file: string;
 }
 
-/** The catalog entries one admitted plugin contributes (plugin.md Section 9). */
+/** The catalog entries one admitted plugin contributes (specs/plugin.md#catalog-composition). */
 export interface PluginCatalogEntries {
   agents: PluginResourceEntry[];
   skills: PluginResourceEntry[];
 }
 
 /**
- * Catalog composition with each plugin's diagnostics and entries kept apart (plugin.md
- * Sections 9 and 11): append each plugin's `agents/*.md` and `skills/<name>/SKILL.md`
+ * Catalog composition with each plugin's diagnostics and entries kept apart (specs/plugin.md#catalog-composition and specs/plugin.md#plugin-inventory): append each plugin's `agents/*.md` and `skills/<name>/SKILL.md`
  * entries to the composed catalogs as `namespace:name`, after pi-dent's own entries, in
  * plugin admission order and lexicographic file order within a plugin. A duplicate
  * `namespace:name` within one plugin or a skill whose frontmatter `name` differs from
@@ -620,7 +619,7 @@ export function composePluginCatalogsWithResources(
 }
 
 /**
- * Plugin catalog composition (plugin.md Section 9) with the diagnostics flattened into one
+ * Plugin catalog composition (specs/plugin.md#catalog-composition) with the diagnostics flattened into one
  * array, plugin by plugin in admission order: the boot-snapshot path over
  * `composePluginCatalogsWithResources`.
  */
@@ -638,7 +637,7 @@ export function composePluginCatalogs(
 /**
  * `name — description` catalog line, or bare `name` when the description is absent or
  * empty; each run of line terminators in the description becomes one space
- * (agent.md Section 1).
+ * (specs/agent.md#definition-files).
  */
 export function catalogLine(name: string, description?: string): string {
   return description ? `${name} — ${description.replace(/(?:\r\n|[\r\n])+/g, " ")}` : name;

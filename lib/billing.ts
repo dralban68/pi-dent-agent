@@ -9,19 +9,19 @@ import {
 import { type Diagnostic, errorMessage } from "./util.ts";
 
 /**
- * The billing service client and held billing per specs/billing.md Sections 2
- * and 4. One `BillingService` is one extension instance's billing state: its
+ * The billing service client and held billing per specs/billing.md#service-protocol
+ * and specs/billing.md#queries. One `BillingService` is one extension instance's billing state: its
  * event bus subscription, held billing, and pending queries. It never throws
  * and never produces a notification or session message; a failure outside a
- * query outcome goes to the diagnostic sink (Section 4.5).
+ * query outcome goes to the diagnostic sink (specs/billing.md#diagnostics).
  */
 
 export const QUERY_CHANNEL = "purse:query:v1";
 export const CHANGED_CHANNEL = "purse:changed:v1";
 export const REPLY_TIMEOUT_MS = 25_000;
-/** The longest a guidance computation waits for its cached query (Section 4.3). */
+/** The longest a guidance computation waits for its cached query (specs/billing.md#cached-query). */
 export const CACHED_WAIT_MS = 500;
-/** `maxWaitMs` of a report query (Section 2.1). */
+/** `maxWaitMs` of a report query (specs/billing.md#request-outcome). */
 export const REPORT_MAX_WAIT_MS = 5000;
 
 /** The part of the host event bus pi-dent uses. */
@@ -69,7 +69,7 @@ export interface StartedQuery {
   cancel(): void;
 }
 
-/** Emit one billing query and track its outcome (Section 2.1). */
+/** Emit one billing query and track its outcome (specs/billing.md#request-outcome). */
 export function startQuery(
   bus: BillingBus,
   providers: readonly string[],
@@ -95,7 +95,7 @@ export function startQuery(
       respond,
     });
   } catch {
-    // A throw before `respond` is `no-service` (Section 2.1).
+    // A throw before `respond` is `no-service` (specs/billing.md#request-outcome).
   }
   offering = false;
   const known = (outcome: Outcome): StartedQuery => ({
@@ -156,11 +156,11 @@ export interface BillingServiceDeps {
   timers?: Timers;
   /** The clock for the past-reset rule; defaults to `Date.now`. */
   now?: () => number;
-  /** Where a failure that is not a query outcome goes (Section 4.5). */
+  /** Where a failure that is not a query outcome goes (specs/billing.md#diagnostics). */
   diagnostics?: (diagnostic: Diagnostic) => void;
 }
 
-/** Billing state of one extension instance (Section 4.1). */
+/** Billing state of one extension instance (specs/billing.md#held-billing). */
 export class BillingService {
   readonly zone: string;
   private readonly bus: BillingBus;
@@ -198,7 +198,7 @@ export class BillingService {
     this.unsubscribe = unsubscribe;
   }
 
-  /** Report a failure that is not a query outcome (Section 4.5). */
+  /** Report a failure that is not a query outcome (specs/billing.md#diagnostics). */
   private reportFailure(message: string): void {
     this.diagnostics?.({ level: "warning", message });
   }
@@ -221,7 +221,7 @@ export class BillingService {
     return providers.some((p) => this.held.has(p));
   }
 
-  /** `session_shutdown` of the extension instance (Section 4.1). */
+  /** `session_shutdown` of the extension instance (specs/billing.md#held-billing). */
   close(): void {
     if (this.shut) return;
     this.shut = true;
@@ -320,7 +320,7 @@ export class BillingService {
 
   /**
    * Call `callback` once when a poll has an outcome other than `not-ready`
-   * (model-guidance.md Section 5); dropped at shutdown.
+   * (specs/model-guidance.md#guidance-message); dropped at shutdown.
    */
   onPollAnswer(callback: () => void): void {
     if (!this.shut) this.answerWaiters.push(callback);
@@ -351,7 +351,7 @@ export class BillingService {
     this.startCachedQuery();
   }
 
-  /** Start the next cached query for the waiting set when none is pending (Section 4.3). */
+  /** Start the next cached query for the waiting set when none is pending (specs/billing.md#cached-query). */
   private startCachedQuery(): void {
     if (this.shut || this.cachedQuery || this.waitingSet.size === 0) return;
     const providers = [...this.waitingSet].toSorted();
@@ -370,7 +370,7 @@ export class BillingService {
   }
 
   /**
-   * The cached-query step of a guidance computation (Section 4.3): the providers
+   * The cached-query step of a guidance computation (specs/billing.md#cached-query): the providers
    * no pending cached query names join the waiting set, a cached query starts for
    * it when none is pending, and the call then waits for at most 500 ms until no
    * cached query is pending.
@@ -384,7 +384,7 @@ export class BillingService {
     await this.waitForNoCachedQuery();
   }
 
-  /** Wait for at most 500 ms until no cached query of the instance is pending (Section 4.3). */
+  /** Wait for at most 500 ms until no cached query of the instance is pending (specs/billing.md#cached-query). */
   private async waitForNoCachedQuery(): Promise<void> {
     if (this.cachedQuery === undefined) return;
     let timer: TimerHandle | undefined;
@@ -405,7 +405,7 @@ export class BillingService {
 
   // ------------------------------------------------------------ report (4.4)
 
-  /** The report query of one `Session` call and its billing report (Section 7). */
+  /** The report query of one `Session` call and its billing report (specs/billing.md#billing-report). */
   async report(models: readonly ModelRef[], signal?: AbortSignal): Promise<BillingReport | null> {
     const providers = billingProviders(models.map((m) => m.provider));
     if (!this.shut && providers.length > 0) {

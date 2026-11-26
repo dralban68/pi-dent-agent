@@ -2,7 +2,7 @@
  * Task ledger per specs/task-ledger.md: the SQLite file that keeps every task's ledger row and each
  * main session's ledger session row.
  *
- * Every operation is issued without waiting: it joins the process's ledger order (Section 5), one
+ * Every operation is issued without waiting: it joins the process's ledger order (specs/task-ledger.md#concurrent-access), one
  * queue shared on `globalThis` by every extension instance of the process, which a drain loop
  * applies in a later turn of the event loop. A transaction that cannot begin is attempted again
  * after an awaited pause; each attempt waits inside SQLite for at most the busy timeout,
@@ -41,22 +41,22 @@ export type {
   LedgerSessionHeader,
 } from "./task-ledger-usage.ts";
 
-/** The environment variable naming the ledger file (Section 1). */
+/** The environment variable naming the ledger file (specs/task-ledger.md#location). */
 export const TASKS_DB_ENV = "PI_DENT_TASKS_DB";
-/** The ledger file's name under `~/.pi/pi-dent/` (Section 1). */
+/** The ledger file's name under `~/.pi/pi-dent/` (specs/task-ledger.md#location). */
 export const LEDGER_FILE_NAME = "tasks-v1.sqlite";
-/** The format version recorded in `user_version` (Section 1). */
+/** The format version recorded in `user_version` (specs/task-ledger.md#location). */
 export const LEDGER_VERSION = 1;
-/** The busy timeout of Section 1: how long one attempt waits inside SQLite. */
+/** The busy timeout of specs/task-ledger.md#location: how long one attempt waits inside SQLite. */
 export const BUSY_TIMEOUT_MS = 10;
-/** The read deadline of Section 5. */
+/** The read deadline of specs/task-ledger.md#concurrent-access. */
 export const READ_DEADLINE_MS = 2000;
-/** The awaited pause between two attempts (Section 5). */
+/** The awaited pause between two attempts (specs/task-ledger.md#concurrent-access). */
 const BUSY_RETRY_DELAY_MS = 10;
-/** The start-time tolerance of an owner of this process's pid (Section 4.1). */
+/** The start-time tolerance of an owner of this process's pid (specs/task-ledger.md#sweep). */
 const OWNER_START_TOLERANCE_MS = 1000;
 
-/** The ledger path: `PI_DENT_TASKS_DB` when set and non-empty, else `~/.pi/pi-dent/tasks-v1.sqlite` (Section 1). */
+/** The ledger path: `PI_DENT_TASKS_DB` when set and non-empty, else `~/.pi/pi-dent/tasks-v1.sqlite` (specs/task-ledger.md#location). */
 export function taskLedgerPath(
   env: Readonly<Record<string, string | undefined>> = process.env,
   home: string = homedir(),
@@ -67,7 +67,7 @@ export function taskLedgerPath(
 }
 
 // ---------------------------------------------------------------------------
-// The process's ledger order (Section 5)
+// The process's ledger order (specs/task-ledger.md#concurrent-access)
 // ---------------------------------------------------------------------------
 
 /** One queued operation; it never rejects. */
@@ -76,7 +76,7 @@ type OrderItem = () => Promise<void>;
 interface LedgerOrder {
   items: OrderItem[];
   running: boolean;
-  /** The process's start time, computed once per process (Section 2.2, `owner_started`). */
+  /** The process's start time, computed once per process (specs/task-ledger.md#ledger-row, `owner_started`). */
   processStartedMs: number;
 }
 
@@ -104,7 +104,7 @@ function ledgerOrder(): LedgerOrder {
   return order;
 }
 
-/** The process's start time, as `owner_started` records it (Section 2.2). */
+/** The process's start time, as `owner_started` records it (specs/task-ledger.md#ledger-row). */
 export function processStartedMs(): number {
   return ledgerOrder().processStartedMs;
 }
@@ -114,7 +114,7 @@ function pushToOrder(item: OrderItem): void {
   order.items.push(item);
   if (order.running) return;
   order.running = true;
-  // Never on the caller's path: the drain starts in a later turn (Section 5, no task waits).
+  // Never on the caller's path: the drain starts in a later turn (specs/task-ledger.md#concurrent-access, no task waits).
   setImmediate(() => void drainOrder(order));
 }
 
@@ -135,7 +135,7 @@ async function drainOrder(order: LedgerOrder): Promise<void> {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolveDelay) => {
-    // Unreferenced: writes still queued when the process ends are lost (Section 4.3).
+    // Unreferenced: writes still queued when the process ends are lost (specs/task-ledger.md#session-end).
     setTimeout(resolveDelay, milliseconds).unref();
   });
 }
@@ -144,11 +144,11 @@ function delay(milliseconds: number): Promise<void> {
 // Public types
 // ---------------------------------------------------------------------------
 
-/** The host `notify` API, for the single warning notice of Section 7. */
+/** The host `notify` API, for the single warning notice of specs/task-ledger.md#failures. */
 export type LedgerNotify = (message: string, level: "warning") => void;
 
 export interface TaskLedgerOptions {
-  /** Shows the Section 7 warning notice. */
+  /** Shows the specs/task-ledger.md#failures warning notice. */
   notify: LedgerNotify;
   /** The ledger path. Default `taskLedgerPath()`, read at opening. */
   path?: string | undefined;
@@ -165,17 +165,17 @@ export interface TaskLedgerOptions {
 /** The outcome of a ledger read. */
 export type LedgerRead<T> =
   | { status: "ok"; value: T }
-  /** The ledger is unusable (Section 7), or became so before the read was applied. */
+  /** The ledger is unusable (specs/task-ledger.md#failures), or became so before the read was applied. */
   | { status: "unavailable"; reason: string }
-  /** Abandoned at the read deadline (Section 5). */
+  /** Abandoned at the read deadline (specs/task-ledger.md#concurrent-access). */
   | { status: "busy" };
 
-/** The columns `register` inserts (Sections 2.2 and 3.2). */
+/** The columns `register` inserts (specs/task-ledger.md#ledger-row and specs/task-ledger.md#write-rules). */
 export interface LedgerTaskInsert {
   /** The ledger session ID of the invoking session; for a `Fleet` query, of the target session. */
   sessionId: string;
   taskId: string;
-  /** The `row_id` of the parent row (Section 3.1). */
+  /** The `row_id` of the parent row (specs/task-ledger.md#parent-row). */
   parentRowId?: string | undefined;
   fleetQuery: boolean;
   kind: TaskKind;
@@ -192,7 +192,7 @@ export interface LedgerTaskInsert {
   toolCalls?: number | undefined;
 }
 
-/** The new values an `amend`, or a script row's tool log creation, sets (Section 3.2). */
+/** The new values an `amend`, or a script row's tool log creation, sets (specs/task-ledger.md#write-rules). */
 export interface LedgerTaskAmend {
   label: string;
   agent?: string | undefined;
@@ -200,7 +200,7 @@ export interface LedgerTaskAmend {
   sessionPath?: string | undefined;
 }
 
-/** The key Section 4.2 finds a rebuilt task row's ledger row by. */
+/** The key specs/task-ledger.md#rebuild finds a rebuilt task row's ledger row by. */
 export interface LedgerTaskKey {
   /** The session's ledger session ID. */
   sessionId: string;
@@ -208,10 +208,10 @@ export interface LedgerTaskKey {
   startedAt: number;
 }
 
-/** A task row's ledger row: its `row_id`, or for a rebuilt row the key that finds it (Section 2.2). */
+/** A task row's ledger row: its `row_id`, or for a rebuilt row the key that finds it (specs/task-ledger.md#ledger-row). */
 export type LedgerRowRef = string | LedgerTaskKey;
 
-/** How a `resume` dispatch names the row it continues (Section 3.2). */
+/** How a `resume` dispatch names the row it continues (specs/task-ledger.md#write-rules). */
 export type LedgerResume =
   /** A task ID: the resolved task row's ledger row, undefined when it has none. */
   | { by: "task"; row: LedgerRowRef | undefined }
@@ -234,7 +234,7 @@ export interface LedgerTaskSettle {
   resultPath?: string | undefined;
 }
 
-/** The task row a rebuild inserted (Section 4.2). */
+/** The task row a rebuild inserted (specs/task-ledger.md#rebuild). */
 export interface LedgerRebuiltRow {
   /** The session's ledger session ID. */
   sessionId: string;
@@ -243,7 +243,7 @@ export interface LedgerRebuiltRow {
   status: TaskStatus;
 }
 
-/** The ledger session row's values (Sections 2.1 and 3.3). */
+/** The ledger session row's values (specs/task-ledger.md#session-row and specs/task-ledger.md#session-row-writes). */
 export interface LedgerSessionWrite {
   sessionId: string;
   /** Null without a session file (`--no-session`). */
@@ -255,13 +255,13 @@ export interface LedgerSessionWrite {
   toolCalls: number;
 }
 
-/** Agent figures (Section 6). */
+/** Agent figures (specs/task-ledger.md#derived-figures). */
 export interface LedgerAgentFigures {
   count: number;
   usage: UsageSum;
 }
 
-/** The figures of one ledger row (Section 6). */
+/** The figures of one ledger row (specs/task-ledger.md#derived-figures). */
 export interface LedgerRowFigures {
   rowId: string;
   kind: TaskKind;
@@ -280,7 +280,7 @@ export interface LedgerRowFigures {
   agents: LedgerAgentFigures;
 }
 
-/** The figures of a ledger session ID whose ledger session row exists (Section 6). */
+/** The figures of a ledger session ID whose ledger session row exists (specs/task-ledger.md#derived-figures). */
 export interface LedgerSessionFigures {
   /** The own usage of the ledger session row. */
   own: UsageSum;
@@ -294,7 +294,7 @@ export interface LedgerSessionFigures {
 // ---------------------------------------------------------------------------
 
 /**
- * Open the ledger for one extension instance (Section 1). Returns at once; the opening is the
+ * Open the ledger for one extension instance (specs/task-ledger.md#location). Returns at once; the opening is the
  * instance's first operation in the process's ledger order.
  */
 export function openTaskLedger(options: TaskLedgerOptions): TaskLedger {
@@ -328,7 +328,7 @@ export class TaskLedger {
     this.enqueue(() => this.open(), noop);
   }
 
-  /** The unusable reason (Section 7), or undefined while the ledger is usable. */
+  /** The unusable reason (specs/task-ledger.md#failures), or undefined while the ledger is usable. */
   unusableReason(): string | undefined {
     return this.reason;
   }
@@ -350,7 +350,7 @@ export class TaskLedger {
     if (this.queued === 0) this.closeConnection();
   }
 
-  // -- Writes (Sections 3.2, 3.3, 4.2) ---------------------------------------
+  // -- Writes (specs/task-ledger.md#write-rules, specs/task-ledger.md#session-row-writes, specs/task-ledger.md#rebuild) ---------------------------------------
 
   /**
    * `register`: insert the ledger row. Returns its `row_id`, or undefined when the ledger is
@@ -416,7 +416,7 @@ export class TaskLedger {
     });
   }
 
-  /** The task's pre-start checks passed (Section 2.2). */
+  /** The task's pre-start checks passed (specs/task-ledger.md#ledger-row). */
   markDispatched(rowId: string, values: LedgerDispatched): void {
     const at = this.now();
     const resume = values.resume;
@@ -491,7 +491,7 @@ export class TaskLedger {
     });
   }
 
-  /** A rebuild inserted this row (Section 4.2): an `interrupted` one makes its ledger row `interrupted`. */
+  /** A rebuild inserted this row (specs/task-ledger.md#rebuild): an `interrupted` one makes its ledger row `interrupted`. */
   rebuildTask(row: LedgerRebuiltRow): void {
     if (row.status !== "interrupted") return;
     const at = this.now();
@@ -504,7 +504,7 @@ export class TaskLedger {
     });
   }
 
-  /** Insert or update the main session's ledger session row (Section 3.3). */
+  /** Insert or update the main session's ledger session row (specs/task-ledger.md#session-row-writes). */
   writeSession(values: LedgerSessionWrite): void {
     const at = this.now();
     const usage = { ...values.usage };
@@ -536,7 +536,7 @@ export class TaskLedger {
     });
   }
 
-  // -- Reads (Section 6) -----------------------------------------------------
+  // -- Reads (specs/task-ledger.md#derived-figures) -----------------------------------------------------
 
   /** The agent figures of a ledger session ID, with no deadline: the usage tally's seed read. */
   readAgentFigures(sessionId: string): Promise<LedgerRead<LedgerAgentFigures>> {
@@ -611,7 +611,7 @@ export class TaskLedger {
     }, true);
   }
 
-  // -- Opening (Section 1) and the sweep (Section 4.1) -----------------------
+  // -- Opening (specs/task-ledger.md#location) and the sweep (specs/task-ledger.md#sweep) -----------------------
 
   private async open(): Promise<void> {
     if (sameFile(this.path, this.storePath)) {
@@ -649,7 +649,7 @@ export class TaskLedger {
 
   /**
    * Read the version of an existing file on a read-only connection, so a file of another version
-   * or a corrupt one is left unchanged (Section 7). False when the ledger became unusable.
+   * or a corrupt one is left unchanged (specs/task-ledger.md#failures). False when the ledger became unusable.
    */
   private async probe(): Promise<boolean> {
     for (;;) {
@@ -760,8 +760,8 @@ export class TaskLedger {
   }
 
   /**
-   * One transaction, attempted again while the file is busy (Section 5). Any other failure makes
-   * the ledger unusable after the transaction is rolled back (Section 7).
+   * One transaction, attempted again while the file is busy (specs/task-ledger.md#concurrent-access). Any other failure makes
+   * the ledger unusable after the transaction is rolled back (specs/task-ledger.md#failures).
    */
   private async transact<T>(
     mode: "write" | "read",
@@ -831,7 +831,7 @@ export class TaskLedger {
     if (db !== undefined && db.isOpen) db.close();
   }
 
-  /** Make the ledger unusable for this instance (Section 7). */
+  /** Make the ledger unusable for this instance (specs/task-ledger.md#failures). */
   private fail(reason: string): void {
     if (this.reason !== undefined) return;
     this.reason = reason;
@@ -859,7 +859,7 @@ function noop(): void {}
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** The owner of a ledger row is gone (Section 4.1). */
+/** The owner of a ledger row is gone (specs/task-ledger.md#sweep). */
 function ownerIsGone(
   pid: number,
   started: number,
@@ -869,7 +869,7 @@ function ownerIsGone(
   return !processExists(pid);
 }
 
-/** A permission-denied probe counts as existing (Section 4.1). */
+/** A permission-denied probe counts as existing (specs/task-ledger.md#sweep). */
 function processExists(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
@@ -880,7 +880,7 @@ function processExists(pid: number): boolean {
   }
 }
 
-/** Device and inode when both exist, else the resolved paths (Section 1, step 1). */
+/** Device and inode when both exist, else the resolved paths (specs/task-ledger.md#location, step 1). */
 function sameFile(one: string, other: string): boolean {
   const first = statSync(one, { throwIfNoEntry: false });
   const second = statSync(other, { throwIfNoEntry: false });
@@ -899,7 +899,7 @@ function resolvedPath(path: string): string {
   return join(resolvedPath(parent), basename(absolute));
 }
 
-/** The `row_id` a ref names; for a key, the first match in `row_id` order (Section 4.2). */
+/** The `row_id` a ref names; for a key, the first match in `row_id` order (specs/task-ledger.md#rebuild). */
 function resolveRef(db: DatabaseSync, ref: LedgerRowRef): string | undefined {
   if (typeof ref === "string") return ref;
   const found = db
@@ -934,7 +934,7 @@ function isDispatchedAgent(row: LedgerFigureRow): boolean {
   return row.kind === "agent" && row.dispatched;
 }
 
-/** The wall time (Section 6). */
+/** The wall time (specs/task-ledger.md#derived-figures). */
 function wallMs(row: LedgerFigureRow, at: number): number {
   const end = row.settledAt ?? (row.status === "running" ? at : row.startedAt);
   return Math.max(0, end - row.startedAt);

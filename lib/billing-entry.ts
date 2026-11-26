@@ -1,5 +1,5 @@
 /**
- * Billing entries per specs/billing.md Section 2.2: the validated, typed form
+ * Billing entries per specs/billing.md#billing-entry: the validated, typed form
  * of one provider's data in a billing query reply, and the values derived from
  * it that need no rendering (provider state, window ordering). Every function
  * here treats its input as untrusted data of unknown type.
@@ -209,7 +209,7 @@ function readList<T>(facet: unknown, read: (item: unknown) => T | undefined): T[
   return result;
 }
 
-/** One provider's billing entry; `undefined` when the value is invalid (Section 2.2). */
+/** One provider's billing entry; `undefined` when the value is invalid (specs/billing.md#billing-entry). */
 export function readBillingEntry(value: unknown): BillingEntry | undefined {
   if (!isObj(value) || typeof value.status !== "string") return undefined;
   const models = new Map<string, ModelRecord>();
@@ -232,14 +232,14 @@ export function readBillingEntry(value: unknown): BillingEntry | undefined {
   };
 }
 
-/** A reply of Section 2.1 reduced to its valid entries for the requested providers. */
+/** A reply of specs/billing.md#request-outcome reduced to its valid entries for the requested providers. */
 export interface ReadReply {
   status: "ok" | "not-ready" | "bad-request" | "cancelled";
   generatedAt: number;
   entries: Map<string, BillingEntry>;
 }
 
-/** Validate a reply; `undefined` when it is invalid (Section 2.1). May throw on hostile input. */
+/** Validate a reply; `undefined` when it is invalid (specs/billing.md#request-outcome). May throw on hostile input. */
 export function readReply(value: unknown, requested: readonly string[]): ReadReply | undefined {
   if (!isObj(value)) return undefined;
   const status = value.status;
@@ -265,7 +265,7 @@ export function readReply(value: unknown, requested: readonly string[]): ReadRep
   return { status, generatedAt, entries };
 }
 
-/** Counted limit window: of unknown length or at least one hour (Section 5). */
+/** Counted limit window: of unknown length or at least one hour (specs/billing.md#billing-text). */
 export function isCounted(window: LimitWindow): boolean {
   return window.windowSeconds === null || window.windowSeconds >= 3600;
 }
@@ -280,7 +280,7 @@ export function gravestSeverity(severities: Iterable<Severity>): Severity | unde
   return best;
 }
 
-/** Provider state of an entry (Section 5). */
+/** Provider state of an entry (specs/billing.md#billing-text). */
 export function providerState(entry: BillingEntry): string {
   switch (entry.status) {
     case "free":
@@ -306,7 +306,7 @@ export function isAlarming(severity: Severity): boolean {
 }
 
 /**
- * Past reset (billing.md Section 5): a window whose `resetsAt` is at or before
+ * Past reset (specs/billing.md#billing-text): a window whose `resetsAt` is at or before
  * `now` has `used` and `percent` `null` and severity `unknown`.
  */
 export function applyPastReset(entry: BillingEntry, now: number): BillingEntry {

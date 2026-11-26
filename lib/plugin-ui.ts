@@ -61,14 +61,14 @@ export interface PluginUiEventEmitter {
   emit(channel: string, data: unknown): void;
 }
 
-/** Tools pi-dent registers that are never callable from a plugin UI call (Section 4.2). */
+/** Tools pi-dent registers that are never callable from a plugin UI call (specs/plugin-ui.md#tool-functions). */
 export const PLUGIN_UI_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
   "Script",
   "AskUserQuestion",
   "PluginUI",
 ]);
 
-/** One pi-dent tool adapted for execution from a plugin UI call (Section 4.2). */
+/** One pi-dent tool adapted for execution from a plugin UI call (specs/plugin-ui.md#tool-functions). */
 export interface UiCallableTool extends CallableTool {
   execute(
     toolCallId: string,
@@ -199,7 +199,7 @@ export interface PluginUiToolDeps {
   activeToolNames?: () => readonly string[];
   /** Fallback list of session tool names when `allTools` is omitted (used by unit tests). */
   allToolNames?: () => readonly string[];
-  /** `script.tools.allow` (specs/script-tool.md Section 8); absent gives the default. */
+  /** `script.tools.allow` (specs/script-tool.md#tool-functions); absent gives the default. */
   toolsAllow?: () => readonly string[];
   /** Lazily creates the parent session's long-lived tool proxy on the first proxied call. */
   createProxy?: () => PluginUiToolProxy | undefined;
@@ -247,7 +247,7 @@ export class PluginUiController {
     return this.active.size;
   }
 
-  /** Handle one `/dent-ui <args>` command (specs/plugin-ui.md Sections 1-3). */
+  /** Handle one `/dent-ui <args>` command (specs/plugin-ui.md#registration-gating, specs/plugin-ui.md#run, specs/plugin-ui.md#cancel). */
   handleCommand(args: string, ctx: PluginUiCommandContext): void {
     const trimmed = args.trim();
     if (trimmed === "") return;
@@ -261,7 +261,7 @@ export class PluginUiController {
     }
   }
 
-  /** Cancel every executing UI call tagged with `checkId` (specs/plugin-ui.md Section 7). */
+  /** Cancel every executing UI call tagged with `checkId` (specs/plugin-ui.md#extension-event-seam). */
   cancelForCheck(checkId: string, reason = "UI call was cancelled"): void {
     for (const entry of this.active.values()) {
       if (entry.checkId !== checkId) continue;
@@ -270,7 +270,7 @@ export class PluginUiController {
     }
   }
 
-  /** Cancel every executing UI call (specs/plugin-ui.md Section 6). */
+  /** Cancel every executing UI call (specs/plugin-ui.md#lifecycle). */
   cancelAll(reason = "Session ended"): void {
     for (const entry of this.active.values()) {
       entry.cancelReason = reason;
@@ -278,7 +278,7 @@ export class PluginUiController {
     }
   }
 
-  /** Dispose the parent session's tool proxy, if one was created (specs/plugin-ui.md Section 4.3). */
+  /** Dispose the parent session's tool proxy, if one was created (specs/plugin-ui.md#tool-proxy). */
   async disposeProxy(): Promise<void> {
     const current = this.proxy;
     this.proxy = undefined;

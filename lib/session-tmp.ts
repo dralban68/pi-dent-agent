@@ -1,12 +1,11 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-/** The variables that name the temporary folder (bash-tool.md, Section 3). */
+/** The variables that name the temporary folder (specs/bash-tool.md#execution-model). */
 export const TEMP_VARIABLES = ["TMPDIR", "TMP", "TEMP"] as const;
 
 /**
- * Points the temporary-folder variables of `env` at `<PI_DENT_SESSION_DIR>/tmp` (bash-tool.md,
- * Section 3): creates the folder, or on failure leaves those variables absent. A variable the
+ * Points the temporary-folder variables of `env` at `<PI_DENT_SESSION_DIR>/tmp` (specs/bash-tool.md#execution-model): creates the folder, or on failure leaves those variables absent. A variable the
  * caller-supplied environment `caller` names keeps its value. Does nothing without a session dir.
  */
 export function applySessionTmp(

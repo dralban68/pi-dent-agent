@@ -11,7 +11,7 @@ import { agentSegment, formatTokens, partialMarker, type UsageSum } from "./usag
 export type FooterColor = "accent" | "dim" | "muted" | "warning" | "error";
 export type FooterPaint = (color: FooterColor, text: string) => string;
 
-/** One host `usage` field (agent-tool.md Section 13). */
+/** One host `usage` field (specs/agent-tool.md#usage). */
 export interface EntryUsage {
   input: number;
   output: number;
@@ -20,7 +20,7 @@ export interface EntryUsage {
   cost: { total: number };
 }
 
-/** The parts of a session entry the footer reads (specs/footer.md Section 2.2). */
+/** The parts of a session entry the footer reads (specs/footer.md#stats-line). */
 export interface FooterEntry {
   type: string;
   usage?: EntryUsage | undefined;
@@ -43,7 +43,7 @@ export interface SessionStats {
 
 /**
  * The totals of every session entry that carries a usage, on every branch, and the cache-hit
- * rate of the latest assistant message (specs/footer.md Section 2.2).
+ * rate of the latest assistant message (specs/footer.md#stats-line).
  */
 export function sessionStats(entries: readonly FooterEntry[]): SessionStats {
   const totals: SessionTotals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
@@ -88,11 +88,11 @@ export interface FooterContextUsage {
   contextWindow: number;
 }
 
-/** The usage tally's snapshot (agent-tool.md Section 13). */
+/** The usage tally's snapshot (specs/agent-tool.md#usage). */
 export interface FooterTally {
   tasks: number;
   sum: UsageSum;
-  /** Whether the tally is partial (agent-tool.md Section 13); absent counts as not. */
+  /** Whether the tally is partial (specs/agent-tool.md#usage); absent counts as not. */
   partial?: boolean | undefined;
 }
 
@@ -126,7 +126,7 @@ const MIN_PADDING = 2;
 
 const TRUNCATION = "...";
 
-/** The home directory and anything inside it shortened to `~` (Section 2.1). */
+/** The home directory and anything inside it shortened to `~` (specs/footer.md#path-line). */
 function shortenHome(cwd: string, home: string | undefined): string {
   if (!home) return cwd;
   const inside = relative(resolve(home), resolve(cwd));
@@ -135,7 +135,7 @@ function shortenHome(cwd: string, home: string | undefined): string {
   return `~${sep}${inside}`;
 }
 
-/** `<cwd><branch><name>`, truncated to the width with the marker (Section 2.1). */
+/** `<cwd><branch><name>`, truncated to the width with the marker (specs/footer.md#path-line). */
 function pathLine(input: FooterInput): string {
   const dir = shortenHome(input.cwd, input.home);
   const branch = input.branch ? ` (${input.branch})` : "";
@@ -144,7 +144,7 @@ function pathLine(input: FooterInput): string {
   return truncateToWidth(input.paint("dim", text), input.width, input.paint("dim", TRUNCATION));
 }
 
-/** `<percent>%/<window>` or `?/<window>`, coloured by the usage (Section 2.2). */
+/** `<percent>%/<window>` or `?/<window>`, coloured by the usage (specs/footer.md#stats-line). */
 function contextSegment(input: FooterInput): string {
   const percent = input.contextUsage?.percent ?? null;
   const window = formatTokens(input.contextUsage?.contextWindow ?? input.model?.contextWindow ?? 0);
@@ -155,7 +155,7 @@ function contextSegment(input: FooterInput): string {
   return text;
 }
 
-/** `<provider><model><thinking>` (Section 2.2), with the provider when `withProvider` holds. */
+/** `<provider><model><thinking>` (specs/footer.md#stats-line), with the provider when `withProvider` holds. */
 function rightSide(input: FooterInput, withProvider: boolean): string {
   const model = input.model;
   const id = model?.id ?? "no-model";
@@ -172,7 +172,7 @@ const fitLeft = (text: string, width: number, paint: FooterPaint): string =>
 
 /**
  * The stats line and, when the line had to give it up, the `│ <agents>` segment that moves to
- * the status line (Section 2.2).
+ * the status line (specs/footer.md#stats-line).
  */
 function statsLine(
   input: FooterInput,
@@ -236,7 +236,7 @@ export function sanitizeStatus(text: string): string {
     .trim();
 }
 
-/** The status line, or nothing when it would be empty (Section 2.3). */
+/** The status line, or nothing when it would be empty (specs/footer.md#status-line). */
 function statusLine(input: FooterInput, movedAgents: string | undefined): string | undefined {
   const texts = [...input.statuses.entries()]
     .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
@@ -251,7 +251,7 @@ function statusLine(input: FooterInput, movedAgents: string | undefined): string
   );
 }
 
-/** The footer's lines (Section 2): the path line, the stats line, and, when not empty, the status line. */
+/** The footer's lines (specs/footer.md#lines): the path line, the stats line, and, when not empty, the status line. */
 export function footerLines(input: FooterInput): string[] {
   const stats = input.stats ?? sessionStats(input.entries ?? []);
   const { line, movedAgents } = statsLine(input, stats);
@@ -295,7 +295,7 @@ export interface FooterComponent {
   dispose(): void;
 }
 
-/** The footer's component (Section 1): the lines of `footerLines`, cached per session state. */
+/** The footer's component (specs/footer.md#activation): the lines of `footerLines`, cached per session state. */
 export function createFooterComponent(host: FooterComponentHost): FooterComponent {
   let cache:
     | { key: string; stats: SessionStats; contextUsage: FooterContextUsage | undefined }

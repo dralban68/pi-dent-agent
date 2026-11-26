@@ -1,13 +1,13 @@
 /**
  * Session transcript per specs/session-transcript.md: reading a session file
- * (Section 1), the transcript items an entry yields (Section 2), the current
- * lineage (Section 3), the session tree and the project (Section 4), the item
- * address (Section 5), and transcript and file order (Section 6).
+ * (specs/session-transcript.md#reading), the transcript items an entry yields (specs/session-transcript.md#transcript-items), the current
+ * lineage (specs/session-transcript.md#current-lineage), the session tree and the project (specs/session-transcript.md#session-tree), the item
+ * address (specs/session-transcript.md#item-address), and transcript and file order (specs/session-transcript.md#transcript-order).
  *
  * Reading is pure over bytes: `readSessionBytes` and its text and file wrappers
  * take the file's content, and only `readSessionFile`, `readSessionHeaderFile`,
  * `sessionTreeAsync`, and `projectMembersAsync` touch the file system. A read never
- * writes to, locks, or otherwise changes the file (Section 1).
+ * writes to, locks, or otherwise changes the file (specs/session-transcript.md#reading).
  */
 
 import {
@@ -24,10 +24,10 @@ import { basename, dirname, join, resolve } from "node:path";
 import { parseDateTime } from "./schedule-time.ts";
 import { isPlainObject } from "./util.ts";
 
-/** Byte limit of a line a read parses; a longer line is skipped without parsing (Section 1). */
+/** Byte limit of a line a read parses; a longer line is skipped without parsing (specs/session-transcript.md#reading). */
 const LINE_BYTE_LIMIT = 16777216;
 
-/** The most characters of an item's text that a query matches (Section 2). */
+/** The most characters of an item's text that a query matches (specs/session-transcript.md#transcript-items). */
 const MATCH_TEXT_CHARACTERS = 100000;
 
 /** The bytes read at a time while looking for the first line's line feed. */
@@ -39,68 +39,68 @@ const READ_CHUNK_BYTES = 1048576;
 /**
  * The UTF-8 decoder every line is read with. `ignoreBOM` keeps a byte-order mark
  * in the decoded text, so a line that starts with one is not JSON and is skipped
- * (Section 1).
+ * (specs/session-transcript.md#reading).
  */
 const UTF8 = new TextDecoder("utf-8", { ignoreBOM: true });
 
-/** `safe`: `ALPHA`, `DIGIT`, `.`, `_`, and `-` (Section 5). */
+/** `safe`: `ALPHA`, `DIGIT`, `.`, `_`, and `-` (specs/session-transcript.md#item-address). */
 const SAFE = "[A-Za-z0-9._-]";
 
-/** A safe name: only the characters of `safe`, at least one (agent-tool.md Section 4.2). */
+/** A safe name: only the characters of `safe`, at least one (specs/agent-tool.md#child-session). */
 const SAFE_NAME = new RegExp(`^${SAFE}+$`);
 
-/** `session-key` (Section 5): `self` is a `stem-path`, so the two productions merge. */
+/** `session-key` (specs/session-transcript.md#item-address): `self` is a `stem-path`, so the two productions merge. */
 const SESSION_KEY = new RegExp(`^(?:${SAFE}+(?:/${SAFE}+)*|~${SAFE}{1,13}(?:/${SAFE}+)*)$`);
 
-/** `entry-id`, which is also the usable entry ID of Section 1. */
+/** `entry-id`, which is also the usable entry ID of specs/session-transcript.md#reading. */
 const ENTRY_ID = /^[A-Za-z0-9_-]+$/;
 
-/** `part` (Section 5). */
+/** `part` (specs/session-transcript.md#item-address). */
 const PART = /^(?:0|[1-9][0-9]*|error)$/;
 
 // ---------------------------------------------------------------------------
-// Section 1: reading a session file
+// specs/session-transcript.md#reading: reading a session file
 // ---------------------------------------------------------------------------
 
-/** The session header: the first line's entry when that is a session entry with `type` `"session"` and a string `id` (Section 1). */
+/** The session header: the first line's entry when that is a session entry with `type` `"session"` and a string `id` (specs/session-transcript.md#reading). */
 export interface SessionHeader {
   /** The session ID: the header's `id`. */
   sessionId: string;
-  /** The header's `time`, milliseconds since the Unix epoch (Section 2). */
+  /** The header's `time`, milliseconds since the Unix epoch (specs/session-transcript.md#transcript-items). */
   time: number;
   /** The header line's byte length, its line feed not counted. */
   bytes: number;
 }
 
-/** What deriving an entry's items needs of the entry (Section 2). */
+/** What deriving an entry's items needs of the entry (specs/session-transcript.md#transcript-items). */
 export interface TranscriptEntryRef {
-  /** The line number, counting from 1 (Section 1). */
+  /** The line number, counting from 1 (specs/session-transcript.md#reading). */
   line: number;
-  /** The entry ID (Section 1). */
+  /** The entry ID (specs/session-transcript.md#reading). */
   entryId: string;
-  /** The entry's `time`, milliseconds since the Unix epoch (Section 2). */
+  /** The entry's `time`, milliseconds since the Unix epoch (specs/session-transcript.md#transcript-items). */
   time: number;
-  /** The JSON object of the entry's line (Section 1). */
+  /** The JSON object of the entry's line (specs/session-transcript.md#reading). */
   value: Record<string, unknown>;
 }
 
-/** What the leaf and the current lineage need of an entry (Section 3). */
+/** What the leaf and the current lineage need of an entry (specs/session-transcript.md#current-lineage). */
 export interface LineageEntry {
-  /** The line number, counting from 1 (Section 1). */
+  /** The line number, counting from 1 (specs/session-transcript.md#reading). */
   line: number;
-  /** The entry ID (Section 1). */
+  /** The entry ID (specs/session-transcript.md#reading). */
   entryId: string;
-  /** `parentId` when it is a string, else `null` (Section 1). */
+  /** `parentId` when it is a string, else `null` (specs/session-transcript.md#reading). */
   parentId: string | null;
 }
 
 /**
  * A session entry that yields items and can be a member of a lineage: not the
  * session header, with a usable entry ID that no entry with a lower line number
- * carries (Sections 1-3).
+ * carries (specs/session-transcript.md#reading, specs/session-transcript.md#transcript-items, specs/session-transcript.md#current-lineage).
  */
 export interface SessionEntry extends TranscriptEntryRef, LineageEntry {
-  /** The entry type; empty when `type` is not a string, which makes the entry one of an unused type (Section 1). */
+  /** The entry type; empty when `type` is not a string, which makes the entry one of an unused type (specs/session-transcript.md#reading). */
   type: string;
   /** The byte offset of the line's first byte. */
   offset: number;
@@ -108,15 +108,15 @@ export interface SessionEntry extends TranscriptEntryRef, LineageEntry {
   bytes: number;
 }
 
-/** The result of one read of a session file (Section 1). */
+/** The result of one read of a session file (specs/session-transcript.md#reading). */
 export interface SessionRead {
   /**
    * The session header, present exactly when the read includes the file's first
    * line and that line is a session header. A file is readable as a session file
-   * only then (Section 1).
+   * only then (specs/session-transcript.md#reading).
    */
   header: SessionHeader | undefined;
-  /** The usable session entries after the header, in line order (Sections 1-3). */
+  /** The usable session entries after the header, in line order (specs/session-transcript.md#reading, specs/session-transcript.md#transcript-items, specs/session-transcript.md#current-lineage). */
   entries: SessionEntry[];
   /** The byte offset just after the last line feed the read used: where a continuation begins. */
   consumed: number;
@@ -124,11 +124,11 @@ export interface SessionRead {
   lines: number;
   /** The byte offset of the first byte of the last line the read used, or `from` when it used none. */
   tailOffset: number;
-  /** The `time` of the last session entry the read used; absent when it used none (Section 2). */
+  /** The `time` of the last session entry the read used; absent when it used none (specs/session-transcript.md#transcript-items). */
   lastTime: number | undefined;
 }
 
-/** How a read continues the bytes of a file read earlier (Sections 1 and 2). */
+/** How a read continues the bytes of a file read earlier (specs/session-transcript.md#reading and specs/session-transcript.md#transcript-items). */
 export interface SessionReadOptions {
   /** The byte offset to continue from: the first byte of a line. Default `0`. */
   from?: number | undefined;
@@ -136,20 +136,20 @@ export interface SessionReadOptions {
   line?: number | undefined;
   /**
    * The `time` of the last session entry before `from`, as an earlier read of
-   * the same file returned it: the fallback `time` of the first entry read (Section 2).
+   * the same file returned it: the fallback `time` of the first entry read (specs/session-transcript.md#transcript-items).
    */
   previousTime?: number | undefined;
-  /** The entry IDs carried by lines before `from`, the header's included (Section 1). */
+  /** The entry IDs carried by lines before `from`, the header's included (specs/session-transcript.md#reading). */
   seenIds?: Iterable<string> | undefined;
   /**
    * The file position to read up to, not including: the size the caller observed
    * when it started the read. Default: to the end of the file. Bytes at or after
-   * it are not read, so a line it cuts is dropped (Section 1).
+   * it are not read, so a line it cuts is dropped (specs/session-transcript.md#reading).
    */
   to?: number | undefined;
   /**
    * The most bytes one read consumes, except that a single line longer than this
-   * is consumed whole (session-index.md Section 3): the read ends after the last
+   * is consumed whole (specs/session-index.md#catch-up): the read ends after the last
    * line whose bytes end at or before `from + maxBytes`, or after the first line
    * when that one alone is longer. Default: no bound.
    */
@@ -158,7 +158,7 @@ export interface SessionReadOptions {
   onEntry?: ((value: Record<string, unknown>) => void) | undefined;
 }
 
-/** The header entry's narrowed shape: `type` `"session"` and a string `id` (Section 1). */
+/** The header entry's narrowed shape: `type` `"session"` and a string `id` (specs/session-transcript.md#reading). */
 export interface SessionHeaderValue extends Record<string, unknown> {
   type: "session";
   id: string;
@@ -167,7 +167,7 @@ export interface SessionHeaderValue extends Record<string, unknown> {
 /**
  * The JSON object of one line, or undefined when the line is skipped: empty,
  * longer than 16777216 bytes, not JSON, or JSON other than an object. A longer
- * line is not parsed (Section 1).
+ * line is not parsed (specs/session-transcript.md#reading).
  */
 export function parseSessionLine(line: Uint8Array | string): Record<string, unknown> | undefined {
   const bytes = typeof line === "string" ? Buffer.byteLength(line, "utf8") : line.length;
@@ -182,19 +182,19 @@ export function parseSessionLine(line: Uint8Array | string): Record<string, unkn
   return isPlainObject(value) ? value : undefined;
 }
 
-/** True when `id` is a usable entry ID: a non-empty string of `A-Z`, `a-z`, `0-9`, `_`, and `-` (Section 1). */
+/** True when `id` is a usable entry ID: a non-empty string of `A-Z`, `a-z`, `0-9`, `_`, and `-` (specs/session-transcript.md#reading). */
 export function isUsableEntryId(id: string): boolean {
   return ENTRY_ID.test(id);
 }
 
-/** True when `value` is a session header: `type` `"session"` and a string `id` (Section 1). */
+/** True when `value` is a session header: `type` `"session"` and a string `id` (specs/session-transcript.md#reading). */
 export function isSessionHeader(value: Record<string, unknown>): value is SessionHeaderValue {
   return value.type === "session" && typeof value.id === "string";
 }
 
 /**
  * One read of the bytes of a session file, `bytes[0]` lying at file offset
- * `options.from` (Section 1). Every line a line feed terminates is used; a last
+ * `options.from` (specs/session-transcript.md#reading). Every line a line feed terminates is used; a last
  * line no line feed terminates is not.
  */
 export function readSessionBytes(bytes: Uint8Array, options: SessionReadOptions = {}): SessionRead {
@@ -250,13 +250,13 @@ export function readSessionBytes(bytes: Uint8Array, options: SessionReadOptions 
   return { header, entries, consumed, lines, tailOffset, lastTime };
 }
 
-/** One read of a session file given as text (Section 1); the text's UTF-8 bytes are read. */
+/** One read of a session file given as text (specs/session-transcript.md#reading); the text's UTF-8 bytes are read. */
 export function readSessionText(text: string, options: SessionReadOptions = {}): SessionRead {
   return readSessionBytes(Buffer.from(text, "utf8"), options);
 }
 
 /**
- * One read of a session file (Section 1), or undefined when the file cannot be
+ * One read of a session file (specs/session-transcript.md#reading), or undefined when the file cannot be
  * read. The read starts at `options.from`, which is a byte offset of the file, so
  * `consumed`, every entry's offset, and every line number are absolute file
  * positions. The file is not written to, locked, or otherwise changed.
@@ -286,8 +286,8 @@ export function readSessionFile(
 
 /**
  * The parsed value of one line of a session file read back by byte offset and
- * length (session-index.md Section 3), or undefined when the bytes cannot be
- * read, are fewer than `bytes`, or are skipped by Section 1.
+ * length (specs/session-index.md#catch-up), or undefined when the bytes cannot be
+ * read, are fewer than `bytes`, or are skipped by specs/session-transcript.md#reading.
  */
 export function readSessionLineAt(
   path: string,
@@ -350,10 +350,10 @@ function readWindow(
 }
 
 /**
- * The number of bytes of a window a read consumes (Section 1): the lines a line
+ * The number of bytes of a window a read consumes (specs/session-transcript.md#reading): the lines a line
  * feed terminates, up to the last line whose bytes end at or before `maxBytes`;
  * with no such line, the first line, which alone is longer than `maxBytes`
- * (session-index.md Section 3).
+ * (specs/session-index.md#catch-up).
  */
 function consumedBytes(bytes: Uint8Array, maxBytes: number | undefined): number {
   let cut = 0;
@@ -373,7 +373,7 @@ function consumedBytes(bytes: Uint8Array, maxBytes: number | undefined): number 
 }
 
 /**
- * The session header of a session file (Section 1), or undefined when the file
+ * The session header of a session file (specs/session-transcript.md#reading), or undefined when the file
  * cannot be read or its first line is not a session header. Only the first line
  * is read, so a file whose first line no line feed terminates is not readable as
  * a session file.
@@ -386,7 +386,7 @@ export function readSessionHeaderFile(path: string): SessionHeader | undefined {
   return { sessionId: value.id, time: instantOf(value) ?? 0, bytes: first.length };
 }
 
-/** The instant an entry's `timestamp` names when it is a date-time (Section 2), else undefined. */
+/** The instant an entry's `timestamp` names when it is a date-time (specs/session-transcript.md#transcript-items), else undefined. */
 function instantOf(value: Record<string, unknown>): number | undefined {
   const timestamp = value.timestamp;
   return typeof timestamp === "string" ? parseDateTime(timestamp) : undefined;
@@ -395,7 +395,7 @@ function instantOf(value: Record<string, unknown>): number | undefined {
 /**
  * The bytes of the file's first line, its line feed not included, or undefined
  * when the file cannot be read, has no line feed, or its first line is longer
- * than the byte limit (Section 1).
+ * than the byte limit (specs/session-transcript.md#reading).
  */
 function firstLineBytes(path: string): Uint8Array | undefined {
   let fd: number;
@@ -432,10 +432,10 @@ function firstLineBytes(path: string): Uint8Array | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Section 2: transcript items
+// specs/session-transcript.md#transcript-items: transcript items
 // ---------------------------------------------------------------------------
 
-/** The item kinds of Section 2. */
+/** The item kinds of specs/session-transcript.md#transcript-items. */
 export type ItemKind =
   | "user"
   | "system"
@@ -447,7 +447,7 @@ export type ItemKind =
   | "summary"
   | "error";
 
-/** One searchable piece of a session entry (Section 2). */
+/** One searchable piece of a session entry (specs/session-transcript.md#transcript-items). */
 export interface TranscriptItem {
   /** The item kind. */
   kind: ItemKind;
@@ -461,11 +461,11 @@ export interface TranscriptItem {
   toolCallId: string | undefined;
   /** True exactly for a `tool_result` item whose `message.isError` is `true`. */
   isError: boolean;
-  /** The line number of the item's entry (Section 1). */
+  /** The line number of the item's entry (specs/session-transcript.md#reading). */
   line: number;
-  /** The entry ID of the item's entry (Section 1). */
+  /** The entry ID of the item's entry (specs/session-transcript.md#reading). */
   entryId: string;
-  /** The item's `time`: its entry's (Section 2), milliseconds since the Unix epoch. */
+  /** The item's `time`: its entry's (specs/session-transcript.md#transcript-items), milliseconds since the Unix epoch. */
   time: number;
   /** The length of the text in characters. */
   length: number;
@@ -484,7 +484,7 @@ interface ItemFields {
 }
 
 /**
- * The items an entry yields, in part order, and no other (Section 2): one per
+ * The items an entry yields, in part order, and no other (specs/session-transcript.md#transcript-items): one per
  * `message.content` element of an assistant entry, one for its model error, or
  * one for the entry as a whole. An entry of any other type, and a `message` entry
  * of any other role, yields none.
@@ -520,7 +520,7 @@ export function entryItems(entry: TranscriptEntryRef): TranscriptItem[] {
   return [];
 }
 
-/** The items of every entry given, in the order given: file order when the entries are in line order (Section 6). */
+/** The items of every entry given, in the order given: file order when the entries are in line order (specs/session-transcript.md#transcript-order). */
 export function sessionItems(entries: readonly SessionEntry[]): TranscriptItem[] {
   const items: TranscriptItem[] = [];
   for (const entry of entries) {
@@ -530,7 +530,7 @@ export function sessionItems(entries: readonly SessionEntry[]): TranscriptItem[]
 }
 
 /**
- * The item that `item` is paired with (Section 2): the first item of the other
+ * The item that `item` is paired with (specs/session-transcript.md#transcript-items): the first item of the other
  * kind in file order that carries the same tool-call ID, when `item` is itself
  * the first of its kind to carry it. `items` are the items of one session file.
  */
@@ -554,7 +554,7 @@ export function pairedItem(
 }
 
 /**
- * The content text of a value (Section 2): the value itself when it is a string;
+ * The content text of a value (specs/session-transcript.md#transcript-items): the value itself when it is a string;
  * when it is an array, the texts of the elements that give one, joined by one
  * line feed; otherwise the empty string.
  */
@@ -580,7 +580,7 @@ export function contentText(value: unknown): string {
 }
 
 /**
- * The argument text of a value (Section 2): one `<key>: <value>` block per key of
+ * The argument text of a value (specs/session-transcript.md#transcript-items): one `<key>: <value>` block per key of
  * an object that is not an array, joined by one line feed, a string value
  * verbatim and any other value its `JSON.stringify` form; for any other value
  * its `JSON.stringify` form, and the empty string when the value is absent.
@@ -601,7 +601,7 @@ function argumentValueText(value: unknown): string {
 }
 
 /**
- * The prompt text of a system message (Section 2): its content text and the string
+ * The prompt text of a system message (specs/session-transcript.md#transcript-items): its content text and the string
  * values of its `sections`, in the order `Object.values` gives for the value `JSON.parse`
  * returns, joined by one blank line; a non-string section value and an empty part are
  * left out, and a `sections` that is not an object yields no section values.
@@ -735,7 +735,7 @@ function assistantItems(
 }
 
 /**
- * The item of `fields`, or undefined when Section 2 forbids yielding it: an item
+ * The item of `fields`, or undefined when specs/session-transcript.md#transcript-items forbids yielding it: an item
  * of kind `user`, `system`, `assistant`, `thinking`, `injected`, `summary`, or `error` whose
  * text has no character other than white space is not yielded.
  */
@@ -765,7 +765,7 @@ function listOf(item: TranscriptItem | undefined): TranscriptItem[] {
   return item === undefined ? [] : [item];
 }
 
-/** A label that is not a non-empty string is absent (Section 2). */
+/** A label that is not a non-empty string is absent (specs/session-transcript.md#transcript-items). */
 function labelOf(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
@@ -779,11 +779,11 @@ function arrayOf(value: unknown): readonly unknown[] | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Section 3: current lineage
+// specs/session-transcript.md#current-lineage: current lineage
 // ---------------------------------------------------------------------------
 
 /**
- * The leaf of a session file (Section 3): its entry with the highest line number.
+ * The leaf of a session file (specs/session-transcript.md#current-lineage): its entry with the highest line number.
  * `entries` are the entries `readSessionBytes` returns for one file; a minimal
  * `LineageEntry` is enough.
  */
@@ -796,7 +796,7 @@ export function leafEntry<T extends LineageEntry>(entries: readonly T[]): T | un
 }
 
 /**
- * The current lineage (Section 3), from the leaf's first ancestor to the leaf: the
+ * The current lineage (specs/session-transcript.md#current-lineage), from the leaf's first ancestor to the leaf: the
  * leaf, the entry whose `id` equals its `parentId`, and so on, ending at an entry
  * whose `parentId` is null, absent, the ID of no entry, or the ID of an entry
  * already on the path. `entries` are the entries `readSessionBytes` returns for one
@@ -826,10 +826,10 @@ export function currentLineage<T extends LineageEntry>(entries: readonly T[]): T
 }
 
 // ---------------------------------------------------------------------------
-// Section 4: session tree
+// specs/session-transcript.md#session-tree: session tree
 // ---------------------------------------------------------------------------
 
-/** One member of a session tree (Section 4). */
+/** One member of a session tree (specs/session-transcript.md#session-tree). */
 export interface SessionMember {
   /** The session file's absolute path, symbolic links not resolved. */
   path: string;
@@ -841,7 +841,7 @@ export interface SessionMember {
   stems: string[];
 }
 
-/** A project member and its session tree (Section 4.1). */
+/** A project member and its session tree (specs/session-transcript.md#project). */
 export interface ProjectMember {
   /** The session key: `~` and the first 13 characters of the session ID, or the whole ID when shorter. */
   key: string;
@@ -850,13 +850,13 @@ export interface ProjectMember {
 }
 
 /**
- * The session tree of Section 4, discovered with a turn of the event loop
+ * The session tree of specs/session-transcript.md#session-tree, discovered with a turn of the event loop
  * between members: `headerOf` answers a file's header, from a cache or by reading
  * it, and `pace` is awaited before each member is visited. `rootPath` need not
  * exist: a root without a session file is a member with no session entries, and
  * its agent directory is still read. `rootAgentDirectory` is the root's agent
  * directory when it is not `<stem>.agents` beside its file: a session without a
- * session file has `<tmpdir>/pi-dent-sessions/<sessionId>/` (agent-tool.md Section 4.2).
+ * session file has `<tmpdir>/pi-dent-sessions/<sessionId>/` (specs/agent-tool.md#child-session).
  */
 export async function sessionTreeAsync(
   rootPath: string,
@@ -879,11 +879,11 @@ export async function sessionTreeAsync(
   return members;
 }
 
-/** How a session file's header is obtained: read, or answered from a cache (Section 4). */
+/** How a session file's header is obtained: read, or answered from a cache (specs/session-transcript.md#session-tree). */
 export type HeaderProvider = (path: string) => SessionHeader | undefined;
 
 /**
- * The project members of a main session (Section 4.1), each with its session tree,
+ * The project members of a main session (specs/session-transcript.md#project), each with its session tree,
  * in ascending order of their files' `<stem>`, discovered with a turn of the event
  * loop between members (see `sessionTreeAsync`).
  */
@@ -906,7 +906,7 @@ export async function projectMembersAsync(
   const members: ProjectMember[] = [];
   // A member is a regular file, never a symbolic link, so its path with links
   // resolved is the directory's resolved path and its name; a link to the main
-  // session's file is no member either way (Section 4.1).
+  // session's file is no member either way (specs/session-transcript.md#project).
   const realDirectory = realPath(directory);
   for (const name of names.toSorted(compareStrings)) {
     if (shouldStop()) return members;
@@ -937,17 +937,17 @@ export async function projectMembersAsync(
   return members;
 }
 
-/** The sessions directory of a main session (Section 4.1): the directory that holds its session file. */
+/** The sessions directory of a main session (specs/session-transcript.md#project): the directory that holds its session file. */
 export function sessionsDirectory(sessionPath: string): string {
   return dirname(resolve(sessionPath));
 }
 
-/** The session key of a member of the invoking session's own tree: `self` for the root, else its stem path (Section 4). */
+/** The session key of a member of the invoking session's own tree: `self` for the root, else its stem path (specs/session-transcript.md#session-tree). */
 function sessionTreeKey(stems: string[]): string {
   return stems.length === 0 ? "self" : stems.join("/");
 }
 
-/** The session tree walk of Section 4, yielding to the event loop before each member. */
+/** The session tree walk of specs/session-transcript.md#session-tree, yielding to the event loop before each member. */
 async function walkSessionTreeAsync(
   path: string,
   stems: string[],
@@ -976,7 +976,7 @@ async function walkSessionTreeAsync(
   }
 }
 
-/** A session's agent directory: `<sessionDir>/<sessionStem>.agents/` (agent-tool.md Section 4.2). */
+/** A session's agent directory: `<sessionDir>/<sessionStem>.agents/` (specs/agent-tool.md#child-session). */
 function agentDirectory(sessionPath: string): string {
   return join(dirname(sessionPath), `${sessionStem(sessionPath)}.agents`);
 }
@@ -987,13 +987,13 @@ function sessionStem(sessionPath: string): string {
   return name.endsWith(".jsonl") ? name.slice(0, -".jsonl".length) : name;
 }
 
-/** The `<stem>` Section 4 requires of a child: non-empty, only safe-name characters, and not `self`. */
+/** The `<stem>` specs/session-transcript.md#session-tree requires of a child: non-empty, only safe-name characters, and not `self`. */
 function isChildStem(stem: string): boolean {
   return stem !== "self" && SAFE_NAME.test(stem);
 }
 
 /**
- * The child session files of one agent directory (Section 4): the regular files,
+ * The child session files of one agent directory (specs/session-transcript.md#session-tree): the regular files,
  * not symbolic links, named `<stem>.jsonl` with a child `<stem>` that are readable
  * as session files, in ascending order of their `<stem>` by UTF-16 code units. A
  * missing or unreadable directory has no children.
@@ -1042,7 +1042,7 @@ function isFile(path: string): boolean {
   }
 }
 
-/** `path` with symbolic links resolved, or `path` when it cannot be resolved (Section 6). */
+/** `path` with symbolic links resolved, or `path` when it cannot be resolved (specs/session-transcript.md#transcript-order). */
 export function realPath(path: string): string {
   try {
     return realpathSync(path);
@@ -1052,10 +1052,10 @@ export function realPath(path: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Section 5: item address
+// specs/session-transcript.md#item-address: item address
 // ---------------------------------------------------------------------------
 
-/** An item address (Section 5): one transcript item relative to a session. */
+/** An item address (specs/session-transcript.md#item-address): one transcript item relative to a session. */
 export interface ItemAddress {
   /** The session key: `self`, a stem path, or `~` and up to 13 safe characters with an optional stem path. */
   sessionKey: string;
@@ -1065,7 +1065,7 @@ export interface ItemAddress {
   part?: string | undefined;
 }
 
-/** The address `text` names, or undefined when it matches no `address` production (Section 5). */
+/** The address `text` names, or undefined when it matches no `address` production (specs/session-transcript.md#item-address). */
 export function parseItemAddress(text: string): ItemAddress | undefined {
   const colon = text.indexOf(":");
   if (colon < 0) return;
@@ -1081,19 +1081,19 @@ export function parseItemAddress(text: string): ItemAddress | undefined {
   return { sessionKey, entryId, part };
 }
 
-/** The address of an item as text (Section 5): the session key, `:`, the entry ID, and the part when it has one. */
+/** The address of an item as text (specs/session-transcript.md#item-address): the session key, `:`, the entry ID, and the part when it has one. */
 export function formatItemAddress(address: ItemAddress): string {
   const part = address.part;
   const suffix = part === undefined ? "" : `.${part}`;
   return `${address.sessionKey}:${address.entryId}${suffix}`;
 }
 
-/** The address of `item` relative to the session keyed `sessionKey` (Section 5). */
+/** The address of `item` relative to the session keyed `sessionKey` (specs/session-transcript.md#item-address). */
 export function itemAddress(sessionKey: string, item: TranscriptItem): ItemAddress {
   return { sessionKey, entryId: item.entryId, part: item.part };
 }
 
-/** The item of `items` that `address` is the address of, or undefined when it is the address of none (Section 5). */
+/** The item of `items` that `address` is the address of, or undefined when it is the address of none (specs/session-transcript.md#item-address). */
 export function resolveItem(
   items: readonly TranscriptItem[],
   address: ItemAddress,
@@ -1107,10 +1107,10 @@ export function resolveItem(
 }
 
 // ---------------------------------------------------------------------------
-// Section 6: transcript order and file order
+// specs/session-transcript.md#transcript-order: transcript order and file order
 // ---------------------------------------------------------------------------
 
-/** An item with the session it belongs to, for transcript order (Section 6). */
+/** An item with the session it belongs to, for transcript order (specs/session-transcript.md#transcript-order). */
 export interface SessionItem {
   /** The session key relative to the invoking session. */
   sessionKey: string;
@@ -1118,7 +1118,7 @@ export interface SessionItem {
   sessionPath: string;
   /**
    * The session file's path with symbolic links resolved, when the caller has it;
-   * the comparator resolves `sessionPath` when it is absent (Section 6).
+   * the comparator resolves `sessionPath` when it is absent (specs/session-transcript.md#transcript-order).
    */
   resolvedPath?: string | undefined;
   /** The transcript item. */
@@ -1126,7 +1126,7 @@ export interface SessionItem {
 }
 
 /**
- * File order (Section 6): the order of one session's items by line number, then
+ * File order (specs/session-transcript.md#transcript-order): the order of one session's items by line number, then
  * part as numbers with `error` last.
  */
 export function compareFileOrder(a: TranscriptItem, b: TranscriptItem): number {
@@ -1135,7 +1135,7 @@ export function compareFileOrder(a: TranscriptItem, b: TranscriptItem): number {
 }
 
 /**
- * Part order (Sections 2 and 6): `0`, `1`, `2`, … as numbers, `error` last. An
+ * Part order (specs/session-transcript.md#transcript-items and specs/session-transcript.md#transcript-order): `0`, `1`, `2`, … as numbers, `error` last. An
  * item without a part precedes every part; one entry never yields both.
  */
 export function compareParts(a: string | undefined, b: string | undefined): number {
@@ -1147,7 +1147,7 @@ export function compareParts(a: string | undefined, b: string | undefined): numb
 }
 
 /**
- * Transcript order (Section 6): ascending `time`, then ascending session key, then
+ * Transcript order (specs/session-transcript.md#transcript-order): ascending `time`, then ascending session key, then
  * ascending session file path with symbolic links resolved for equal keys of
  * different sessions, then line number, then part.
  */
@@ -1160,7 +1160,7 @@ export function compareTranscriptOrder(a: SessionItem, b: SessionItem): number {
   return compareFileOrder(a.item, b.item);
 }
 
-/** The session file path a placed item is ordered by: its resolved path (Section 6). */
+/** The session file path a placed item is ordered by: its resolved path (specs/session-transcript.md#transcript-order). */
 function placedPath(placed: SessionItem): string {
   return placed.resolvedPath ?? realPath(placed.sessionPath);
 }

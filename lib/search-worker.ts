@@ -1,9 +1,8 @@
 /**
- * The regular-expression evaluator of the `Search` tool (specs/search-tool.md,
- * Section 3.3): a worker thread that matches one pattern against item match texts
+ * The regular-expression evaluator of the `Search` tool (specs/search-tool.md#evaluation): a worker thread that matches one pattern against item match texts
  * and posts each position as soon as it is computed, so the main thread knows
  * exactly which items were decided when a pattern that backtracks without end is
- * terminated mid-item (Section 2.3). The thread is created and terminated by
+ * terminated mid-item (specs/search-tool.md#abort). The thread is created and terminated by
  * `lib/search-tool.ts`, the way `lib/script-runner.ts` drives its worker.
  *
  * Protocol: a message `{ id, texts }` is answered by one `{ id, index, at }` per

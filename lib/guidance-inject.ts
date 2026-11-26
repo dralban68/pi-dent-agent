@@ -30,7 +30,7 @@ function extractEntryText(content: unknown): string | undefined {
  * Determine the guidance message content to inject into the main session, or
  * undefined if no content is produced (guidanceContent is empty) or the latest
  * guidance message after the latest compaction entry (the whole branch without
- * one) already has that text (specs/model-guidance.md Section 5).
+ * one) already has that text (specs/model-guidance.md#guidance-message).
  */
 export function guidanceToInject(
   guidance: ModelGuidance,

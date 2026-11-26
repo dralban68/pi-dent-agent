@@ -11,7 +11,7 @@ import { type Diagnostic, errorMessage } from "./util.ts";
 
 /**
  * The guidance message injection triggers of one extension instance
- * (specs/model-guidance.md Section 5, specs/billing.md Section 4): when to
+ * (specs/model-guidance.md#guidance-message, specs/billing.md#queries): when to
  * inject, the cached query before computing, the deferred `session_start`
  * injection, and the instance's billing service.
  */
@@ -41,7 +41,7 @@ export interface GuidanceControllerDeps {
   timeZone?: string;
   timers?: Timers;
   now?: () => number;
-  /** Where a failure that is not a query outcome goes (billing.md Section 4.5). */
+  /** Where a failure that is not a query outcome goes (specs/billing.md#diagnostics). */
   diagnostics?: (diagnostic: Diagnostic) => void;
 }
 
@@ -70,7 +70,7 @@ export class GuidanceController {
       : undefined;
   }
 
-  /** Report a failure that is not a query outcome (billing.md Section 4.5). */
+  /** Report a failure that is not a query outcome (specs/billing.md#diagnostics). */
   private reportFailure(message: string): void {
     this.diagnostics?.({ level: "warning", message });
   }

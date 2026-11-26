@@ -1,10 +1,10 @@
 /**
  * How the extension writes and reads the task ledger (specs/task-ledger.md): the ledger of the
- * extension instance, each task row's link to its ledger row, the parent row (Section 3.1), the
- * writes a task registry's changes make (Section 3.2), and the figures the `Task` and `Session`
- * tools show (task-tool.md Section 2.3, session-tool.md Section 2).
+ * extension instance, each task row's link to its ledger row, the parent row (specs/task-ledger.md#parent-row), the
+ * writes a task registry's changes make (specs/task-ledger.md#write-rules), and the figures the `Task` and `Session`
+ * tools show (specs/task-tool.md#list, specs/session-tool.md#result).
  *
- * Every write returns at once (task-ledger.md Section 5): nothing here waits on the ledger except
+ * Every write returns at once (specs/task-ledger.md#concurrent-access): nothing here waits on the ledger except
  * a surface's read.
  */
 
@@ -24,22 +24,22 @@ import { AgentTaskRow, ScriptTaskRow, toolCallsOf, type TaskRow } from "./task-r
 import { isPlainObject } from "./util.ts";
 import { formatUsage, type UsageSum } from "./usage.ts";
 
-/** A task row's ledger row: the ledger it is in and how to find it (Section 2.2). */
+/** A task row's ledger row: the ledger it is in and how to find it (specs/task-ledger.md#ledger-row). */
 export interface LedgerLink {
   readonly ledger: TaskLedger;
-  /** The `row_id`, or for a rebuilt row the key of Section 4.2. */
+  /** The `row_id`, or for a rebuilt row the key of specs/task-ledger.md#rebuild. */
   readonly ref: LedgerRowRef;
-  /** `label`, `agent`, `model`, and `session_path` as last written (Section 3.2). */
+  /** `label`, `agent`, `model`, and `session_path` as last written (specs/task-ledger.md#write-rules). */
   written: LedgerTaskAmend;
 }
 
-/** The extension instance's ledger, opened at its main session's first `session_start` (Section 1). */
+/** The extension instance's ledger, opened at its main session's first `session_start` (specs/task-ledger.md#location). */
 export class LedgerHolder {
   ledger: TaskLedger | undefined;
 }
 
 /**
- * The nested calls of one session (Section 3.1, rule 1): the calling tool call of each running
+ * The nested calls of one session (specs/task-ledger.md#parent-row, rule 1): the calling tool call of each running
  * nested call, as the host reports it, and the `Script` row each `Script` call registered.
  */
 export class NestedCalls {
@@ -75,10 +75,10 @@ export class NestedCalls {
   }
 }
 
-/** Where the rows of one session's task registries go (Sections 2.2 and 3.1). */
+/** Where the rows of one session's task registries go (specs/task-ledger.md#ledger-row and specs/task-ledger.md#parent-row). */
 export interface LedgerScope {
   holder: LedgerHolder;
-  /** The ledger session ID of the session (Section 2). */
+  /** The ledger session ID of the session (specs/task-ledger.md#schema). */
   sessionId: () => string | undefined;
   /** The session's working directory. */
   cwd: () => string | undefined;
@@ -104,7 +104,7 @@ function rowIdOf(row: TaskRow | undefined): string | undefined {
   return typeof ref === "string" ? ref : undefined;
 }
 
-/** The values an amend writes (Section 3.2); a script row keeps the tool log path it was given. */
+/** The values an amend writes (specs/task-ledger.md#write-rules); a script row keeps the tool log path it was given. */
 function amendValues(row: TaskRow, sessionPath?: string): LedgerTaskAmend {
   if (row instanceof AgentTaskRow) {
     return { label: row.label, agent: row.agent, model: row.model, sessionPath: row.sessionPath };
@@ -121,7 +121,7 @@ function sameValues(a: LedgerTaskAmend, b: LedgerTaskAmend): boolean {
   );
 }
 
-/** The writes of Section 3.2 that a task registry's `register`, `amend`, and `settle` make. */
+/** The writes of specs/task-ledger.md#write-rules that a task registry's `register`, `amend`, and `settle` make. */
 export class LedgerTap implements TaskObserver {
   private readonly scope: LedgerScope;
 
@@ -185,14 +185,14 @@ export class LedgerTap implements TaskObserver {
   }
 }
 
-/** The task's pre-start checks passed (Section 3.2): `cwd` is the working directory it runs in. */
+/** The task's pre-start checks passed (specs/task-ledger.md#write-rules): `cwd` is the working directory it runs in. */
 export function ledgerDispatched(row: TaskRow, cwd: string, resume?: LedgerResume): void {
   const link = row.ledger;
   if (link === undefined || typeof link.ref !== "string") return;
   link.ledger.markDispatched(link.ref, { cwd, resume });
 }
 
-/** A `script` row's tool log was created (Section 3.2): its path is the row's `session_path`. */
+/** A `script` row's tool log was created (specs/task-ledger.md#write-rules): its path is the row's `session_path`. */
 export function ledgerToolLog(row: TaskRow, path: string): void {
   const link = row.ledger;
   if (link === undefined || typeof link.ref !== "string") return;
@@ -201,10 +201,10 @@ export function ledgerToolLog(row: TaskRow, path: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// The ledger session row (Section 3.3)
+// The ledger session row (specs/task-ledger.md#session-row-writes)
 // ---------------------------------------------------------------------------
 
-/** The host's session entries and header, as the ledger session row reads them (Section 2.1). */
+/** The host's session entries and header, as the ledger session row reads them (specs/task-ledger.md#session-row). */
 export interface HostSessionEntries {
   getEntries(): readonly unknown[];
   getHeader(): unknown;
@@ -247,7 +247,7 @@ function entryOf(value: unknown): LedgerSessionEntry | undefined {
 }
 
 /**
- * The usage sum and tool-call count of the main session's ledger session row (Section 2.1);
+ * The usage sum and tool-call count of the main session's ledger session row (specs/task-ledger.md#session-row);
  * `ended` is the message whose end the host is reporting, counted when the host has not saved it
  * yet.
  */
@@ -262,7 +262,7 @@ export function hostSessionFigures(
     const entry = entryOf(raw);
     if (entry !== undefined) entries.push(entry);
   }
-  // The host reports a message's end before it saves the message (Section 3.3): count it as the
+  // The host reports a message's end before it saves the message (specs/task-ledger.md#session-row-writes): count it as the
   // entry the host is about to append.
   if (ended !== undefined && !saved) {
     const entry = entryOf({ type: "message", timestamp: new Date().toISOString(), message: ended });
@@ -282,7 +282,7 @@ export function hostSessionFigures(
 }
 
 // ---------------------------------------------------------------------------
-// Surfaces (task-tool.md Section 2.3, session-tool.md Section 2)
+// Surfaces (specs/task-tool.md#list, specs/session-tool.md#result)
 // ---------------------------------------------------------------------------
 
 /** The outcome of a surface's read of row figures. */
@@ -311,7 +311,7 @@ export async function readTaskFigures(
   return { status: "ok", figures };
 }
 
-/** `<figures>` of a `Task` `list` line (task-tool.md Section 2.3). */
+/** `<figures>` of a `Task` `list` line (specs/task-tool.md#list). */
 export function figuresText(
   row: TaskRow,
   read: TaskFiguresRead,
@@ -329,7 +329,7 @@ export function figuresText(
   return { text: parts.join(" · "), figures };
 }
 
-/** The `Session` tool's usage report (session-tool.md Section 2). */
+/** The `Session` tool's usage report (specs/session-tool.md#result). */
 export interface SessionUsageReport {
   ledger: "ok" | "unavailable" | "busy" | "missing";
   usage: { own: UsageSum; tasks: { count: number; usage: UsageSum }; total: UsageSum } | null;
@@ -342,7 +342,7 @@ export interface SessionLedgerSource {
   row?: TaskRow | undefined;
 }
 
-/** One read of the session's usage figures (session-tool.md Section 2). */
+/** One read of the session's usage figures (specs/session-tool.md#result). */
 export async function readSessionUsage(
   source: SessionLedgerSource,
   sessionId: string,
@@ -370,7 +370,7 @@ export async function readSessionUsage(
   };
 }
 
-/** The usage lines of the `Session` tool's text (session-tool.md Section 2). */
+/** The usage lines of the `Session` tool's text (specs/session-tool.md#result). */
 export function sessionUsageLines(report: SessionUsageReport): string[] {
   const usage = report.usage;
   if (report.ledger !== "ok" || usage === null) {

@@ -1,9 +1,9 @@
 /**
  * Session index per specs/session-index.md: the SQLite file that keeps, per
  * session file, the consumed bytes of its entries and the transcript items they
- * yield (Section 2), brought up to the file by a catch-up (Section 3), shared by
- * several processes (Section 4), reported unusable or failed instead of thrown
- * (Section 5), and pruned of deleted files (Section 6).
+ * yield (specs/session-index.md#schema), brought up to the file by a catch-up (specs/session-index.md#catch-up), shared by
+ * several processes (specs/session-index.md#concurrent-access), reported unusable or failed instead of thrown
+ * (specs/session-index.md#failures), and pruned of deleted files (specs/session-index.md#index-prune).
  *
  * Every outcome the specification names is a return value: `openSessionIndex`
  * reports an unusable index with its reason, `catchUp` reports a complete,
@@ -11,7 +11,7 @@
  * outcome so that an empty answer and a failure cannot be confused. Catch-up and
  * the conditional reset are asynchronous: they yield to the event loop between
  * transactions and between busy attempts, so an abort, a `stop()` or a deadline
- * is observed while another process holds the write lock (Section 4).
+ * is observed while another process holds the write lock (specs/session-index.md#concurrent-access).
  */
 
 import { createHash } from "node:crypto";
@@ -43,62 +43,62 @@ import {
 import { errorMessage, isPlainObject } from "./util.ts";
 
 // ---------------------------------------------------------------------------
-// Section 1: location and format
+// specs/session-index.md#location: location and format
 // ---------------------------------------------------------------------------
 
-/** The environment variable that names the index file (Section 1). */
+/** The environment variable that names the index file (specs/session-index.md#location). */
 export const SEARCH_DB_ENV = "PI_DENT_SEARCH_DB";
 
-/** The environment variable that names the session store's file (session-store.md, Section 1). */
+/** The environment variable that names the session store's file (specs/session-store.md#location). */
 export const STORE_DB_ENV = "PI_DENT_FLEET_DB";
 
-/** The index file's name under `~/.pi/pi-dent/` (Section 1). */
+/** The index file's name under `~/.pi/pi-dent/` (specs/session-index.md#location). */
 export const INDEX_FILE_NAME = "search-v3.sqlite";
 
-/** The session store's file name under `~/.pi/pi-dent/` (session-store.md, Section 1). */
+/** The session store's file name under `~/.pi/pi-dent/` (specs/session-store.md#location). */
 const STORE_FILE_NAME = "fleet-v2.sqlite";
 
-/** The format version recorded in `user_version` (Section 1). */
+/** The format version recorded in `user_version` (specs/session-index.md#location). */
 export const FORMAT_VERSION = 3;
 
-/** The busy timeout in milliseconds (Section 1). */
+/** The busy timeout in milliseconds (specs/session-index.md#location). */
 const BUSY_TIMEOUT_MS = 1000;
 
-/** The busy timeout of one attempt of a retried transaction: short, so an abort is seen quickly (Section 4). */
+/** The busy timeout of one attempt of a retried transaction: short, so an abort is seen quickly (specs/session-index.md#concurrent-access). */
 const BUSY_ATTEMPT_MS = 20;
 
-/** The awaited pause between two attempts of a retried transaction (Section 4). */
+/** The awaited pause between two attempts of a retried transaction (specs/session-index.md#concurrent-access). */
 const BUSY_RETRY_DELAY_MS = 20;
 
-/** The most bytes one catch-up transaction extends the consumed bytes by (Section 3). */
+/** The most bytes one catch-up transaction extends the consumed bytes by (specs/session-index.md#catch-up). */
 const TRANSACTION_BYTE_LIMIT = 8388608;
 
-/** The most `files` rows one prune transaction covers (Section 6). */
+/** The most `files` rows one prune transaction covers (specs/session-index.md#index-prune). */
 const PRUNE_FILES_PER_TRANSACTION = 100;
 
-/** The most bytes read at a time while scanning the region of one transaction (Section 3). */
+/** The most bytes read at a time while scanning the region of one transaction (specs/session-index.md#catch-up). */
 const READ_CHUNK_BYTES = 1048576;
 
 /**
  * The most items of the searched files for which the trigram narrowing probes the
  * full-text index item by item instead of scanning its trigram lists once
- * ([search-tool.md](search-tool.md), Section 3.3): probing costs about 15 µs per
+ * (specs/search-tool.md#evaluation): probing costs about 15 µs per
  * searched item and does not grow with the index, while a list scan grows with it.
  */
 const TRIGRAM_PROBE_LIMIT = 2000;
 
-/** The item IDs one trigram probe statement checks ([search-tool.md](search-tool.md), Section 3.3). */
+/** The item IDs one trigram probe statement checks (specs/search-tool.md#evaluation). */
 const PROBE_CHUNK = 20000;
 
-/** The most item IDs a probe looks up one by one; more are matched by one streamed range (Section 2). */
+/** The most item IDs a probe looks up one by one; more are matched by one streamed range (specs/session-index.md#schema). */
 const PROBE_BY_ID_MAX = 1000;
 
-/** The SQLite error codes of Section 5, as their base values. */
+/** The SQLite error codes of specs/session-index.md#failures, as their base values. */
 const SQLITE_BUSY = 5;
 const SQLITE_CORRUPT = 11;
 const SQLITE_NOTADB = 26;
 
-/** The schema of Section 2, verbatim. */
+/** The schema of specs/session-index.md#schema, verbatim. */
 const SCHEMA = `
 CREATE TABLE files (
   file_id            INTEGER PRIMARY KEY,
@@ -145,10 +145,10 @@ CREATE VIRTUAL TABLE item_text USING fts5 (
 );
 `;
 
-/** The most code points of a first user line (Section 2). */
+/** The most code points of a first user line (specs/session-index.md#schema). */
 const USER_LINE_CODE_POINTS = 80;
 
-/** The index file's path: `PI_DENT_SEARCH_DB` when set and non-empty, else `~/.pi/pi-dent/search-v3.sqlite` (Section 1). */
+/** The index file's path: `PI_DENT_SEARCH_DB` when set and non-empty, else `~/.pi/pi-dent/search-v3.sqlite` (specs/session-index.md#location). */
 export function searchIndexPath(
   env: Readonly<Record<string, string | undefined>> = process.env,
   home: string = homedir(),
@@ -159,9 +159,9 @@ export function searchIndexPath(
 }
 
 /**
- * The session store's path, which the index MUST NOT share (Section 1): `PI_DENT_FLEET_DB`
- * when set and non-empty, else `~/.pi/pi-dent/fleet-v2.sqlite` (session-store.md, Section 1).
- * The store's module owns this resolution; it is repeated here because Section 1 makes
+ * The session store's path, which the index MUST NOT share (specs/session-index.md#location): `PI_DENT_FLEET_DB`
+ * when set and non-empty, else `~/.pi/pi-dent/fleet-v2.sqlite` (specs/session-store.md#location).
+ * The store's module owns this resolution; it is repeated here because specs/session-index.md#location makes
  * the index responsible for not being the store's file.
  */
 export function sessionStorePath(
@@ -173,25 +173,25 @@ export function sessionStorePath(
   return join(home, ".pi", "pi-dent", STORE_FILE_NAME);
 }
 
-/** How the opener treats the file: the index opener creates and repairs, the prune opener does neither (Section 6). */
+/** How the opener treats the file: the index opener creates and repairs, the prune opener does neither (specs/session-index.md#index-prune). */
 type OpenMode = "index" | "prune";
 
-/** How an index is opened (Section 1). */
+/** How an index is opened (specs/session-index.md#location). */
 export interface SessionIndexOptions {
-  /** The index file's path. Default: `searchIndexPath()` (Section 1). */
+  /** The index file's path. Default: `searchIndexPath()` (specs/session-index.md#location). */
   path?: string | undefined;
-  /** The SQLite busy timeout in milliseconds. Default 1000 (Section 1). */
+  /** The SQLite busy timeout in milliseconds. Default 1000 (specs/session-index.md#location). */
   busyTimeoutMs?: number | undefined;
-  /** How the opener treats the file. Default `index`; the prune passes `prune` (Section 6). */
+  /** How the opener treats the file. Default `index`; the prune passes `prune` (specs/session-index.md#index-prune). */
   mode?: OpenMode | undefined;
-  /** The session store's path, which the index must not share. Default `sessionStorePath()` (Section 1). */
+  /** The session store's path, which the index must not share. Default `sessionStorePath()` (specs/session-index.md#location). */
   storePath?: string | undefined;
 }
 
-/** The outcome of opening an index: usable, or unusable with the reason of Section 5. */
+/** The outcome of opening an index: usable, or unusable with the reason of specs/session-index.md#failures. */
 export type SessionIndexOpen = { ok: true; index: SessionIndex } | { ok: false; reason: string };
 
-/** A `files` row (Section 2). */
+/** A `files` row (specs/session-index.md#schema). */
 export interface IndexFileRow {
   /** `file_id`, assigned by the database at insertion. */
   fileId: number;
@@ -219,7 +219,7 @@ export interface IndexFileRow {
   firstUserMessage: string | null;
 }
 
-/** The session title of one session file (Section 7). */
+/** The session title of one session file (specs/session-index.md#session-titles). */
 export interface SessionTitle {
   sessionName: string | null;
   firstUserMessage: string | null;
@@ -227,7 +227,7 @@ export interface SessionTitle {
   complete: boolean;
 }
 
-/** One `items` row with the `entries` and `files` columns a reader needs (Section 2). */
+/** One `items` row with the `entries` and `files` columns a reader needs (specs/session-index.md#schema). */
 export interface IndexItemRow {
   /** `item_id`, assigned by the database at insertion. */
   itemId: number;
@@ -239,7 +239,7 @@ export interface IndexItemRow {
   line: number;
   /** The item's part, or the empty string when it has none. */
   part: string;
-  /** The item kind ([session-transcript.md](session-transcript.md), Section 2). */
+  /** The item kind (specs/session-transcript.md#transcript-items). */
   kind: string;
   /** The tool name with `A-Z` lowercased for a `tool_call` or `tool_result` item, else null. */
   tool: string | null;
@@ -257,16 +257,16 @@ export interface IndexItemRow {
   bytes: number;
   /** True when the entry is on the current lineage of the consumed bytes. */
   lineage: boolean;
-  /** The `consumed` of the file's `files` row when the row was read (Section 3). */
+  /** The `consumed` of the file's `files` row when the row was read (specs/session-index.md#catch-up). */
   consumed: number;
-  /** The `tail_hash` of the file's `files` row when the row was read (Section 3). */
+  /** The `tail_hash` of the file's `files` row when the row was read (specs/session-index.md#catch-up). */
   tailHash: string;
 }
 
-/** The outcome of a catch-up (Section 3). */
+/** The outcome of a catch-up (specs/session-index.md#catch-up). */
 export type CatchUpStatus = "complete" | "incomplete" | "failed-write" | "unusable" | "not-session";
 
-/** What a catch-up reports (Sections 3 and 5). */
+/** What a catch-up reports (specs/session-index.md#catch-up and specs/session-index.md#failures). */
 export interface CatchUpOutcome {
   /** `complete` when no line feed is left between the consumed bytes and the file's size. */
   status: CatchUpStatus;
@@ -278,7 +278,7 @@ export interface CatchUpOutcome {
   transactions: number;
 }
 
-/** How a catch-up is stopped (Sections 3 and 4). */
+/** How a catch-up is stopped (specs/session-index.md#catch-up and specs/session-index.md#concurrent-access). */
 export interface CatchUpOptions {
   /** The instant, milliseconds since the Unix epoch, at which no further transaction starts. */
   deadline?: number | undefined;
@@ -288,7 +288,7 @@ export interface CatchUpOptions {
   aborted?: (() => boolean) | undefined;
 }
 
-/** The filters a reader applies to one session's items ([search-tool.md](search-tool.md), Section 3.1). */
+/** The filters a reader applies to one session's items (specs/search-tool.md#candidates). */
 export interface ItemFilter {
   /** Only items of this entry ID. */
   entryId?: string | undefined;
@@ -310,22 +310,22 @@ export interface ItemFilter {
   limit?: number | undefined;
 }
 
-/** The outcome of one read: its value, or the reason the index could not give it (Section 5). */
+/** The outcome of one read: its value, or the reason the index could not give it (specs/session-index.md#failures). */
 export type ReadOutcome<T> = { ok: true; value: T } | { ok: false; reason: string };
 
-/** The rows of one read transaction, or the reason the index could not give them (Section 5). */
+/** The rows of one read transaction, or the reason the index could not give them (specs/session-index.md#failures). */
 export type SnapshotOutcome<T> = ReadOutcome<T>;
 
-/** The two kinds that pair through a tool-call ID ([session-transcript.md](session-transcript.md), Section 2). */
+/** The two kinds that pair through a tool-call ID (specs/session-transcript.md#transcript-items). */
 export type ToolPairKind = "tool_call" | "tool_result";
 
-/** The read methods of one evaluation: they must be called in one read transaction (Section 4). */
+/** The read methods of one evaluation: they must be called in one read transaction (specs/session-index.md#concurrent-access). */
 export interface IndexView {
   /** Every `files` row, in ascending `path` order. */
   files(): ReadOutcome<IndexFileRow[]>;
   /** The `files` row of one session file, its symbolic links resolved; its value is undefined when there is none. */
   fileFor(path: string): ReadOutcome<IndexFileRow | undefined>;
-  /** The items of one file in file order ([session-transcript.md](session-transcript.md), Section 6). */
+  /** The items of one file in file order (specs/session-transcript.md#transcript-order). */
   listItems(fileId: number, filter?: ItemFilter): ReadOutcome<IndexItemRow[]>;
   /** The item of one entry and part of one file; its value is undefined when there is none. */
   findItem(
@@ -335,8 +335,7 @@ export interface IndexView {
   ): ReadOutcome<IndexItemRow | undefined>;
   /**
    * The first item of `kind` with this tool-call ID in file order, the partner of an
-   * addressed `tool_call` or `tool_result` item ([session-transcript.md](session-transcript.md),
-   * Section 2); its value is undefined when there is none.
+   * addressed `tool_call` or `tool_result` item (specs/session-transcript.md#transcript-items); its value is undefined when there is none.
    */
   pairedItem(
     fileId: number,
@@ -346,7 +345,7 @@ export interface IndexView {
   /**
    * The item IDs whose match text matches every trigram, or undefined without
    * trigrams. With `detail = none` a query of more than three characters is an
-   * AND of single-trigram terms ([search-tool.md](search-tool.md), Section 3.3).
+   * AND of single-trigram terms (specs/search-tool.md#evaluation).
    */
   matchingItemIds(
     trigrams: readonly string[],
@@ -354,10 +353,10 @@ export interface IndexView {
   ): ReadOutcome<ReadonlySet<number> | undefined>;
 }
 
-/** One item read back from its session file (Section 3). */
+/** One item read back from its session file (specs/session-index.md#catch-up). */
 export type ItemRead = { status: "item"; item: TranscriptItem } | { status: "stale" };
 
-/** The filters and bounds of one candidate read ([search-tool.md](search-tool.md), Section 3.3). */
+/** The filters and bounds of one candidate read (specs/search-tool.md#evaluation). */
 export interface CandidateFilter {
   /** True: from the newest item down; false: from the oldest up. */
   newest: boolean;
@@ -390,7 +389,7 @@ export interface CandidateFilter {
   /**
    * True: the files are a large part of the index, and `fileIds` only filters the
    * rows the time order yields, rather than leading the read through the file
-   * index ([search-tool.md](search-tool.md), Section 2.3).
+   * index (specs/search-tool.md#abort).
    */
   fileIdsFilterOnly?: boolean | undefined;
   /** Only items of lines at or below this number, so that a chunk of one time group never splits a line. */
@@ -403,9 +402,9 @@ export interface CandidateFilter {
 
 /**
  * One page of candidates with what the reader uses of their files
- * ([search-tool.md](search-tool.md), Section 2.2): the rows, the `files` rows of
+ * (specs/search-tool.md#coverage): the rows, the `files` rows of
  * their files, and the `item_text` matches of the rows, all from one read
- * transaction (Section 4).
+ * transaction (specs/session-index.md#concurrent-access).
  */
 export interface CandidatePage {
   /** The candidate rows, in ascending or descending `time` order as asked. */
@@ -418,7 +417,7 @@ export interface CandidatePage {
   overflow: boolean;
 }
 
-/** The outcome of a conditional reset (Section 3). */
+/** The outcome of a conditional reset (specs/session-index.md#catch-up). */
 export type ResetOutcome =
   | { status: "reset" }
   | { status: "unchanged" }
@@ -426,7 +425,7 @@ export type ResetOutcome =
   | { status: "failed-write"; reason: string }
   | { status: "unusable"; reason: string };
 
-/** What a continuation of catch-up reports ([search-tool.md](search-tool.md), Section 2.2). */
+/** What a continuation of catch-up reports (specs/search-tool.md#coverage). */
 export interface ContinuationOutcome {
   status: "complete" | "stopped" | "failed-write" | "unusable";
   reason: string | undefined;
@@ -440,7 +439,7 @@ export interface CatchUpContinuation {
   stop(): void;
 }
 
-/** The outcome of an index prune (Section 6). */
+/** The outcome of an index prune (specs/session-index.md#index-prune). */
 export interface PruneOutcome {
   /** The number of `files` rows deleted. */
   files: number;
@@ -449,17 +448,17 @@ export interface PruneOutcome {
 }
 
 // ---------------------------------------------------------------------------
-// Opening (Sections 1 and 5)
+// Opening (specs/session-index.md#location and specs/session-index.md#failures)
 // ---------------------------------------------------------------------------
 
-/** Open the session index (Sections 1 and 5): the usable index, or the reason it is unusable. */
+/** Open the session index (specs/session-index.md#location and specs/session-index.md#failures): the usable index, or the reason it is unusable. */
 export function openSessionIndex(options: SessionIndexOptions = {}): SessionIndexOpen {
   const index = new SessionIndex(options);
   const reason = index.start();
   return reason === undefined ? { ok: true, index } : { ok: false, reason };
 }
 
-/** A file's size and modification time, read once at the start of a catch-up (Section 3). */
+/** A file's size and modification time, read once at the start of a catch-up (specs/session-index.md#catch-up). */
 interface FileStamp {
   size: number;
   mtime: number;
@@ -471,14 +470,14 @@ type TryOpen =
   | { kind: "corrupt"; message: string }
   | { kind: "unusable"; reason: string };
 
-/** The outcome of one write transaction (Sections 4 and 5). */
+/** The outcome of one write transaction (specs/session-index.md#concurrent-access and specs/session-index.md#failures). */
 type TransactionOutcome<T> =
   | { kind: "ok"; value: T }
   | { kind: "stopped" }
   | { kind: "failed-write"; reason: string }
   | { kind: "unusable"; reason: string };
 
-/** The outcome of one catch-up transaction (Section 3). */
+/** The outcome of one catch-up transaction (specs/session-index.md#catch-up). */
 type StepOutcome =
   | { kind: "complete"; bytesRead: number }
   | { kind: "progress"; bytesRead: number; advanced: number }
@@ -500,7 +499,7 @@ interface NewFileRow {
   tailHash: string;
 }
 
-/** The bytes of one transaction's region, read once, and how many of them a read consumes (Section 3). */
+/** The bytes of one transaction's region, read once, and how many of them a read consumes (specs/session-index.md#catch-up). */
 interface RegionRead {
   bytes: Buffer;
   consumed: number;
@@ -508,7 +507,7 @@ interface RegionRead {
   cutAtLineFeed: boolean;
 }
 
-/** The `parent_id` and `lineage` of one entry, for the incremental lineage (Section 3). */
+/** The `parent_id` and `lineage` of one entry, for the incremental lineage (specs/session-index.md#catch-up). */
 interface LineageRow {
   parentId: string | null;
   lineage: boolean;
@@ -518,12 +517,12 @@ interface LineageRow {
  * The session index of one tool call: an open SQLite file, the catch-up that
  * brings one session file's rows up to the file, and the reads
  * [search-tool.md](search-tool.md) answers from. Every specified outcome is a
- * return value; nothing is thrown for a failure of the index (Section 5).
+ * return value; nothing is thrown for a failure of the index (specs/session-index.md#failures).
  */
 export class SessionIndex implements IndexView {
-  /** The index file's path (Section 1). */
+  /** The index file's path (specs/session-index.md#location). */
   readonly path: string;
-  /** The SQLite busy timeout in milliseconds: 1000 unless injected (Section 1). */
+  /** The SQLite busy timeout in milliseconds: 1000 unless injected (specs/session-index.md#location). */
   readonly busyTimeoutMs: number;
   private readonly mode: OpenMode;
   private readonly storePath: string;
@@ -545,35 +544,35 @@ export class SessionIndex implements IndexView {
 
   /**
    * Use the file at the index path when it was replaced or deleted since the index
-   * was opened (Section 1): true when the index is usable afterwards. A caller
+   * was opened (specs/session-index.md#location): true when the index is usable afterwards. A caller
    * compares `generation` only after this, so that a replaced file is seen first.
    */
   refreshNow(): boolean {
     return this.refresh() === undefined;
   }
 
-  /** The number of times this call has opened the index file; it grows when the file was opened anew (Section 5). */
+  /** The number of times this call has opened the index file; it grows when the file was opened anew (specs/session-index.md#failures). */
   get generation(): number {
     return this.openings;
   }
 
-  /** The reason the index is unusable for the rest of the call, or undefined (Section 5). */
+  /** The reason the index is unusable for the rest of the call, or undefined (specs/session-index.md#failures). */
   unusableReason(): string | undefined {
     return this.unusable;
   }
 
-  /** The reason of the call's first failed write, or undefined (Sections 4 and 5). */
+  /** The reason of the call's first failed write, or undefined (specs/session-index.md#concurrent-access and specs/session-index.md#failures). */
   failedWriteReason(): string | undefined {
     return this.failedWrite;
   }
 
-  /** Close the file; a call does this when it is done with the index (Section 4). */
+  /** Close the file; a call does this when it is done with the index (specs/session-index.md#concurrent-access). */
   close(): void {
     this.closeDatabase();
   }
 
   // -------------------------------------------------------------------------
-  // Section 1: opening the file and creating the schema
+  // specs/session-index.md#location: opening the file and creating the schema
   // -------------------------------------------------------------------------
 
   /** Open the index file; returns the reason it is unusable, or undefined when it is usable. */
@@ -582,7 +581,7 @@ export class SessionIndex implements IndexView {
   }
 
   private openDatabase(): string | undefined {
-    // Section 5: the index path MUST NOT name the session store's file, and the file is not opened then.
+    // specs/session-index.md#failures: the index path MUST NOT name the session store's file, and the file is not opened then.
     if (sameFile(this.path, this.storePath)) {
       return this.markUnusable("the index file is the session store file");
     }
@@ -610,13 +609,13 @@ export class SessionIndex implements IndexView {
 
   /**
    * One opening attempt. The version is read on a read-only connection first, so a
-   * file that is not used is not changed (Section 5); the schema of Section 2 is
-   * created only for a version-0 file without a table, in one transaction (Section 1).
+   * file that is not used is not changed (specs/session-index.md#failures); the schema of specs/session-index.md#schema is
+   * created only for a version-0 file without a table, in one transaction (specs/session-index.md#location).
    */
   private tryOpen(): TryOpen {
     const exists = statFile(this.path) !== undefined;
     if (!exists) {
-      // Section 6: the prune MUST NOT create the index file when it is absent.
+      // specs/session-index.md#index-prune: the prune MUST NOT create the index file when it is absent.
       if (this.mode === "prune") return { kind: "unusable", reason: "the index file is absent" };
       return this.createIndex();
     }
@@ -633,7 +632,7 @@ export class SessionIndex implements IndexView {
     return { kind: "unusable", reason: `unsupported index version ${probe.version}` };
   }
 
-  /** The version and table count of an existing file, read on a read-only connection (Section 5). */
+  /** The version and table count of an existing file, read on a read-only connection (specs/session-index.md#failures). */
   private probe():
     | { kind: "version"; version: number; tables: number }
     | { kind: "corrupt"; message: string }
@@ -661,7 +660,7 @@ export class SessionIndex implements IndexView {
     }
   }
 
-  /** Open an existing index read-write and use it; any other version is unusable (Section 1, step 3). */
+  /** Open an existing index read-write and use it; any other version is unusable (specs/session-index.md#location, step 3). */
   private openExisting(): TryOpen {
     let db: DatabaseSync;
     try {
@@ -691,7 +690,7 @@ export class SessionIndex implements IndexView {
     }
   }
 
-  /** Create the file and the schema of Section 2, the check and the creation in one transaction (Section 1, step 2). */
+  /** Create the file and the schema of specs/session-index.md#schema, the check and the creation in one transaction (specs/session-index.md#location, step 2). */
   private createIndex(): TryOpen {
     let db: DatabaseSync;
     try {
@@ -761,7 +760,7 @@ export class SessionIndex implements IndexView {
     return reason;
   }
 
-  /** Delete the file and its `-wal` and `-shm` companions (Section 5). */
+  /** Delete the file and its `-wal` and `-shm` companions (specs/session-index.md#failures). */
   private deleteIndexFiles(): void {
     this.closeDatabase();
     for (const path of [this.path, `${this.path}-wal`, `${this.path}-shm`]) {
@@ -773,7 +772,7 @@ export class SessionIndex implements IndexView {
     }
   }
 
-  /** Use the file at the path when a call starts; a deleted or replaced file is opened anew (Section 1). */
+  /** Use the file at the path when a call starts; a deleted or replaced file is opened anew (specs/session-index.md#location). */
   private refresh(): string | undefined {
     if (this.unusable !== undefined) return this.unusable;
     const stat = statFile(this.path);
@@ -783,10 +782,10 @@ export class SessionIndex implements IndexView {
   }
 
   // -------------------------------------------------------------------------
-  // Section 3: catch-up
+  // specs/session-index.md#catch-up: catch-up
   // -------------------------------------------------------------------------
 
-  /** Bring one session file's rows up to the file (Section 3). */
+  /** Bring one session file's rows up to the file (specs/session-index.md#catch-up). */
   async catchUp(sessionPath: string, options: CatchUpOptions = {}): Promise<CatchUpOutcome> {
     const failure = this.refresh();
     if (failure !== undefined) return catchUpOutcome("unusable", 0, 0, failure);
@@ -795,7 +794,7 @@ export class SessionIndex implements IndexView {
     const path = sessionFilePath(sessionPath);
     const stamp = stampOf(path);
     if (stamp === undefined) {
-      // Section 3: a file that is absent has no catch-up; every row of its path is deleted.
+      // specs/session-index.md#catch-up: a file that is absent has no catch-up; every row of its path is deleted.
       const dropped = await this.dropRows(path, options);
       if (dropped.kind === "ok") return catchUpOutcome("not-session", 0, 0);
       if (dropped.kind === "stopped") return catchUpOutcome("not-session", 0, 0);
@@ -804,7 +803,7 @@ export class SessionIndex implements IndexView {
     const found = this.fileByPath(path);
     if (!found.ok) return catchUpOutcome("unusable", 0, 0, found.reason);
     const row = found.value;
-    // Section 3 step 2: an unchanged file costs no read.
+    // specs/session-index.md#catch-up step 2: an unchanged file costs no read.
     if (row !== undefined && row.consumed === stamp.size && row.mtime === stamp.mtime) {
       return catchUpOutcome("complete", 0, 0);
     }
@@ -812,7 +811,7 @@ export class SessionIndex implements IndexView {
     let transactions = 0;
     for (;;) {
       if (stopped(options)) return catchUpOutcome("incomplete", bytesRead, transactions);
-      // Section 4: the writer yields to the event loop between two transactions.
+      // specs/session-index.md#concurrent-access: the writer yields to the event loop between two transactions.
       await yieldToEventLoop();
       if (stopped(options)) return catchUpOutcome("incomplete", bytesRead, transactions);
       const step = await this.transaction(path, stamp.size, stamp.mtime, options);
@@ -833,7 +832,7 @@ export class SessionIndex implements IndexView {
     }
   }
 
-  /** Delete every row of one path in one transaction: a file with no catch-up keeps no rows (Section 3). */
+  /** Delete every row of one path in one transaction: a file with no catch-up keeps no rows (specs/session-index.md#catch-up). */
   private async dropRows(
     path: string,
     options: CatchUpOptions,
@@ -849,7 +848,7 @@ export class SessionIndex implements IndexView {
   /**
    * Continue the catch-up of sessions after a call returned, in the order given,
    * until each is complete, a write fails, or the deadline ends
-   * ([search-tool.md](search-tool.md), Section 2.2).
+   * (specs/search-tool.md#coverage).
    */
   continueCatchUp(
     sessionPaths: readonly string[],
@@ -883,7 +882,7 @@ export class SessionIndex implements IndexView {
     };
   }
 
-  /** One catch-up transaction: re-read the row, reset when it is stale, extend by at most the limit (Sections 3 and 4). */
+  /** One catch-up transaction: re-read the row, reset when it is stale, extend by at most the limit (specs/session-index.md#catch-up and specs/session-index.md#concurrent-access). */
   private async transaction(
     path: string,
     size: number,
@@ -903,7 +902,7 @@ export class SessionIndex implements IndexView {
     return { kind: outcome.kind, reason: outcome.reason };
   }
 
-  /** The body of one catch-up transaction (Section 3, steps 1 to 4). */
+  /** The body of one catch-up transaction (specs/session-index.md#catch-up, steps 1 to 4). */
   private stepBody(
     db: DatabaseSync,
     path: string,
@@ -943,7 +942,7 @@ export class SessionIndex implements IndexView {
         if (tail === undefined || tail.length !== tailLength || sha256(tail) !== row.tailHash) {
           reset = true;
         } else if (row.consumed === size) {
-          // Section 3 step 4 with nothing to extend: the modification time alone moves.
+          // specs/session-index.md#catch-up step 4 with nothing to extend: the modification time alone moves.
           updateProgress(db, fileId, consumed, lines, lastTime, mtime, tailOffset, tailHash);
           return { commit: true, value: { kind: "complete", bytesRead } };
         }
@@ -959,7 +958,7 @@ export class SessionIndex implements IndexView {
     }
     if (fileId === undefined) {
       const header = readSessionHeaderFile(path);
-      // Section 3: a file the read bound does not hold a session header for yet is not readable
+      // specs/session-index.md#catch-up: a file the read bound does not hold a session header for yet is not readable
       // as a session file, so it has no catch-up.
       if (header === undefined || header.bytes + 1 > size) {
         return { commit: reset, value: { kind: "not-session", bytesRead } };
@@ -991,8 +990,8 @@ export class SessionIndex implements IndexView {
     }
     const remaining = size - consumed;
     if (remaining <= 0) return { commit: true, value: { kind: "complete", bytesRead } };
-    // Section 3: one transaction extends by at most the limit, or by one longer line. The bytes are
-    // read once, so the tail line's digest comes from them (Section 2).
+    // specs/session-index.md#catch-up: one transaction extends by at most the limit, or by one longer line. The bytes are
+    // read once, so the tail line's digest comes from them (specs/session-index.md#schema).
     const region = readRegion(path, consumed, size, TRANSACTION_BYTE_LIMIT);
     if (region === undefined) {
       // The file vanished under the transaction: its rows are deleted and it is no session.
@@ -1005,14 +1004,14 @@ export class SessionIndex implements IndexView {
       line: lines + 1,
       previousTime: lastTime,
       seenIds: [sessionId],
-      // Section 2: the titles come from the added lines and the row's values alone.
+      // specs/session-index.md#schema: the titles come from the added lines and the row's values alone.
       onEntry: (value) => {
         if (value.type === "session_info") sessionName = sessionNameOf(value);
         else if (firstUserMessage === null) firstUserMessage = userLineOf(value) ?? null;
       },
     });
     const nextConsumed = read.consumed;
-    // Section 1: an entry ID that an earlier line carries yields no row; the unique index answers per ID.
+    // specs/session-index.md#location: an entry ID that an earlier line carries yields no row; the unique index answers per ID.
     const check = entryIdCheck(db);
     const accepted = read.entries.filter(
       (entry) => entry.entryId !== sessionId && !entryIdExists(check, fileId, entry.entryId),
@@ -1025,7 +1024,7 @@ export class SessionIndex implements IndexView {
       read.lines === 0
         ? tailHash
         : sha256(region.bytes.subarray(nextTailOffset - consumed, nextConsumed - consumed));
-    // Section 3 step 4: the modification time is stored even when only an unterminated line remains.
+    // specs/session-index.md#catch-up step 4: the modification time is stored even when only an unterminated line remains.
     updateProgress(
       db,
       fileId,
@@ -1053,12 +1052,12 @@ export class SessionIndex implements IndexView {
   }
 
   // -------------------------------------------------------------------------
-  // Section 4: transactions
+  // specs/session-index.md#concurrent-access: transactions
   // -------------------------------------------------------------------------
 
   /**
    * Run one write transaction begun with `BEGIN IMMEDIATE`, retrying a busy begin
-   * after a turn of the event loop (Section 4).
+   * after a turn of the event loop (specs/session-index.md#concurrent-access).
    */
   private async writeTransaction<T>(
     body: (db: DatabaseSync) => { commit: boolean; value: T },
@@ -1095,9 +1094,9 @@ export class SessionIndex implements IndexView {
   /**
    * Begin a write transaction, retrying while the file is busy: each attempt sleeps
    * for at most the short attempt timeout inside SQLite, and the loop awaits a pause
-   * between attempts, so an abort or a deadline is observed (Section 4). A transaction
+   * between attempts, so an abort or a deadline is observed (specs/session-index.md#concurrent-access). A transaction
    * that is not attempted again — the prune's — is attempted until the busy timeout has
-   * passed, and stops then (Section 6).
+   * passed, and stops then (specs/session-index.md#index-prune).
    */
   private async beginImmediate(
     db: DatabaseSync,
@@ -1124,7 +1123,7 @@ export class SessionIndex implements IndexView {
 
   /**
    * Handle a corrupt-file report: delete the file and open the index anew, once
-   * per call (Section 5). Returns "retry" when the caller may try again, the
+   * per call (specs/session-index.md#failures). Returns "retry" when the caller may try again, the
    * unusable reason when it may not, and undefined when the error is not a
    * corruption report.
    */
@@ -1143,7 +1142,7 @@ export class SessionIndex implements IndexView {
 
   /**
    * Run one read transaction, so that one evaluation sees each file's rows as one
-   * commit left them (Section 4). Only an SQLite error is a failure of the index; an
+   * commit left them (specs/session-index.md#concurrent-access). Only an SQLite error is a failure of the index; an
    * error of the caller's own code ends the transaction and propagates unchanged.
    */
   private readTransaction<T>(body: (db: DatabaseSync) => T): ReadOutcome<T> {
@@ -1170,7 +1169,7 @@ export class SessionIndex implements IndexView {
     }
   }
 
-  /** Run one read; outside a snapshot it is a read transaction of its own (Section 4). */
+  /** Run one read; outside a snapshot it is a read transaction of its own (specs/session-index.md#concurrent-access). */
   private query<T>(body: (db: DatabaseSync) => T): ReadOutcome<T> {
     const db = this.db;
     if (this.readDepth > 0) {
@@ -1185,7 +1184,7 @@ export class SessionIndex implements IndexView {
     return this.readTransaction(body);
   }
 
-  /** Take the rows of one evaluation from one read transaction (Section 4). */
+  /** Take the rows of one evaluation from one read transaction (specs/session-index.md#concurrent-access). */
   snapshot<T>(body: (view: IndexView) => T): SnapshotOutcome<T> {
     if (this.readDepth > 0) return { ok: true, value: body(this) };
     const failure = this.refresh();
@@ -1194,30 +1193,30 @@ export class SessionIndex implements IndexView {
   }
 
   // -------------------------------------------------------------------------
-  // Reads for Search ([search-tool.md](search-tool.md), Sections 3.3 and 4)
+  // Reads for Search (specs/search-tool.md#evaluation and specs/search-tool.md#get)
   // -------------------------------------------------------------------------
 
-  /** Every `files` row, in ascending `path` order (Section 2). */
+  /** Every `files` row, in ascending `path` order (specs/session-index.md#schema). */
   files(): ReadOutcome<IndexFileRow[]> {
     return this.query((db) => selectFiles(db));
   }
 
-  /** The `files` row of one session file, its symbolic links resolved (Section 2). */
+  /** The `files` row of one session file, its symbolic links resolved (specs/session-index.md#schema). */
   fileFor(path: string): ReadOutcome<IndexFileRow | undefined> {
     return this.fileByPath(sessionFilePath(path));
   }
 
-  /** The `files` row of a path that is already resolved (Section 2). */
+  /** The `files` row of a path that is already resolved (specs/session-index.md#schema). */
   private fileByPath(path: string): ReadOutcome<IndexFileRow | undefined> {
     return this.query((db) => selectFileRowByPath(db, path));
   }
 
-  /** The items of one file in file order, with the filters of Section 3.1 applied ([session-transcript.md](session-transcript.md), Section 6). */
+  /** The items of one file in file order, with the filters of specs/search-tool.md#candidates applied (specs/session-transcript.md#transcript-order). */
   listItems(fileId: number, filter: ItemFilter = {}): ReadOutcome<IndexItemRow[]> {
     return this.query((db) => filterItems(selectItemRows(db, fileId), filter));
   }
 
-  /** The item of one entry and part of one file ([search-tool.md](search-tool.md), Section 4). */
+  /** The item of one entry and part of one file (specs/search-tool.md#get). */
   findItem(
     fileId: number,
     entryId: string,
@@ -1226,7 +1225,7 @@ export class SessionIndex implements IndexView {
     return this.query((db) => selectItemRow(db, fileId, entryId, part ?? ""));
   }
 
-  /** The first item of `kind` with this tool-call ID in file order, the partner of an addressed item (Section 2). */
+  /** The first item of `kind` with this tool-call ID in file order, the partner of an addressed item (specs/session-index.md#schema). */
   pairedItem(
     fileId: number,
     callId: string,
@@ -1238,7 +1237,7 @@ export class SessionIndex implements IndexView {
   /**
    * The item IDs whose match text matches every trigram, or undefined without
    * trigrams. With `detail = none` a query of more than three characters is an
-   * AND of single-trigram terms ([search-tool.md](search-tool.md), Section 3.3).
+   * AND of single-trigram terms (specs/search-tool.md#evaluation).
    */
   matchingItemIds(
     trigrams: readonly string[],
@@ -1249,7 +1248,7 @@ export class SessionIndex implements IndexView {
     return this.query((db) => selectTrigramIds(db, query, fileIds));
   }
 
-  /** The session titles of session files, keyed by the paths as given (Section 7). */
+  /** The session titles of session files, keyed by the paths as given (specs/session-index.md#session-titles). */
   titles(paths: readonly string[]): ReadOutcome<Map<string, SessionTitle>> {
     const resolved = new Map<string, string>();
     for (const path of paths) {
@@ -1275,8 +1274,8 @@ export class SessionIndex implements IndexView {
 
   /**
    * The `files` rows of session file paths, read in one transaction: what a call
-   * checks before it catches a session up (Section 3, step 2;
-   * [search-tool.md](search-tool.md), Section 2.2).
+   * checks before it catches a session up (specs/session-index.md#catch-up, step 2;
+   * specs/search-tool.md#coverage).
    */
   filesForPaths(paths: readonly string[]): ReadOutcome<IndexFileRow[]> {
     if (paths.length === 0) return { ok: true, value: [] };
@@ -1299,7 +1298,7 @@ export class SessionIndex implements IndexView {
   /**
    * The `files` rows of paths already resolved, read in one transaction: what a
    * call checks before it catches its sessions up, without resolving each path
-   * again (Section 3, step 2; [search-tool.md](search-tool.md), Section 2.2).
+   * again (specs/session-index.md#catch-up, step 2; specs/search-tool.md#coverage).
    */
   filesForResolvedPaths(
     paths: readonly string[],
@@ -1335,8 +1334,8 @@ export class SessionIndex implements IndexView {
 
   /**
    * The trigram matches among the rows of one file, with the identities of those
-   * rows and the file's `files` row, from one read transaction (Section 4;
-   * [search-tool.md](search-tool.md), Section 3.3). `intact` is false when a row
+   * rows and the file's `files` row, from one read transaction (specs/session-index.md#concurrent-access;
+   * specs/search-tool.md#evaluation). `intact` is false when a row
    * is gone or its `item_id` now names another item: the caller then no longer
    * reads the file's rows as it loaded them.
    */
@@ -1372,13 +1371,13 @@ export class SessionIndex implements IndexView {
    * The connection's `data_version`: it changes when another connection has
    * committed since this one last read, and not for this connection's own
    * commits. A reader compares two to know whether rows it read are still as
-   * they were (Section 4).
+   * they were (specs/session-index.md#concurrent-access).
    */
   dataVersion(): ReadOutcome<number> {
     return this.query((db) => dataVersionOf(db));
   }
 
-  /** The greatest `item_id`, or 0 for an index with no item: the end of a collection ([search-tool.md](search-tool.md), Section 3.3). */
+  /** The greatest `item_id`, or 0 for an index with no item: the end of a collection (specs/search-tool.md#evaluation). */
   maxItemId(): ReadOutcome<number> {
     return this.query((db) => {
       const row = db.prepare("SELECT max(item_id) AS n FROM items").get();
@@ -1390,7 +1389,7 @@ export class SessionIndex implements IndexView {
    * The IDs of the items in `item_id` range (`after`, `upTo`] that pass the
    * filter, at most `filter.limit`: one chunk of a collection, which reads rows in
    * `item_id` order and so costs the same whatever their times
-   * ([search-tool.md](search-tool.md), Sections 2.3 and 3.3). With `fileIds`, the
+   * (specs/search-tool.md#abort and specs/search-tool.md#evaluation). With `fileIds`, the
    * files' own rows are read instead and the range is ignored.
    */
   candidateIds(filter: CandidateFilter, after: number, upTo: number): ReadOutcome<number[]> {
@@ -1399,8 +1398,8 @@ export class SessionIndex implements IndexView {
 
   /**
    * The rows of the item IDs that pass the filter, with their files' rows and
-   * their trigram matches, from one read transaction (Section 4;
-   * [search-tool.md](search-tool.md), Section 2.2). Without trigrams `matched` is
+   * their trigram matches, from one read transaction (specs/session-index.md#concurrent-access;
+   * specs/search-tool.md#coverage). Without trigrams `matched` is
    * undefined; with them, the IDs are probed in chunks.
    */
   rowsOfIds(filter: CandidateFilter, itemIds: readonly number[]): ReadOutcome<CandidatePage> {
@@ -1441,7 +1440,7 @@ export class SessionIndex implements IndexView {
   /**
    * The greatest and least `time` of one file's items, or undefined when it has
    * none: what a call orders its sessions by before it loads them
-   * ([search-tool.md](search-tool.md), Section 3.3).
+   * (specs/search-tool.md#evaluation).
    */
   itemTimeBounds(fileId: number): ReadOutcome<{ max: number; min: number } | undefined> {
     return this.query((db) => {
@@ -1458,8 +1457,8 @@ export class SessionIndex implements IndexView {
 
   /**
    * The `files` rows of the file IDs, read in one transaction: what a call checks
-   * a session's cover against as it reads its rows (Section 4;
-   * [search-tool.md](search-tool.md), Section 2.2).
+   * a session's cover against as it reads its rows (specs/session-index.md#concurrent-access;
+   * specs/search-tool.md#coverage).
    */
   filesFor(fileIds: readonly number[]): ReadOutcome<IndexFileRow[]> {
     return this.snapshot(() => {
@@ -1473,7 +1472,7 @@ export class SessionIndex implements IndexView {
    * The time of the `rows`-th item from `bound` in the scan direction, or
    * undefined when fewer items exist: the far end of one bounded time window of a
    * trigramless scan, so that no one statement walks the whole index
-   * ([search-tool.md](search-tool.md), Sections 2.3 and 3.3).
+   * (specs/search-tool.md#abort and specs/search-tool.md#evaluation).
    */
   windowBoundary(newest: boolean, bound: number, rows: number): ReadOutcome<number | undefined> {
     return this.query((db) => {
@@ -1491,8 +1490,7 @@ export class SessionIndex implements IndexView {
 
   /**
    * One page of candidates with the `files` rows and the `item_text` matches it
-   * uses, from one read transaction (Section 4; [search-tool.md](search-tool.md),
-   * Section 2.2). With `narrowFirst`, the matching item IDs are fetched first and
+   * uses, from one read transaction (specs/session-index.md#concurrent-access; specs/search-tool.md#coverage). With `narrowFirst`, the matching item IDs are fetched first and
    * the rows are selected by them, or `overflow` is set when there are more.
    */
   candidatePage(filter: CandidateFilter): ReadOutcome<CandidatePage> {
@@ -1534,12 +1532,12 @@ export class SessionIndex implements IndexView {
   }
 
   // -------------------------------------------------------------------------
-  // Section 3: reading an item back and the conditional reset
+  // specs/session-index.md#catch-up: reading an item back and the conditional reset
   // -------------------------------------------------------------------------
 
   /**
    * Read an item's text back from its session file by byte offset and detect a
-   * stale row (Section 3): a row is stale when the line it names cannot be read,
+   * stale row (specs/session-index.md#catch-up): a row is stale when the line it names cannot be read,
    * is not a JSON object whose `id` is the row's entry ID, or does not yield an item
    * with the row's part and kind.
    */
@@ -1555,7 +1553,7 @@ export class SessionIndex implements IndexView {
     const wanted = row.part === "" ? undefined : row.part;
     for (const item of entryItems(entry)) {
       if (item.part !== wanted) continue;
-      // Section 3: an items row is stale when the line read back does not yield an
+      // specs/session-index.md#catch-up: an items row is stale when the line read back does not yield an
       // item with the row's part and kind.
       return item.kind === row.kind ? { status: "item", item } : { status: "stale" };
     }
@@ -1565,16 +1563,16 @@ export class SessionIndex implements IndexView {
   /**
    * Reset the file of a stale row, in one transaction, when its `files` row still
    * has the `consumed` and `tail_hash` the reader read, and change nothing when it
-   * has not or is gone (Section 3).
+   * has not or is gone (specs/session-index.md#catch-up).
    */
   async resetStale(row: IndexItemRow, options: CatchUpOptions = {}): Promise<ResetOutcome> {
     const failure = this.refresh();
     if (failure !== undefined) return { status: "unusable", reason: failure };
     const failed = this.failedWrite;
     if (failed !== undefined) return { status: "failed-write", reason: failed };
-    // A call whose time is up does not start the reset; the session stays uncovered (Section 3).
+    // A call whose time is up does not start the reset; the session stays uncovered (specs/session-index.md#catch-up).
     if (stopped(options)) return { status: "stopped" };
-    // Section 4: the writer yields to the event loop before its transaction.
+    // specs/session-index.md#concurrent-access: the writer yields to the event loop before its transaction.
     await yieldToEventLoop();
     if (stopped(options)) return { status: "stopped" };
     const outcome = await this.writeTransaction<ResetOutcome>((db) => {
@@ -1597,10 +1595,8 @@ export class SessionIndex implements IndexView {
 
   /**
    * The entry IDs on the current lineage of the entries of one file that were
-   * terminated at or before `size` ([session-transcript.md](session-transcript.md),
-   * Section 3), read from the `entries` rows rather than the `lineage` column,
-   * which describes the consumed bytes ([search-tool.md](search-tool.md),
-   * Section 2.2).
+   * terminated at or before `size` (specs/session-transcript.md#current-lineage), read from the `entries` rows rather than the `lineage` column,
+   * which describes the consumed bytes (specs/search-tool.md#coverage).
    */
   lineageWithin(fileId: number, size: number): ReadOutcome<string[]> {
     return this.query((db) => {
@@ -1624,10 +1620,10 @@ export class SessionIndex implements IndexView {
   }
 
   // -------------------------------------------------------------------------
-  // Section 6: the prune
+  // specs/session-index.md#index-prune: the prune
   // -------------------------------------------------------------------------
 
-  /** One prune transaction over at most 100 `files` rows after `after`; a busy begin stops the prune once the busy timeout has passed (Section 6). */
+  /** One prune transaction over at most 100 `files` rows after `after`; a busy begin stops the prune once the busy timeout has passed (specs/session-index.md#index-prune). */
   async pruneBatch(
     after: number,
   ): Promise<{ deleted: number; last: number; more: boolean } | undefined> {
@@ -1652,7 +1648,7 @@ export class SessionIndex implements IndexView {
         };
       },
       {},
-      // Section 6: a prune that cannot begin a transaction within the busy timeout stops.
+      // specs/session-index.md#index-prune: a prune that cannot begin a transaction within the busy timeout stops.
       false,
     );
     if (outcome.kind !== "ok") return;
@@ -1661,7 +1657,7 @@ export class SessionIndex implements IndexView {
 }
 
 /**
- * The index prune (Section 6): delete, for every `files` row whose path is not an
+ * The index prune (specs/session-index.md#index-prune): delete, for every `files` row whose path is not an
  * existing regular file, the row and every row of its `file_id`, in transactions
  * of at most 100 `files` rows. It never creates the index file, deletes no file,
  * and reports no failure: it stops and returns what it did.
@@ -1671,7 +1667,7 @@ export async function pruneSessionIndex(options: SessionIndexOptions = {}): Prom
   const stat = statFile(path);
   if (stat === undefined) return { files: 0, transactions: 0 };
   const index = new SessionIndex({ ...options, path, mode: "prune" });
-  // Section 6: the file is opened without creating it, so a file that vanished is not recreated.
+  // specs/session-index.md#index-prune: the file is opened without creating it, so a file that vanished is not recreated.
   if (index.start() !== undefined) return { files: 0, transactions: 0 };
   let after = 0;
   let files = 0;
@@ -1689,7 +1685,7 @@ export async function pruneSessionIndex(options: SessionIndexOptions = {}): Prom
 }
 
 // ---------------------------------------------------------------------------
-// The trigram narrowing ([search-tool.md](search-tool.md), Section 3.3)
+// The trigram narrowing (specs/search-tool.md#evaluation)
 // ---------------------------------------------------------------------------
 
 /** The FTS5 query of the trigrams: one quoted single-trigram term per trigram, joined by AND. */
@@ -1700,7 +1696,7 @@ export function trigramQuery(trigrams: readonly string[]): string | undefined {
 
 /**
  * The trigrams of a literal query: every run of three consecutive characters in
- * the range U+0020 to U+007E ([search-tool.md](search-tool.md), Section 3.3).
+ * the range U+0020 to U+007E (specs/search-tool.md#evaluation).
  */
 export function printableTrigrams(query: string): string[] {
   const trigrams: string[] = [];
@@ -1712,10 +1708,10 @@ export function printableTrigrams(query: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Rows of Section 2
+// Rows of specs/session-index.md#schema
 // ---------------------------------------------------------------------------
 
-/** The connection's `data_version` (Section 4). */
+/** The connection's `data_version` (specs/session-index.md#concurrent-access). */
 function dataVersionOf(db: DatabaseSync): number {
   const row = db.prepare("PRAGMA data_version").get();
   return isPlainObject(row) ? (numberOf(row.data_version) ?? -1) : -1;
@@ -1839,13 +1835,13 @@ function updateTitles(
   );
 }
 
-/** The session name a `session_info` entry sets: its trimmed `name`, or null (Section 2). */
+/** The session name a `session_info` entry sets: its trimmed `name`, or null (specs/session-index.md#schema). */
 function sessionNameOf(value: Record<string, unknown>): string | null {
   const name = typeof value.name === "string" ? value.name.trim() : "";
   return name.length > 0 ? name : null;
 }
 
-/** The user line of a `user` message entry, or undefined when it is none or has none (Section 2). */
+/** The user line of a `user` message entry, or undefined when it is none or has none (specs/session-index.md#schema). */
 function userLineOf(value: Record<string, unknown>): string | undefined {
   if (value.type !== "message") return;
   const message = value.message;
@@ -1867,7 +1863,7 @@ function userLineOf(value: Record<string, unknown>): string | undefined {
   return;
 }
 
-/** The `files` rows of resolved paths, by path, looked up through the `path` index (Section 7). */
+/** The `files` rows of resolved paths, by path, looked up through the `path` index (specs/session-index.md#session-titles). */
 function selectTitleRows(db: DatabaseSync, paths: readonly string[]): Map<string, IndexFileRow> {
   const rows = new Map<string, IndexFileRow>();
   if (paths.length === 0) return rows;
@@ -1881,17 +1877,17 @@ function selectTitleRows(db: DatabaseSync, paths: readonly string[]): Map<string
   return rows;
 }
 
-/** A path resolved as a `files` row's `path`, or undefined when it cannot be resolved (Section 7). */
+/** A path resolved as a `files` row's `path`, or undefined when it cannot be resolved (specs/session-index.md#session-titles). */
 function resolvedTitlePath(path: string): string | undefined {
   try {
     return realpathSync(resolve(path));
   } catch {
-    // Section 7: an unresolvable path has no key in the map, which is how the caller learns of it.
+    // specs/session-index.md#session-titles: an unresolvable path has no key in the map, which is how the caller learns of it.
     return;
   }
 }
 
-/** Delete a `files` row and every row of its `file_id`, its item text included (Sections 3 and 6). */
+/** Delete a `files` row and every row of its `file_id`, its item text included (specs/session-index.md#catch-up and specs/session-index.md#index-prune). */
 function deleteFileRows(db: DatabaseSync, fileId: number): void {
   writable(
     db,
@@ -1902,17 +1898,17 @@ function deleteFileRows(db: DatabaseSync, fileId: number): void {
   writable(db, "DELETE FROM files WHERE file_id = ?").run(fileId);
 }
 
-/** True when an entry of an earlier line of the file already carries this ID (Section 1). */
+/** True when an entry of an earlier line of the file already carries this ID (specs/session-index.md#location). */
 function entryIdExists(statement: StatementSync, fileId: number, entryId: string): boolean {
   return statement.get(fileId, entryId) !== undefined;
 }
 
-/** The statement that answers whether a file already carries an entry ID (Section 1). */
+/** The statement that answers whether a file already carries an entry ID (specs/session-index.md#location). */
 function entryIdCheck(db: DatabaseSync): StatementSync {
   return db.prepare("SELECT 1 AS found FROM entries WHERE file_id = ? AND entry_id = ?");
 }
 
-/** The entry with the highest line number of one file, or undefined (Section 3). */
+/** The entry with the highest line number of one file, or undefined (specs/session-index.md#catch-up). */
 function selectLeafId(db: DatabaseSync, fileId: number): string | undefined {
   const row = db
     .prepare("SELECT entry_id FROM entries WHERE file_id = ? ORDER BY line DESC LIMIT 1")
@@ -1934,7 +1930,7 @@ function selectLineageRow(
   return { parentId: stringOf(row.parent_id) ?? null, lineage: lineage === 1 };
 }
 
-/** Insert the entries of one chunk and their items, with the item text in the contentless table (Section 2). */
+/** Insert the entries of one chunk and their items, with the item text in the contentless table (specs/session-index.md#schema). */
 function insertEntries(db: DatabaseSync, fileId: number, entries: readonly SessionEntry[]): void {
   const insertEntry = writable(
     db,
@@ -1974,7 +1970,7 @@ function insertEntries(db: DatabaseSync, fileId: number, entries: readonly Sessi
   }
 }
 
-/** The tool name of a `tool_call` or `tool_result` item with `A-Z` lowercased, else null (Section 2). */
+/** The tool name of a `tool_call` or `tool_result` item with `A-Z` lowercased, else null (specs/session-index.md#schema). */
 function toolNameOf(item: TranscriptItem): string | null {
   if (item.kind !== "tool_call" && item.kind !== "tool_result") return null;
   const label = item.label;
@@ -1982,11 +1978,11 @@ function toolNameOf(item: TranscriptItem): string | null {
 }
 
 /**
- * The `lineage` column after an extension (Section 3): from the new leaf walk up until
+ * The `lineage` column after an extension (specs/session-index.md#catch-up): from the new leaf walk up until
  * an entry already on the lineage, then clear the old path below that point, so that the
  * column is the current lineage of the consumed bytes taken as a whole session file. A
  * lineage ends at an entry whose `parent_id` is null, is absent, names no entry, or names
- * an entry already on the path ([session-transcript.md](session-transcript.md), Section 3),
+ * an entry already on the path (specs/session-transcript.md#current-lineage),
  * so the walk relies on the entries above the one it stops at being unchanged: a lineage
  * that has no last entry, and one that ended at the ID of no entry which an entry appended
  * now carries, are rebuilt from the leaf instead.
@@ -2029,7 +2025,7 @@ function updateLineage(
 }
 
 /**
- * True when the column may not be brought up to date entry by entry (Section 3): a lineage
+ * True when the column may not be brought up to date entry by entry (specs/session-index.md#catch-up): a lineage
  * with no last entry — every entry on it continues another entry on it — and one that ended
  * at the ID of no entry which an entry of this transaction now carries. The statement scans
  * the file's `entries` rows, since no index serves `lineage` alone; its inner lookups use the
@@ -2058,7 +2054,7 @@ function lineageNeedsRebuild(
   return (marked > 0 && marked === anchored) || resolved > 0;
 }
 
-/** The leaf of one file and the entries its `parent_id`s name, up to the entry that ends it (Section 2). */
+/** The leaf of one file and the entries its `parent_id`s name, up to the entry that ends it (specs/session-index.md#schema). */
 const LINEAGE_CHAIN_SQL = `WITH RECURSIVE chain(entry_id) AS (
   SELECT entry_id FROM (SELECT entry_id FROM entries WHERE file_id = ?1 ORDER BY line DESC LIMIT 1)
   UNION
@@ -2067,7 +2063,7 @@ const LINEAGE_CHAIN_SQL = `WITH RECURSIVE chain(entry_id) AS (
    WHERE parent.parent_id IS NOT NULL
 )`;
 
-/** Set the column of one file to its current lineage, as a whole file (Section 2, `entries.lineage`). */
+/** Set the column of one file to its current lineage, as a whole file (specs/session-index.md#schema, `entries.lineage`). */
 function rebuildLineage(db: DatabaseSync, fileId: number): void {
   writable(
     db,
@@ -2113,7 +2109,7 @@ function selectItemRows(db: DatabaseSync, fileId: number): IndexItemRow[] {
  * The WHERE conditions of a candidate read, or undefined when the filter admits
  * no row. With `plainTime`, the time conditions are written so that the planner
  * cannot serve them from `items_time`: a collection scans rows in `item_id` order
- * instead ([search-tool.md](search-tool.md), Section 2.3).
+ * instead (specs/search-tool.md#abort).
  */
 function candidateWhere(
   filter: CandidateFilter,
@@ -2184,7 +2180,7 @@ function candidateWhere(
   return { conditions, params };
 }
 
-/** The candidate rows of one page ([search-tool.md](search-tool.md), Section 3.3). */
+/** The candidate rows of one page (specs/search-tool.md#evaluation). */
 function selectCandidates(db: DatabaseSync, filter: CandidateFilter): IndexItemRow[] {
   const where = candidateWhere(filter);
   if (where === undefined) return [];
@@ -2204,7 +2200,7 @@ function selectCandidates(db: DatabaseSync, filter: CandidateFilter): IndexItemR
 /**
  * The IDs of the items in `item_id` range (`after`, `upTo`] that pass the
  * filter, read in `item_id` order without `items_time`, at most `limit`
- * ([search-tool.md](search-tool.md), Section 3.3). With `fileIds`, the range is
+ * (specs/search-tool.md#evaluation). With `fileIds`, the range is
  * ignored and the files' own rows are read through their file index instead.
  */
 function selectCandidateIds(
@@ -2237,7 +2233,7 @@ function distinctFileIds(rows: readonly IndexItemRow[]): number[] {
   return [...ids].toSorted((one, other) => one - other);
 }
 
-/** The `files` rows of the file IDs ([search-tool.md](search-tool.md), Section 2.2). */
+/** The `files` rows of the file IDs (specs/search-tool.md#coverage). */
 function selectFilesByIds(db: DatabaseSync, fileIds: readonly number[]): IndexFileRow[] {
   if (fileIds.length === 0) return [];
   const files: IndexFileRow[] = [];
@@ -2251,7 +2247,7 @@ function selectFilesByIds(db: DatabaseSync, fileIds: readonly number[]): IndexFi
   return files;
 }
 
-/** At most `limit` item IDs whose text matches every trigram (Section 2). */
+/** At most `limit` item IDs whose text matches every trigram (specs/session-index.md#schema). */
 function selectMatchIds(db: DatabaseSync, query: string, limit: number): number[] {
   const ids: number[] = [];
   const statement = db.prepare(
@@ -2261,7 +2257,7 @@ function selectMatchIds(db: DatabaseSync, query: string, limit: number): number[
   return ids;
 }
 
-/** The item IDs among `itemIds` whose text matches every trigram (Section 2). */
+/** The item IDs among `itemIds` whose text matches every trigram (specs/session-index.md#schema). */
 function selectMatchedIds(
   db: DatabaseSync,
   query: string,
@@ -2309,7 +2305,7 @@ function selectItemRow(
   return itemRowOf(row);
 }
 
-/** The first item of one kind with a tool-call ID, in file order (Section 2). */
+/** The first item of one kind with a tool-call ID, in file order (specs/session-index.md#schema). */
 function selectPairedItem(
   db: DatabaseSync,
   fileId: number,
@@ -2379,7 +2375,7 @@ function itemRowOf(row: unknown): IndexItemRow | undefined {
   };
 }
 
-/** File order of two rows: ascending line number, then part as numbers with `error` last (Section 6). */
+/** File order of two rows: ascending line number, then part as numbers with `error` last (specs/session-index.md#index-prune). */
 function compareFileOrder(a: IndexItemRow, b: IndexItemRow): number {
   if (a.line !== b.line) return a.line - b.line;
   return compareParts(partOf(a.part), partOf(b.part));
@@ -2414,7 +2410,7 @@ function filterItems(rows: readonly IndexItemRow[], filter: ItemFilter): IndexIt
 
 /**
  * The item IDs of the searched files whose match text matches every trigram
- * ([search-tool.md](search-tool.md), Section 3.3). A small set of searched items is
+ * (specs/search-tool.md#evaluation). A small set of searched items is
  * probed one by one, which costs about the same whatever the index holds; a large
  * one scans the trigram lists once and keeps the searched files' rows.
  */
@@ -2466,19 +2462,19 @@ function addItemId(ids: Set<number> | number[], row: unknown): void {
 // Small helpers
 // ---------------------------------------------------------------------------
 
-/** The `user_version` of the open database (Section 1). */
+/** The `user_version` of the open database (specs/session-index.md#location). */
 function userVersion(db: DatabaseSync): number {
   const row = db.prepare("PRAGMA user_version").get();
   return isPlainObject(row) ? (numberOf(row.user_version) ?? 0) : 0;
 }
 
-/** The number of tables in the open database (Section 1, step 2). */
+/** The number of tables in the open database (specs/session-index.md#location, step 2). */
 function tableCount(db: DatabaseSync): number {
   const row = db.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type = 'table'").get();
   return isPlainObject(row) ? (numberOf(row.count) ?? 0) : 0;
 }
 
-/** Set the busy timeout of one connection, so that one attempt sleeps briefly (Section 4). */
+/** Set the busy timeout of one connection, so that one attempt sleeps briefly (specs/session-index.md#concurrent-access). */
 function setBusyTimeout(db: DatabaseSync, milliseconds: number): void {
   try {
     db.exec(`PRAGMA busy_timeout = ${milliseconds};`);
@@ -2488,10 +2484,10 @@ function setBusyTimeout(db: DatabaseSync, milliseconds: number): void {
 }
 
 /**
- * Read the region of one catch-up transaction (Section 3): the bytes from `from` up to
+ * Read the region of one catch-up transaction (specs/session-index.md#catch-up): the bytes from `from` up to
  * `to`, stopping after the first line feed at or after `limit` bytes, so that a line
  * longer than the limit is read whole. The bytes are read once, so the tail line's
- * digest comes from them without reading the line again (Section 2).
+ * digest comes from them without reading the line again (specs/session-index.md#schema).
  */
 function readRegion(path: string, from: number, to: number, limit: number): RegionRead | undefined {
   let fd: number;
@@ -2532,7 +2528,7 @@ function readRegion(path: string, from: number, to: number, limit: number): Regi
 }
 
 /**
- * The bytes of a region a read consumes (Section 3): the lines a line feed terminates, up to
+ * The bytes of a region a read consumes (specs/session-index.md#catch-up): the lines a line feed terminates, up to
  * the last line whose bytes end at or before `limit`; with no such line, the first line, which
  * alone is longer than the limit.
  */
@@ -2553,7 +2549,7 @@ function cutOf(bytes: Uint8Array, limit: number): number {
   return cut;
 }
 
-/** A file's size and modification time, milliseconds rounded down, or undefined when it cannot be read (Section 3). */
+/** A file's size and modification time, milliseconds rounded down, or undefined when it cannot be read (specs/session-index.md#catch-up). */
 function stampOf(path: string): FileStamp | undefined {
   const stat = statFile(path);
   if (stat === undefined || !stat.isFile()) return;
@@ -2569,7 +2565,7 @@ function statFile(path: string): Stats | undefined {
 }
 
 /**
- * The session file's absolute path with symbolic links resolved (Section 2), which is
+ * The session file's absolute path with symbolic links resolved (specs/session-index.md#schema), which is
  * what a `files` row carries: a file that exists resolves whole, and a file that is gone
  * resolves through its directory, so its rows are still found.
  */
@@ -2580,7 +2576,7 @@ function sessionFilePath(path: string): string {
 }
 
 /**
- * True when two paths name one file (Section 1): the device and inode decide when both
+ * True when two paths name one file (specs/session-index.md#location): the device and inode decide when both
  * exist, so a differently-cased name on a case-insensitive volume and a hard link are
  * the same file; otherwise the resolved paths decide.
  */
@@ -2618,12 +2614,12 @@ function readBytesAt(path: string, start: number, length: number): Buffer | unde
   }
 }
 
-/** The SHA-256 digest of the bytes, lowercase hexadecimal (Section 2). */
+/** The SHA-256 digest of the bytes, lowercase hexadecimal (specs/session-index.md#schema). */
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-/** The letters `A-Z` of a string converted to lowercase and no other character (Section 2). */
+/** The letters `A-Z` of a string converted to lowercase and no other character (specs/session-index.md#schema). */
 function asciiLower(text: string): string {
   return text.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
 }
@@ -2653,14 +2649,14 @@ function continuationOutcome(
   return { status, reason };
 }
 
-/** A turn of the event loop: timers and other work of the process proceed (Section 4). */
+/** A turn of the event loop: timers and other work of the process proceed (specs/session-index.md#concurrent-access). */
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolveTurn) => {
     setImmediate(resolveTurn);
   });
 }
 
-/** An awaited pause between two attempts of a busy transaction (Section 4). */
+/** An awaited pause between two attempts of a busy transaction (specs/session-index.md#concurrent-access). */
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolveDelay) => {
     setTimeout(resolveDelay, milliseconds);
@@ -2701,7 +2697,7 @@ function rowIdOf(result: { lastInsertRowid: number | bigint }): number {
   return typeof id === "bigint" ? Number(id) : id;
 }
 
-/** True when the error is SQLite's, and so a failure of the index (Section 5). */
+/** True when the error is SQLite's, and so a failure of the index (specs/session-index.md#failures). */
 function isSqliteError(error: unknown): boolean {
   if (!isPlainObject(error)) return false;
   if (typeof error.errcode === "number") return true;
@@ -2716,7 +2712,7 @@ function sqliteCode(error: unknown): number | undefined {
   return code & 0xff;
 }
 
-/** True when SQLite reported that the file is not a database or is malformed (Section 5). */
+/** True when SQLite reported that the file is not a database or is malformed (specs/session-index.md#failures). */
 function isCorruptError(error: unknown): boolean {
   const code = sqliteCode(error);
   if (code !== undefined) return code === SQLITE_CORRUPT || code === SQLITE_NOTADB;
@@ -2724,7 +2720,7 @@ function isCorruptError(error: unknown): boolean {
   return message.includes("not a database") || message.includes("malformed");
 }
 
-/** True when a write transaction cannot begin within the busy timeout (Section 4). */
+/** True when a write transaction cannot begin within the busy timeout (specs/session-index.md#concurrent-access). */
 function isBusyError(error: unknown): boolean {
   const code = sqliteCode(error);
   if (code !== undefined) return code === SQLITE_BUSY;

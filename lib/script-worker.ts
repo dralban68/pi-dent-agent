@@ -23,7 +23,7 @@ import { parentPort, workerData } from "node:worker_threads";
 import { createJiti } from "jiti";
 
 /**
- * The Script tool worker (specs/script-tool.md Section 3): runs one script
+ * The Script tool worker (specs/script-tool.md#execution-model): runs one script
  * in-process with ESM semantics, TypeScript syntax, and top-level await via
  * jiti transform + vm.compileFunction. The worker is a lifecycle boundary,
  * not a sandbox. It injects the `input` binding, a cwd-observing `process`
@@ -40,13 +40,13 @@ interface ScriptWorkerData {
   aliases: Record<string, string>;
   /** Bound tool names, in declaration order (Section 10.3). */
   toolNames: string[];
-  /** Session tool names unavailable in a plugin UI call (specs/plugin-ui.md Section 4.2). */
+  /** Session tool names unavailable in a plugin UI call (specs/plugin-ui.md#tool-functions). */
   unavailableToolNames?: string[];
   /** The tool declarations (Section 10.2). */
   toolTypes: string;
   /** Whether this run is a plugin UI call (specs/plugin-ui.md). */
   uiCall?: boolean;
-  /** Plugin namespace when running a plugin script (specs/plugin-state.md Section 6). */
+  /** Plugin namespace when running a plugin script (specs/plugin-state.md#dent-state). */
   pluginNamespace?: string;
   /** Workspace root for `dent.state` (defaults to `cwd`). */
   stateWorkspaceRoot?: string;
@@ -59,8 +59,8 @@ const data: ScriptWorkerData = workerData;
 
 // --- exit interception ------------------------------------------------------
 // `process.exit` settles the run as `exit-called` and ends the script's own flow
-// (Section 3). The worker MUST NOT die with it: the runner kills the script's
-// spawned tree after settlement (Section 6), and only this thread's libuv loop
+// (specs/script-tool.md#execution-model). The worker MUST NOT die with it: the runner kills the script's
+// spawned tree after settlement (specs/script-tool.md#timeout-delivery), and only this thread's libuv loop
 // reaps those children — a thread that is blocked or gone leaves them behind as
 // zombies of the host process. So the exit throws, the worker's own level
 // swallows it, and the loop stays up until the runner terminates the worker;
@@ -84,7 +84,7 @@ const closeStateWatchers = (): void => {
   activeStateWatchers.clear();
 };
 
-/** Settle `exit-called` and end the script's flow (Section 3). */
+/** Settle `exit-called` and end the script's flow (specs/script-tool.md#execution-model). */
 const postExit = (code?: number): never => {
   exitCalled = true;
   closeStateWatchers();
@@ -125,14 +125,14 @@ const captureStream = (type: "stdout" | "stderr") => {
       callback();
     },
   });
-  // Child stdio resolution (Section 6): the entry proxy hands one of these out
+  // Child stdio resolution (specs/script-tool.md#timeout-delivery): the entry proxy hands one of these out
   // for every `process.stdout`/`process.stderr` access. They carry no fd, so as
   // a spawn stdio element node would reject them outright; tagged, they resolve
   // like the worker's own streams — never the host's.
   Object.defineProperty(stream, captureTag, { value: type });
   return stream;
 };
-// console.log/error route through the captured streams (Section 3). A real
+// console.log/error route through the captured streams (specs/script-tool.md#execution-model). A real
 // Console instance keeps the full surface (dir, table, time, group, ...);
 // only its write sink is captured.
 const scriptConsole = new Console({
@@ -142,12 +142,12 @@ const scriptConsole = new Console({
 
 // --- unhandled rejection ----------------------------------------------------
 // The runner settles `threw` from this message and the tool renders it
-// (Section 3), so the text is never duplicated onto the captured stderr.
+// (specs/script-tool.md#execution-model), so the text is never duplicated onto the captured stderr.
 const reportError = (err: { name: unknown; message: unknown; stack?: unknown }) => {
   closeStateWatchers();
   try {
     // name/message/stack are user-controllable (a thrown Error may carry a
-    // non-string stack); coerce so the tool always renders text (Section 5).
+    // non-string stack); coerce so the tool always renders text (specs/script-tool.md#result-contract).
     port.postMessage({
       type: "error",
       message: String(err.message),
@@ -166,7 +166,7 @@ process.on("unhandledRejection", (reason) => {
 });
 process.on("uncaughtException", (thrown: unknown) => {
   // The sentinel leaves a timer or another callback when the script calls
-  // process.exit outside its own flow: the loop must keep running (Section 6).
+  // process.exit outside its own flow: the loop must keep running (specs/script-tool.md#timeout-delivery).
   if (exitCalled || isScriptExit(thrown)) return;
   reportError(thrown instanceof Error ? thrown : new Error(String(thrown)));
 });
@@ -206,7 +206,7 @@ const onToolResult = (message: unknown): void => {
   if (call === undefined) return;
   pendingCalls.delete(message.id);
   if (pendingCalls.size === 0) port.unref();
-  // No code of the script runs after process.exit (Section 3).
+  // No code of the script runs after process.exit (specs/script-tool.md#execution-model).
   if (exitCalled) return;
   const reply = message.reply;
   if (isRecord(reply) && reply.ok === true) {
@@ -347,7 +347,7 @@ Object.defineProperty(globalThis, "dent", {
 let cwd = data.cwd;
 // Node's chdir rejects a missing directory (ENOENT, from statSync) and a non-
 // directory (ENOTDIR) instead of silently adopting a bogus cwd, which would
-// make later relative fs calls fail somewhere unrelated (Section 3).
+// make later relative fs calls fail somewhere unrelated (specs/script-tool.md#execution-model).
 const changeDir = (directory: string): void => {
   const next = resolve(cwd, directory);
   if (!statSync(next).isDirectory()) {
@@ -364,7 +364,7 @@ const scriptProcess = new Proxy(process, {
     if (property === "stdout") return captureStream("stdout");
     if (property === "stderr") return captureStream("stderr");
     // process.exit is intercepted without terminating the host process; the
-    // main thread terminates the worker on receipt (Section 3).
+    // main thread terminates the worker on receipt (specs/script-tool.md#execution-model).
     if (property === "exit") return postExit;
     const value = Reflect.get(target, property, target);
     return typeof value === "function" ? value.bind(target) : value;
@@ -384,7 +384,7 @@ const scriptGlobal = new Proxy(globalThis, {
 // --- relative fs paths follow the script cwd ---------------------------------
 // Path-first functions: the first argument is a path (or a file descriptor,
 // which resolvePathArg passes through unchanged). `symlink` is excluded: its
-// first argument is the link target, passed unchanged (Section 3).
+// first argument is the link target, passed unchanged (specs/script-tool.md#execution-model).
 const FS_PATH_FIRST = new Set([
   "access",
   "accessSync",
@@ -470,7 +470,7 @@ const FS_PATH_SECOND = new Set([
 ]);
 
 // Glob functions take a glob pattern, not a path: the pattern is left unchanged
-// and the `cwd` option defaults to the script cwd (Section 3).
+// and the `cwd` option defaults to the script cwd (specs/script-tool.md#execution-model).
 const FS_GLOB = new Set(["glob", "globSync"]);
 
 function resolvePathArg(value: unknown): unknown {
@@ -514,7 +514,7 @@ const FUNCTION_INTRINSIC_KEYS = new Set(["length", "name", "prototype"]);
 
 /**
  * Whether the transformed body has a top-level `await` — an await expression or
- * a `for await` outside every function and class body (Section 4). A class
+ * a `for await` outside every function and class body (specs/script-tool.md#module-contract). A class
  * static initialization block has `await` reserved at its own top level and
  * legal inside every nested function, so compiling the body there without
  * running it makes V8 answer exactly that question: a SyntaxError means a
@@ -561,11 +561,11 @@ function wrapFsFunction(
 void (async () => {
   const nativeRequire = createRequire(data.filename);
 
-  // --- timer guards after process.exit (Section 3) ---------------------------
+  // --- timer guards after process.exit (specs/script-tool.md#execution-model) ---------------------------
   // No code of the script runs after `process.exit`: a callback it registered
   // through setTimeout, setInterval or setImmediate never runs once the exit is
   // called, and one it registers afterwards does not run either. The rest of the
-  // loop keeps running (Section 6), so the callbacks that are not timers — I/O
+  // loop keeps running (specs/script-tool.md#timeout-delivery), so the callbacks that are not timers — I/O
   // completions, promise continuations — can still run until termination.
   const guardTimerCallback = (callback: unknown): unknown =>
     isCallable(callback)
@@ -597,7 +597,7 @@ void (async () => {
     }
   };
 
-  // --- worker-realm builtin patching (Section 3) -----------------------------
+  // --- worker-realm builtin patching (specs/script-tool.md#execution-model) -----------------------------
   // Each worker thread has its own instances of the Node builtin modules and
   // the worker is fresh per call, so patching the real module objects IN PLACE
   // scopes every wrapper to this script run and covers every import path: the
@@ -613,13 +613,13 @@ void (async () => {
   const realTimers: Record<string, unknown> = nativeRequire("node:timers");
   // node:timers/promises hands back a promise or an async iterable instead of a handle, so the
   // pending timers of a script's own import would settle after the exit and run its code
-  // (Section 3): a value it produced never settles once the exit has happened.
+  // (specs/script-tool.md#execution-model): a value it produced never settles once the exit has happened.
   const realTimerPromises: Record<string, unknown> = nativeRequire("node:timers/promises");
   guardTimers(globalThis);
   guardTimers(realTimers);
   const isThenable = (value: unknown): value is PromiseLike<unknown> =>
     isOptionsObject(value) && "then" in value && isCallable(value.then);
-  /** A pending value that would settle after the exit never settles instead (Section 3). */
+  /** A pending value that would settle after the exit never settles instead (specs/script-tool.md#execution-model). */
   const guardSettling = (pending: PromiseLike<unknown>): Promise<unknown> =>
     new Promise((fulfil, fail) => {
       pending.then(
@@ -663,7 +663,7 @@ void (async () => {
   }
 
   // fs: every relative path argument resolves against the script cwd
-  // (Section 3). `symlink` remains FS_PATH_SECOND-only, so its first argument
+  // (specs/script-tool.md#execution-model). `symlink` remains FS_PATH_SECOND-only, so its first argument
   // (the link target) is passed unchanged, as before.
   for (const name of new Set([...FS_PATH_FIRST, ...FS_PATH_SECOND, ...FS_GLOB])) {
     const sync = realFs[name];
@@ -672,14 +672,14 @@ void (async () => {
     if (isCallable(async)) realFsPromises[name] = wrapFsFunction(name, async, realFsPromises);
   }
 
-  // path.resolve resolves against the script cwd (Section 3).
+  // path.resolve resolves against the script cwd (specs/script-tool.md#execution-model).
   const origPathResolve = realPath.resolve;
   if (typeof origPathResolve === "function") {
     realPath.resolve = (...args: string[]) =>
       Reflect.apply(origPathResolve, realPath, [cwd, ...args]);
   }
 
-  // process: patch the worker realm's real process module IN PLACE (Section 3),
+  // process: patch the worker realm's real process module IN PLACE (specs/script-tool.md#execution-model),
   // like fs/path above. The scriptProcess proxy only serves the entry script's
   // bindings and the require("process") path; helper modules reach the real
   // module by other roads (bare global `process`, default ESM import,
@@ -742,7 +742,7 @@ void (async () => {
     }
     return child;
   };
-  // --- child stdio resolution (Section 6) -------------------------------------
+  // --- child stdio resolution (specs/script-tool.md#timeout-delivery) -------------------------------------
   // A child process a script spawns never receives the host process's standard
   // streams: an element that is "inherit", a numeric fd 0/1/2, or one of the
   // worker's own process.stdin/stdout/stderr (the entry proxy's tagged capture
@@ -788,7 +788,7 @@ void (async () => {
     }
     return undefined;
   };
-  // Forward a resolved child pipe into the run's capture (Section 6): one
+  // Forward a resolved child pipe into the run's capture (specs/script-tool.md#timeout-delivery): one
   // `captureWrite` post per data event, in arrival order, like the worker's own
   // writes. A pipe error is reported into the captured stderr, not thrown or
   // dropped.
@@ -807,10 +807,10 @@ void (async () => {
     if (forward.stderr) attach(child.stderr, "stderr");
   };
   // Spawned children must lead their own process group so the runner can
-  // terminate the whole tree with kill(-pid) (Section 6). On POSIX, default
+  // terminate the whole tree with kill(-pid) (specs/script-tool.md#timeout-delivery). On POSIX, default
   // detached: true when the caller did not set it; an explicit caller value is
   // kept. Processes also default cwd to the script's cwd when not set
-  // (Section 3). Options can be the 2nd or 3rd argument; exec/execFile may take a
+  // (specs/script-tool.md#execution-model). Options can be the 2nd or 3rd argument; exec/execFile may take a
   // callback in place of options; options may be omitted entirely.
   // Returns the rewritten arguments plus the effective detached value, which
   // drives the exec/execFile spawn latch below, and which stdio pipes of the
@@ -845,7 +845,7 @@ void (async () => {
         optionsModified = true;
       } else if (typeof newOptions.cwd === "string") {
         // A relative caller `cwd` resolves against the script cwd, not the
-        // host process cwd (Section 3).
+        // host process cwd (specs/script-tool.md#execution-model).
         const resolvedCwd = resolvePathArg(newOptions.cwd);
         if (resolvedCwd !== newOptions.cwd) {
           newOptions.cwd = resolvedCwd;
@@ -853,7 +853,7 @@ void (async () => {
         }
       }
       // A caller-supplied `env` keeps the session's agent directory and temp
-      // variables unless it names them itself (Section 6).
+      // variables unless it names them itself (specs/script-tool.md#timeout-delivery).
       const callerEnv = newOptions.env;
       if (isOptionsObject(callerEnv)) {
         const injected: Record<string, string> = {};
@@ -874,7 +874,7 @@ void (async () => {
           optionsModified = true;
         }
       }
-      // Child stdio resolution (Section 6): resolve inherited elements before
+      // Child stdio resolution (specs/script-tool.md#timeout-delivery): resolve inherited elements before
       // the spawn, and mark which pipes the wrapper must forward into the
       // capture. fork's own stdio is inherited when silent is unset or false,
       // so it needs the explicit resolved array; its silent pipes are forwarded
@@ -933,7 +933,7 @@ void (async () => {
     }
     const forward = { stdout: false, stderr: false };
     if (method === "fork") {
-      // fork with no options inherits the worker's streams outright (Section 6).
+      // fork with no options inherits the worker's streams outright (specs/script-tool.md#timeout-delivery).
       newOptions.stdio = ["ignore", "pipe", "pipe", "ipc"];
       forward.stdout = true;
       forward.stderr = true;
@@ -975,7 +975,7 @@ void (async () => {
     const original = realChildProcess[name];
     if (isChildProcessFactory(original)) spawnOriginals.set(name, original);
   }
-  // Sync child-process calls are rejected with an error (Section 6).
+  // Sync child-process calls are rejected with an error (specs/script-tool.md#timeout-delivery).
   for (const name of ["spawnSync", "execSync", "execFileSync"]) {
     realChildProcess[name] = () => {
       throw new Error(
@@ -985,7 +985,7 @@ void (async () => {
   }
   // Async spawn-family wrappers: default `detached` so each child leads its
   // own process group, report the PID for tree termination, and resolve the
-  // child's stdio so the host's streams never reach it (Section 6).
+  // child's stdio so the host's streams never reach it (specs/script-tool.md#timeout-delivery).
   const promisifyCustom = Symbol.for("nodejs.util.promisify.custom");
   for (const [name, original] of spawnOriginals) {
     const wrapper = (...args: unknown[]) => {
@@ -1002,7 +1002,7 @@ void (async () => {
       } else {
         child = trackChild(original(...applied.args), applied.detached);
       }
-      // Resolved stdio pipes capture into the run (Section 6).
+      // Resolved stdio pipes capture into the run (specs/script-tool.md#timeout-delivery).
       forwardChildOutput(child, applied.forward);
       return child;
     };
@@ -1025,7 +1025,7 @@ void (async () => {
     realChildProcess[name] = wrapper;
   }
 
-  // console capture must hold for every access path (Section 3): the worker
+  // console capture must hold for every access path (specs/script-tool.md#execution-model): the worker
   // realm's global console is replaced outright (a helper module compiled by
   // jiti reads the real global), and scriptGlobal serves it for the `console`
   // property; the entry script's `console` binding already points at
@@ -1033,10 +1033,10 @@ void (async () => {
   Reflect.set(globalThis, "console", scriptConsole);
 
   // ESM named imports (`import { readFileSync } from "node:fs"`) must observe
-  // the patched functions too (Section 3).
+  // the patched functions too (specs/script-tool.md#execution-model).
   syncBuiltinESMExports();
 
-  // Fresh compilation every call (Section 3): no module cache and no on-disk
+  // Fresh compilation every call (specs/script-tool.md#execution-model): no module cache and no on-disk
   // transpile cache (fsCache) — every module is recompiled afresh per run.
   const jiti = createJiti(data.filename, {
     moduleCache: false,
@@ -1059,7 +1059,7 @@ void (async () => {
   // jiti's transform rewrites dynamic `import()` to `jitiImport(...)`; provide
   // the binding so `await import(...)` works. node builtins resolve through
   // the ESM loader, whose named exports were re-linked by
-  // syncBuiltinESMExports above, so they observe the patched modules (Section 3).
+  // syncBuiltinESMExports above, so they observe the patched modules (specs/script-tool.md#execution-model).
   const jitiImport = async (specifier: string): Promise<unknown> => {
     if (specifier === "process" || specifier === "node:process") return scriptProcess;
     return jiti.import(specifier);
@@ -1115,7 +1115,7 @@ void (async () => {
     const names = Object.keys(bindings).filter((n) => n !== "globalThis" && n !== "global");
     // The user code sits in its own block, so its own `const`/`let`/`function`/
     // `class` declaration of a binding name shadows the prologue; a block keeps
-    // the script's completion value (Section 4).
+    // the script's completion value (specs/script-tool.md#module-contract).
     const prologue =
       `${strict}\n` +
       `const __piDent = __piDentBindings;\n` +
@@ -1146,7 +1146,7 @@ void (async () => {
       try {
         completion = script.runInThisContext();
         // The strict directive and CJS export plumbing leak as the completion
-        // value when the final statement is not an expression (Section 4:
+        // value when the final statement is not an expression (specs/script-tool.md#module-contract:
         // undefined then).
         if (completion === "use strict" || completion === moduleObj.exports) {
           completion = undefined;
@@ -1169,13 +1169,13 @@ void (async () => {
     ) {
       mod = { default: exportsValue };
     } else if (completion !== undefined) {
-      // No default export: the completion value is the return value (Section 4).
+      // No default export: the completion value is the return value (specs/script-tool.md#module-contract).
       mod = { default: completion };
     }
   } catch (err) {
     closeStateWatchers();
-    // The exit already settled the run (Section 3); the worker stays up for the
-    // runner's termination and the reaping of the tree it kills (Section 6).
+    // The exit already settled the run (specs/script-tool.md#execution-model); the worker stays up for the
+    // runner's termination and the reaping of the tree it kills (specs/script-tool.md#timeout-delivery).
     if (exitCalled || isScriptExit(err)) return;
     const e = err instanceof Error ? err : new Error(String(err));
     reportError(e);
@@ -1187,7 +1187,7 @@ void (async () => {
   if (exitCalled) return;
   // Plugin UI calls classify the raw return value before structured cloning,
   // so non-cloneable values (functions, symbols) are never turned into strings
-  // and `undefined` maps to `null` (specs/plugin-ui.md Section 5).
+  // and `undefined` maps to `null` (specs/plugin-ui.md#ui-feed).
   if (data.uiCall === true) {
     const rawExported: unknown = mod?.default;
     let uiReturn: { ok: true; json: string } | { ok: false; error: string };
@@ -1210,11 +1210,11 @@ void (async () => {
     }
     return;
   }
-  // Section 4: a return value that cannot be structured-cloned degrades, without
+  // specs/script-tool.md#module-contract: a return value that cannot be structured-cloned degrades, without
   // failing the run, to the `<non-cloneable: <error>>` marker string. The check
   // happens here, where the original value still exists. A value that clones
   // (a class instance becomes a plain object) keeps its original for rendering:
-  // the render must show the real prototype (Section 5), so it happens before
+  // the render must show the real prototype (specs/script-tool.md#result-contract), so it happens before
   // the clone below.
   let exported: unknown = mod?.default;
   try {

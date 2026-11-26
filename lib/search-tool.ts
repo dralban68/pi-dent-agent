@@ -11,7 +11,7 @@
  * abort signal — so every rule is testable without the host. Covering and
  * evaluation yield to the event loop between steps, and a regular expression is
  * evaluated in a worker thread the call terminates, so an abort or the end of the
- * time budget returns within 1000 ms (Sections 2.3 and 3.3).
+ * time budget returns within 1000 ms (specs/search-tool.md#abort and specs/search-tool.md#evaluation).
  */
 
 import { statSync } from "node:fs";
@@ -82,50 +82,50 @@ import {
   type Settings,
 } from "./search-eval.ts";
 
-/** The invoking session as the host sees it (Section 2.1), re-exported for callers. */
+/** The invoking session as the host sees it (specs/search-tool.md#reach), re-exported for callers. */
 export type { SearchHost, SearchProgress } from "./search-eval.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-/** The tool name (Section 1). */
+/** The tool name (specs/search-tool.md#registration). */
 export const SEARCH_TOOL_NAME = "Search";
 
-/** The covering deadline after the call started, in milliseconds (Section 2.2). */
+/** The covering deadline after the call started, in milliseconds (specs/search-tool.md#coverage). */
 const COVERING_MS = 3000;
 
-/** The `find` time budget from the call's start, in milliseconds (Section 3.3). */
+/** The `find` time budget from the call's start, in milliseconds (specs/search-tool.md#evaluation). */
 const BUDGET_MS = 5000;
 
-/** The default `get` limit, in characters (Section 1.1). */
+/** The default `get` limit, in characters (specs/search-tool.md#parameter-schema). */
 const GET_LIMIT = 10000;
 
-/** The default `sessions` limit (Section 1.1). */
+/** The default `sessions` limit (specs/search-tool.md#parameter-schema). */
 const SESSIONS_LIMIT = 50;
 
-/** The longest admitted `query`, in characters (Section 1.2, check 3). */
+/** The longest admitted `query`, in characters (specs/search-tool.md#validation, check 3). */
 const QUERY_MAX = 1000;
 
 /** The most bytes one chunk of a session listing's preview read consumes. */
 const PREVIEW_CHUNK_BYTES = 262144;
 
-/** The number of a session file's first lines a preview reads (Section 5). */
+/** The number of a session file's first lines a preview reads (specs/search-tool.md#sessions). */
 const PREVIEW_LINES = 50;
 
-/** An age: one to nine decimal digits and one of `s,m,h,d` (Section 3.1). */
+/** An age: one to nine decimal digits and one of `s,m,h,d` (specs/search-tool.md#candidates). */
 const AGE = /^([0-9]{1,9})([smhd])$/;
 
-/** The `action` values (Section 1.1). */
+/** The `action` values (specs/search-tool.md#parameter-schema). */
 export const SEARCH_ACTIONS = ["find", "get", "sessions"] as const;
 
-/** The `scope` values (Section 1.1). */
+/** The `scope` values (specs/search-tool.md#parameter-schema). */
 export const SEARCH_SCOPES = ["session", "tree", "project", "project-trees"] as const;
 
-/** The `order` values (Section 1.1). */
+/** The `order` values (specs/search-tool.md#parameter-schema). */
 export const SEARCH_ORDERS = ["newest", "oldest"] as const;
 
-/** The item kinds, in the order of session-transcript.md Section 2. */
+/** The item kinds, in the order of specs/session-transcript.md#transcript-items. */
 export const SEARCH_ITEM_KINDS = [
   "user",
   "system",
@@ -139,18 +139,18 @@ export const SEARCH_ITEM_KINDS = [
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Section 1.3: model-facing texts, verbatim
+// specs/search-tool.md#model-texts: model-facing texts, verbatim
 // ---------------------------------------------------------------------------
 
-/** The tool's `description` (Section 1.3). */
+/** The tool's `description` (specs/search-tool.md#model-texts). */
 export const SEARCH_DESCRIPTION =
   "Look back into session transcripts. find searches earlier messages, tool calls, and tool results and returns compact hits, each starting with an address; get returns one item's full text by its address; sessions lists sessions. find searches this session only unless scope widens it.";
 
-/** The tool's `promptSnippet` (Section 1.3). */
+/** The tool's `promptSnippet` (specs/search-tool.md#model-texts). */
 export const SEARCH_PROMPT_SNIPPET =
   "Search earlier messages, tool calls, and tool results of this session; with scope, also its child sessions and its project";
 
-/** The `description` of each parameter, verbatim from Section 1.3. */
+/** The `description` of each parameter, verbatim from specs/search-tool.md#model-texts. */
 export const SEARCH_PARAMETER_DESCRIPTIONS = {
   action:
     "find: search and return hits with addresses. get: return one item's text by its address. sessions: list sessions.",
@@ -187,7 +187,7 @@ export const SEARCH_PARAMETER_DESCRIPTIONS = {
 const DESCRIPTIONS = SEARCH_PARAMETER_DESCRIPTIONS;
 
 // ---------------------------------------------------------------------------
-// Section 1.1: parameter schema
+// specs/search-tool.md#parameter-schema: parameter schema
 // ---------------------------------------------------------------------------
 
 export const searchParameterSchema = Type.Object(
@@ -260,31 +260,31 @@ export interface SearchInvocation extends SearchHost {
 
 /** How the tool is driven: the index, the clock, the zone, and the test seam. */
 export interface SearchRuntimeOptions {
-  /** The index file's path. Default `searchIndexPath()` (session-index.md Section 1). */
+  /** The index file's path. Default `searchIndexPath()` (specs/session-index.md#location). */
   indexPath?: string | undefined;
-  /** The SQLite busy timeout of the index, in milliseconds. Default 1000 (session-index.md Section 1). */
+  /** The SQLite busy timeout of the index, in milliseconds. Default 1000 (specs/session-index.md#location). */
   busyTimeoutMs?: number | undefined;
   /** The current instant, milliseconds since the Unix epoch. Default `Date.now`. */
   now?: (() => number) | undefined;
-  /** The local zone every rendered time stamp is in (billing.md Section 5). */
+  /** The local zone every rendered time stamp is in (specs/billing.md#billing-text). */
   zone: string;
-  /** The instant the boot window ends: the bound of a background continuation (Section 2.2). */
+  /** The instant the boot window ends: the bound of a background continuation (specs/search-tool.md#coverage). */
   bootDeadline?: number | undefined;
   /** A test seam: called at the boundaries of a call. */
   progress?: ((event: SearchProgress) => void) | undefined;
-  /** A test seam: how a regular-expression evaluator is made (Section 2.3). */
+  /** A test seam: how a regular-expression evaluator is made (specs/search-tool.md#abort). */
   makeEvaluator?: ((pattern: string, flags: string) => PatternEvaluator) | undefined;
-  /** A test seam: called for each item read back from a session file (Section 3.3). */
+  /** A test seam: called for each item read back from a session file (specs/search-tool.md#evaluation). */
   onItemRead?: (() => void) | undefined;
 }
 
 /** The tool of one extension instance. */
 export interface SearchRuntime {
-  /** One call of the tool (Sections 3 to 5). */
+  /** One call of the tool (specs/search-tool.md#find, specs/search-tool.md#get, specs/search-tool.md#sessions). */
   execute(invocation: SearchInvocation): Promise<ToolResult>;
-  /** Stop every continuation of catch-up the runtime started (Section 2.2). */
+  /** Stop every continuation of catch-up the runtime started (specs/search-tool.md#coverage). */
   stop(): void;
-  /** Settles when every background continuation this runtime started has ended (Section 2.2). */
+  /** Settles when every background continuation this runtime started has ended (specs/search-tool.md#coverage). */
   backgroundDone(): Promise<void>;
 }
 
@@ -295,10 +295,10 @@ export interface SearchToolDeps {
 }
 
 // ---------------------------------------------------------------------------
-// Section 1.2: execution-time validation
+// specs/search-tool.md#validation: execution-time validation
 // ---------------------------------------------------------------------------
 
-/** The parameter fields in the table order of Section 1.1, `action` excluded. */
+/** The parameter fields in the table order of specs/search-tool.md#parameter-schema, `action` excluded. */
 const FIELD_ORDER = [
   "query",
   "regex",
@@ -319,7 +319,7 @@ const FIELD_ORDER = [
   "context",
 ] as const;
 
-/** The fields each action accepts (Section 1.1). */
+/** The fields each action accepts (specs/search-tool.md#parameter-schema). */
 const ACCEPTED_FIELDS: Readonly<Record<SearchAction, ReadonlySet<string>>> = {
   find: new Set([
     "query",
@@ -341,13 +341,13 @@ const ACCEPTED_FIELDS: Readonly<Record<SearchAction, ReadonlySet<string>>> = {
   sessions: new Set(["since", "until", "session", "scope", "limit"]),
 };
 
-/** A field value that counts as present: neither absent nor `null` (Section 1.1). */
+/** A field value that counts as present: neither absent nor `null` (specs/search-tool.md#parameter-schema). */
 function present(fields: Record<string, unknown>, name: string): unknown {
   const value = fields[name];
   return value === undefined || value === null ? undefined : value;
 }
 
-/** The action a call names, or undefined when it names none of Section 1.1's. */
+/** The action a call names, or undefined when it names none of specs/search-tool.md#parameter-schema's. */
 function actionOf(value: unknown): SearchAction | undefined {
   for (const action of SEARCH_ACTIONS) {
     if (action === value) return action;
@@ -371,7 +371,7 @@ function orderOf(value: unknown): SearchOrder | undefined {
   return;
 }
 
-/** The instant a `since` or `until` value names, or undefined when it names none (Section 3.1). */
+/** The instant a `since` or `until` value names, or undefined when it names none (specs/search-tool.md#candidates). */
 function instantOfValue(text: string, started: number): number | undefined {
   const trimmed = text.trim();
   const dateTime = parseDateTime(trimmed);
@@ -385,7 +385,7 @@ function instantOfValue(text: string, started: number): number | undefined {
   return started - Number(digits) * scale * 1000;
 }
 
-/** The message of the error the pattern raises, or undefined when it is a valid regular expression (Section 1.2, check 5). */
+/** The message of the error the pattern raises, or undefined when it is a valid regular expression (specs/search-tool.md#validation, check 5). */
 function regexProblem(pattern: string): string | undefined {
   try {
     new RegExp(pattern, "m");
@@ -401,7 +401,7 @@ function invalid(message: string): Checked {
   return { kind: "error", message };
 }
 
-/** The first failing check of Section 1.2, or the settings the call runs with. */
+/** The first failing check of specs/search-tool.md#validation, or the settings the call runs with. */
 function checkCall(
   action: SearchAction,
   fields: Record<string, unknown>,
@@ -433,7 +433,7 @@ function checkCall(
     offset: 0,
     context: 0,
   };
-  // The checks run in the numbered order of Section 1.2, the first failure reported.
+  // The checks run in the numbered order of specs/search-tool.md#validation, the first failure reported.
   if (action === "find") {
     const rawQuery = present(fields, "query");
     if (rawQuery !== undefined) {
@@ -589,23 +589,23 @@ function checkCall(
   return { kind: "ok", settings };
 }
 
-/** True when `value` is a number for which `Number.isInteger` holds, between the bounds (Section 1.2). */
+/** True when `value` is a number for which `Number.isInteger` holds, between the bounds (specs/search-tool.md#validation). */
 function isIntegerBetween(value: unknown, low: number, high: number): value is number {
   if (typeof value !== "number" || !Number.isInteger(value)) return false;
   return value >= low && value <= high;
 }
 
 // ---------------------------------------------------------------------------
-// Section 2.1: reach and session resolution
+// specs/search-tool.md#reach: reach and session resolution
 // ---------------------------------------------------------------------------
 
-/** A resolved session, or the error text that replaces it (Section 2.1). */
+/** A resolved session, or the error text that replaces it (specs/search-tool.md#reach). */
 type Resolved = { kind: "session"; session: Reached } | { kind: "error"; message: string };
 
 /**
  * A member below a tree's root, or a project member: discovery admitted it only
- * as a regular file, not a symbolic link (session-transcript.md Sections 4 and
- * 4.1), so its path with symbolic links resolved is its directory's resolved path
+ * as a regular file, not a symbolic link (specs/session-transcript.md#session-tree and
+ * specs/session-transcript.md#project), so its path with symbolic links resolved is its directory's resolved path
  * and its own name. `realDirs` memoizes the directories of one discovery.
  */
 function reachedOf(
@@ -634,7 +634,7 @@ function reachedOf(
   };
 }
 
-/** A forest with no session in it, before discovery runs (Section 2.1). */
+/** A forest with no session in it, before discovery runs (specs/search-tool.md#reach). */
 function emptyForest(host: SearchHost): Forest {
   const rootPath = host.sessionFile ?? join(host.agentDirectory, "self");
   return {
@@ -650,7 +650,7 @@ function emptyForest(host: SearchHost): Forest {
   };
 }
 
-/** A `files` row's header and the checks a discovery makes on it (Section 2.1). */
+/** A `files` row's header and the checks a discovery makes on it (specs/search-tool.md#reach). */
 interface HeaderRow {
   sessionId: string;
   started: number;
@@ -660,11 +660,11 @@ interface HeaderRow {
 
 /**
  * A session header provider that answers a file the index already knows from its
- * `files` row, and reads the headers of every other file (Section 2.1). A row
+ * `files` row, and reads the headers of every other file (specs/search-tool.md#reach). A row
  * answers only when its `path` is the file's path with symbolic links resolved,
  * its `consumed` is the file's size, and its `mtime` is the file's modification
  * time — the conditions under which the file's catch-up is complete unchanged
- * (session-index.md Section 3, step 2) — so those checks, and no file read, keep
+ * (specs/session-index.md#catch-up, step 2) — so those checks, and no file read, keep
  * the header the one the file holds. No path is resolved per row: rows are keyed
  * by their resolved path, and a file by its directory's resolved path and name.
  */
@@ -712,17 +712,17 @@ function headerProvider(call: Call): (path: string) => SessionHeader | undefined
   };
 }
 
-/** The call's header provider, built once however many discoveries run (Section 2.3). */
+/** The call's header provider, built once however many discoveries run (specs/search-tool.md#abort). */
 function headerOfCall(call: Call): (path: string) => SessionHeader | undefined {
   call.headerOf ??= headerProvider(call);
   return call.headerOf;
 }
 
 /**
- * The invoking session's own session tree (session-transcript.md Section 4). A
+ * The invoking session's own session tree (specs/session-transcript.md#session-tree). A
  * session without a session file is the root of its tree with no session
  * entries, and its agent directory is still read for children. The walk yields to
- * the event loop between members (Section 2.3).
+ * the event loop between members (specs/search-tool.md#abort).
  */
 async function ownTree(call: Call): Promise<Forest> {
   const host = call.host;
@@ -754,7 +754,7 @@ async function ownTree(call: Call): Promise<Forest> {
 }
 
 /**
- * Read the project members and their session trees into the forest (Section 2.1).
+ * Read the project members and their session trees into the forest (specs/search-tool.md#reach).
  * Only a main session with a session file has a project, and only a call that asks
  * for it reads one.
  */
@@ -770,7 +770,7 @@ async function loadProject(call: Call): Promise<void> {
   };
 }
 
-/** A discovered forest kept for later calls of this process, with what it is valid for (Section 2.3). */
+/** A discovered forest kept for later calls of this process, with what it is valid for (specs/search-tool.md#abort). */
 interface CachedForest {
   forest: Forest;
   /** The directories discovery listed that exist, with their modification times. */
@@ -785,9 +785,8 @@ interface CachedForest {
  * A directory's modification time changes whenever an entry in it appears, goes,
  * or is renamed, so a forest is reused only while every directory discovery
  * listed is unchanged and every file it passed over for want of a session header
- * still has none: then a fresh discovery would find the same sessions (Sections
- * 2.1 and 2.3). Session files are appended to, never rewritten
- * (session-transcript.md Section 8), so a member's header does not change.
+ * still has none: then a fresh discovery would find the same sessions (specs/search-tool.md#reach and specs/search-tool.md#abort). Session files are appended to, never rewritten
+ * (specs/session-transcript.md#gaps), so a member's header does not change.
  */
 const forestCache = new Map<string, CachedForest>();
 
@@ -850,8 +849,8 @@ function forestValid(cached: CachedForest): boolean {
 
 /**
  * The invoking session's forest, found once and reused while it is valid, so a
- * repeat call does not walk thousands of session files again (Sections 2.1 and
- * 2.3). A forest any of whose directories changed within `FOREST_SETTLE_MS` of
+ * repeat call does not walk thousands of session files again (specs/search-tool.md#reach and
+ * specs/search-tool.md#abort). A forest any of whose directories changed within `FOREST_SETTLE_MS` of
  * its discovery is not kept: an entry made while discovery ran could be missing
  * from it with the directory's time already recorded.
  */
@@ -892,7 +891,7 @@ async function discoverForest(call: Call, project: boolean): Promise<Forest> {
   }
   if (settled) {
     forestCache.set(key, { forest, dirs, misses });
-    // Bound the cache: the least recently used forest goes first (Section 2.3).
+    // Bound the cache: the least recently used forest goes first (specs/search-tool.md#abort).
     while (forestCache.size > FOREST_CACHE_SIZE) {
       const oldest = forestCache.keys().next();
       if (oldest.done === true) break;
@@ -902,7 +901,7 @@ async function discoverForest(call: Call, project: boolean): Promise<Forest> {
   return forest;
 }
 
-/** The whole forest of a main session: its own tree and one tree per project member (Section 2.1). */
+/** The whole forest of a main session: its own tree and one tree per project member (specs/search-tool.md#reach). */
 async function projectForest(call: Call): Promise<Forest> {
   const own = await ownTree(call);
   const trees: Reached[][] = [own.trees[0] ?? []];
@@ -946,7 +945,7 @@ function oneOf(matches: readonly Reached[], value: string): Resolved {
 
 /**
  * The session a `session` value names, after trimming, by the first rule of
- * Section 2.1 that applies. With `keysOnly`, only rules 1 to 3 apply: that is how
+ * specs/search-tool.md#reach that applies. With `keysOnly`, only rules 1 to 3 apply: that is how
  * the session key of an `address` or an `after` resolves.
  */
 function resolveSession(forest: Forest, value: string, keysOnly: boolean): Resolved {
@@ -994,7 +993,7 @@ function projectRoots(trees: readonly Reached[][]): Reached[] {
   return roots;
 }
 
-/** The sessions of a call, per the table of Section 2.1. */
+/** The sessions of a call, per the table of specs/search-tool.md#reach. */
 function callSessions(forest: Forest, scope: SearchScope, resolved: Reached): Reached[] {
   if (scope === "session") return [resolved];
   if (scope === "tree") {
@@ -1011,10 +1010,10 @@ function callSessions(forest: Forest, scope: SearchScope, resolved: Reached): Re
 }
 
 // ---------------------------------------------------------------------------
-// Section 3: the `find` action
+// specs/search-tool.md#find: the `find` action
 // ---------------------------------------------------------------------------
 
-/** True when the call asks for the project: by `scope`, by a `~` session key, or by a `~` address (Section 2.1). */
+/** True when the call asks for the project: by `scope`, by a `~` session key, or by a `~` address (specs/search-tool.md#reach). */
 function asksForProject(call: Call, address: ItemAddress | undefined): boolean {
   const settings = call.settings;
   if (settings.scope === "project" || settings.scope === "project-trees") return true;
@@ -1023,7 +1022,7 @@ function asksForProject(call: Call, address: ItemAddress | undefined): boolean {
   return false;
 }
 
-/** The error text of a project request the invoking session cannot make, or undefined (Section 2.1). */
+/** The error text of a project request the invoking session cannot make, or undefined (specs/search-tool.md#reach). */
 function projectRefusal(call: Call, asks: boolean): string | undefined {
   if (!asks) return;
   if (call.host.main && call.host.sessionFile !== undefined) return;
@@ -1031,10 +1030,10 @@ function projectRefusal(call: Call, asks: boolean): string | undefined {
   return "project scope is available to a main session only";
 }
 
-/** Resolve the sessions of a `find` or `sessions` call, or the error text (Sections 2.1 and 3.4). */
+/** Resolve the sessions of a `find` or `sessions` call, or the error text (specs/search-tool.md#reach and specs/search-tool.md#result). */
 interface ReachedCall {
   sessions: Reached[];
-  /** The session the key of `after` names, when it is one of the sessions (Section 2.2). */
+  /** The session the key of `after` names, when it is one of the sessions (specs/search-tool.md#coverage). */
   afterSession: Reached | undefined;
 }
 
@@ -1065,7 +1064,7 @@ async function reachCall(call: Call): Promise<ReachedCall | { error: string }> {
   return { sessions, afterSession };
 }
 
-/** The one uncovered-sessions line of a `find` result (Section 3.4). */
+/** The one uncovered-sessions line of a `find` result (specs/search-tool.md#result). */
 function uncoveredLine(call: Call, uncovered: number, sessions: number): string {
   if (call.indexUnusable !== undefined) {
     return `${uncovered} of ${sessions} sessions were not searched: the search index is unavailable (${call.indexUnusable}). Narrow the scope.`;
@@ -1076,7 +1075,7 @@ function uncoveredLine(call: Call, uncovered: number, sessions: number): string 
   return `${uncovered} of ${sessions} sessions are not indexed yet and were not searched; indexing continues in the background. Repeat the call later, without after, to include them.`;
 }
 
-/** The result of a `find` call (Section 3.4): each line under its own condition, in the table's order. */
+/** The result of a `find` call (specs/search-tool.md#result): each line under its own condition, in the table's order. */
 function findResult(call: Call, evaluation: FindOutcome): ToolResult {
   const shown = evaluation.hits.length;
   const indexError = call.indexUnusable ?? call.failedWrite;
@@ -1176,7 +1175,7 @@ async function findAction(
       return textError(`no item ${settings.after} in the searched sessions`);
     }
     if (!isCovered(cover)) {
-      // The session `after` names is uncovered: the call is stopped, with no stop item (Section 3.3).
+      // The session `after` names is uncovered: the call is stopped, with no stop item (specs/search-tool.md#evaluation).
       startContinuation(call, register);
       return findResult(call, {
         kind: "evaluation",
@@ -1185,14 +1184,14 @@ async function findAction(
         stopped: true,
         stop: undefined,
         unmatched: 0,
-        // The after-session state of Section 3.4 needs a usable index and no failed write.
+        // The after-session state of specs/search-tool.md#result needs a usable index and no failed write.
         afterUncovered: call.indexUnusable === undefined && call.failedWrite === undefined,
       });
     }
     let slot = afterSlotOf(call, cover, address);
     if (slot === undefined && cover.state === "catchup") {
       // The rows no longer answer: the after session is covered again by a direct
-      // read, and the item is looked up there (Section 2.2).
+      // read, and the item is looked up there (specs/search-tool.md#coverage).
       await recoverAfterSession(call, cover, [], false);
       if (!isCovered(cover)) {
         return textError(`no item ${settings.after} in the searched sessions`);
@@ -1214,7 +1213,7 @@ async function findAction(
 }
 
 // ---------------------------------------------------------------------------
-// Section 4: the `get` action
+// specs/search-tool.md#get: the `get` action
 // ---------------------------------------------------------------------------
 
 /** One neighbour of an addressed item. */
@@ -1225,13 +1224,13 @@ interface Neighbour {
   sessionKey: string;
 }
 
-/** The item a `get` call answers with (Section 4). */
+/** The item a `get` call answers with (specs/search-tool.md#get). */
 interface Addressed {
   item: TranscriptItem;
   sessionKey: string;
   onLineage: boolean;
   address: string;
-  /** The address of the paired item, when the line of step 2 has one (Section 4). */
+  /** The address of the paired item, when the line of step 2 has one (specs/search-tool.md#get). */
   paired: string | undefined;
   before: Neighbour[];
   after: Neighbour[];
@@ -1244,7 +1243,7 @@ type IndexedItem =
   | { kind: "stale"; row: IndexItemRow }
   | { kind: "unreadable" };
 
-/** The partner of one row, when the row is the first of its kind with its tool-call ID (session-transcript.md Section 2). */
+/** The partner of one row, when the row is the first of its kind with its tool-call ID (specs/session-transcript.md#transcript-items). */
 function partnerRow(rows: readonly IndexItemRow[], row: IndexItemRow): IndexItemRow | undefined {
   const callId = row.callId;
   if (callId === null) return;
@@ -1261,7 +1260,7 @@ function rowAddress(sessionKey: string, row: IndexItemRow): string {
   return addressOf(sessionKey, row.entryId, row.part === "" ? undefined : row.part);
 }
 
-/** The addressed item from the index (Section 4). */
+/** The addressed item from the index (specs/search-tool.md#get). */
 function addressedFromIndex(call: Call, cover: Cover, address: ItemAddress): IndexedItem {
   const index = call.index;
   if (index === undefined || cover.fileId === undefined) return { kind: "unreadable" };
@@ -1270,7 +1269,7 @@ function addressedFromIndex(call: Call, cover: Cover, address: ItemAddress): Ind
   if (!found.ok) return { kind: "unreadable" };
   const row = found.value;
   if (row === undefined) return { kind: "missing" };
-  // Only the entries terminated when the call started are used (Section 2.2).
+  // Only the entries terminated when the call started are used (specs/search-tool.md#coverage).
   const size = cover.size ?? 0;
   if (row.offset + row.bytes + 1 > size) return { kind: "missing" };
   const read = index.readItem(row);
@@ -1281,7 +1280,7 @@ function addressedFromIndex(call: Call, cover: Cover, address: ItemAddress): Ind
   const listed = index.listItems(cover.fileId);
   refreshIndexState(call);
   if (!listed.ok) return { kind: "unreadable" };
-  // session-index.md Section 4: a later read must find the file's rows under the
+  // specs/session-index.md#concurrent-access: a later read must find the file's rows under the
   // same path, at a `consumed` no smaller than the call's own catch-up left, and the
   // items under the `item_id`s it uses. Rows that do not are no longer this session's,
   // and the call reads the file.
@@ -1301,7 +1300,7 @@ function addressedFromIndex(call: Call, cover: Cover, address: ItemAddress): Ind
     }
   }
   if (!holdsRow) return { kind: "unreadable" };
-  // The lineage is that of the entries terminated when the call started (Section 2.2).
+  // The lineage is that of the entries terminated when the call started (specs/search-tool.md#coverage).
   let lineage: ReadonlySet<string> | undefined;
   if (consumed > size || cover.lineageIds !== undefined) {
     if (cover.lineageIds === undefined) {
@@ -1360,7 +1359,7 @@ function addressedFromIndex(call: Call, cover: Cover, address: ItemAddress): Ind
   };
 }
 
-/** The addressed item from a direct read of its session (Section 4). */
+/** The addressed item from a direct read of its session (specs/search-tool.md#get). */
 function addressedFromRead(call: Call, cover: Cover, address: ItemAddress): Addressed | undefined {
   const items = cover.items ?? [];
   const item = resolveItem(items, address);
@@ -1408,7 +1407,7 @@ function addressedFromRead(call: Call, cover: Cover, address: ItemAddress): Addr
   };
 }
 
-/** The hit line parts of a neighbour: no `at`, and the snippet with start position 0 (Section 4). */
+/** The hit line parts of a neighbour: no `at`, and the snippet with start position 0 (specs/search-tool.md#get). */
 function neighbourParts(neighbour: Neighbour): HitLineParts {
   return {
     address: neighbour.address,
@@ -1423,7 +1422,7 @@ function neighbourParts(neighbour: Neighbour): HitLineParts {
   };
 }
 
-/** The `<hit>` object of a neighbour (Section 4). */
+/** The `<hit>` object of a neighbour (specs/search-tool.md#get). */
 function neighbourDetails(neighbour: Neighbour): Record<string, unknown> {
   return hitDetails({
     address: neighbour.address,
@@ -1439,7 +1438,7 @@ function neighbourDetails(neighbour: Neighbour): Record<string, unknown> {
   });
 }
 
-/** The result of a `get` call (Section 4). */
+/** The result of a `get` call (specs/search-tool.md#get). */
 function getResult(call: Call, addressed: Addressed): ToolResult {
   const item = addressed.item;
   const settings = call.settings;
@@ -1500,7 +1499,7 @@ function getResult(call: Call, addressed: Addressed): ToolResult {
   return { content: [{ type: "text", text: lines.join("\n") }], details };
 }
 
-/** True when covering found the file not readable as a session file (Section 2.2). */
+/** True when covering found the file not readable as a session file (specs/search-tool.md#coverage). */
 function coverLost(cover: Cover): boolean {
   return cover.state === "lost";
 }
@@ -1524,7 +1523,7 @@ async function getAction(call: Call, settings: Settings): Promise<ToolResult> {
   const cover = call.covers[0];
   if (cover === undefined) return textError(`no item ${addressText}`);
   if (cover.state === "lost") {
-    // The file is not a session of the call: its key names no session (Section 2.2).
+    // The file is not a session of the call: its key names no session (specs/search-tool.md#coverage).
     return textError(`unknown session "${address.sessionKey}"`);
   }
   let addressed: Addressed | undefined;
@@ -1536,7 +1535,7 @@ async function getAction(call: Call, settings: Settings): Promise<ToolResult> {
       return textError(`no item ${addressText}`);
     } else {
       if (outcome.kind === "stale") await resetStaleRow(call, outcome.row);
-      // A stale row, or rows the call cannot read: answer from a direct read (Section 2.2).
+      // A stale row, or rows the call cannot read: answer from a direct read (specs/search-tool.md#coverage).
       await coverDirectly(call, cover);
       if (isAborted(call)) return abortedResult();
     }
@@ -1546,7 +1545,7 @@ async function getAction(call: Call, settings: Settings): Promise<ToolResult> {
   }
   if (addressed === undefined) {
     if (coverLost(cover)) {
-      // The file is not readable as a session file: its key names no session (Section 2.2).
+      // The file is not readable as a session file: its key names no session (specs/search-tool.md#coverage).
       return textError(`unknown session "${address.sessionKey}"`);
     }
     addressed = addressedFromRead(call, cover, address);
@@ -1562,10 +1561,10 @@ async function getAction(call: Call, settings: Settings): Promise<ToolResult> {
 }
 
 // ---------------------------------------------------------------------------
-// Section 5: the `sessions` action
+// specs/search-tool.md#sessions: the `sessions` action
 // ---------------------------------------------------------------------------
 
-/** The snippet of the first `user` item among the entries of a file's first 50 lines (Section 5). */
+/** The snippet of the first `user` item among the entries of a file's first 50 lines (specs/search-tool.md#sessions). */
 function previewOf(read: SessionRead | undefined): string {
   if (read === undefined) return "(no user message)";
   for (const item of sessionItems(read.entries)) {
@@ -1575,7 +1574,7 @@ function previewOf(read: SessionRead | undefined): string {
   return "(no user message)";
 }
 
-/** The preview of one session, read from its file's first 50 lines (Section 5). */
+/** The preview of one session, read from its file's first 50 lines (specs/search-tool.md#sessions). */
 async function previewAt(call: Call, path: string, size: number): Promise<string> {
   const outcome = await readSessionChunked(path, {
     to: size,
@@ -1589,7 +1588,7 @@ async function previewAt(call: Call, path: string, size: number): Promise<string
 }
 
 /**
- * The sessions of a `tree` listing in the order of Section 5: the resolved
+ * The sessions of a `tree` listing in the order of specs/search-tool.md#sessions: the resolved
  * session first, then each session's children by descending modification time and
  * ascending key, each child followed in turn by its own children.
  */
@@ -1618,7 +1617,7 @@ function treeListing(
   return ordered;
 }
 
-/** The result of a `sessions` call (Section 5). */
+/** The result of a `sessions` call (specs/search-tool.md#sessions). */
 async function sessionsAction(call: Call, settings: Settings): Promise<ToolResult> {
   const value = settings.session;
   const asks = settings.scope === "project" || (value !== undefined && value.startsWith("~"));
@@ -1644,7 +1643,7 @@ async function sessionsAction(call: Call, settings: Settings): Promise<ToolResul
     });
     ordered = first === undefined ? rest : [first, ...rest];
   } else {
-    // Section 5: the session first, then each session's children by descending
+    // specs/search-tool.md#sessions: the session first, then each session's children by descending
     // modification time, ties by ascending key, each child followed by its own.
     ordered = treeListing(sessions, resolved.session, mtimes);
   }
@@ -1794,7 +1793,7 @@ export function searchRuntime(options: SearchRuntimeOptions): SearchRuntime {
 
   return {
     execute,
-    /** Stop every continuation of catch-up: the boot window ends (Section 2.2). */
+    /** Stop every continuation of catch-up: the boot window ends (specs/search-tool.md#coverage). */
     stop(): void {
       for (const continuation of continuations) continuation.stop();
       continuations.clear();
@@ -1805,7 +1804,7 @@ export function searchRuntime(options: SearchRuntimeOptions): SearchRuntime {
   };
 }
 
-/** The `Search` tool definition the host registers (Section 1). */
+/** The `Search` tool definition the host registers (specs/search-tool.md#registration). */
 export function makeSearchTool(deps: SearchToolDeps) {
   return defineTool({
     name: SEARCH_TOOL_NAME,

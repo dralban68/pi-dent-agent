@@ -10,7 +10,7 @@ import {
 } from "./billing-entry.ts";
 
 /**
- * Billing text per specs/billing.md Sections 5 to 7: time zone and time
+ * Billing text per specs/billing.md#billing-text, specs/billing.md#guidance-billing, specs/billing.md#billing-report: time zone and time
  * stamps, number rendering, per-model annotations, the billing note, and the
  * `Session` billing report. Everything here is composed from pi-dent's own words,
  * ids, and formatted numbers.
@@ -24,7 +24,7 @@ export interface BillingView {
 
 // ---------------------------------------------------------------- providers
 
-/** Billing providers of a set of provider components (Section 3): distinct, ascending. */
+/** Billing providers of a set of provider components (specs/billing.md#providers): distinct, ascending. */
 export function billingProviders(providers: Iterable<string>): string[] {
   return [...new Set(providers)].toSorted(compareAscii);
 }
@@ -37,7 +37,7 @@ export function compareAscii(a: string, b: string): number {
 
 const ZONE_PATTERN = /^[A-Za-z0-9_+/-]{1,64}$/u;
 
-/** The local zone from a candidate `timeZone` value (Section 5); `UTC` when unusable. */
+/** The local zone from a candidate `timeZone` value (specs/billing.md#billing-text); `UTC` when unusable. */
 export function localZoneFrom(candidate: unknown): string {
   if (typeof candidate !== "string" || !ZONE_PATTERN.test(candidate)) return "UTC";
   try {
@@ -48,7 +48,7 @@ export function localZoneFrom(candidate: unknown): string {
   }
 }
 
-/** Read the local zone once from the runtime (Section 5). */
+/** Read the local zone once from the runtime (specs/billing.md#billing-text). */
 export function readLocalZone(): string {
   try {
     return localZoneFrom(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -112,7 +112,7 @@ function localFields(ms: number, zone: string): LocalFields {
   };
 }
 
-/** Minute stamp (Section 5): the instant rounded up to the minute, UTC with local time. */
+/** Minute stamp (specs/billing.md#billing-text): the instant rounded up to the minute, UTC with local time. */
 export function minuteStamp(ms: number, zone: string): string {
   const rounded = Math.ceil(ms / 60_000) * 60_000;
   const utc = new Date(rounded).toISOString();
@@ -128,7 +128,7 @@ export function localStampIn(ms: number, zone: string): string {
   return `${local.date}T${local.hms}${local.offset}`;
 }
 
-/** Second stamp (Section 5): the instant rounded down to the second, UTC with local time. */
+/** Second stamp (specs/billing.md#billing-text): the instant rounded down to the second, UTC with local time. */
 export function secondStamp(ms: number, zone: string): string {
   const rounded = Math.floor(ms / 1000) * 1000;
   const utc = new Date(rounded).toISOString();
@@ -137,7 +137,7 @@ export function secondStamp(ms: number, zone: string): string {
 
 // ---------------------------------------------------------------- numbers and text
 
-/** Decimal rendering to `places` places (Section 5). */
+/** Decimal rendering to `places` places (specs/billing.md#billing-text). */
 export function decimal(value: number, places: number): string {
   const rounded = Number(value.toFixed(places));
   if (value > 0 && rounded === 0) return String(Number(`1e-${places}`));
@@ -148,7 +148,7 @@ function decimalOrQuestion(value: number | null, places: number): string {
   return value === null ? "?" : decimal(value, places);
 }
 
-/** Sanitized text (Section 5); `null` when empty. */
+/** Sanitized text (specs/billing.md#billing-text); `null` when empty. */
 export function sanitizeText(value: string): string | null {
   let text = value
     .replace(/[^\p{L}\p{N} ._\-/+()]/gu, "")
@@ -163,7 +163,7 @@ export function sanitizeText(value: string): string | null {
 
 // ---------------------------------------------------------------- windows
 
-/** Window name (Section 5). */
+/** Window name (specs/billing.md#billing-text). */
 export function windowName(window: LimitWindow): string {
   const d = window.windowSeconds;
   let base: string;
@@ -193,7 +193,7 @@ function windowClause(window: LimitWindow, zone: string): string {
   return window.resetsAt === null ? base : `${base} until ${minuteStamp(window.resetsAt, zone)}`;
 }
 
-/** Window clauses of the counted, alarming windows in window-clause order (Section 5). */
+/** Window clauses of the counted, alarming windows in window-clause order (specs/billing.md#billing-text). */
 function alarmingClauses(windows: readonly LimitWindow[], zone: string): string[] {
   return windows
     .filter((w) => isCounted(w) && isAlarming(w.severity))
@@ -250,7 +250,7 @@ function price(entry: BillingEntry, record: ModelRecord, zone: string): string |
     : `${pair}, ×${m} from ${minuteStamp(schedule.changesAt, zone)}`;
 }
 
-/** Billing annotation of a guided model (Section 6.2); empty when there are no parts. */
+/** Billing annotation of a guided model (specs/billing.md#billing-annotation); empty when there are no parts. */
 export function billingAnnotation(
   entry: BillingEntry | undefined,
   id: string,
@@ -291,7 +291,7 @@ export function billingAnnotation(
 
 // ---------------------------------------------------------------- billing note
 
-/** Billing note (Section 6.3). */
+/** Billing note (specs/billing.md#billing-note). */
 export function billingNote(view: BillingView): string {
   return `Choose by stated use first; among models suited to a task, prefer the cheaper, counting a discount (×) while it lasts. Prices are USD per million input/output tokens; times UTC, local ${view.zone} in parentheses. Requests to an exhausted provider or model fail until its reset. Providers without limit data are marked unknown or untracked.`;
 }
@@ -346,7 +346,7 @@ export interface BillingReport {
 
 const REASON_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 
-/** The billing report (Section 7); `null` when it would hold no record. */
+/** The billing report (specs/billing.md#billing-report); `null` when it would hold no record. */
 export function buildBillingReport(
   view: BillingView,
   providers: readonly string[],
@@ -430,7 +430,7 @@ function reportLimitLine(w: ReportLimit, zone: string): string {
   return `${line}; ${w.severity}`;
 }
 
-/** Text of a billing report (Section 7), one block per record. */
+/** Text of a billing report (specs/billing.md#billing-report), one block per record. */
 export function billingReportText(report: BillingReport): string {
   const lines: string[] = [];
   for (const r of report.providers) {

@@ -3,7 +3,7 @@ import type { PluginEntry } from "./plugins.ts";
 import { type Diagnostic, errorMessage } from "./util.ts";
 
 /**
- * Plugin-declared HTTPS MCP server registration (specs/plugin.md Section 12).
+ * Plugin-declared HTTPS MCP server registration (specs/plugin.md#mcp-servers).
  * Registers admitted plugins' valid `mcpServers` with `pi-mcp-adapter` over the
  * host event bus (`pi-mcp-adapter:runtime-register:v1`) at session start and
  * disposes them on session shutdown.
@@ -137,7 +137,7 @@ export function createPluginMcpRegistrar(
 /**
  * Inline extension factory that registers admitted plugins' `mcpServers` into
  * an isolated `AgentSession` (child session or plugin UI tool proxy) that loads
- * `pi-mcp-adapter` without loading `pi-dent-agent` itself (plugin.md Section 12).
+ * `pi-mcp-adapter` without loading `pi-dent-agent` itself (specs/plugin.md#mcp-servers).
  */
 export function pluginMcpExtensionFactory(
   plugins: readonly PluginEntry[],

@@ -22,20 +22,20 @@ import {
 import type { UsageSum } from "./usage.ts";
 
 /**
- * Task detail feed (specs/task.md Section 4.2): the details page of the watched task as the
+ * Task detail feed (specs/task.md#task-detail-feed): the details page of the watched task as the
  * one-line JSON widget `pi-dent-task` for an RPC client, and the `tasks` verbs that drive it
- * (specs/slash-commands.md Section 3). Host values are parameters: the feed reads the session
+ * (specs/slash-commands.md#tasks). Host values are parameters: the feed reads the session
  * file and runs its timer through the options it is given.
  */
 
 export const TASK_DETAIL_WIDGET_ID = "pi-dent-task";
-/** The session file re-read interval of a running agent row (task-browser.md Section 4.3). */
+/** The session file re-read interval of a running agent row (specs/task-browser.md#session-events). */
 export const TASK_DETAIL_INTERVAL_MS = 1000;
 const MAX_OUTPUT_LINES = 500;
 const MAX_EVENTS = 200;
 const MAX_CONTENT_LINES = 200;
 
-/** One `events` entry of the payload (task.md Section 4.2). */
+/** One `events` entry of the payload (specs/task.md#task-detail-feed). */
 export interface TaskDetailEvent {
   time: string;
   kind: string;
@@ -44,7 +44,7 @@ export interface TaskDetailEvent {
   error: boolean;
 }
 
-/** The payload of `pi-dent-task` (task.md Section 4.2); absent fields are omitted, not null. */
+/** The payload of `pi-dent-task` (specs/task.md#task-detail-feed); absent fields are omitted, not null. */
 export interface TaskDetailPayload {
   piDent: "task/1";
   taskId: string;
@@ -71,7 +71,7 @@ export interface TaskDetailPayload {
 export interface TaskDetailSource {
   taskId: string;
   row: TaskRow | undefined;
-  /** Whether the kill key applies to `row` (task-browser.md Section 4.4). */
+  /** Whether the kill key applies to `row` (specs/task-browser.md#kill-key). */
   killable: boolean;
   events: readonly SessionEvent[];
   zone: string;
@@ -93,7 +93,7 @@ function eventOf(event: SessionEvent): TaskDetailEvent {
   };
 }
 
-/** The `pi-dent-task` payload of one source (task.md Section 4.2), without the serialization. */
+/** The `pi-dent-task` payload of one source (specs/task.md#task-detail-feed), without the serialization. */
 export function taskDetailPayload(source: TaskDetailSource): TaskDetailPayload {
   const { taskId, row } = source;
   if (row === undefined) return { piDent: "task/1", taskId, found: false };
@@ -117,7 +117,7 @@ export function taskDetailPayload(source: TaskDetailSource): TaskDetailPayload {
       ...head,
       ...(row.usage === undefined ? {} : { usage: { ...row.usage } }),
       fields: fieldsOf(agentFields(row, identityTheme, source.zone)),
-      // The Error section exists for a failed row with a result (task-browser.md Section 4.1).
+      // The Error section exists for a failed row with a result (specs/task-browser.md#agent-details).
       ...(row.status === "failed" && row.result !== undefined
         ? { error: feedText(row.result) }
         : {}),
@@ -143,22 +143,22 @@ export interface DetailTicker {
 export interface TaskDetailFeedOptions {
   registry: TaskRegistry;
   host: FeedWidgetHost;
-  /** The local zone of billing.md Section 5, for the `started` and `settled` fields. */
+  /** The local zone of specs/billing.md#billing-text, for the `started` and `settled` fields. */
   zone: string;
   /** The session file's text, or `undefined` when it cannot be read. */
   readSession: (path: string) => string | undefined;
   ticker: DetailTicker;
 }
 
-/** The task row with `taskId` in the task tree of `registry`, if any (task.md Section 3). */
+/** The task row with `taskId` in the task tree of `registry`, if any (specs/task.md#task-tree). */
 function findTaskRow(registry: TaskRegistry, taskId: string): TaskRow | undefined {
   return listEntries(registry).find((entry) => entry.row.taskId === taskId)?.row;
 }
 
 /**
- * The task detail feed (task.md Section 4.2): at most one watched task. The widget is set on
+ * The task detail feed (specs/task.md#task-detail-feed): at most one watched task. The widget is set on
  * watch, on a registry change that changes its text, and for a running agent row after each
- * session-file read (task-browser.md Section 4.3); an unchanged text is never set again.
+ * session-file read (specs/task-browser.md#session-events); an unchanged text is never set again.
  */
 export class TaskDetailFeed {
   private readonly options: TaskDetailFeedOptions;
@@ -178,13 +178,13 @@ export class TaskDetailFeed {
     this.unsubscribe = options.registry.subscribe(() => this.refresh(false));
   }
 
-  /** Makes `taskId` the watched task, replacing any other (slash-commands.md Section 3). */
+  /** Makes `taskId` the watched task, replacing any other (specs/slash-commands.md#tasks). */
   watch(taskId: string): void {
     if (this.stopped) return;
     this.resetWatch();
     this.watched = taskId;
     const row = this.find();
-    // The read on open follows the reading rule (task-browser.md Section 4.3).
+    // The read on open follows the reading rule (specs/task-browser.md#session-events).
     if (row instanceof AgentTaskRow) {
       this.settledRead = row.status !== "running";
       this.readFile(this.settledRead, row);
@@ -192,7 +192,7 @@ export class TaskDetailFeed {
     this.refresh(false);
   }
 
-  /** Ends the watch and clears the widget (slash-commands.md Section 3). */
+  /** Ends the watch and clears the widget (specs/slash-commands.md#tasks). */
   unwatch(): void {
     if (this.stopped) return;
     this.resetWatch();
@@ -201,8 +201,8 @@ export class TaskDetailFeed {
   }
 
   /**
-   * The `kill <taskId>` verb (slash-commands.md Section 3): the confirming press of the kill
-   * key, a browser kill that does not consume the row (task-browser.md Section 4.4). Returns
+   * The `kill <taskId>` verb (specs/slash-commands.md#tasks): the confirming press of the kill
+   * key, a browser kill that does not consume the row (specs/task-browser.md#kill-key). Returns
    * false when the kill key does not apply to the row of `taskId`.
    */
   kill(taskId: string): boolean {
@@ -216,7 +216,7 @@ export class TaskDetailFeed {
     return true;
   }
 
-  /** Ends the feed at the boot window's close or the main session's end (task.md Section 4.2). */
+  /** Ends the feed at the boot window's close or the main session's end (specs/task.md#task-detail-feed). */
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
@@ -316,7 +316,7 @@ export class TaskDetailFeed {
   }
 }
 
-/** The feed of a session that announces it (task.md Section 4.1), else undefined. */
+/** The feed of a session that announces it (specs/task.md#task-feed), else undefined. */
 export function openTaskDetailFeed(
   gate: FeedHost,
   options: TaskDetailFeedOptions,
@@ -326,7 +326,7 @@ export function openTaskDetailFeed(
 
 export const TASKS_USAGE = "Usage: /tasks [watch <taskId> | unwatch | kill <taskId>]";
 
-/** A parsed `/tasks` argument string with arguments (slash-commands.md Section 3). */
+/** A parsed `/tasks` argument string with arguments (specs/slash-commands.md#tasks). */
 export type TasksVerb =
   | { verb: "watch"; taskId: string }
   | { verb: "unwatch" }
@@ -353,7 +353,7 @@ export interface TasksVerbHost {
   error(message: string): void;
 }
 
-/** Runs the verb of a `/tasks` argument string that has arguments (slash-commands.md Section 3). */
+/** Runs the verb of a `/tasks` argument string that has arguments (specs/slash-commands.md#tasks). */
 export function runTasksVerb(args: string, host: TasksVerbHost): void {
   const feed = host.feed;
   if (feed === undefined) return;

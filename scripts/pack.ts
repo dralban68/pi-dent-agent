@@ -1,4 +1,4 @@
-// Packs pi-dent-agent for npm with its bundled extensions (specs/package.md, Section 1): every
+// Packs pi-dent-agent for npm with its bundled extensions (specs/package.md#package-manifest): every
 // pi.extensions entry under ./node_modules/<name>/ is put in bundleDependencies and installed into
 // the package, with the native builds of every platform. Prints the tarball path.
 // Usage: node scripts/pack.ts [destination directory]

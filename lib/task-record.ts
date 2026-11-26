@@ -11,7 +11,7 @@ import { errorCode, errorMessage } from "./util.ts";
 
 export type TaskRecordStatus = "running" | "completed" | "failed" | "cancelled";
 
-/** The record fields of task-record.md Section 1, and nothing else. */
+/** The record fields of specs/task-record.md#format, and nothing else. */
 export interface TaskRecord {
   taskId: string;
   agent: string;
@@ -25,7 +25,7 @@ export interface TaskRecord {
   resultPath?: string | undefined;
 }
 
-/** `<taskId>.task.json` (task-record.md Section 1). */
+/** `<taskId>.task.json` (specs/task-record.md#format). */
 export function recordFileName(taskId: string): string {
   return `${taskId}.task.json`;
 }
@@ -144,7 +144,7 @@ export function readRecord(path: string): TaskRecord | undefined {
 
   if (record.model !== undefined && typeof record.model !== "string") return undefined;
   if (record.settledAt !== undefined && !isFiniteNumber(record.settledAt)) return undefined;
-  // A settled record carries its settlement time (Section 3).
+  // A settled record carries its settlement time (specs/task-record.md#rebuild).
   if (status !== "running" && record.settledAt === undefined) return undefined;
   if (record.resultPath !== undefined && typeof record.resultPath !== "string") return undefined;
 
@@ -165,7 +165,7 @@ export function readRecord(path: string): TaskRecord | undefined {
 
 /**
  * Valid records in the directory, ascending by taskId; never throws. A directory that
- * cannot be read yields no record and is reported through `report` (Section 3); an
+ * cannot be read yields no record and is reported through `report` (specs/task-record.md#rebuild); an
  * absent one is not a failure.
  */
 export function scanRecords(dir: string, report?: (message: string) => void): TaskRecord[] {

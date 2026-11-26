@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 
 /**
- * The `cwd` parameter of `Agent`, `Script`, and `Bash` (specs/task.md Section 1.1):
+ * The `cwd` parameter of `Agent`, `Script`, and `Bash` (specs/task.md#cwd-parameter):
  * a blank value is absent, a relative one resolves against the invoking session's
  * working directory, and a present one must name an existing directory.
  * `cwd` is undefined when the parameter is absent: the default is the caller's.

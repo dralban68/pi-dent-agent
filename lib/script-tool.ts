@@ -30,7 +30,7 @@ import { errorCode, errorMessage } from "./util.ts";
  * The Script tool (specs/script-tool.md): in-process execution of agent-authored
  * JavaScript or TypeScript, its sources, inputs, results, timeout, and delivery
  * modes, and the tool functions through which a script calls the session's other tools
- * (Section 10).
+ * (specs/script-tool.md#gaps).
  */
 
 export const scriptParameterSchema = Type.Object(
@@ -85,11 +85,11 @@ export const scriptParameterSchema = Type.Object(
 );
 export type ScriptToolParams = Static<typeof scriptParameterSchema>;
 
-/** The timeout of a foreground call that omits `timeout` (Section 1). */
+/** The timeout of a foreground call that omits `timeout` (specs/script-tool.md#parameter-schema). */
 export const DEFAULT_TIMEOUT_MS = 600000;
 
 /**
- * The timeout a call imposes (Section 1): an omitted `timeout` gives a foreground call
+ * The timeout a call imposes (specs/script-tool.md#parameter-schema): an omitted `timeout` gives a foreground call
  * `DEFAULT_TIMEOUT_MS` and imposes none on a background call. The schema bounds a present value.
  */
 export function resolveScriptTimeout(
@@ -106,13 +106,12 @@ interface ScriptToolDeps {
   hostProvider: () => HostSession | undefined;
   cohortFor: (toolCallId: string) => string;
   /**
-   * The agent directory of the session that invokes the task (agent-tool.md
-   * Section 4.2); output files go under its `output/` (Section 6).
+   * The agent directory of the session that invokes the task (specs/agent-tool.md#child-session); output files go under its `output/` (specs/script-tool.md#timeout-delivery).
    */
   agentDir: (host: HostSession) => string;
   /** Extra environment variables for the script worker, merged over process.env (never mutating it). */
   extraEnv?: () => Record<string, string> | undefined;
-  /** `script.tools.allow` (Section 8); absent gives the default. */
+  /** `script.tools.allow` (specs/script-tool.md#tool-functions); absent gives the default. */
   toolsAllow?: () => readonly string[];
 }
 
@@ -121,18 +120,18 @@ interface ResolvedSource {
   filename: string;
 }
 
-/** A value the tool treats as present (Section 1: blank values are absent). */
+/** A value the tool treats as present (specs/script-tool.md#parameter-schema: blank values are absent). */
 function isPresent(value: string | undefined): value is string {
   return value !== undefined && value.trim() !== "";
 }
 
-/** The source shape of a call: inline `code`, or `plugin` with `path` (Section 2). */
+/** The source shape of a call: inline `code`, or `plugin` with `path` (specs/script-tool.md#validation). */
 type SourceShape =
   | { kind: "inline"; code: string }
   | { kind: "plugin"; plugin: string; path: string };
 
 /**
- * Section 2: the source-shape check. It runs before the task row is registered,
+ * specs/script-tool.md#validation: the source-shape check. It runs before the task row is registered,
  * so a call without exactly one source leaves no row and creates no file.
  */
 function scriptSourceShape(params: ScriptToolParams): SourceShape | { error: string } {
@@ -187,9 +186,9 @@ function resolveScriptSource(
 }
 
 /**
- * The row label of the call (Section 6): `description`, else the plugin `path`,
+ * The row label of the call (specs/script-tool.md#timeout-delivery): `description`, else the plugin `path`,
  * else the first line of `code` without its leading white space. The source
- * shape of Section 2 makes the fallback non-empty.
+ * shape of specs/script-tool.md#validation makes the fallback non-empty.
  */
 function scriptLabel(params: ScriptToolParams, shape: SourceShape): string {
   if (isPresent(params.description)) return params.description;
@@ -197,7 +196,7 @@ function scriptLabel(params: ScriptToolParams, shape: SourceShape): string {
   return labelFallback(shape.code);
 }
 
-/** Section 5 body layout. */
+/** specs/script-tool.md#result-contract body layout. */
 function buildBody(opts: {
   stdout: string;
   stderr: string;
@@ -207,11 +206,11 @@ function buildBody(opts: {
   durationMs: number;
   renderJson?: string | undefined;
   browserKill?: boolean | undefined;
-  /** The full JSON of a clipped return value; only the output file carries it (Section 5). */
+  /** The full JSON of a clipped return value; only the output file carries it (specs/script-tool.md#result-contract). */
   returnJson?: string | undefined;
-  /** The output file path, when the body names the full return value (Section 5). */
+  /** The output file path, when the body names the full return value (specs/script-tool.md#result-contract). */
   fullValuePath?: string | undefined;
-  /** The `--- tool calls` block's line, when the run made nested calls (Section 6). */
+  /** The `--- tool calls` block's line, when the run made nested calls (specs/script-tool.md#timeout-delivery). */
   toolCallsLine?: string | undefined;
 }): string {
   let text = opts.stdout;
@@ -220,7 +219,7 @@ function buildBody(opts: {
   if (opts.fullValuePath !== undefined) text += `\nFull return value: ${opts.fullValuePath}`;
   if (opts.returnJson !== undefined) text += `\n--- return json ---\n${opts.returnJson}`;
   text += `\n--- exited ${opts.exitReason}${opts.exitCode === undefined ? "" : ` code=${opts.exitCode}`} in ${opts.durationMs}ms ---`;
-  // A browser kill names its author in the body the model reads (Section 5).
+  // A browser kill names its author in the body the model reads (specs/script-tool.md#result-contract).
   if (opts.browserKill === true) text += "\n--- killed by the user from the task browser ---";
   if (opts.toolCallsLine !== undefined) text += `\n${opts.toolCallsLine}`;
   if (opts.renderJson !== undefined) text += `\n--- return metadata ---\n${opts.renderJson}`;
@@ -231,7 +230,7 @@ function isErrorExit(reason: string): boolean {
   return reason !== "ok" && reason !== "exit-called" && reason !== "running";
 }
 
-/** Task row status per specs/script-tool.md Section 6. */
+/** Task row status per specs/script-tool.md#timeout-delivery. */
 function settleStatus(exitReason: string): "cancelled" | "failed" | "completed" {
   if (exitReason === "killed" || exitReason === "aborted") return "cancelled";
   if (exitReason === "timeout" || exitReason === "threw") return "failed";
@@ -239,7 +238,7 @@ function settleStatus(exitReason: string): "cancelled" | "failed" | "completed" 
 }
 
 /**
- * Section 3 error text for a `threw` settlement: `Name: message` and the stack,
+ * specs/script-tool.md#execution-model error text for a `threw` settlement: `Name: message` and the stack,
  * each emitted once (a V8 stack already carries the header, though a script
  * compiled by the worker can put a source line before it). A settlement with no
  * stack still shows name and message.
@@ -254,7 +253,7 @@ function thrownText(error: { name: string; message: string; stack: string } | un
   return `${hasHeader ? error.stack : `${header}\n${error.stack}`}\n`;
 }
 
-/** Format a settled run into the Section 5 body, details, and background suffix. */
+/** Format a settled run into the specs/script-tool.md#result-contract body, details, and background suffix. */
 function formatResult(
   result: ScriptRunResult,
   outputPath: string,
@@ -268,7 +267,7 @@ function formatResult(
   thrown: string;
 } {
   const valueExported = result.exitReason === "ok";
-  // A `threw` settlement's error text is appended to stderr (Section 3), whether
+  // A `threw` settlement's error text is appended to stderr (specs/script-tool.md#execution-model), whether
   // it came from the script body, an unhandled rejection, or the worker's death.
   const errorText = result.exitReason === "threw" ? thrownText(result.error) : "";
   const thrown =
@@ -280,8 +279,7 @@ function formatResult(
   let render: ReturnValueRender | undefined;
   let returnValue: unknown;
   if (valueExported) {
-    // The worker rendered the return value BEFORE structured cloning (Section
-    // 5): a class instance would clone to a plain object and lose its `P { }`
+    // The worker rendered the return value BEFORE structured cloning (specs/script-tool.md#result-contract): a class instance would clone to a plain object and lose its `P { }`
     // rendering, and the JSON must come from the un-cloned value.
     rendered = result.rendered;
     render = result.render;
@@ -355,7 +353,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
       ctx: ExtensionToolContext | undefined,
     ): Promise<ToolResult> {
       const registry = deps.registry();
-      // Section 2: the source shape is checked before the row is registered,
+      // specs/script-tool.md#validation: the source shape is checked before the row is registered,
       // so a call without exactly one source leaves no row and creates no file.
       const shape = scriptSourceShape(params);
       if ("error" in shape) return textError(shape.error);
@@ -363,8 +361,8 @@ export function makeScriptTool(deps: ScriptToolDeps) {
       const background = params.background === true;
 
       // Exactly one row per invocation, registered before execution begins
-      // (task.md Section 1); registration into a registry that is not live
-      // fails the invocation as a tool error (task-registry.md Section 1).
+      // (specs/task.md#task-kinds); registration into a registry that is not live
+      // fails the invocation as a tool error (specs/task-registry.md#ownership).
       let row: ScriptTaskRow;
       try {
         row = registry.register({
@@ -382,7 +380,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
       // consumed (foreground rows are born consumed), tool error returned.
       const reject = (message: string): ToolResult => rejectCall(registry, row, message);
 
-      // Section 6: a cancellation before the worker starts must prevent the run, so
+      // specs/script-tool.md#timeout-delivery: a cancellation before the worker starts must prevent the run, so
       // the handler is installed at registration; the run takes it over once it exists.
       let runCancel: (() => void) | undefined;
       let killedBeforeRun = false;
@@ -394,27 +392,27 @@ export function makeScriptTool(deps: ScriptToolDeps) {
       const host = deps.hostProvider();
       if (!host) return reject("pi-dent: no live host session for the Script call");
 
-      // Section 2, in order: cwd (task.md Section 1.1), then the plugin source.
+      // specs/script-tool.md#validation, in order: cwd (specs/task.md#cwd-parameter), then the plugin source.
       const resolvedCwd = resolveCwdParam(params.cwd, host.cwd());
       if ("error" in resolvedCwd) return reject(resolvedCwd.error);
       const cwd = resolvedCwd.cwd ?? host.cwd();
 
-      // Source resolution (Section 2).
+      // Source resolution (specs/script-tool.md#validation).
       const source = resolveScriptSource(shape, deps.boot, cwd);
       if ("error" in source) return reject(source.error);
-      // task-registry.md Section 2: the row's code is the resolved source, the
-      // plugin file's content included (script-tool.md Section 5).
+      // specs/task-registry.md#task-row: the row's code is the resolved source, the
+      // plugin file's content included (specs/script-tool.md#result-contract).
       row.code = source.code;
-      // The checks of Section 2 passed (task-ledger.md Section 2.2).
+      // The checks of specs/script-tool.md#validation passed (specs/task-ledger.md#ledger-row).
       ledgerDispatched(row, cwd);
 
-      // Timeout (Section 1): 1..600000; omitted defaults for foreground only.
+      // Timeout (specs/script-tool.md#parameter-schema): 1..600000; omitted defaults for foreground only.
       const timeoutMs = resolveScriptTimeout(params.timeout, background);
 
       const agentDir = deps.agentDir(host);
       const { outputPath } = outputPathsFor(agentDir, row.taskId);
 
-      // Section 6: a kill that arrived before the run started settles `killed` with no
+      // specs/script-tool.md#timeout-delivery: a kill that arrived before the run started settles `killed` with no
       // run; it takes the same settlement path as a run, so the output file gets its block.
       const notRun: ScriptRunResult = {
         stdout: "",
@@ -425,7 +423,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
       };
 
       // An unexpected failure after registration must settle the row, never
-      // leave it running (Section 6).
+      // leave it running (specs/script-tool.md#timeout-delivery).
       const failRun = (error: unknown): ToolResult =>
         reject(`Script error: ${errorMessage(error)}`);
 
@@ -440,7 +438,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
         // Writes happen only while a nested call is open, and every open call is logged
         // when the run settles, before its result is built: the line always lands.
         reportFailure: (line) => void runHandle?.stderrLine(line),
-        // The tool log's path is the row's session_path (task-ledger.md Section 2.2).
+        // The tool log's path is the row's session_path (specs/task-ledger.md#ledger-row).
         onCreated: (path) => ledgerToolLog(row, path),
       });
       const toolCallsOf = () => ({
@@ -464,7 +462,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
         };
         if (timeoutMs !== undefined) request.timeoutMs = timeoutMs;
         if (!background && signal !== undefined) request.signal = signal;
-        // Section 10.1: the callable tools are read once, after the checks of Section 2.
+        // Section 10.1: the callable tools are read once, after the checks of specs/script-tool.md#validation.
         const selection = selectTools(ctx?.tools ?? [], deps.toolsAllow?.() ?? DEFAULT_TOOLS_ALLOW);
         request.tools = {
           names: selection.bound.map((tool) => tool.name),
@@ -474,7 +472,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
             if (tool === undefined || ctx === undefined)
               throw new Error(`tool ${name} is not bound`);
             const callId = toolLog.start(name, args);
-            // Section 8.4: the row's count of the nested calls the run has started.
+            // specs/script-tool.md#tool-log: the row's count of the nested calls the run has started.
             registry.amend(row, { toolCalls: toolLog.calls });
             // The run's settlement aborts the call: it is logged as aborted at that moment.
             const onAbort = (): void => toolLog.abort(callId);
@@ -510,10 +508,10 @@ export function makeScriptTool(deps: ScriptToolDeps) {
         const extra = deps.extraEnv?.();
         if (extra !== undefined && Object.keys(extra).length > 0) request.extraEnv = extra;
         // The run's chunks feed the row's progress projection line by line, in
-        // arrival order, with lines formed as bash-tool.md Section 4 states for
+        // arrival order, with lines formed as specs/bash-tool.md#output-capture states for
         // the captured output (Section 6): a line may start on one stream and
         // end on the other, and each entry is that line's display text, cut.
-        // Section 6: the output file takes the output in both deliveries. A write
+        // specs/script-tool.md#timeout-delivery: the output file takes the output in both deliveries. A write
         // failure (e.g. the session's directory was already removed) never fails
         // the call, and never throws out of the worker's message handler.
         const appendOutput = (text: string): void => {
@@ -532,7 +530,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
           const last = splitter.last();
           if (last !== undefined) registry.progress(row, last);
         };
-        // The error text of a `threw` settlement is stderr output like any other (Section 3).
+        // The error text of a `threw` settlement is stderr output like any other (specs/script-tool.md#execution-model).
         const emitThrown = (thrown: string): void => {
           if (thrown !== "") request.onOutput?.("stderr", thrown);
           flushProgress();
@@ -547,7 +545,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
           : runScript(request);
         runHandle = handle;
 
-        // Task-based cancellation (Section 6) applies to foreground rows too:
+        // Task-based cancellation (specs/script-tool.md#timeout-delivery) applies to foreground rows too:
         // hard-terminating the worker settles the run with exitReason "killed".
         runCancel = () => handle.cancel("killed");
 

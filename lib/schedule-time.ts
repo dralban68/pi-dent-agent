@@ -1,12 +1,12 @@
 /**
- * Time values of the `Schedule` tool (specs/schedule-tool.md Section 2.2):
+ * Time values of the `Schedule` tool (specs/schedule-tool.md#time-values):
  * parsing an RFC 3339 date-time into milliseconds since the Unix epoch, and
  * rendering an instant as a local time stamp.
  */
 
 import { localStampIn } from "./billing-text.ts";
 
-/** The latest instant an ECMAScript `Date` represents, ms since the Unix epoch (Section 1.2, check 10). */
+/** The latest instant an ECMAScript `Date` represents, ms since the Unix epoch (specs/schedule-tool.md#validation, check 10). */
 export const MAX_INSTANT = 8640000000000000;
 
 /** The `date-time` production of RFC 3339, Section 5.6. */
@@ -42,7 +42,7 @@ function digitsOf(text: string | undefined): number {
 
 /**
  * The instant an RFC 3339 date-time names, milliseconds since the Unix epoch, or
- * undefined when it is not one (Section 2.2): a `date-time` with a time-zone
+ * undefined when it is not one (specs/schedule-tool.md#time-values): a `date-time` with a time-zone
  * offset, a valid calendar date, and a second below 60. `T` and `Z` are accepted
  * in either case, `-00:00` denotes UTC, and fractional seconds are truncated to
  * whole milliseconds.
@@ -85,8 +85,8 @@ export function parseDateTime(text: string): number | undefined {
 }
 
 /**
- * An instant as a local time stamp (Section 2.2): `YYYY-MM-DDTHH:MM:SS±HH:MM` in
- * `zone`, the local zone of billing.md Section 5, whole seconds rounded down,
+ * An instant as a local time stamp (specs/schedule-tool.md#time-values): `YYYY-MM-DDTHH:MM:SS±HH:MM` in
+ * `zone`, the local zone of specs/billing.md#billing-text, whole seconds rounded down,
  * with that zone's offset from UTC at the instant.
  */
 export function localStamp(ms: number, zone: string): string {

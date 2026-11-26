@@ -4,24 +4,24 @@ import type { UsageSum } from "./usage.ts";
 import { shortenSessionDir } from "./util.ts";
 
 /**
- * Task rows per specs/task-registry.md Section 2: common fields on the
+ * Task rows per specs/task-registry.md#task-row: common fields on the
  * abstract base, kind-specific fields on one subclass per task kind; each kind
- * owns its `<detail>` segment of the task tree widget line (task.md Section 4).
+ * owns its `<detail>` segment of the task tree widget line (specs/task.md#task-tree-widget).
  */
 
 export type TaskKind = "agent" | "script" | "bash";
 export type TaskStatus = "running" | "completed" | "failed" | "cancelled" | "interrupted";
 export type TerminalStatus = Exclude<TaskStatus, "running">;
-/** What `settle` may produce: `interrupted` is set only by a rebuild, never by `settle` (Section 2). */
+/** What `settle` may produce: `interrupted` is set only by a rebuild, never by `settle` (specs/task-registry.md#task-row). */
 export type SettleStatus = "completed" | "failed" | "cancelled";
 
-/** Theme coloring of a rendered task line (task.md Section 4, task-browser.md Section 2). */
+/** Theme coloring of a rendered task line (specs/task.md#task-tree-widget, specs/task-browser.md#common-rendering). */
 export interface TaskPaint {
   status(text: string, status: TaskStatus): string;
   orphan(text: string): string;
   elapsed(text: string): string;
   detail(text: string): string;
-  /** `<time>`, the list page's leading segment (task-browser.md Section 3): the widget line has none. */
+  /** `<time>`, the list page's leading segment (specs/task-browser.md#list-page): the widget line has none. */
   time?: ((text: string) => string) | undefined;
 }
 
@@ -34,7 +34,7 @@ export const identityPaint: TaskPaint = {
   detail: (text) => text,
 };
 
-/** `<elapsed>` per task.md Section 4: `<s>s`, then `<m>m<ss>s`, then `<h>h<mm>m`. */
+/** `<elapsed>` per specs/task.md#task-tree-widget: `<s>s`, then `<m>m<ss>s`, then `<h>h<mm>m`. */
 export function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   if (total < 60) return `${total}s`;
@@ -59,7 +59,7 @@ const CONTROL_KEEPING_BREAKS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g;
 
 /**
  * Text with ANSI escape sequences and control characters removed, except line breaks and
- * tabs (task.md Section 4.2).
+ * tabs (specs/task.md#task-detail-feed).
  */
 export function feedText(text: string): string {
   return text.replace(ANSI, "").replace(CONTROL_KEEPING_BREAKS, "");
@@ -72,18 +72,18 @@ const CONTROL_KEEPING_TABS_AND_BREAKS = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g;
 
 /**
  * Text with ANSI escape sequences and control characters removed, except tabs and line feeds
- * (tool-card.md Section 1).
+ * (specs/tool-card.md#shell).
  */
 export function cardText(value: string): string {
   return value.replace(ANSI, "").replace(CONTROL_KEEPING_TABS_AND_BREAKS, "");
 }
 
-/** `<label>` per task.md Section 4: first line, ANSI escapes and control characters removed. */
+/** `<label>` per specs/task.md#task-tree-widget: first line, ANSI escapes and control characters removed. */
 export function labelText(label: string): string {
   return plainText(label.split(/\r?\n/, 1)[0] ?? "");
 }
 
-/** The display label for the terminal: the agent directory as `$PI_DENT_SESSION_DIR` (agent-tool.md Section 4.2). */
+/** The display label for the terminal: the agent directory as `$PI_DENT_SESSION_DIR` (specs/agent-tool.md#child-session). */
 export function shownLabel(label: string): string {
   return shortenSessionDir(labelText(label));
 }
@@ -113,15 +113,15 @@ export abstract class TaskRow {
   progress: Array<{ at: number; line: string }> = [];
   /** Settled result text; present once settled. */
   result?: string | undefined;
-  /** Completion notification consumed: born consumed for foreground rows (Section 5). */
+  /** Completion notification consumed: born consumed for foreground rows (specs/task-registry.md#cohorts). */
   consumed: boolean;
-  /** False at registration; true once adopted (Section 4). */
+  /** False at registration; true once adopted (specs/task-registry.md#registry-end). */
   orphan = false;
-  /** False at registration; true once a cancel is a browser kill (Section 2). */
+  /** False at registration; true once a cancel is a browser kill (specs/task-registry.md#task-row). */
   browserKill = false;
   /** Cancellation handler, set by the owning contract; present while running. */
   cancel?: (() => void) | undefined;
-  /** The row's ledger row (task-ledger.md Section 2.2); absent when it has none. */
+  /** The row's ledger row (specs/task-ledger.md#ledger-row); absent when it has none. */
   ledger?: LedgerLink | undefined;
 
   constructor(init: TaskRowInit) {
@@ -133,17 +133,17 @@ export abstract class TaskRow {
     this.consumed = !init.background;
   }
 
-  /** Apply an `amend` (task-registry.md Section 3); returns whether a field changed. */
+  /** Apply an `amend` (specs/task-registry.md#operations); returns whether a field changed. */
   apply(fields: { label?: string }): boolean {
     if (fields.label === undefined || fields.label === this.label) return false;
     this.label = fields.label;
     return true;
   }
 
-  /** Kind-owned `<detail>` segment (task.md Section 4); empty when none. */
+  /** Kind-owned `<detail>` segment (specs/task.md#task-tree-widget); empty when none. */
   protected abstract detail(): string;
 
-  /** `<delivery>` (task.md Section 4). */
+  /** `<delivery>` (specs/task.md#task-tree-widget). */
   get delivery(): "bg" | "fg" {
     return this.background ? "bg" : "fg";
   }
@@ -158,13 +158,13 @@ export abstract class TaskRow {
     return (this.settledAt ?? now) - this.startedAt;
   }
 
-  /** `<elapsed>` (task.md Section 4). */
+  /** `<elapsed>` (specs/task.md#task-tree-widget). */
   elapsedText(now: number): string {
     return formatElapsed(this.elapsedMs(now));
   }
 
   /**
-   * The one task line (task.md Section 4, task-browser.md Section 3). The caller supplies
+   * The one task line (specs/task.md#task-tree-widget, specs/task-browser.md#list-page). The caller supplies
    * `<prefix>`. Without `time` it is the widget line, with `<elapsed>` after `<status>`;
    * with the list page's `<time>` it is the list row, whose format puts `<time> · <elapsed>`
    * first. The paint carries the remaining differences: each surface's `<status>` colors,
@@ -194,13 +194,13 @@ export class AgentTaskRow extends TaskRow {
   task?: string | undefined;
   /** Session file of the current attempt's child session. */
   sessionPath?: string | undefined;
-  /** Absolute path of the task record file; deleted when the row is consumed (task-record.md Section 2). */
+  /** Absolute path of the task record file; deleted when the row is consumed (specs/task-record.md#lifecycle). */
   recordPath?: string | undefined;
-  /** Usage sum of the dispatch (agent-tool.md Section 13); absent until its first assistant message ends. */
+  /** Usage sum of the dispatch (specs/agent-tool.md#usage); absent until its first assistant message ends. */
   usage?: UsageSum | undefined;
-  /** Tool calls of the messages added to `usage` (Section 2): `0` at `register`, absent on a rebuilt row. */
+  /** Tool calls of the messages added to `usage` (specs/task-registry.md#task-row): `0` at `register`, absent on a rebuilt row. */
   toolCalls?: number | undefined;
-  /** Attached task registry (Section 6). */
+  /** Attached task registry (specs/task-registry.md#nesting). */
   children?: TaskRegistry | undefined;
 
   override apply(fields: {
@@ -237,9 +237,9 @@ export class AgentTaskRow extends TaskRow {
 
 export class ScriptTaskRow extends TaskRow {
   readonly kind = "script";
-  /** The script source of the call (task-registry.md Section 2); set by `register` and by the owning contract at source resolution. */
+  /** The script source of the call (specs/task-registry.md#task-row); set by `register` and by the owning contract at source resolution. */
   code = "";
-  /** The number of nested calls the run has started (Section 2). */
+  /** The number of nested calls the run has started (specs/task-registry.md#task-row). */
   toolCalls = 0;
 
   override apply(fields: { label?: string; toolCalls?: number }): boolean {
@@ -258,7 +258,7 @@ export class ScriptTaskRow extends TaskRow {
 
 export class BashTaskRow extends TaskRow {
   readonly kind = "bash";
-  /** The call's `command` text, unchanged (task-registry.md Section 2); set by `register`. */
+  /** The call's `command` text, unchanged (specs/task-registry.md#task-row); set by `register`. */
   command = "";
 
   protected detail(): string {
@@ -266,13 +266,13 @@ export class BashTaskRow extends TaskRow {
   }
 }
 
-/** A row's `toolCalls` (task-registry.md Section 2): none for a `bash` row or a rebuilt row. */
+/** A row's `toolCalls` (specs/task-registry.md#task-row): none for a `bash` row or a rebuilt row. */
 export function toolCallsOf(row: TaskRow): number | undefined {
   if (row instanceof AgentTaskRow || row instanceof ScriptTaskRow) return row.toolCalls;
   return;
 }
 
-/** Fields `amend` may replace on a row of type `R` (task-registry.md Section 3). */
+/** Fields `amend` may replace on a row of type `R` (specs/task-registry.md#operations). */
 export type TaskAmendment<R extends TaskRow> = Parameters<R["apply"]>[0];
 
 export function createTaskRow(kind: "agent", init: TaskRowInit): AgentTaskRow;

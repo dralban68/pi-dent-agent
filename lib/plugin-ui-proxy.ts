@@ -26,7 +26,7 @@ import type { NestedCallOutcome } from "./script-tool-calls.ts";
 import { errorMessage, isPlainObject } from "./util.ts";
 
 /**
- * Plugin UI tool proxy (specs/plugin-ui.md Section 4.3): one lazily created,
+ * Plugin UI tool proxy (specs/plugin-ui.md#tool-proxy): one lazily created,
  * long-lived in-memory proxy `AgentSession` per parent session on a scripted
  * `streamSimple` provider. Executes non-pi-dent tools (built-in host tools,
  * MCP tools, other extensions' tools) through pi's real tool pipeline with
@@ -172,7 +172,7 @@ export class PluginUiToolProxy {
     return this.session !== undefined;
   }
 
-  /** Execute one proxied tool call on the FIFO queue (specs/plugin-ui.md Section 4.3). */
+  /** Execute one proxied tool call on the FIFO queue (specs/plugin-ui.md#tool-proxy). */
   call(name: string, args: unknown, signal: AbortSignal): Promise<NestedCallOutcome> {
     if (this.disposed) {
       return Promise.reject(new Error("Plugin UI proxy session ended"));

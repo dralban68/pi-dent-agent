@@ -117,7 +117,7 @@ import {
 export type StopReason = "stop" | "error" | "aborted" | "timeout";
 export type FailurePhase = "plan-resolution" | "startup" | "execution";
 
-/** Failure codes per agent-tool.md Sections 3, 4.2, and 7. */
+/** Failure codes per specs/agent-tool.md#dispatch-plan, specs/agent-tool.md#child-session, and specs/agent-tool.md#result-contract. */
 export type PlanFailureCode =
   | "missing-tool-authority"
   | "missing-model"
@@ -174,14 +174,14 @@ export interface BootSnapshot {
   skills: SkillEntry[];
   skillIndex: Map<string, SkillEntry>;
   plugins: PluginEntry[];
-  /** Namespace -> first admitted plugin (specs/plugin.md Section 8). */
+  /** Namespace -> first admitted plugin (specs/plugin.md#plugin-catalog). */
   pluginIndex: Map<string, PluginEntry>;
   diagnostics: Diagnostic[];
   maxRecoveryRetries: number;
   sessionTtlDays: number;
 }
 
-/** Result shape returned by every pi-dent tool (agent-tool.md Section 7). */
+/** Result shape returned by every pi-dent tool (specs/agent-tool.md#result-contract). */
 export type ToolResult = AgentToolResult<Record<string, unknown>>;
 
 export type UpdateCallback = (partial: ToolResult) => void;
@@ -191,22 +191,22 @@ export interface DispatchCall {
   params: AgentToolParams;
   signal?: AbortSignal | undefined;
   onUpdate?: UpdateCallback | undefined;
-  /** Undefined when no live main session exists: the dispatch has no tool cap (Section 3.1). */
+  /** Undefined when no live main session exists: the dispatch has no tool cap (specs/agent-tool.md#tools). */
   host: HostSession | undefined;
   cohortId: string;
   /**
-   * Restricted plan tool cap (Fleet `query` children, fleet-tool.md Section 4):
+   * Restricted plan tool cap (Fleet `query` children, specs/fleet-tool.md#query):
    * the exact tools the child binds; dispatch authority still comes from the
    * host tool cap.
    */
   planToolCap?: string[] | undefined;
-  /** Set only by the Fleet `query` path: its attempt never waits for running rows (Section 4.2). */
+  /** Set only by the Fleet `query` path: its attempt never waits for running rows (specs/agent-tool.md#child-session). */
   fleetQuery?: boolean | undefined;
 }
 
 export type DispatchFn = (call: DispatchCall) => Promise<ToolResult>;
 
-/** Typed plan-resolution failure (agent-tool.md Section 3). */
+/** Typed plan-resolution failure (specs/agent-tool.md#dispatch-plan). */
 class PlanError extends Error {
   readonly phase = "plan-resolution" as const;
   readonly code: PlanFailureCode;
@@ -225,7 +225,7 @@ export interface InheritedTool {
 }
 
 /**
- * The extension sources a child inherits (agent-tool.md Section 3.1), snapshotted
+ * The extension sources a child inherits (specs/agent-tool.md#tools), snapshotted
  * from the dispatching session's complete tool inventory before the child starts.
  */
 export interface InheritedExtensions {
@@ -240,7 +240,7 @@ export interface ExecutionSnapshot {
   readonly sessionFile: string | undefined;
   readonly agentsDir: string;
   readonly compaction: CompactionSettings | undefined;
-  /** The extension sources the child loads, and the tools they provide (Section 3.1). */
+  /** The extension sources the child loads, and the tools they provide (specs/agent-tool.md#tools). */
   readonly extensions: InheritedExtensions;
 }
 
@@ -261,7 +261,7 @@ export interface DispatchPlan {
         readonly kind: "resume";
         readonly resume: string;
         readonly cwdOverride?: string | undefined;
-        /** Persisted facts read at plan time, before the dispatch appends anything (Section 9). */
+        /** Persisted facts read at plan time, before the dispatch appends anything (specs/agent-tool.md#resume). */
         readonly persistedModel?: { readonly provider: string; readonly id: string } | undefined;
         readonly persistedThinking?: ThinkingLevel | undefined;
       };
@@ -291,8 +291,7 @@ const NON_TRANSIENT_PATTERN =
 const inFlightSessions = new Set<string>();
 
 /**
- * A file's real path, symbolic links and `..` segments resolved (agent-tool.md
- * Section 9); a path that cannot be resolved compares as resolved. Two rows name
+ * A file's real path, symbolic links and `..` segments resolved (specs/agent-tool.md#resume); a path that cannot be resolved compares as resolved. Two rows name
  * one session file when this yields one value for both.
  */
 function realPath(path: string): string {
@@ -338,7 +337,7 @@ const PI_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 
 /**
  * The pi built-in tool names pi-dent deactivates or never binds in a child
- * (agent-tool.md Section 3.1): the tool-cap name `bash`, and `Schedule` and
+ * (specs/agent-tool.md#tools): the tool-cap name `bash`, and `Schedule` and
  * `AskUserQuestion`, which an extension registering them does not make bindable.
  */
 const UNBINDABLE_TOOL_NAMES: ReadonlySet<string> = new Set(["bash", "Schedule", "AskUserQuestion"]);
@@ -356,7 +355,7 @@ const MCP_RESOURCE_TOOL_NAMES: readonly string[] = [
 
 /**
  * Parent inventory names preserve tools registered only at session_start (MCP proxies).
- * The cap remains the authority (agent-tool.md Section 3.1).
+ * The cap remains the authority (specs/agent-tool.md#tools).
  */
 export function effectiveToolCap(
   toolCap: readonly string[],
@@ -365,7 +364,7 @@ export function effectiveToolCap(
 ): string[] {
   const bound = new Set(childTools.map((tool) => tool.name));
   // An in-process definition wins over an extension tool of the same name: pi-dent's
-  // child tools remain its own (Section 3.1).
+  // child tools remain its own (specs/agent-tool.md#tools).
   const external = new Set(inheritedTools.filter((name) => !bound.has(name)));
   return toolCap.filter(
     (name) =>
@@ -376,7 +375,7 @@ export function effectiveToolCap(
 
 /**
  * The child's active tools: each registered tool of the effective tool cap whose
- * exposure declares it to the model, over an extension's own selection (Section 3.1).
+ * exposure declares it to the model, over an extension's own selection (specs/agent-tool.md#tools).
  */
 function capActiveTools(
   cap: readonly string[],
@@ -393,15 +392,15 @@ function capActiveTools(
 /** Prefix of a built-in extension path, `builtin:<name>` (pi's source-info module). */
 const BUILTIN_PATH_PREFIX = "builtin:";
 
-/** pi-dent's package directory, whose own code a child never loads again (Section 3.1). */
+/** pi-dent's package directory, whose own code a child never loads again (specs/agent-tool.md#tools). */
 const PI_DENT_PACKAGE_ROOT = realPath(dirname(dirname(fileURLToPath(import.meta.url))));
 
-/** The subtree under which a dependency source stays eligible for inheritance (Section 3.1). */
+/** The subtree under which a dependency source stays eligible for inheritance (specs/agent-tool.md#tools). */
 const PI_DENT_DEPENDENCY_ROOT = join(PI_DENT_PACKAGE_ROOT, "node_modules");
 
 /**
  * Whether `path` is pi-dent's own code: its package root or a descendant, except the
- * dependency sources under its `node_modules/` subtree (Section 3.1). Paths are
+ * dependency sources under its `node_modules/` subtree (specs/agent-tool.md#tools). Paths are
  * compared canonically, so a symbolic link to pi-dent's code is excluded too.
  */
 function isPiDentOwnCode(path: string): boolean {
@@ -430,7 +429,7 @@ function extensionSourceOf(path: string): string | undefined {
 }
 
 /**
- * Snapshot the parent inventory (agent-tool.md Section 3.1). Files precede built-ins
+ * Snapshot the parent inventory (specs/agent-tool.md#tools). Files precede built-ins
  * so file extensions can replace replaceable built-ins, as in the SDK loader.
  */
 export function inheritedExtensions(host: HostSession): InheritedExtensions {
@@ -453,7 +452,7 @@ export function inheritedExtensions(host: HostSession): InheritedExtensions {
   return { sources: [...files, ...builtins], tools };
 }
 
-/** What the loader made of the sources a dispatch requested (agent-tool.md Section 3.1). */
+/** What the loader made of the sources a dispatch requested (specs/agent-tool.md#tools). */
 interface InheritedLoadOutcome {
   /** Requested sources the loader neither loaded nor reported an error for. */
   readonly omitted: readonly string[];
@@ -461,7 +460,7 @@ interface InheritedLoadOutcome {
   readonly unavailable: ReadonlySet<string>;
   /** Requested sources that reported an error and did not load. */
   readonly failures: readonly { readonly path: string; readonly error: string }[];
-  /** Errors of sources that did load: a conflict between extensions (Section 3.1). */
+  /** Errors of sources that did load: a conflict between extensions (specs/agent-tool.md#tools). */
   readonly conflicts: readonly { readonly path: string; readonly error: string }[];
   /** Errors no requested source accounts for: pi-dent's own inline extension factories. */
   readonly others: readonly { readonly path: string; readonly error: string }[];
@@ -507,8 +506,7 @@ function inheritedLoadOutcome(
 }
 
 /**
- * The tool names the inherited sources make available (agent-tool.md Section
- * 3.1): an unavailable source contributes none, so its tools are absent from the
+ * The tool names the inherited sources make available (specs/agent-tool.md#tools): an unavailable source contributes none, so its tools are absent from the
  * effective tool cap while the rest still load.
  */
 function availableInheritedTools(
@@ -522,8 +520,7 @@ function availableInheritedTools(
 }
 
 /**
- * The built-in extensions whose tools a child can inherit (agent-tool.md Section
- * 3.1). llama.cpp is absent: it registers commands only, so it sources no tool a
+ * The built-in extensions whose tools a child can inherit (specs/agent-tool.md#tools). llama.cpp is absent: it registers commands only, so it sources no tool a
  * snapshot could carry.
  */
 export function defaultBuiltinExtensions(): InlineExtension[] {
@@ -534,15 +531,15 @@ export function defaultBuiltinExtensions(): InlineExtension[] {
   ];
 }
 
-/** The longest the child's extension shutdown may take (agent-tool.md Section 3.1). */
+/** The longest the child's extension shutdown may take (specs/agent-tool.md#tools). */
 export const EXTENSION_SHUTDOWN_TIMEOUT_MS = 1000;
 
-/** How the child's session-shutdown lifecycle ended (agent-tool.md Section 3.1). */
+/** How the child's session-shutdown lifecycle ended (specs/agent-tool.md#tools). */
 type ExtensionShutdownOutcome = "done" | "timeout" | { readonly error: unknown };
 
 /**
  * Run the child's session-shutdown lifecycle, waiting at most `deadlineMs`
- * (agent-tool.md Section 3.1). A failure after the deadline is reported to
+ * (specs/agent-tool.md#tools). A failure after the deadline is reported to
  * stderr, never left unhandled.
  */
 export function extensionShutdown(
@@ -581,12 +578,12 @@ export function extensionShutdown(
   });
 }
 
-/** The read-only tools a Fleet `query` child may bind (fleet-tool.md Section 4). */
+/** The read-only tools a Fleet `query` child may bind (specs/fleet-tool.md#query). */
 const QUERY_READ_ONLY_TOOLS: readonly string[] = ["read", "grep", "find", "ls"];
 
 /**
  * The Fleet `query` child's tool cap: exactly the read-only tools present in
- * the target session's tool cap (fleet-tool.md Section 4).
+ * the target session's tool cap (specs/fleet-tool.md#query).
  */
 export function queryToolCap(targetTools: readonly string[]): string[] {
   return QUERY_READ_ONLY_TOOLS.filter((name) => targetTools.includes(name));
@@ -664,7 +661,7 @@ function parseEnvCount(name: string, fallback: number, diagnostics: Diagnostic[]
 
 /**
  * Append the `<available_skills>` injection to a system prompt after a blank
- * line (skill-tool.md Section 1); the prompt is returned unchanged for an
+ * line (specs/skill-tool.md#binding); the prompt is returned unchanged for an
  * empty skill catalog.
  */
 export function appendSkillCatalog(prompt: string, skills: readonly SkillEntry[]): string {
@@ -699,7 +696,7 @@ const SESSION_NOTE_LINES: readonly (readonly [tools: readonly string[], line: st
   ],
 ];
 
-/** The session notes of a dynamic dispatch (agent-tool.md Section 4.2). */
+/** The session notes of a dynamic dispatch (specs/agent-tool.md#child-session). */
 export function sessionNotes(dir: string, tools: readonly string[]): string {
   const lines = [
     `\`PI_DENT_SESSION_DIR\` (${dir}) is this session's own directory, set in your tools' environment. Write temporary files there, never in the project tree.`,
@@ -711,8 +708,7 @@ export function sessionNotes(dir: string, tools: readonly string[]): string {
 }
 
 /**
- * Build child session system prompt per specs/agent-tool.md Section 4.2, specs/plugin.md
- * Section 10, specs/model-guidance.md Section 4, and specs/session-tool.md Section 3.2:
+ * Build child session system prompt per specs/agent-tool.md#child-session, specs/plugin.md#plugin-context, specs/model-guidance.md#session-rules, and specs/session-tool.md#prompt-mode:
  * prompt, skill catalog, plugin context, session rules, child guidance, session mode line.
  */
 export function buildChildSystemPrompt(
@@ -735,9 +731,9 @@ export function buildChildSystemPrompt(
 }
 
 /**
- * The child guidance of one dispatch (model-guidance.md Section 4): only for a
+ * The child guidance of one dispatch (specs/model-guidance.md#session-rules): only for a
  * child whose tool cap includes `Agent`, after the cached query on the main
- * session's billing service where billing.md Section 4.3 requires one.
+ * session's billing service where specs/billing.md#cached-query requires one.
  */
 export async function dispatchChildGuidance(
   billing: BillingService | undefined,
@@ -771,9 +767,9 @@ export function readBootSnapshot(cwd = process.cwd()): BootSnapshot {
   const agents = discoverAgents(cwd, diagnostics);
   const skills = discoverSkills(cwd, diagnostics);
   const pluginCatalog = discoverPlugins(config, diagnostics);
-  // Plugin entries join after pi-dent's own (plugin.md Section 9); the `agents`
+  // Plugin entries join after pi-dent's own (specs/plugin.md#catalog-composition); the `agents`
   // override applies over the composed catalog, so `namespace:name` keys are
-  // overridable (agent.md Section 2).
+  // overridable (specs/agent.md#agents-override).
   composePluginCatalogs(agents, skills, pluginCatalog.plugins, diagnostics);
   applyAgentsOverride(config, agents, diagnostics);
   return {
@@ -822,7 +818,7 @@ function isActiveSince(dir: string, cutoff: number, extra: readonly string[] = [
 }
 
 /**
- * The retention sweep (agent-tool.md Section 10): at boot-window start only,
+ * The retention sweep (specs/agent-tool.md#retention-sweep): at boot-window start only,
  * delete each top-level agent directory (`<stem>.agents` in a session-store
  * project directory, or a directory under `<tmpdir>/pi-dent-sessions/`) whose
  * last activity is older than `PI_DENT_SESSION_TTL_DAYS` days, whole, unless it is
@@ -887,8 +883,7 @@ export function agentsDirFor(sessionFile: string | undefined, sessionId: string)
 }
 
 /**
- * The agent directory of the session a host adapter speaks for (agent-tool.md
- * Section 4.2): the value `openMainSessionDir` creates and exposes, computed
+ * The agent directory of the session a host adapter speaks for (specs/agent-tool.md#child-session): the value `openMainSessionDir` creates and exposes, computed
  * from the host rather than read from the environment, so a child session's
  * tools never resolve the main session's directory.
  */
@@ -898,7 +893,7 @@ export function agentDirForHost(host: HostSession): string {
 
 /**
  * Create the main session's agent directory and expose it as `PI_DENT_SESSION_DIR`
- * in the process environment (agent-tool.md Section 4.2). A failure leaves the
+ * in the process environment (specs/agent-tool.md#child-session). A failure leaves the
  * variable unset.
  */
 export function openMainSessionDir(sessionFile: string | undefined, sessionId: string): void {
@@ -912,8 +907,7 @@ export function openMainSessionDir(sessionFile: string | undefined, sessionId: s
 }
 
 /**
- * Refresh the directory's modification time (the end of the session, agent-tool.md
- * Section 10) and unset `PI_DENT_SESSION_DIR`; never removes the directory.
+ * Refresh the directory's modification time (the end of the session, specs/agent-tool.md#retention-sweep) and unset `PI_DENT_SESSION_DIR`; never removes the directory.
  */
 export function closeMainSessionDir(sessionFile: string | undefined, sessionId: string): void {
   const dir = agentsDirFor(sessionFile, sessionId);
@@ -949,11 +943,11 @@ export function hostFromContext(
     compaction: () => {
       const { compaction, errors } = readMainCompaction(ctx.cwd);
       // Each settings file that cannot be read contributes nothing and is named
-      // in one warning (Section 3.4).
+      // in one warning (specs/agent-tool.md#compaction).
       for (const error of errors) ctx.ui.notify(error, "warning");
       return compaction;
     },
-    // Completion notification: into the conversation, followUp (task-registry.md Section 5).
+    // Completion notification: into the conversation, followUp (specs/task-registry.md#cohorts).
     notify: (message) => {
       pi.sendMessage(
         { customType: "pi-dent-tasks", content: message, display: true },
@@ -1010,15 +1004,15 @@ export function hostFromSessionBox(
     contextWindow: () => session()?.model?.contextWindow,
     compaction: () => {
       // The compaction the child session actually runs with, which a nested dispatch
-      // inherits (Section 3.4); reading it back cannot fail.
+      // inherits (specs/agent-tool.md#compaction); reading it back cannot fail.
       const current = session();
       return current ? current.settingsManager.getSettings().compaction : undefined;
     },
-    // Completion notification: into the child conversation, followUp (task-registry.md Section 5).
+    // Completion notification: into the child conversation, followUp (specs/task-registry.md#cohorts).
     notify: (message) => {
       const current = session();
       // Rows are consumed only once the host accepted the message, so a missing child
-      // session fails the send and leaves the rows unconsumed (Section 5).
+      // session fails the send and leaves the rows unconsumed (specs/agent-tool.md#foreground-contract).
       if (!current) throw new Error("no live child session for the completion notification");
       const token = nextToken++;
       hooks?.sent(token, message);
@@ -1028,7 +1022,7 @@ export function hostFromSessionBox(
       });
     },
     // A warning into the child conversation: displayed, with no triggered turn and no
-    // completion bookkeeping (agent-tool.md Section 3.1).
+    // completion bookkeeping (specs/agent-tool.md#tools).
     warn: (message) => {
       const current = session();
       if (!current) throw new Error("no live child session for the warning");
@@ -1072,7 +1066,7 @@ function installedProvider(runtime: ModelRuntime, id: string): unknown {
 
 /**
  * Make the child's runtime hold the dispatching session's extension providers as
- * it holds them now, and drop the copies it no longer holds (agent-tool.md Section 4.2).
+ * it holds them now, and drop the copies it no longer holds (specs/agent-tool.md#child-session).
  */
 export function syncExtensionProviders(
   runtime: ModelRuntime,
@@ -1113,7 +1107,7 @@ export function syncExtensionProviders(
 /** API id of pi's virtual models (pi's virtual-models module, not exported). */
 const VIRTUAL_MODEL_API = "pi-virtual";
 
-/** The compaction defaults of agent-tool.md Section 3.4 (pi's own defaults). */
+/** The compaction defaults of specs/agent-tool.md#compaction (pi's own defaults). */
 const COMPACTION_DEFAULTS: Required<CompactionSettings> = {
   enabled: true,
   reserveTokens: 16384,
@@ -1121,7 +1115,7 @@ const COMPACTION_DEFAULTS: Required<CompactionSettings> = {
 };
 
 /**
- * The child's compaction settings (agent-tool.md Section 3.4): the dispatching
+ * The child's compaction settings (specs/agent-tool.md#compaction): the dispatching
  * session's, each field it leaves out taking the default. The child's own
  * working directory contributes none of them.
  */
@@ -1134,7 +1128,7 @@ function childCompaction(inherited: CompactionSettings | undefined): Required<Co
 }
 
 /**
- * The main session's compaction settings (agent-tool.md Section 3.4): the settings
+ * The main session's compaction settings (specs/agent-tool.md#compaction): the settings
  * files of its working directory, and one warning text per file that cannot be read.
  */
 function readMainCompaction(cwd: string): {
@@ -1167,7 +1161,7 @@ interface AttemptState {
   projection: string[];
 }
 
-/** A Fleet-delivered message waiting for the child session to accept it (fleet-tool.md, Section 3.2). */
+/** A Fleet-delivered message waiting for the child session to accept it (specs/fleet-tool.md#delivery-modes). */
 interface TurnAcceptance {
   resolve: () => void;
   reject: (error: unknown) => void;
@@ -1216,7 +1210,7 @@ export function classifyAttempt(
       stopReason: "error",
       failureCode: "execution-error",
       failurePhase: "execution",
-      // Section 8 item 3: the refusal text is the error text, even when the
+      // specs/agent-tool.md#recovery item 3: the refusal text is the error text, even when the
       // candidate also carries an error message.
       errorMessage: finalText,
       finalText,
@@ -1288,7 +1282,7 @@ function isTransient(message: string): boolean {
 }
 
 /**
- * The task row label of agent-tool.md Section 4.1: `<agent> — <summary>` for a named agent, or
+ * The task row label of specs/agent-tool.md#invocation-lifecycle: `<agent> — <summary>` for a named agent, or
  * `<summary>` alone for a dynamic dispatch, the summary being the definition's `description` when
  * the catalog has the agent and it carries one, else the first line of `task` when that line is
  * not empty, else the literal `task`.
@@ -1305,36 +1299,35 @@ function rowLabel(agent: string, definition: AgentDefinition | undefined, task: 
  */
 export interface EngineDeps {
   /**
-   * The Bash settings dependency the child sessions call through (bash-tool.md Section 3): the
+   * The Bash settings dependency the child sessions call through (specs/bash-tool.md#execution-model): the
    * boot window's reporter and warned set, so a settings file that cannot be read is reported
    * once per boot window per file whichever session calls `Bash` first.
    */
   bashSettings: (cwd: string) => BashSettings;
   /**
-   * Reports a task notification the host did not deliver (task-registry.md Section 5) through the
+   * Reports a task notification the host did not deliver (specs/task-registry.md#cohorts) through the
    * boot window's UI. A child session's registry gets none and reports nothing.
    */
   reportNotification?: ((message: string) => void) | undefined;
   /** Boot-window warnings, shared with child engines without enabling registry reports. */
   reportWarning?: ((message: string) => void) | undefined;
   /**
-   * The main session's usage tally (agent-tool.md Section 13), shared with every child and
+   * The main session's usage tally (specs/agent-tool.md#usage), shared with every child and
    * query engine so each assistant message is counted once. A new tally when absent.
    */
   usageTally?: UsageTally | undefined;
   /**
-   * Where the session's task rows go in the task ledger (task-ledger.md Sections 3.1 and 3.2),
+   * Where the session's task rows go in the task ledger (specs/task-ledger.md#parent-row and specs/task-ledger.md#write-rules),
    * shared in spirit with every child and query engine; no ledger row is written without it.
    */
   ledger?: LedgerScope | undefined;
   /**
-   * The child's extension-shutdown deadline in milliseconds (agent-tool.md Section
-   * 3.1); a test shortens it so reaching the limit costs no wall time.
+   * The child's extension-shutdown deadline in milliseconds (specs/agent-tool.md#tools); a test shortens it so reaching the limit costs no wall time.
    */
   extensionShutdownTimeoutMs?: number | undefined;
   /**
    * The built-in extension descriptors a child loads for the `builtin:<name>` sources of
-   * its inherited extensions (agent-tool.md Section 3.1). Defaults to the SDK's
+   * its inherited extensions (specs/agent-tool.md#tools). Defaults to the SDK's
    * tool-sourcing built-ins; a test supplies its own.
    */
   builtinExtensions?: readonly InlineExtension[] | undefined;
@@ -1348,17 +1341,17 @@ export class DispatchEngine {
   private readonly responseBus: Pick<ExtensionAPI["events"], "emit"> | undefined;
   private readonly deps: EngineDeps;
   /**
-   * The Bash settings dependency of the session's children (bash-tool.md Section 3): the
+   * The Bash settings dependency of the session's children (specs/bash-tool.md#execution-model): the
    * extension instance's reader, so one warning per boot window per file appears whichever
    * session calls `Bash` first.
    */
   private readonly bashSettings: (cwd: string) => BashSettings;
   private current: TaskRegistry;
 
-  /** The main session's billing service, shared by every child engine (billing.md Section 4). */
+  /** The main session's billing service, shared by every child engine (specs/billing.md#queries). */
   readonly billing?: BillingService | undefined;
 
-  /** The main session's usage tally, shared by every child engine (agent-tool.md Section 13). */
+  /** The main session's usage tally, shared by every child engine (specs/agent-tool.md#usage). */
   readonly usageTally: UsageTally;
 
   constructor(
@@ -1385,7 +1378,7 @@ export class DispatchEngine {
     return this.current;
   }
 
-  /** A live registry whose rows the task ledger records (task-ledger.md Section 3.2). */
+  /** A live registry whose rows the task ledger records (specs/task-ledger.md#write-rules). */
   private newRegistry(): TaskRegistry {
     const scope = this.deps.ledger;
     return new TaskRegistry(
@@ -1396,7 +1389,7 @@ export class DispatchEngine {
     );
   }
 
-  /** Replace the registry with a new, empty, live one (task-registry.md Section 4). */
+  /** Replace the registry with a new, empty, live one (specs/task-registry.md#registry-end). */
   resetRegistry(): void {
     if (this.current.live) this.current.end();
     this.current = this.newRegistry();
@@ -1414,9 +1407,9 @@ export class DispatchEngine {
   /**
    * Run a Fleet `query` in an isolated child session owned by this session,
    * with local completion notification suppressed and isolated from the
-   * session's public Task list (specs/fleet-tool.md Section 4). `ledger` is the target session's
+   * session's public Task list (specs/fleet-tool.md#query). `ledger` is the target session's
    * ledger scope, this engine's own by default: a child session's query is run by the engine that
-   * dispatched it, with the child's scope (task-ledger.md Section 3.1, rule 2).
+   * dispatched it, with the child's scope (specs/task-ledger.md#parent-row, rule 2).
    */
   async runIsolatedQuery(
     host: HostSession,
@@ -1434,13 +1427,13 @@ export class DispatchEngine {
       this.fleet,
       this.billing,
       this.responseBus,
-      // A query's registry sends no notification (task-registry.md Section 5); its Bash reads the
+      // A query's registry sends no notification (specs/task-registry.md#cohorts); its Bash reads the
       // boot window's settings.
       {
         bashSettings: this.bashSettings,
         reportWarning: this.deps.reportWarning,
         builtinExtensions: this.deps.builtinExtensions,
-        // A query counts in the main session's tally, like the dispatch it is (Section 13).
+        // A query counts in the main session's tally, like the dispatch it is (specs/agent-tool.md#usage).
         usageTally: this.usageTally,
         // Its row is the target session's, under its ledger session ID (task-ledger.md 2.2).
         ledger,
@@ -1480,15 +1473,15 @@ export class DispatchEngine {
   /** One Agent invocation: validation, plan freeze, registration, delivery. */
   async dispatch(call: DispatchCall): Promise<ToolResult> {
     const { host } = call;
-    // Reassignable so a `resume` task ID can be replaced by its session path (Section 9).
+    // Reassignable so a `resume` task ID can be replaced by its session path (specs/agent-tool.md#resume).
     let params = call.params;
     // The registry registered into, kept even if the session's registry is replaced.
     const registry = this.registry;
     const agentIdentity = params.agent ?? "dynamic";
     const definition = params.agent ? this.boot.agentIndex.get(params.agent) : undefined;
-    // One row per invocation, registered before execution begins (Section 4.1);
+    // One row per invocation, registered before execution begins (specs/agent-tool.md#invocation-lifecycle);
     // registration into a registry that is not live fails the invocation
-    // (task-registry.md Section 1).
+    // (specs/task-registry.md#ownership).
     let row: AgentTaskRow;
     try {
       row = registry.register({
@@ -1531,11 +1524,11 @@ export class DispatchEngine {
       };
     };
 
-    // task-ledger.md Section 3.2: the row a `resume` continues, by task ID or by path.
+    // specs/task-ledger.md#write-rules: the row a `resume` continues, by task ID or by path.
     let ledgerResume: LedgerResume | undefined;
     // A `resume` task ID resolves to the session file of that agent row; every
     // settled `agent` row naming that file, the resolved one included, is
-    // consumed, so the two forms consume alike (Section 9). Rows are consumed
+    // consumed, so the two forms consume alike (specs/agent-tool.md#resume). Rows are consumed
     // only once the dispatch passes its pre-start checks, so a rejection
     // consumes none.
     const consumeResumed: AgentTaskRow[] = [];
@@ -1580,7 +1573,7 @@ export class DispatchEngine {
     if ("error" in validation) return rejection(validation.error);
 
     // A dispatch with no live main session has no tool cap and fails the
-    // plan the same way as a tool cap without Agent (Section 3.1).
+    // plan the same way as a tool cap without Agent (specs/agent-tool.md#tools).
     if (!host) {
       return rejection(
         "no live main session for the dispatch: there is no tool cap, so Agent authority cannot be established",
@@ -1609,8 +1602,8 @@ export class DispatchEngine {
       const compaction = host.compaction();
       const agentsDir = agentsDirFor(sessionFile, sessionId);
       // The extension sources the child loads are frozen with the snapshot, before
-      // any asynchronous dispatch starts (Section 3.1). A Fleet query child loads none
-      // and does not read the inventory (Section 3.1, fleet-tool.md Section 4).
+      // any asynchronous dispatch starts (specs/agent-tool.md#tools). A Fleet query child loads none
+      // and does not read the inventory (specs/agent-tool.md#tools, specs/fleet-tool.md#query).
       const extensions =
         call.fleetQuery === true ? { sources: [], tools: [] } : inheritedExtensions(host);
       mkdirSync(agentsDir, { recursive: true });
@@ -1619,7 +1612,7 @@ export class DispatchEngine {
       return rejection(`snapshot failed: ${errorMessage(error)}`, "invalid-plan");
     }
 
-    // The child's agent directory (Sections 4.1 and 4.2) is a pre-start step,
+    // The child's agent directory (specs/agent-tool.md#invocation-lifecycle and specs/agent-tool.md#child-session) is a pre-start step,
     // the dispatch's only creation of it: it is created here, before any row is
     // consumed and before a background call reports startup, so a failure rejects
     // the dispatch as pre-start.
@@ -1637,9 +1630,9 @@ export class DispatchEngine {
     for (const resumed of consumeResumed) registry.consume(resumed);
 
     // Every pre-start check passed, so this dispatch counts in the usage tally
-    // (agent-tool.md Section 13); a recovery attempt of it does not count again.
+    // (specs/agent-tool.md#usage); a recovery attempt of it does not count again.
     this.usageTally.countTask();
-    // The pre-start checks passed (task-ledger.md Section 2.2). A path resume matches the path
+    // The pre-start checks passed (specs/task-ledger.md#ledger-row). A path resume matches the path
     // the row's session_path takes, set only once the child session opens it.
     ledgerDispatched(
       row,
@@ -1660,7 +1653,7 @@ export class DispatchEngine {
         this.settleExecutionFailure(registry, row, plan, errorMessage(error), snapshot.agentsDir),
       );
       // The child session file path is known before the child opens it, so it
-      // matches what runDispatch opens (Section 6).
+      // matches what runDispatch opens (specs/agent-tool.md#background-contract).
       const sessionPath = childSessionPath;
       return {
         content: [
@@ -1685,7 +1678,7 @@ export class DispatchEngine {
         fleetQuery: call.fleetQuery,
       });
     } catch (error) {
-      // Every settled dispatch returns the formatted Section 7 result.
+      // Every settled dispatch returns the formatted specs/agent-tool.md#result-contract result.
       return this.settleExecutionFailure(
         registry,
         row,
@@ -1697,8 +1690,8 @@ export class DispatchEngine {
   }
 
   /**
-   * Parameter validation ([agent-tool.md](../specs/agent-tool.md), Section 1.1),
-   * ending with the `cwd` check of [task.md](../specs/task.md), Section 1.1. The
+   * Parameter validation (specs/agent-tool.md#parameter-schema),
+   * ending with the `cwd` check of specs/task.md#cwd-parameter. The
    * resolved `cwd` is returned so the plan carries it without resolving twice.
    * The check needs a live session to resolve a relative path; a dispatch with
    * no live session is rejected before its plan is resolved.
@@ -1737,7 +1730,7 @@ export class DispatchEngine {
       }
       // One `stat` decides both checks: a path that cannot be examined is the
       // not-found rejection, so no failure escapes a dispatch that already
-      // registered its row (Section 4.1).
+      // registered its row (specs/agent-tool.md#invocation-lifecycle).
       const source = statOrUndefined(params.resume);
       if (source === undefined) {
         return `resume source not found: ${params.resume}. The retention sweep may have deleted it (PI_DENT_SESSION_TTL_DAYS=${this.boot.sessionTtlDays}).`;
@@ -1770,7 +1763,7 @@ export class DispatchEngine {
 
     // A restricted plan tool cap (Fleet `query` child) narrows only the tools
     // the child binds; the authority check above still comes from the host cap
-    // (fleet-tool.md Section 4). A restricted child carries no skills.
+    // (specs/fleet-tool.md#query). A restricted child carries no skills.
     const tools = planToolCap ?? host.activeTools();
 
     const definition = params.agent ? this.boot.agentIndex.get(params.agent) : undefined;
@@ -1834,7 +1827,7 @@ export class DispatchEngine {
       };
     }
     if (!selected && sessionPolicy.kind === "resume" && persisted?.model) {
-      // Section 3.3: a level taken from the persisted thinking is not checked,
+      // specs/agent-tool.md#model-thinking: a level taken from the persisted thinking is not checked,
       // so the persisted tier resolves from the bare persisted model below;
       // the persisted level is applied by the thinking-precedence branch.
       const raw = serializeDescriptor({
@@ -1904,14 +1897,14 @@ export class DispatchEngine {
         selected.descriptor.id !== persisted.model.id)
         ? `${persisted.model.provider}/${persisted.model.id}`
         : undefined;
-    // The canonical model label carries the final thinking level (Section 5 serialization).
+    // The canonical model label carries the final thinking level (specs/agent-tool.md#foreground-contract serialization).
     const finalDescriptor: Descriptor = {
       provider: selected.descriptor.provider,
       id: selected.descriptor.id,
       thinking,
     };
 
-    // The inherited tier is the dispatching session's own model and is never unguided (model-guidance.md Section 3).
+    // The inherited tier is the dispatching session's own model and is never unguided (specs/model-guidance.md#dispatch-restriction).
     const { guidance } = parsedModelGuidance(this.boot.config);
     const guided = guidedModels(guidance, inventory);
     if (
@@ -1932,7 +1925,7 @@ export class DispatchEngine {
       prompt,
       cwd,
       tools,
-      // Skills follow the tool cap: no `Skill` in the cap, no skills (Section 3.2).
+      // Skills follow the tool cap: no `Skill` in the cap, no skills (specs/agent-tool.md#skills).
       skills: tools.includes("Skill") ? this.boot.skills : [],
       model: selected.model,
       modelLabel: serializeDescriptor(finalDescriptor),
@@ -1954,7 +1947,7 @@ export class DispatchEngine {
     agentsDir?: string,
   ): ToolResult {
     // The row object is held by the dispatch, so adoption into another registry
-    // cannot hide it from settlement (task-registry.md Section 4).
+    // cannot hide it from settlement (specs/task-registry.md#registry-end).
     if (row.status !== "running") {
       const text = `Agent error: ${message}`;
       return {
@@ -1990,7 +1983,7 @@ export class DispatchEngine {
       onUpdate?: UpdateCallback | undefined;
       /**
        * The dispatch is a Fleet `query` child: its attempt never waits for running rows
-       * and it registers no child session record (agent-tool.md Section 4.2).
+       * and it registers no child session record (specs/agent-tool.md#child-session).
        */
       fleetQuery?: boolean | undefined;
     } = {},
@@ -1998,7 +1991,7 @@ export class DispatchEngine {
     const agentsDir = snapshot.agentsDir;
     const resumeKey = plan.sessionPolicy.kind === "resume" ? plan.sessionPolicy.resume : undefined;
     const claimedSessions: string[] = [];
-    // A running dispatch holds its session file, so a concurrent resume is rejected (Section 9).
+    // A running dispatch holds its session file, so a concurrent resume is rejected (specs/agent-tool.md#resume).
     const claimSessionFile = (path: string | undefined) => {
       if (!path) return;
       const key = resolve(path);
@@ -2018,7 +2011,7 @@ export class DispatchEngine {
     /** Whether the store holds this child's record: only then may its turns be recorded. */
     let childRegistered = false;
     // The dispatching session's warning channel: its UI where it has one, a displayed
-    // message where it is a child, and never a triggered model turn (Section 3.1).
+    // message where it is a child, and never a triggered model turn (specs/agent-tool.md#tools).
     const warningChannel = host.warn ?? host.notify;
     const emitWarning = (channel: (text: string) => void, text: string): void => {
       try {
@@ -2030,7 +2023,7 @@ export class DispatchEngine {
     const notifyWarning = (message: string): void => {
       emitWarning(warningChannel, `pi-dent: ${message}`);
     };
-    // A Fleet child warning (Section 4.2): the boot window's reporter where it has one,
+    // A Fleet child warning (specs/agent-tool.md#child-session): the boot window's reporter where it has one,
     // else the dispatching session's warning channel.
     const warnFleet = (message: string): void => {
       emitWarning(this.deps.reportWarning ?? warningChannel, `pi-dent: ${message}`);
@@ -2040,12 +2033,11 @@ export class DispatchEngine {
     let idleTimer: NodeJS.Timeout | undefined;
     let absoluteTimer: NodeJS.Timeout | undefined;
     // The attempt's Search runtime: its continuation of catch-up ends with the attempt
-    // (search-tool.md Section 2.2; a child's boot window is its attempt).
+    // (specs/search-tool.md#coverage; a child's boot window is its attempt).
     const searchRuntimeForChild = searchRuntime({ zone: readLocalZone() });
 
     registryRow.cancel = () => {
-      // Why the attempt is being cancelled decides the record rule (task-record.md
-      // Section 2): only a cancellation the registry's own end asked for keeps the
+      // Why the attempt is being cancelled decides the record rule (specs/task-record.md#lifecycle): only a cancellation the registry's own end asked for keeps the
       // record `running`. The first request names the cause; a later one does not
       // take it over.
       if (cancelCause === undefined) {
@@ -2062,23 +2054,22 @@ export class DispatchEngine {
     /**
      * Fleet-delivered turns of the child that are starting or running: each
      * settles at that turn's end. A dispatch MUST NOT settle, and a recovery
-     * attempt MUST NOT prompt, while one is in flight (Section 4.2).
+     * attempt MUST NOT prompt, while one is in flight (specs/agent-tool.md#child-session).
      */
     const fleetTurns = new Set<Promise<void>>();
     /**
      * Delivered turns the child has not accepted yet: each settles at the child's next
-     * turn start, or rejects with the early error of its send (fleet-tool.md, Section
-     * 3.2). Kept apart from `fleetTurns`, which the dispatch waits for.
+     * turn start, or rejects with the early error of its send (specs/fleet-tool.md#delivery-modes). Kept apart from `fleetTurns`, which the dispatch waits for.
      */
     const accepting = new Set<TurnAcceptance>();
-    /** Stops the idle deadline while the attempt waits (Section 4.2). */
+    /** Stops the idle deadline while the attempt waits (specs/agent-tool.md#child-session). */
     const suspendIdle = (): void => {
       waiting = true;
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = undefined;
     };
     // The abort listener is attached before the outer signal is inspected and is
-    // never reset, so a cancellation requested during startup is honoured (Section 11).
+    // never reset, so a cancellation requested during startup is honoured (specs/agent-tool.md#cancellation).
     controller.signal.addEventListener("abort", () => {
       abortRequested = true;
       poke();
@@ -2092,7 +2083,7 @@ export class DispatchEngine {
     }
 
     // The attempt's child-session task registry ends with the attempt
-    // (task-registry.md Sections 4 and 6): no further registration, and every
+    // (specs/task-registry.md#registry-end and specs/task-registry.md#nesting): no further registration, and every
     // still-running nested row is adopted into this registry or cancelled.
     const endAttemptRegistry = () => {
       childEngine?.registry.end();
@@ -2145,7 +2136,7 @@ export class DispatchEngine {
       }
     };
     const childCohorts = new CohortTracker();
-    // The child session's rows go under this dispatch's row (task-ledger.md Section 3.1, rule 2).
+    // The child session's rows go under this dispatch's row (specs/task-ledger.md#parent-row, rule 2).
     const childLedger =
       this.deps.ledger === undefined
         ? undefined
@@ -2170,7 +2161,7 @@ export class DispatchEngine {
         );
       }
       // The child runs a model of an extension provider with the dispatching session's
-      // credentials even when no inherited source registers it (Section 4.2).
+      // credentials even when no inherited source registers it (specs/agent-tool.md#child-session).
       const providers = host.extensionProviders?.();
       if (providers !== undefined) syncExtensionProviders(runtime, providers, notifyWarning);
 
@@ -2190,7 +2181,7 @@ export class DispatchEngine {
       claimSessionFile(sessionPath);
 
       // A continuation records the model and thinking it runs with, so a later
-      // `resume` without them continues what the session last ran with (Section 9).
+      // `resume` without them continues what the session last ran with (specs/agent-tool.md#resume).
       // Once per dispatch: a recovery attempt continues this same file.
       if (plan.sessionPolicy.kind === "resume") {
         const persistedModel = plan.sessionPolicy.persistedModel;
@@ -2207,12 +2198,12 @@ export class DispatchEngine {
         }
       }
 
-      // The child's own agent directory (Section 4.2), exposed to its tools as
+      // The child's own agent directory (specs/agent-tool.md#child-session), exposed to its tools as
       // PI_DENT_SESSION_DIR; a resumed session maps to the same directory. It was
       // created before delivery, so a creation failure is a pre-start rejection.
       const childDir = agentsDirFor(sessionPath, manager.getSessionId());
 
-      // The task record (task-record.md Section 2): written once per task, for a
+      // The task record (specs/task-record.md#lifecycle): written once per task, for a
       // background task, once its child session file path is fixed and before
       // the first prompt. The host creates the file itself at the first message,
       // so only the path is known here. A record failure MUST NOT fail the
@@ -2245,7 +2236,7 @@ export class DispatchEngine {
         plan.tools,
         host.configuredModels() ?? [],
       );
-      // The child's Agent description, computed once with the child session (agent-tool.md Section 1).
+      // The child's Agent description, computed once with the child session (specs/agent-tool.md#registration).
       const childModelCatalog = modelCatalog(
         parsedModelGuidance(this.boot.config).guidance,
         host.configuredModels() ?? [],
@@ -2267,16 +2258,16 @@ export class DispatchEngine {
         agentDir: getAgentDir(),
         settingsManager,
         noExtensions: true,
-        // The inherited sources, in the parent inventory's order (Section 3.1): file
+        // The inherited sources, in the parent inventory's order (specs/agent-tool.md#tools): file
         // paths first, then `builtin:<name>` paths, each enabled explicitly. The
         // child discovers no extensions from its own settings or working directory.
         additionalExtensionPaths: [...snapshot.extensions.sources],
         extensionFactories: [
           // The built-in extensions supply the code of the `builtin:<name>` sources.
           ...(this.deps.builtinExtensions ?? defaultBuiltinExtensions()),
-          // The read hint searches the child's own agent directory (Section 6).
+          // The read hint searches the child's own agent directory (specs/agent-tool.md#background-contract).
           (pi) => registerReadErrorHint(pi, () => childDir),
-          // Plugin-declared HTTPS MCP servers (plugin.md Section 12).
+          // Plugin-declared HTTPS MCP servers (specs/plugin.md#mcp-servers).
           ...(this.boot.plugins.some((p) => (p.mcpServers?.length ?? 0) > 0)
             ? [
                 pluginMcpExtensionFactory(this.boot.plugins, (d) =>
@@ -2285,7 +2276,7 @@ export class DispatchEngine {
               ]
             : []),
           // Inline extensions load after the inherited ones, so this runs after their own
-          // start-of-run handlers and replaces their selection for the first run (Section 3.1).
+          // start-of-run handlers and replaces their selection for the first run (specs/agent-tool.md#tools).
           (pi) => {
             let firstRun = true;
             pi.on("before_agent_start", (event) => {
@@ -2317,7 +2308,7 @@ export class DispatchEngine {
         ],
         noSkills: true,
         // An inherited extension may discover resources; the child's skill catalog is
-        // the plan's, so what the SDK would load is dropped (Sections 3.1 and 3.2).
+        // the plan's, so what the SDK would load is dropped (specs/agent-tool.md#tools and specs/agent-tool.md#skills).
         skillsOverride: () => ({ skills: [], diagnostics: [] }),
         promptsOverride: () => ({ prompts: [], diagnostics: [] }),
         themesOverride: () => ({ themes: [], diagnostics: [] }),
@@ -2332,7 +2323,7 @@ export class DispatchEngine {
       // An inherited source that fails to load, a source the loader drops without an
       // error, a conflict between loaded sources, and a failing inline factory are each
       // named to the dispatching session; its tools are unavailable and the remaining
-      // sources still load (Section 3.1).
+      // sources still load (specs/agent-tool.md#tools).
       for (const failure of loadOutcome.failures) {
         notifyWarning(`extension ${failure.path} failed to load: ${failure.error}`);
       }
@@ -2357,7 +2348,7 @@ export class DispatchEngine {
       });
       // Each attempt below creates its own child DispatchEngine; the child
       // tools dereference it dynamically so nested Agent/Script/Task calls
-      // always register into the CURRENT attempt's registry (Section 6).
+      // always register into the CURRENT attempt's registry (specs/agent-tool.md#background-contract).
       const childEngineOrThrow = (): DispatchEngine => {
         if (!childEngine) throw new Error("child engine not initialized");
         return childEngine;
@@ -2388,7 +2379,7 @@ export class DispatchEngine {
           hostProvider: () => childHost,
           sessionKind: "agent",
           billing: this.billing,
-          // A child session's figures are its dispatch's row's (session-tool.md Section 2).
+          // A child session's figures are its dispatch's row's (specs/session-tool.md#result).
           ledger:
             childLedger === undefined
               ? undefined
@@ -2404,7 +2395,7 @@ export class DispatchEngine {
           toolsAllow: () => parseScript(this.boot.config).toolsAllow ?? DEFAULT_TOOLS_ALLOW,
         }),
         // A child session binds `Search` when the tool cap includes it
-        // (agent-tool.md Section 3.1); its own session file is the invoking one.
+        // (specs/agent-tool.md#tools); its own session file is the invoking one.
         makeSearchTool({
           runtime: searchRuntimeForChild,
           host: () => ({
@@ -2414,14 +2405,14 @@ export class DispatchEngine {
           }),
         }),
         // A child session binds `Markdown` when the tool cap includes it
-        // (agent-tool.md Section 3.1, pi-dent-markdown specs/markdown-tool.md Section 1).
+        // (specs/agent-tool.md#tools, pi-dent-markdown specs/markdown-tool.md Section 1).
         makeMarkdownTool(markdownRuntime()),
       ];
       if (this.fleet)
         childTools.push(makeFleetTool({ fleet: this.fleet, hostProvider: () => childHost }));
       if (plan.skills.length > 0) childTools.push(makeSkillTool(this.boot));
 
-      // The child binds exactly the names of the effective tool cap (Section 3.1);
+      // The child binds exactly the names of the effective tool cap (specs/agent-tool.md#tools);
       // the allowlist also gates customTools in the SDK.
       const cap = effectiveToolCap(
         plan.tools,
@@ -2431,7 +2422,7 @@ export class DispatchEngine {
       childCap = cap;
       // The SDK keeps an MCP tool callable without the allowlist naming it, so the
       // ones outside the cap are excluded explicitly: every resource tool, and every
-      // proxy when the cap names none (Section 3.1).
+      // proxy when the cap names none (specs/agent-tool.md#tools).
       const excludedToolNames = MCP_RESOURCE_TOOL_NAMES.filter((name) => !cap.includes(name));
       if (!cap.some((name) => name.startsWith("mcp__"))) excludedToolNames.push("mcp__*");
       const sessionOptions: CreateAgentSessionOptions = {
@@ -2448,7 +2439,7 @@ export class DispatchEngine {
       };
       // The child's compaction is the dispatching session's, completed from the
       // defaults; the child's own working directory contributes none of it
-      // (Section 3.4). Applied after the loader's reload, which re-reads the settings
+      // (specs/agent-tool.md#compaction). Applied after the loader's reload, which re-reads the settings
       // files and would drop the override.
       settingsManager.applyOverrides({ compaction: childCompaction(snapshot.compaction) });
       const created = await createAgentSession(sessionOptions);
@@ -2456,7 +2447,7 @@ export class DispatchEngine {
       sessionBox.current = session;
       // The inherited extensions get the session start the parent's host gives them, so
       // one that registers its tools then (an MCP proxy) declares them before the first
-      // prompt (Section 3.1). A lifecycle error is named to the dispatching session.
+      // prompt (specs/agent-tool.md#tools). A lifecycle error is named to the dispatching session.
       await session.bindExtensions({
         onError: (event) => {
           notifyWarning(
@@ -2466,7 +2457,7 @@ export class DispatchEngine {
       });
       // The cap's tools are active even when an extension deactivated its own at session
       // start; one the child never registered is named to the dispatching session, and one
-      // an extension registers later is allowed (Section 3.1).
+      // an extension registers later is allowed (specs/agent-tool.md#tools).
       const registeredTools = session.getAllTools();
       session.setActiveToolsByName(capActiveTools(cap, registeredTools));
       const registeredNames = new Set(registeredTools.map((tool) => tool.name));
@@ -2475,7 +2466,7 @@ export class DispatchEngine {
           notifyWarning(`tool ${name} of the effective tool cap is not registered`);
       }
       // No virtual model is copied; only an inherited extension can register one in the
-      // child (Section 4.2).
+      // child (specs/agent-tool.md#child-session).
       const planModel = plan.model;
       if (
         planModel.api === VIRTUAL_MODEL_API &&
@@ -2513,7 +2504,7 @@ export class DispatchEngine {
               agentsDir: childDir,
               cwd: () => childHost.cwd(),
               // A Fleet-delivered turn is starting or running: the dispatch does
-              // not settle meanwhile, so the child is busy (Section 4.2).
+              // not settle meanwhile, so the child is busy (specs/agent-tool.md#child-session).
               isIdle: () => fleetTurns.size === 0 && currentChild().isIdle,
               abortTurn: () => {
                 void currentChild()
@@ -2524,11 +2515,11 @@ export class DispatchEngine {
               },
               // Resolves when the child takes the message for a turn — at its turn
               // start, or at once for a steer into the streaming turn — and rejects on
-              // an early error, which leaves the message undelivered (Section 4.2).
+              // an early error, which leaves the message undelivered (specs/agent-tool.md#child-session).
               // The turn's end is tracked apart, because the dispatch waits for the
-              // turn, not for the message's outcome (fleet-tool.md, Section 3.2). A
+              // turn, not for the message's outcome (specs/fleet-tool.md#delivery-modes). A
               // followUp the host defers settles before any turn starts: the child has
-              // taken it, which is its acceptance (fleet-tool.md, Section 3.2).
+              // taken it, which is its acceptance (specs/fleet-tool.md#delivery-modes).
               deliverTurn: (text, mode) => {
                 const child = currentChild();
                 const acceptance: TurnAcceptance = { resolve: () => {}, reject: () => {} };
@@ -2554,8 +2545,7 @@ export class DispatchEngine {
                   .finally(() => {
                     fleetTurns.delete(turn);
                     // A followUp whose prompt the host deferred starts no turn here, so
-                    // its followUp lock must not outlive the message (fleet-tool.md,
-                    // Section 3.2).
+                    // its followUp lock must not outlive the message (specs/fleet-tool.md#delivery-modes).
                     if (mode === "followUp" && childRegistered && fleetChildId) {
                       this.fleet?.recordChildTurnStart(fleetChildId);
                     }
@@ -2577,7 +2567,7 @@ export class DispatchEngine {
               },
               runQuery: (query) => this.runIsolatedQuery(childHost, query, childLedger),
               // A warning of the boot window that runs the child: displayed, and never
-              // a triggered model turn (Section 3.1).
+              // a triggered model turn (specs/agent-tool.md#tools).
               notify: (text) => emitWarning(warningChannel, text),
             },
             plan.task,
@@ -2651,7 +2641,7 @@ export class DispatchEngine {
                 state.usage.contextTokens = Math.max(state.usage.contextTokens, usage.totalTokens);
               }
               state.usage.turns += 1;
-              // Section 13: the row's usage and tool-call count sum every attempt's assistant
+              // specs/agent-tool.md#usage: the row's usage and tool-call count sum every attempt's assistant
               // messages and are never reset; the tally takes the same message's usage.
               if (registryRow.status === "running") {
                 registry.amend(registryRow, {
@@ -2660,13 +2650,13 @@ export class DispatchEngine {
                 });
                 this.usageTally.addMessage(message.usage);
               }
-              // Section 4.3: the attempt's committed error comes from the
+              // specs/agent-tool.md#terminal-candidate: the attempt's committed error comes from the
               // LAST assistant message — an earlier one the child went on
               // from (its host retried the request or compacted) commits
               // none. An empty errorMessage falls back to the model error. An
               // `aborted` turn's message reports the abort, which is no
               // execution error: the attempt settles `cancelled` instead
-              // (Section 4.2).
+              // (specs/agent-tool.md#child-session).
               const messageError = message.errorMessage ?? "";
               state.committedError =
                 message.stopReason === "aborted"
@@ -2773,7 +2763,7 @@ export class DispatchEngine {
         try {
           while (!abortRequested && !timedOut) {
             // A model turn that ended in anything but `stop` ends the attempt at once,
-            // even while a Fleet-delivered turn is in flight (Section 4.2).
+            // even while a Fleet-delivered turn is in flight (specs/agent-tool.md#child-session).
             if (state.candidate !== null && state.candidate.stopReason !== "stop") break;
             if (fleetTurns.size > 0) {
               // The child is idle until the Fleet turn's preflight sets it running:
@@ -2844,7 +2834,7 @@ export class DispatchEngine {
       /**
        * End the Fleet turns still in flight once a non-`stop` turn has ended the attempt:
        * abort the child's run and wait for them to settle, so none starts in a session
-       * that is being shut down (Section 4.2).
+       * that is being shut down (specs/agent-tool.md#child-session).
        */
       const endFleetTurns = async (): Promise<void> => {
         if (fleetTurns.size === 0) return;
@@ -2865,7 +2855,7 @@ export class DispatchEngine {
       };
 
       /**
-       * Start an attempt from no candidate, usage, trace or notification (Section 7). It
+       * Start an attempt from no candidate, usage, trace or notification (specs/agent-tool.md#result-contract). It
        * never clears a liveness expiry: `timedOut` stays the attempt's until the loop
        * settles on it.
        */
@@ -2884,7 +2874,7 @@ export class DispatchEngine {
 
         // The dispatch-authority check runs on every dispatch path. It reads
         // no attempt state, but the recorded failure must not repeat any
-        // previous attempt's usage or trace (Section 7), so the reset above
+        // previous attempt's usage or trace (specs/agent-tool.md#result-contract), so the reset above
         // comes first.
         if (!host.activeTools().includes("Agent")) {
           outcome = {
@@ -2899,7 +2889,7 @@ export class DispatchEngine {
         }
 
         // A cancellation requested while the dispatch was starting settles without
-        // prompting an attempt (Section 11).
+        // prompting an attempt (specs/agent-tool.md#cancellation).
         if (abortRequested) {
           outcome = {
             status: "cancelled",
@@ -2912,7 +2902,7 @@ export class DispatchEngine {
         }
 
         // End the previous attempt's registry, then give this attempt its own child
-        // engine and attach its registry; recovery attempts replace it (Section 6).
+        // engine and attach its registry; recovery attempts replace it (specs/agent-tool.md#background-contract).
         endAttemptRegistry();
         childEngine = new DispatchEngine(
           this.boot,
@@ -2921,12 +2911,12 @@ export class DispatchEngine {
           this.billing,
           this.responseBus,
           // A child's registry has no boot-window UI, so it reports no notification failure
-          // (task-registry.md Section 5); its Bash calls the boot window's settings reader.
+          // (specs/task-registry.md#cohorts); its Bash calls the boot window's settings reader.
           {
             bashSettings: this.bashSettings,
             reportWarning: this.deps.reportWarning,
             builtinExtensions: this.deps.builtinExtensions,
-            // The child's messages count in the main session's tally (Section 13).
+            // The child's messages count in the main session's tally (specs/agent-tool.md#usage).
             usageTally: this.usageTally,
             ledger: childLedger,
           },
@@ -2934,7 +2924,7 @@ export class DispatchEngine {
         registry.attach(registryRow, childEngine.registry);
         // A Fleet-delivered turn of the previous attempt may still be starting or
         // running: the host refuses a prompt while it is, so the attempt waits for
-        // it first, exactly as it waits for its running rows (Section 4.2). A
+        // it first, exactly as it waits for its running rows (specs/agent-tool.md#child-session). A
         // cancellation or liveness expiry during that wait settles now, before the
         // reset would drop what it recorded.
         await waitForFleetTurns();
@@ -2968,7 +2958,7 @@ export class DispatchEngine {
           promptError = errorMessage(error);
         }
         // A non-`stop` turn can end the attempt with a Fleet turn still in flight; it
-        // must not start in a session that is being shut down (Section 4.2). The
+        // must not start in a session that is being shut down (specs/agent-tool.md#child-session). The
         // liveness deadlines still bound this wait.
         await endFleetTurns();
         if (idleTimer) clearTimeout(idleTimer);
@@ -3040,7 +3030,7 @@ export class DispatchEngine {
       if (session) {
         // The child's extensions get their session shutdown before the session goes
         // away, so a connection one opened (an MCP server) is closed, but never for
-        // longer than the deadline (Section 3.1).
+        // longer than the deadline (specs/agent-tool.md#tools).
         const shutdownMs = this.deps.extensionShutdownTimeoutMs ?? EXTENSION_SHUTDOWN_TIMEOUT_MS;
         const shutdown = await extensionShutdown(session, shutdownMs);
         if (shutdown === "timeout") {
@@ -3113,7 +3103,7 @@ export class DispatchEngine {
     const finalText = outcome.finalText ?? "";
     let text: string;
     if (isError) {
-      // An empty error message carries no information (Section 4.3); the
+      // An empty error message carries no information (specs/agent-tool.md#terminal-candidate); the
       // final text and the stop reason follow.
       const message =
         (outcome.errorMessage === "" ? undefined : outcome.errorMessage) ??
@@ -3125,7 +3115,7 @@ export class DispatchEngine {
       text = finalText === "" ? "(no output)" : finalText;
     }
 
-    // Result spill for background tasks above the threshold (Section 7).
+    // Result spill for background tasks above the threshold (specs/agent-tool.md#result-contract).
     let resultPath: string | undefined;
     if (row.background && text.length > SPILL_THRESHOLD && agentsDir) {
       try {
@@ -3142,7 +3132,7 @@ export class DispatchEngine {
       result: text,
       resultPath,
     });
-    // Rewrite the task record with the terminal status (task-record.md Section 2).
+    // Rewrite the task record with the terminal status (specs/task-record.md#lifecycle).
     // A cancellation that the task registry's own end caused leaves the record
     // running, so the next start's rebuild reports the task interrupted, whatever
     // the order of the settlement and the rebuild; a cancellation requested before

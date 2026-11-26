@@ -24,7 +24,7 @@ export interface CardCall {
   tool: "Bash" | "Script";
   description: unknown;
   background: unknown;
-  /** The source text of Section 2; not a string while arguments stream. */
+  /** The source text of specs/tool-card.md#call-section; not a string while arguments stream. */
   source: unknown;
 }
 
@@ -38,14 +38,14 @@ function lines(value: string): string[] {
 }
 
 /**
- * Card text per Section 1: ANSI escape sequences and control characters other than line feeds and
- * tabs removed, then the agent directory substituted (agent-tool.md Section 4.2).
+ * Card text per specs/tool-card.md#shell: ANSI escape sequences and control characters other than line feeds and
+ * tabs removed, then the agent directory substituted (specs/agent-tool.md#child-session).
  */
 function strippedText(value: string): string {
   return shortenSessionDir(cardText(value));
 }
 
-/** Section 2: the title line, then the source lines. */
+/** specs/tool-card.md#call-section: the title line, then the source lines. */
 export function cardCallLines(
   call: CardCall,
   expanded: boolean,
@@ -63,7 +63,7 @@ export function cardCallLines(
   };
 }
 
-/** Section 3: the count of hidden lines and the shown result lines. */
+/** specs/tool-card.md#result-section: the count of hidden lines and the shown result lines. */
 export function cardResultLines(
   result: { content: readonly { type: string; text?: string }[] },
   expanded: boolean,

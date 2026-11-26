@@ -1,15 +1,15 @@
 /**
  * The evaluation engine of the `Search` tool (specs/search-tool.md): covering a
- * call's sessions by catch-up or by a direct read (Section 2.2), the candidates
- * and the call's order (Sections 3.1 and 3.3), matching (Section 3.2) with a
- * regular expression evaluated in a worker thread, evaluation (Section 3.3), and
- * the rendering of a hit line (Section 3.4). `lib/search-tool.ts` owns the tool
+ * call's sessions by catch-up or by a direct read (specs/search-tool.md#coverage), the candidates
+ * and the call's order (specs/search-tool.md#candidates and specs/search-tool.md#evaluation), matching (specs/search-tool.md#matching) with a
+ * regular expression evaluated in a worker thread, evaluation (specs/search-tool.md#evaluation), and
+ * the rendering of a hit line (specs/search-tool.md#result). `lib/search-tool.ts` owns the tool
  * surface: the parameter schema, validation, session resolution, and the actions.
  *
  * A `find` call costs what it shows, not what exists: candidates come from the
  * index in bounded pages in the call's order, one page at a time, and evaluation
  * stops as soon as the limit and one more hit are established. Every loop yields
- * to the event loop at least every 40 ms of work (Section 2.3), and the regular
+ * to the event loop at least every 40 ms of work (specs/search-tool.md#abort), and the regular
  * expression runs in a worker the call can terminate, per item after 1000 ms.
  */
 
@@ -45,16 +45,16 @@ import { typeStrippingOptions } from "./worker-options.ts";
 // Constants and terms
 // ---------------------------------------------------------------------------
 
-/** The tool name (Section 1); the own-calls rule of Section 3.1 names it exactly. */
+/** The tool name (specs/search-tool.md#registration); the own-calls rule of specs/search-tool.md#candidates names it exactly. */
 export const SEARCH_TOOL_NAME = "Search";
 
-/** The default `find` limit (Section 1.1). */
+/** The default `find` limit (specs/search-tool.md#parameter-schema). */
 const FIND_LIMIT = 20;
 
 /** The most bytes one chunk of a direct read consumes before the call yields. */
 const READ_CHUNK_BYTES = 1048576;
 
-/** The rows one candidate page asks the index for (Section 2.3). */
+/** The rows one candidate page asks the index for (specs/search-tool.md#abort). */
 const PAGE_ROWS = 256;
 
 /** The matching item IDs a first page may fetch before it decides to scan instead. */
@@ -63,31 +63,31 @@ const SMALL_MATCH = 2000;
 /** The most rows of one time value a page fetches to complete it. */
 const GROUP_CAP = 50000;
 
-/** The slots of a loaded session one narrowing probe answers for (Section 3.3). */
+/** The slots of a loaded session one narrowing probe answers for (specs/search-tool.md#evaluation). */
 const PROBE_AHEAD = 256;
 
 /** The most slots one evaluation window pulls before it evaluates them. */
 const WINDOW_SLOTS = 32;
 
-/** The milliseconds of work a call does before it yields to the event loop (Section 2.3). */
+/** The milliseconds of work a call does before it yields to the event loop (specs/search-tool.md#abort). */
 const YIELD_MS = 40;
 
-/** The milliseconds one item's evaluation may run before the limit ends it (Section 3.3). */
+/** The milliseconds one item's evaluation may run before the limit ends it (specs/search-tool.md#evaluation). */
 export const ITEM_LIMIT_MS = 1000;
 
 /** How often a wait for a regular-expression result re-checks abort and the deadline. */
 const REGEX_POLL_MS = 5;
 
-/** The characters of text before a match position that a snippet includes (Section 3.4). */
+/** The characters of text before a match position that a snippet includes (specs/search-tool.md#result). */
 const SNIPPET_BEFORE = 40;
 
-/** The characters of text a snippet shows at most (Section 3.4). */
+/** The characters of text a snippet shows at most (specs/search-tool.md#result). */
 const SNIPPET_LENGTH = 160;
 
-/** The characters of a flattened label a hit line shows (Section 3.4). */
+/** The characters of a flattened label a hit line shows (specs/search-tool.md#result). */
 const LABEL_LENGTH = 60;
 
-/** The characters a literal query escapes (Section 3.2). */
+/** The characters a literal query escapes (specs/search-tool.md#matching). */
 const LITERAL_SPECIALS: ReadonlySet<string> = new Set([
   "\\",
   "^",
@@ -105,16 +105,16 @@ const LITERAL_SPECIALS: ReadonlySet<string> = new Set([
   "|",
 ]);
 
-/** The `action` a call performs (Section 1.1). */
+/** The `action` a call performs (specs/search-tool.md#parameter-schema). */
 export type SearchAction = "find" | "get" | "sessions";
 
-/** How far a call reaches (Section 2.1). */
+/** How far a call reaches (specs/search-tool.md#reach). */
 export type SearchScope = "session" | "tree" | "project" | "project-trees";
 
-/** The order of a `find` call's hits (Section 3.4). */
+/** The order of a `find` call's hits (specs/search-tool.md#result). */
 export type SearchOrder = "newest" | "oldest";
 
-/** One session a call reaches (Section 2.1). */
+/** One session a call reaches (specs/search-tool.md#reach). */
 export interface Reached {
   /** The session key relative to the invoking session. */
   key: string;
@@ -143,11 +143,11 @@ export function compareStrings(one: string, other: string): number {
   return 0;
 }
 
-/** The invoking session, as the host sees it (Section 2.1). */
+/** The invoking session, as the host sees it (specs/search-tool.md#reach). */
 export interface SearchHost {
-  /** The session file (session-tool.md Section 2), or undefined when the session has none. */
+  /** The session file (specs/session-tool.md#result), or undefined when the session has none. */
   sessionFile: string | undefined;
-  /** The session's agent directory (agent-tool.md Section 4.2). */
+  /** The session's agent directory (specs/agent-tool.md#child-session). */
   agentDirectory: string;
   /** Whether the invoking session is a main session. */
   main: boolean;
@@ -186,7 +186,7 @@ export interface Settings {
   context: number;
 }
 
-/** How one session of a call is covered (Section 2.2). */
+/** How one session of a call is covered (specs/search-tool.md#coverage). */
 type CoverState = "pending" | "catchup" | "direct" | "uncovered" | "lost";
 
 /** One session of a call, with what covering it produced. */
@@ -198,9 +198,9 @@ export interface Cover {
   size: number | undefined;
   state: CoverState;
   fileId: number | undefined;
-  /** The consumed bytes the call's catch-up left (Section 2.2). */
+  /** The consumed bytes the call's catch-up left (specs/search-tool.md#coverage). */
   consumed: number | undefined;
-  /** The number of lines the index holds for the file, an estimate of its items (Section 2.2). */
+  /** The number of lines the index holds for the file, an estimate of its items (specs/search-tool.md#coverage). */
   lines: number | undefined;
   items: readonly TranscriptItem[] | undefined;
   onLineage: ReadonlySet<string> | undefined;
@@ -208,11 +208,11 @@ export interface Cover {
   lineageIds: ReadonlySet<string> | undefined;
   /** True when the call dropped the session after covering it (a stale row, a lost index). */
   dropped: boolean;
-  /** The index generation when the catch-up completed (Section 2.2). */
+  /** The index generation when the catch-up completed (specs/search-tool.md#coverage). */
   generation: number;
 }
 
-/** One item of a covered session, with the fields the filters and the order need (Section 3). */
+/** One item of a covered session, with the fields the filters and the order need (specs/search-tool.md#find). */
 export interface Slot {
   sessionKey: string;
   sessionPath: string;
@@ -225,9 +225,9 @@ export interface Slot {
   tool: string | null;
   isError: boolean;
   onLineage: boolean;
-  /** True when the page's trigram narrowing excluded the item: decided, not a hit (Section 3.3). */
+  /** True when the page's trigram narrowing excluded the item: decided, not a hit (specs/search-tool.md#evaluation). */
   narrowedOut: boolean;
-  /** True while the narrowing of the item is still to be probed, before it is read (Section 3.3). */
+  /** True while the narrowing of the item is still to be probed, before it is read (specs/search-tool.md#evaluation). */
   unprobed?: boolean | undefined;
   /** The index row of a catch-up session's item; absent for a direct read. */
   row: IndexItemRow | undefined;
@@ -237,7 +237,7 @@ export interface Slot {
   fileId: number | undefined;
 }
 
-/** One shown hit of a `find` call (Section 3.4). */
+/** One shown hit of a `find` call (specs/search-tool.md#result). */
 export interface ShownHit {
   address: string;
   sessionKey: string;
@@ -251,7 +251,7 @@ export interface ShownHit {
   snippet: string;
 }
 
-/** The query a `find` call matches with (Sections 3.2 and 3.3). */
+/** The query a `find` call matches with (specs/search-tool.md#matching and specs/search-tool.md#evaluation). */
 export interface Query {
   pattern: string;
   flags: string;
@@ -284,7 +284,7 @@ export interface Call {
   failedWrite: string | undefined;
   covers: Cover[];
   query: Query | undefined;
-  /** The item `after` names, when the call continues from one (Section 3.4). */
+  /** The item `after` names, when the call continues from one (specs/search-tool.md#result). */
   after: Slot | undefined;
   /** The cover of the session the key of `after` names, when it is a session of the call. */
   afterCover: Cover | undefined;
@@ -295,20 +295,20 @@ export interface Call {
   /** The candidate sources of a `find` call, so that a lost session can be dropped from them. */
   sources: Source[];
   evaluator: PatternEvaluator | undefined;
-  /** The header provider of this call's discovery, built once (Section 2.3). */
+  /** The header provider of this call's discovery, built once (specs/search-tool.md#abort). */
   headerOf: ((path: string) => SessionHeader | undefined) | undefined;
-  /** A test seam: called for each item read back from a session file (Section 3.3). */
+  /** A test seam: called for each item read back from a session file (specs/search-tool.md#evaluation). */
   onItemRead: (() => void) | undefined;
-  /** True once the call has read the project into its forest (Section 2.1). */
+  /** True once the call has read the project into its forest (specs/search-tool.md#reach). */
   projectLoaded: boolean;
   /**
    * The index opening and `data_version` at which the call read its sessions'
    * `files` rows before covering: while both are unchanged no other connection has
    * committed since, and the rows the call's catch-ups left are still as they were
-   * (session-index.md Section 4).
+   * (specs/session-index.md#concurrent-access).
    */
   knownVersion: { generation: number; dataVersion: number } | undefined;
-  /** How a regular-expression evaluator is made; a test may replace it (Section 2.3). */
+  /** How a regular-expression evaluator is made; a test may replace it (specs/search-tool.md#abort). */
   makeEvaluator: ((pattern: string, flags: string) => PatternEvaluator) | undefined;
   continuation: CatchUpContinuation | undefined;
 }
@@ -336,7 +336,7 @@ function yieldTurn(): Promise<void> {
   });
 }
 
-/** A pacer: a call yields to the event loop after at most `YIELD_MS` of work (Section 2.3). */
+/** A pacer: a call yields to the event loop after at most `YIELD_MS` of work (specs/search-tool.md#abort). */
 export function makePacer(): () => Promise<void> {
   let last = performance.now();
   return async () => {
@@ -352,7 +352,7 @@ function nowMs(): number {
 }
 
 // ---------------------------------------------------------------------------
-// Section 2.2: covering
+// specs/search-tool.md#coverage: covering
 // ---------------------------------------------------------------------------
 
 /** A session file's size and modification time, milliseconds rounded down. */
@@ -372,13 +372,13 @@ export function stampOf(path: string): Stamp | undefined {
   return { size: stat.size, mtime: Math.floor(stat.mtimeMs) };
 }
 
-/** The covers of the call's sessions, in the covering order of Section 2.2. */
+/** The covers of the call's sessions, in the covering order of specs/search-tool.md#coverage. */
 export async function coversOf(
   call: Call,
   sessions: readonly Reached[],
   afterSession?: Reached | undefined,
 ): Promise<Cover[]> {
-  // One stat per session, yielding between them (Section 2.3).
+  // One stat per session, yielding between them (specs/search-tool.md#abort).
   const stamps: Array<Stamp | undefined> = [];
   for (const session of sessions) {
     await call.pace();
@@ -456,10 +456,10 @@ function readAt(fd: number, offset: number, length: number): Buffer | undefined 
 }
 
 /**
- * One read of a session file by the call itself (Section 2.2), in chunks: the
+ * One read of a session file by the call itself (specs/search-tool.md#coverage), in chunks: the
  * call yields to the event loop between chunks and stops at the deadline or the
  * abort. Every line a line feed terminated at the call's start is used, and no
- * unterminated last line is (session-transcript.md Section 1).
+ * unterminated last line is (specs/session-transcript.md#reading).
  */
 export async function readSessionChunked(path: string, options: ReadOptions): Promise<ChunkedRead> {
   const call = options.call;
@@ -572,7 +572,7 @@ export async function coverDirectly(
   }
   if (outcome.kind === "unreadable" || outcome.read.header === undefined) {
     // A file the call cannot open, or that is not readable as a session file, is not
-    // a session of the call (Section 2.2).
+    // a session of the call (specs/search-tool.md#coverage).
     cover.state = "lost";
     return;
   }
@@ -581,7 +581,7 @@ export async function coverDirectly(
   cover.onLineage = new Set(currentLineage(outcome.read.entries).map((entry) => entry.entryId));
 }
 
-/** Record the index's own view of its health after an operation (session-index.md Section 5). */
+/** Record the index's own view of its health after an operation (specs/session-index.md#failures). */
 export function refreshIndexState(call: Call): void {
   const index = call.index;
   if (index === undefined) return;
@@ -592,10 +592,10 @@ export function refreshIndexState(call: Call): void {
 }
 
 /**
- * Cover one session by a catch-up, or by a direct read where Section 2.2 says so.
+ * Cover one session by a catch-up, or by a direct read where specs/search-tool.md#coverage says so.
  * `known` holds the `files` rows read for the whole call in one statement; a row
  * that already describes the file makes the catch-up complete without a read
- * (session-index.md Section 3, step 2).
+ * (specs/session-index.md#catch-up, step 2).
  */
 async function coverOne(call: Call, cover: Cover, known: KnownFiles): Promise<void> {
   if (cover.size === undefined) {
@@ -616,7 +616,7 @@ async function coverOne(call: Call, cover: Cover, known: KnownFiles): Promise<vo
   }
   // The file at the index path may have been replaced since its rows were read:
   // the fast path may compare `generation` only against the file there now
-  // (Section 5).
+  // (specs/search-tool.md#sessions).
   const refreshed = index.refreshNow();
   refreshIndexState(call);
   const knownRow = known.get(cover.session.resolvedPath);
@@ -656,7 +656,7 @@ async function coverOne(call: Call, cover: Cover, known: KnownFiles): Promise<vo
     }
     if (file.consumed > (cover.size ?? 0)) {
       // The consumed bytes hold entries terminated after the call started, so the
-      // lineage column cannot be used as it stands (Section 2.2): read the file.
+      // lineage column cannot be used as it stands (specs/search-tool.md#coverage): read the file.
       await coverDirectly(call, cover, call.coveringDeadline);
       return;
     }
@@ -676,7 +676,7 @@ async function coverOne(call: Call, cover: Cover, known: KnownFiles): Promise<vo
 }
 
 /**
- * Cover the call's sessions in the order of Section 2.2. A catch-up or a direct
+ * Cover the call's sessions in the order of specs/search-tool.md#coverage. A catch-up or a direct
  * read still running 3000 ms after the call started is abandoned; only the two
  * exception sessions — the one session of a call with exactly one, and the
  * session the key of `after` names — are bounded by the time budget alone.
@@ -709,15 +709,15 @@ interface KnownFiles extends ReadonlyMap<string, IndexFileRow> {
   generation: number;
 }
 
-/** The `files` rows of the call's sessions, read once (Section 2.3; session-index.md Section 4). */
+/** The `files` rows of the call's sessions, read once (specs/search-tool.md#abort; specs/session-index.md#concurrent-access). */
 async function knownFiles(call: Call): Promise<KnownFiles> {
   const index = call.index;
   const known = new Map<string, IndexFileRow>();
   if (index === undefined || call.indexUnusable !== undefined) {
     return Object.assign(known, { generation: -1 });
   }
-  // The paths were resolved once, when the session was found (Section 2.1); the
-  // index stores them resolved (session-index.md Section 2).
+  // The paths were resolved once, when the session was found (specs/search-tool.md#reach); the
+  // index stores them resolved (specs/session-index.md#schema).
   const paths: string[] = [];
   for (const cover of call.covers) {
     if (cover.size === undefined) continue;
@@ -737,7 +737,7 @@ export function isCovered(cover: Cover): boolean {
   return cover.state === "catchup" || cover.state === "direct";
 }
 
-/** Reset the file of a stale row, in one transaction (session-index.md Section 3). */
+/** Reset the file of a stale row, in one transaction (specs/session-index.md#catch-up). */
 export async function resetStaleRow(
   call: Call,
   row: IndexItemRow,
@@ -754,10 +754,10 @@ export async function resetStaleRow(
 }
 
 // ---------------------------------------------------------------------------
-// Section 3: candidates and order
+// specs/search-tool.md#find: candidates and order
 // ---------------------------------------------------------------------------
 
-/** True when `value` is an item kind (session-transcript.md Section 2). */
+/** True when `value` is an item kind (specs/session-transcript.md#transcript-items). */
 function isItemKind(value: string): value is ItemKind {
   switch (value) {
     case "user":
@@ -775,12 +775,12 @@ function isItemKind(value: string): value is ItemKind {
   }
 }
 
-/** The letters `A–Z` of a string converted to lowercase and no other character (Section 3.1). */
+/** The letters `A–Z` of a string converted to lowercase and no other character (specs/search-tool.md#candidates). */
 export function asciiLower(text: string): string {
   return text.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
 }
 
-/** Transcript order of two slots (session-transcript.md Section 6). */
+/** Transcript order of two slots (specs/session-transcript.md#transcript-order). */
 export function compareSlots(one: Slot, other: Slot): number {
   if (one.time !== other.time) return one.time - other.time;
   if (one.sessionKey !== other.sessionKey) return compareStrings(one.sessionKey, other.sessionKey);
@@ -791,7 +791,7 @@ export function compareSlots(one: Slot, other: Slot): number {
   return compareParts(one.part, other.part);
 }
 
-/** The call's order of two slots: transcript order, reversed for `newest` (Section 3.3). */
+/** The call's order of two slots: transcript order, reversed for `newest` (specs/search-tool.md#evaluation). */
 export function compareCallOrder(one: Slot, other: Slot, newest: boolean): number {
   const base = compareSlots(one, other);
   return newest ? -base : base;
@@ -848,7 +848,7 @@ export function slotOfItem(cover: Cover, item: TranscriptItem): Slot {
 }
 
 // ---------------------------------------------------------------------------
-// Section 3.3: candidate sources
+// specs/search-tool.md#evaluation: candidate sources
 // ---------------------------------------------------------------------------
 
 /** One source of candidates in the call's order. */
@@ -859,11 +859,11 @@ export interface Source {
   take(): Slot | undefined;
   /** True when the source contributes nothing more. */
   readonly dropped: boolean;
-  /** True when the source stopped because the time budget or the abort ended it (Section 3.3). */
+  /** True when the source stopped because the time budget or the abort ended it (specs/search-tool.md#evaluation). */
   readonly stopped: boolean;
-  /** Drop one session's remaining candidates, when the source holds several (Section 2.2). */
+  /** Drop one session's remaining candidates, when the source holds several (specs/search-tool.md#coverage). */
   dropFile?(fileId: number): void;
-  /** The item time the source can reach, for the merge's lazy loading (Section 3.3). */
+  /** The item time the source can reach, for the merge's lazy loading (specs/search-tool.md#evaluation). */
   reach(): number;
 }
 
@@ -881,7 +881,7 @@ class SlotListSource implements Source {
     this.limit = limit;
   }
 
-  /** Drop the items at or before `after` (Section 3.3). */
+  /** Drop the items at or before `after` (specs/search-tool.md#evaluation). */
   startAfter(after: Slot | undefined, newest: boolean): void {
     if (after === undefined) return;
     while (this.cursor < this.slots.length) {
@@ -923,7 +923,7 @@ class SlotListSource implements Source {
   }
 }
 
-/** The exact greatest and least item time of one session file, cached across calls (Section 2.2). */
+/** The exact greatest and least item time of one session file, cached across calls (specs/search-tool.md#coverage). */
 interface TimeBounds {
   size: number;
   mtime: number;
@@ -933,7 +933,7 @@ interface TimeBounds {
 
 const timeBoundsCache = new Map<string, TimeBounds>();
 
-/** The exact time bounds of one session file's items, from the index or the cache (Section 3.3). */
+/** The exact time bounds of one session file's items, from the index or the cache (specs/search-tool.md#evaluation). */
 function timeBoundsOf(call: Call, cover: Cover): { max: number; min: number } | undefined {
   const index = call.index;
   const fileId = cover.fileId;
@@ -957,7 +957,7 @@ function timeBoundsOf(call: Call, cover: Cover): { max: number; min: number } | 
 /**
  * One catch-up session's candidates, loaded row by row through the
  * `(file_id, line, part)` index when the call loads its sessions instead of
- * scanning the time order (Section 3.3). The rows are fetched on first need, so a
+ * scanning the time order (specs/search-tool.md#evaluation). The rows are fetched on first need, so a
  * call that shows its first hits at once never loads the sessions below them.
  */
 class FileSource implements Source {
@@ -1000,8 +1000,8 @@ class FileSource implements Source {
    * `PROBE_AHEAD` of them, from one read transaction that also re-reads their
    * rows' identities and the session's `files` row: an item gone or replaced
    * since the session was loaded takes the session's cover away, so a probe
-   * answers exactly for the rows the session was loaded with (Sections 2.2 and
-   * 3.3). The cost is that of the slots probed, not of the index's matches.
+   * answers exactly for the rows the session was loaded with (specs/search-tool.md#coverage and
+   * specs/search-tool.md#evaluation). The cost is that of the slots probed, not of the index's matches.
    */
   private async probeAhead(inner: SlotListSource): Promise<void> {
     const call = this.call;
@@ -1039,7 +1039,7 @@ class FileSource implements Source {
     return this.limit;
   }
 
-  /** Load the session's rows, or undefined when the index cannot answer (Section 2.2). */
+  /** Load the session's rows, or undefined when the index cannot answer (specs/search-tool.md#coverage). */
   private async load(): Promise<SlotListSource | undefined> {
     const call = this.call;
     const index = call.index;
@@ -1047,7 +1047,7 @@ class FileSource implements Source {
     if (index === undefined || fileId === undefined) return;
     await call.pace();
     // The session is loaded whole: no row cap may cut it silently, whatever its
-    // item count (Section 3.3). The mode choice in `sourcesOf` bounds which
+    // item count (specs/search-tool.md#evaluation). The mode choice in `sourcesOf` bounds which
     // sessions come here.
     const filter: CandidateFilter = {
       newest: this.newest,
@@ -1057,7 +1057,7 @@ class FileSource implements Source {
       ...sqlFiltersOf(call),
     };
     // A literal query with a printable trigram narrows before anything is read
-    // back from the session file (Section 3.3).
+    // back from the session file (specs/search-tool.md#evaluation).
     const trigrams = call.query?.trigrams ?? [];
     if (trigrams.length > 0) {
       filter.trigrams = trigrams;
@@ -1070,7 +1070,7 @@ class FileSource implements Source {
     if (outcome.value.overflow) {
       // More matches in the index than `narrowFirst` admits: the session's own rows,
       // whose narrowing is probed as the call reaches them (`probeAhead`), so the
-      // cost follows the hits shown rather than the index's matches (Section 3.3).
+      // cost follows the hits shown rather than the index's matches (specs/search-tool.md#evaluation).
       filter.narrowFirst = undefined;
       filter.trigrams = undefined;
       outcome = index.candidatePage(filter);
@@ -1085,13 +1085,13 @@ class FileSource implements Source {
     return new SlotListSource(slots, this.newest, this.limit);
   }
 
-  /** Check the cover of the session this page names (Section 2.2; session-index.md Section 4). */
+  /** Check the cover of the session this page names (specs/search-tool.md#coverage; specs/session-index.md#concurrent-access). */
   private checkCovers(files: readonly IndexFileRow[]): void {
     const index = this.call.index;
     for (const file of files) {
       if (file.fileId !== this.cover.fileId) continue;
       const consumed = this.cover.consumed ?? 0;
-      // Another path under this `file_id`: the index file was opened anew (Section 2.2).
+      // Another path under this `file_id`: the index file was opened anew (specs/search-tool.md#coverage).
       if (file.consumed < consumed || file.path !== this.cover.session.resolvedPath) {
         this.dropped = true;
         this.cover.dropped = true;
@@ -1106,7 +1106,7 @@ class FileSource implements Source {
     }
   }
 
-  /** The slots of one page, or undefined when the session is no longer covered (Section 2.2). */
+  /** The slots of one page, or undefined when the session is no longer covered (specs/search-tool.md#coverage). */
   private slotsOf(
     rows: readonly IndexItemRow[],
     matched: ReadonlySet<number> | undefined,
@@ -1116,7 +1116,7 @@ class FileSource implements Source {
     const slots: Slot[] = [];
     for (const row of rows) {
       // A row of another path under this `file_id` is from an index file opened
-      // anew during the call, and never an item of this session (Section 2.2).
+      // anew during the call, and never an item of this session (specs/search-tool.md#coverage).
       if (row.path !== cover.session.resolvedPath) continue;
       if (row.offset + row.bytes + 1 > (cover.size ?? 0)) continue;
       const narrowedOut = matched !== undefined && !matched.has(row.itemId);
@@ -1129,8 +1129,8 @@ class FileSource implements Source {
 
 /**
  * The index's candidates of every catch-up session, scanned in the time order of
- * `items_time` in bounded pages (Section 2.3), restricted to the call's files
- * (Section 3.3), with the filters SQL can express applied in the statement. Every
+ * `items_time` in bounded pages (specs/search-tool.md#abort), restricted to the call's files
+ * (specs/search-tool.md#evaluation), with the filters SQL can express applied in the statement. Every
  * page checks the abort signal and the budget, and the page's own trigram matches
  * decide its rows. A call whose query narrows by trigrams pages through the index
  * directly; a trigramless call — no query, or one without a printable run of
@@ -1149,7 +1149,7 @@ class ScanSource implements Source {
   private cursor = 0;
   private head: Slot | undefined;
   private stopFlag = false;
-  /** True when the call narrows by trigrams (Section 3.3). */
+  /** True when the call narrows by trigrams (specs/search-tool.md#evaluation). */
   private readonly narrowed: boolean;
   /**
    * The collection of a call whose SQL filters may be sparse: undefined before it
@@ -1162,7 +1162,7 @@ class ScanSource implements Source {
   private lastWindow = false;
   private groupTime: number | undefined;
   private groupQueue: Array<{ fileId: number; line: number }> = [];
-  /** The index's file count, read once (Section 2.3). */
+  /** The index's file count, read once (specs/search-tool.md#abort). */
   private fileTotal: number | undefined;
 
   constructor(call: Call, covers: readonly Cover[]) {
@@ -1170,7 +1170,7 @@ class ScanSource implements Source {
     this.newest = call.settings.order === "newest";
     this.narrowed = (call.query?.trigrams.length ?? 0) > 0;
     // Paging starts at the `after` item's position, so that the cost of page N does
-    // not grow with N (Section 3.4).
+    // not grow with N (specs/search-tool.md#result).
     const after = call.after;
     const start = after === undefined ? undefined : after.time;
     this.bound = start ?? (this.newest ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY);
@@ -1192,12 +1192,12 @@ class ScanSource implements Source {
     return this.newest ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
   }
 
-  /** Drop one session's remaining candidates (Section 2.2). */
+  /** Drop one session's remaining candidates (specs/search-tool.md#coverage). */
   dropFile(fileId: number): void {
     this.droppedFiles.add(fileId);
   }
 
-  /** Drop every session's remaining candidates: the index became unusable (Section 2.2). */
+  /** Drop every session's remaining candidates: the index became unusable (specs/search-tool.md#coverage). */
   dropAll(): void {
     for (const fileId of this.coversByFile.keys()) this.droppedFiles.add(fileId);
     this.done = true;
@@ -1240,7 +1240,7 @@ class ScanSource implements Source {
   /**
    * The page's filter: the time bound and the window, the call's files named in
    * the statement only when they are a small part of the index, where the file
-   * index serves them cheaply, and the filters SQL can express (Section 3.3).
+   * index serves them cheaply, and the filters SQL can express (specs/search-tool.md#evaluation).
    */
   private filter(limit: number): CandidateFilter {
     const filter: CandidateFilter = {
@@ -1256,7 +1256,7 @@ class ScanSource implements Source {
       if (total !== undefined && total.ok) this.fileTotal = total.value;
     }
     // The statement always names the call's files, so rows of other sessions are
-    // dropped inside SQLite and never probed or built (Section 3.3). Where the
+    // dropped inside SQLite and never probed or built (specs/search-tool.md#evaluation). Where the
     // files are a large part of the index the time order still leads the read.
     filter.fileIds = fileIds;
     const total = this.fileTotal;
@@ -1265,7 +1265,7 @@ class ScanSource implements Source {
   }
 
   /**
-   * One page of candidates (Sections 2.3 and 3.3). With narrowing, the first page
+   * One page of candidates (specs/search-tool.md#abort and specs/search-tool.md#evaluation). With narrowing, the first page
    * probes the trigram matches once and selects its rows by them; on overflow the
    * pages narrow by their own rows. Without narrowing, the page is bounded by a
    * time window of `WINDOW_ROWS` items, computed by one indexed statement, so a
@@ -1280,7 +1280,7 @@ class ScanSource implements Source {
     }
     if (this.first && this.narrowed) {
       // The trigram matches of the whole index, when there are few: the rows are
-      // selected by them in one page and the source is done (Section 3.3).
+      // selected by them in one page and the source is done (specs/search-tool.md#evaluation).
       this.first = false;
       const filter = this.filter(PAGE_ROWS);
       if (filter.fileIds !== undefined && filter.fileIds.length === 0) {
@@ -1364,7 +1364,7 @@ class ScanSource implements Source {
       let matched = page.matched;
       if (page.rows.length >= PAGE_ROWS) {
         // A full page was cut by its limit, so the boundary time's group is
-        // completed before the scan moves past it (Section 3.3).
+        // completed before the scan moves past it (specs/search-tool.md#evaluation).
         const group = await this.completeGroup(page.rows, boundaryTime, page.matched);
         if (this.stopFlag) return;
         if (group.groupWalk) {
@@ -1395,7 +1395,7 @@ class ScanSource implements Source {
    * `item_id` order, which costs the same whatever the rows' times. When at most
    * `COLLECT_CAP` rows pass, they are every candidate of the call: they are
    * ordered and the source is done, every other item decided by the filters
-   * (Section 3.3). More, and the filter is dense: the windowed pages take over,
+   * (specs/search-tool.md#evaluation). More, and the filter is dense: the windowed pages take over,
    * and find their rows at once.
    */
   private async collect(): Promise<void> {
@@ -1470,7 +1470,7 @@ class ScanSource implements Source {
 
   /**
    * The rest of the boundary time's group, with its own trigram matches
-   * (Section 3.3): the page's rows and the group's rows merged and decided by the
+   * (specs/search-tool.md#evaluation): the page's rows and the group's rows merged and decided by the
    * union of their match sets, or the instruction to walk a group above the cap.
    */
   private async completeGroup(
@@ -1507,7 +1507,7 @@ class ScanSource implements Source {
     const page = outcome.value;
     if (page.rows.length >= GROUP_CAP) {
       // A very large group: walk it file by file in the call's order, one bounded
-      // chunk at a time, without the page's own rows at this time (Section 3.3).
+      // chunk at a time, without the page's own rows at this time (specs/search-tool.md#evaluation).
       this.groupTime = time;
       this.groupQueue = this.groupFiles();
       return { groupWalk: true };
@@ -1520,7 +1520,7 @@ class ScanSource implements Source {
       seen.add(row.itemId);
       all.push(row);
     }
-    // The group page's own matches decide its rows (Section 3.3).
+    // The group page's own matches decide its rows (specs/search-tool.md#evaluation).
     let union = matched;
     const groupMatched = page.matched;
     if (groupMatched !== undefined) {
@@ -1535,7 +1535,7 @@ class ScanSource implements Source {
    * The covered catch-up sessions of a very large time group, as chunks to walk in
    * the call's order: transcript order at one time is ascending session key, so
    * `oldest` walks the files in that order and `newest` in its reverse
-   * (Sections 3.3 and 6).
+   * (specs/search-tool.md#evaluation and specs/search-tool.md#references).
    */
   private groupFiles(): Array<{ fileId: number; line: number }> {
     const entries = [...this.coversByFile.entries()].filter(
@@ -1553,7 +1553,7 @@ class ScanSource implements Source {
 
   /**
    * One chunk of one session's part of a very large time group, in the call's
-   * order (Section 3.3): rows of at most `GROUP_CHUNK_ROWS` lines, never splitting
+   * order (specs/search-tool.md#evaluation): rows of at most `GROUP_CHUNK_ROWS` lines, never splitting
    * a line, so a session of any size is paged through without a long statement.
    */
   private async fetchGroupChunk(): Promise<void> {
@@ -1626,14 +1626,14 @@ class ScanSource implements Source {
     this.cursor = 0;
   }
 
-  /** Check the cover of the sessions a page names (Section 2.2; session-index.md Section 4). */
+  /** Check the cover of the sessions a page names (specs/search-tool.md#coverage; specs/session-index.md#concurrent-access). */
   private checkCovers(files: readonly IndexFileRow[]): void {
     const index = this.call.index;
     for (const file of files) {
       const cover = this.coversByFile.get(file.fileId);
       if (cover === undefined || cover.dropped) continue;
       const consumed = cover.consumed ?? 0;
-      // Another path under this `file_id`: the index file was opened anew (Section 2.2).
+      // Another path under this `file_id`: the index file was opened anew (specs/search-tool.md#coverage).
       if (file.consumed < consumed || file.path !== cover.session.resolvedPath) {
         this.lose(cover);
         continue;
@@ -1647,7 +1647,7 @@ class ScanSource implements Source {
     }
   }
 
-  /** A session of the call loses its cover (Section 2.2). */
+  /** A session of the call loses its cover (specs/search-tool.md#coverage). */
   lose(cover: Cover): void {
     if (cover.dropped) return;
     cover.dropped = true;
@@ -1662,7 +1662,7 @@ class ScanSource implements Source {
       if (cover === undefined) continue;
       if (this.droppedFiles.has(row.fileId)) continue;
       // A row of another path under this `file_id` is from an index file opened
-      // anew during the call, and never an item of this session (Section 2.2).
+      // anew during the call, and never an item of this session (specs/search-tool.md#coverage).
       if (row.path !== cover.session.resolvedPath) continue;
       if (row.offset + row.bytes + 1 > (cover.size ?? 0)) continue;
       const narrowedOut = matched !== undefined && !matched.has(row.itemId);
@@ -1678,23 +1678,23 @@ class ScanSource implements Source {
  * The most lines a call loads session by session instead of scanning the time
  * order: the sessions it names are loaded whole, however many items they hold, so
  * the bound keeps a call from loading thousands of sessions, never a session's
- * own rows (Section 3.3).
+ * own rows (specs/search-tool.md#evaluation).
  */
 const FILE_MODE_ROWS = 200000;
 
-/** The rows one window of a trigramless scan spans, so that no statement runs long (Section 2.3). */
+/** The rows one window of a trigramless scan spans, so that no statement runs long (specs/search-tool.md#abort). */
 const WINDOW_ROWS = 100000;
 
-/** The most rows a collection keeps; past it, a filter is dense and the windowed pages serve it (Section 3.3). */
+/** The most rows a collection keeps; past it, a filter is dense and the windowed pages serve it (specs/search-tool.md#evaluation). */
 const COLLECT_CAP = 20000;
 
-/** The `item_id`s one collection statement spans, so that no statement runs long (Section 2.3). */
+/** The `item_id`s one collection statement spans, so that no statement runs long (specs/search-tool.md#abort). */
 const COLLECT_CHUNK_IDS = 200000;
 
-/** The files one collection statement reads when the call names its files (Section 2.3). */
+/** The files one collection statement reads when the call names its files (specs/search-tool.md#abort). */
 const COLLECT_CHUNK_FILES = 500;
 
-/** True when the call has a filter SQL applies that may pass few rows: `kinds`, `tool`, `isError` (Section 3.1). */
+/** True when the call has a filter SQL applies that may pass few rows: `kinds`, `tool`, `isError` (specs/search-tool.md#candidates). */
 function hasSparseFilter(call: Call): boolean {
   const settings = call.settings;
   return (
@@ -1702,11 +1702,11 @@ function hasSparseFilter(call: Call): boolean {
   );
 }
 
-/** The rows one chunk of a very large time group holds, on whole lines (Section 2.3). */
+/** The rows one chunk of a very large time group holds, on whole lines (specs/search-tool.md#abort). */
 const GROUP_CHUNK_ROWS = 20000;
 
 /**
- * The filters of Section 3.1 that SQL can express exactly — `kinds`, `tool`,
+ * The filters of specs/search-tool.md#candidates that SQL can express exactly — `kinds`, `tool`,
  * `isError`, `since` and `until`, on the columns the schema defines — so a page
  * statement skips the items they exclude instead of reading them back. The
  * lineage and own-calls filters stay with the caller, which checks them on every
@@ -1725,7 +1725,7 @@ function sqlFiltersOf(call: Call): Partial<CandidateFilter> {
 
 /**
  * Check the `files` rows of catch-up sessions against the index file as it is
- * now (Section 2.2; session-index.md Section 4): a session keeps its cover only
+ * now (specs/search-tool.md#coverage; specs/session-index.md#concurrent-access): a session keeps its cover only
  * when its `file_id` still names its path with a `consumed` no smaller than the
  * call's catch-up left. A row that is gone, names another path — the index file
  * was opened anew and the `file_id` reused — or holds fewer bytes takes the cover
@@ -1772,8 +1772,7 @@ async function recheckCovers(call: Call, onlyStale: boolean): Promise<void> {
 }
 
 /**
- * The one full check per call of every catch-up session's `files` row (Section
- * 2.2), before evaluation. It is skipped when no other connection has committed
+ * The one full check per call of every catch-up session's `files` row (specs/search-tool.md#coverage), before evaluation. It is skipped when no other connection has committed
  * since the call read those rows and the index was not opened anew: the rows are
  * then the ones the call's own catch-ups left.
  */
@@ -1810,7 +1809,7 @@ export async function sourcesOf(call: Call): Promise<Source[]> {
   if (catchUp.length > 0 && lines <= FILE_MODE_ROWS) {
     // A call with few sessions loads them whole, row by row through the
     // (file_id, line, part) index, so its cost does not depend on the sessions it
-    // does not search and no row of them is cut off (Section 3.3).
+    // does not search and no row of them is cut off (specs/search-tool.md#evaluation).
     for (const cover of catchUp) {
       const bounds = timeBoundsOf(call, cover);
       const reach = bounds === undefined ? unknown : newest ? bounds.max : bounds.min;
@@ -1830,10 +1829,10 @@ export async function sourcesOf(call: Call): Promise<Source[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Section 3.2: matching, and the interruptible regular expression
+// specs/search-tool.md#matching: matching, and the interruptible regular expression
 // ---------------------------------------------------------------------------
 
-/** The literal pattern of a query: each of `\ ^ $ . * + ? ( ) [ ] { } |` preceded by `\` (Section 3.2). */
+/** The literal pattern of a query: each of `\ ^ $ . * + ? ( ) [ ] { } |` preceded by `\` (specs/search-tool.md#matching). */
 export function literalPattern(query: string): string {
   const parts: string[] = [];
   for (const character of query) {
@@ -1842,12 +1841,12 @@ export function literalPattern(query: string): string {
   return parts.join("");
 }
 
-/** The regular-expression flags of a query (Section 3.2): `m`, and `i` unless case is significant. */
+/** The regular-expression flags of a query (specs/search-tool.md#matching): `m`, and `i` unless case is significant. */
 function flagsOf(caseSensitive: boolean): string {
   return caseSensitive ? "m" : "mi";
 }
 
-/** The evaluator a `find` call uses for a regular expression (Section 3.2). */
+/** The evaluator a `find` call uses for a regular expression (specs/search-tool.md#matching). */
 export interface PatternEvaluator {
   /** The match positions of `texts`, in order; an item the limit ended has `undefined`. */
   evaluate(texts: readonly string[], stop: () => boolean): Promise<EvalOutcome>;
@@ -1859,7 +1858,7 @@ export interface PatternEvaluator {
  * One evaluation window's outcome: a position per text (`undefined`: the limit
  * ended it). A window that the budget or the abort ended before every text was
  * evaluated carries the positions it reached, so that the items they decide stay
- * decided (Section 3.3).
+ * decided (specs/search-tool.md#evaluation).
  */
 export type EvalOutcome =
   | { kind: "done"; positions: Array<number | undefined> }
@@ -1867,9 +1866,9 @@ export type EvalOutcome =
   | { kind: "failed"; message: string };
 
 /**
- * A worker thread that evaluates one pattern (Section 3.2), so that a pattern
+ * A worker thread that evaluates one pattern (specs/search-tool.md#matching), so that a pattern
  * which backtracks without end is terminated when the call's budget, the abort
- * signal, or one item's 1000 ms limit ends it (Sections 2.3 and 3.3). Texts are
+ * signal, or one item's 1000 ms limit ends it (specs/search-tool.md#abort and specs/search-tool.md#evaluation). Texts are
  * sent in batches, and a fresh worker takes over after a termination.
  */
 export class RegexEvaluator implements PatternEvaluator {
@@ -1938,7 +1937,7 @@ export class RegexEvaluator implements PatternEvaluator {
 
   /**
    * The next position for `id`, `timeout` when the item has run its 1000 ms limit
-   * and no answer arrived (Section 3.3).
+   * and no answer arrived (specs/search-tool.md#evaluation).
    */
   private async poll(
     id: number,
@@ -1978,7 +1977,7 @@ export class RegexEvaluator implements PatternEvaluator {
     for (;;) {
       const outcome = await this.poll(id, stop, startedAt + ITEM_LIMIT_MS);
       if (outcome === "timeout") {
-        // Section 3.3: the evaluation of this item has run 1000 ms; it is ended,
+        // specs/search-tool.md#evaluation: the evaluation of this item has run 1000 ms; it is ended,
         // the item is decided and is not a hit, and a fresh worker goes on.
         positions.push(undefined);
         index += 1;
@@ -2019,24 +2018,24 @@ export class RegexEvaluator implements PatternEvaluator {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering (Section 3.4)
+// Rendering (specs/search-tool.md#result)
 // ---------------------------------------------------------------------------
 
-// A maximal run of white space and of U+0000-U+001F and U+007F-U+009F (Section 3.4).
+// A maximal run of white space and of U+0000-U+001F and U+007F-U+009F (specs/search-tool.md#result).
 // eslint-disable-next-line no-control-regex
 const WHITE_RUN = /[\s\x00-\x1f\x7f-\x9f]+/g;
 
 /**
  * A string with every maximal run of white space and of U+0000–U+001F and
  * U+007F–U+009F replaced by one space, and one leading and one trailing space
- * removed (Section 3.4).
+ * removed (specs/search-tool.md#result).
  */
 export function flattenText(text: string): string {
   const collapsed = text.replace(WHITE_RUN, " ");
   return collapsed.replace(/^ /, "").replace(/ $/, "");
 }
 
-/** The snippet of a text at match position `start` (Section 3.4). */
+/** The snippet of a text at match position `start` (specs/search-tool.md#result). */
 export function snippetOf(text: string, start: number): string {
   const length = text.length;
   if (length === 0) return "(empty)";
@@ -2047,7 +2046,7 @@ export function snippetOf(text: string, start: number): string {
   return `${head}${flattenText(text.slice(from, to))}${tail}`;
 }
 
-/** The parts of one hit line (Section 3.4). */
+/** The parts of one hit line (specs/search-tool.md#result). */
 export interface HitLineParts {
   address: string;
   time: number;
@@ -2061,7 +2060,7 @@ export interface HitLineParts {
   snippet: string | undefined;
 }
 
-/** One hit line (Section 3.4). */
+/** One hit line (specs/search-tool.md#result). */
 export function hitLine(parts: HitLineParts, zone: string): string {
   const label =
     parts.label === undefined ? "" : ` ${flattenText(parts.label).slice(0, LABEL_LENGTH)}`;
@@ -2071,12 +2070,12 @@ export function hitLine(parts: HitLineParts, zone: string): string {
   return `${parts.address} \u00b7 ${localStamp(parts.time, zone)} \u00b7 ${parts.kind}${label}${flags} \u00b7 ${parts.length} chars${at}${snippet}`;
 }
 
-/** The address of one item, relative to the invoking session (session-transcript.md Section 5). */
+/** The address of one item, relative to the invoking session (specs/session-transcript.md#item-address). */
 export function addressOf(sessionKey: string, entryId: string, part: string | undefined): string {
   return formatItemAddress({ sessionKey, entryId, part });
 }
 
-/** The `<hit>` object of a `find` result or a `get` neighbour (Section 3.4). */
+/** The `<hit>` object of a `find` result or a `get` neighbour (specs/search-tool.md#result). */
 export function hitDetails(hit: ShownHit): Record<string, unknown> {
   const details: Record<string, unknown> = {
     address: hit.address,
@@ -2093,7 +2092,7 @@ export function hitDetails(hit: ShownHit): Record<string, unknown> {
   return details;
 }
 
-/** One hit of a `find` result, built from an item (Section 3.4). */
+/** One hit of a `find` result, built from an item (specs/search-tool.md#result). */
 function shownHitOf(slot: Slot, item: TranscriptItem, at?: number | undefined): ShownHit {
   return {
     address: addressOf(slot.sessionKey, slot.entryId, slot.part),
@@ -2110,7 +2109,7 @@ function shownHitOf(slot: Slot, item: TranscriptItem, at?: number | undefined): 
 }
 
 // ---------------------------------------------------------------------------
-// Section 3.3: evaluation
+// specs/search-tool.md#evaluation: evaluation
 // ---------------------------------------------------------------------------
 
 /** What one window of candidates is prepared with. */
@@ -2136,7 +2135,7 @@ function itemOf(call: Call, slot: Slot): { item: TranscriptItem } | { stale: tru
 }
 
 /**
- * The filters of Section 3.1 that need only a slot's fields: lineage, `kinds`,
+ * The filters of specs/search-tool.md#candidates that need only a slot's fields: lineage, `kinds`,
  * `tool`, `isError`, `since`, and `until`. Both the indexed path and the
  * direct-read path use it.
  */
@@ -2155,13 +2154,13 @@ export function filterSlot(call: Call, slot: Slot): boolean {
   return true;
 }
 
-/** A stale row: the reader resets its file before the session loses its cover (Section 2.2). */
+/** A stale row: the reader resets its file before the session loses its cover (specs/search-tool.md#coverage). */
 async function staleOf(call: Call, slot: Slot): Promise<Prepared> {
   if (slot.row !== undefined) await resetStaleRow(call, slot.row, call.budgetDeadline);
   return { kind: "stale", fileId: slot.fileId };
 }
 
-/** Apply the filters of Section 3.1 that need the item, and read it back. */
+/** Apply the filters of specs/search-tool.md#candidates that need the item, and read it back. */
 async function prepareSlot(call: Call, slot: Slot, query: Query | undefined): Promise<Prepared> {
   const settings = call.settings;
   if (slot.narrowedOut) return { kind: "skip" };
@@ -2196,11 +2195,11 @@ export type FindEvaluation =
   | { kind: "aborted" }
   | { kind: "failed"; message: string };
 
-/** The outcome of a `find` call that ran to a result (Section 3.4). */
+/** The outcome of a `find` call that ran to a result (specs/search-tool.md#result). */
 export type FindOutcome = Extract<FindEvaluation, { kind: "evaluation" }>;
 
 /**
- * The merge of the call's sources in the call's order (Section 3.3). A session the
+ * The merge of the call's sources in the call's order (specs/search-tool.md#evaluation). A session the
  * call loads row by row is loaded only when its time bound can still reach the
  * head of the merge, so a call that shows its first hits at once never loads the
  * sessions below them.
@@ -2256,14 +2255,14 @@ class Merger {
     }
   }
 
-  /** True when any source stopped for the budget or the abort (Section 3.3). */
+  /** True when any source stopped for the budget or the abort (specs/search-tool.md#evaluation). */
   get stopped(): boolean {
     for (const source of this.loaded) if (source.stopped) return true;
     return false;
   }
 }
 
-/** Evaluate the call's hits in the call's order (Section 3.3). */
+/** Evaluate the call's hits in the call's order (specs/search-tool.md#evaluation). */
 export async function evaluate(call: Call): Promise<FindEvaluation> {
   const newest = call.settings.order === "newest";
   const limit = call.settings.limit ?? FIND_LIMIT;
@@ -2274,7 +2273,7 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
   call.sources = sources;
   const merger = new Merger(sources, newest);
   const hits: ShownHit[] = [];
-  /** The last decided slot of each session, for the stop item (Section 3.3). */
+  /** The last decided slot of each session, for the stop item (specs/search-tool.md#evaluation). */
   const lastDecided = new Map<string, Slot>();
   let stopped = false;
   let more = false;
@@ -2292,19 +2291,19 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
     const generation = call.index?.generation;
     if (generation !== undefined && generation !== seenGeneration) {
       // The index file was opened anew: each session keeps its cover only if the
-      // new file still holds its rows (Section 2.2).
+      // new file still holds its rows (specs/search-tool.md#coverage).
       seenGeneration = generation;
       await recheckCovers(call, true);
     }
     if (call.indexUnusable !== undefined) {
-      // The index became unusable: every catch-up session loses its cover (Section 2.2).
+      // The index became unusable: every catch-up session loses its cover (specs/search-tool.md#coverage).
       for (const source of sources) source.dropFile?.(0);
       for (const cover of call.covers) {
         if (cover.state !== "catchup") continue;
         cover.dropped = true;
       }
     }
-    // The session the key of `after` names is covered again by a direct read (Section 2.2).
+    // The session the key of `after` names is covered again by a direct read (specs/search-tool.md#coverage).
     const lostAfter = call.afterCover;
     if (lostAfter !== undefined && lostAfter.dropped && !call.afterRecovered) {
       call.afterRecovered = true;
@@ -2330,7 +2329,7 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
     if (positions.kind === "failed") return positions;
     // Every item of the window whose evaluation finished is decided, and its hit
     // or its unmatched count is kept even when the budget ends the window early:
-    // the run of decided items of Section 3.3 ends at the first undecided one.
+    // the run of decided items of specs/search-tool.md#evaluation ends at the first undecided one.
     let cursor = 0;
     let undecided = false;
     for (let index = 0; index < window.length; index += 1) {
@@ -2370,7 +2369,7 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
       }
       const cover = coverOfSlot(call, slot);
       if (cover !== undefined && cover.dropped) continue;
-      // An item excluded by a filter is decided all the same (Section 3.3).
+      // An item excluded by a filter is decided all the same (specs/search-tool.md#evaluation).
       lastDecided.set(key, slot);
       note(call, { phase: "decide" });
       if (hit !== undefined) {
@@ -2417,7 +2416,7 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
 
 /**
  * Cover the session the key of `after` names again by a direct read after it lost
- * its cover, and merge its items from where the call had reached (Section 2.2).
+ * its cover, and merge its items from where the call had reached (specs/search-tool.md#coverage).
  */
 export async function recoverAfterSession(
   call: Call,
@@ -2454,7 +2453,7 @@ function coverOfSlot(call: Call, slot: Slot): Cover | undefined {
   return;
 }
 
-/** A session loses its cover for the rest of a `find` call (Section 2.2). */
+/** A session loses its cover for the rest of a `find` call (specs/search-tool.md#coverage). */
 function dropCover(call: Call, cover: Cover): void {
   if (cover.dropped) return;
   cover.dropped = true;
@@ -2463,7 +2462,7 @@ function dropCover(call: Call, cover: Cover): void {
   }
 }
 
-/** What one window of evaluations reports (Section 3.3): the positions it reached, and whether a stop ended it early. */
+/** What one window of evaluations reports (specs/search-tool.md#evaluation): the positions it reached, and whether a stop ended it early. */
 type EvalWindowOutcome =
   | { kind: "positions"; positions: Array<number | undefined>; stopped: boolean }
   | { kind: "failed"; message: string };
@@ -2471,7 +2470,7 @@ type EvalWindowOutcome =
 /**
  * The positions of one window's evaluations: literal in process, regular expression
  * in the worker. A window the budget or the abort ended reports the positions it
- * reached and that it stopped (Section 3.3).
+ * reached and that it stopped (specs/search-tool.md#evaluation).
  */
 async function evaluateWindow(
   call: Call,
@@ -2518,7 +2517,7 @@ async function evaluateWindow(
   };
 }
 
-/** The query of a `find` call, with the trigrams its narrowing may use (Section 3.3). */
+/** The query of a `find` call, with the trigrams its narrowing may use (specs/search-tool.md#evaluation). */
 export function queryOf(call: Call): Query | undefined {
   const settings = call.settings;
   const query = settings.query;
@@ -2529,7 +2528,7 @@ export function queryOf(call: Call): Query | undefined {
   return { pattern, flags, regex: settings.regex, trigrams };
 }
 
-/** Every run of three printable characters of a literal query (Section 3.3). */
+/** Every run of three printable characters of a literal query (specs/search-tool.md#evaluation). */
 function printableTrigramsOf(query: string): string[] {
   const trigrams: string[] = [];
   for (let index = 0; index + 3 <= query.length; index += 1) {
@@ -2546,7 +2545,7 @@ const ESCAPE_LETTER = /[A-Za-z0-9]/;
 const ESCAPE_PAYLOAD = /[A-Za-z0-9{}<>,_]/;
 
 /**
- * The trigrams every match of a regular expression contains (Section 3.3, which
+ * The trigrams every match of a regular expression contains (specs/search-tool.md#evaluation, which
  * allows a call to narrow by them), or none when that is not evident. Only literal
  * characters at the top level of the pattern count, in runs that no quantifier,
  * group, class, anchor, wildcard, or escape other than an identity escape
@@ -2657,7 +2656,7 @@ export function regexTrigrams(pattern: string): string[] {
   return [...trigrams];
 }
 
-/** The item `after` names in one covered session, or undefined when it names none (Section 3.4). */
+/** The item `after` names in one covered session, or undefined when it names none (specs/search-tool.md#result). */
 export function afterSlotOf(call: Call, cover: Cover, address: ItemAddress): Slot | undefined {
   if (cover.state === "catchup" && cover.fileId !== undefined) {
     const index = call.index;
@@ -2679,7 +2678,7 @@ export function afterSlotOf(call: Call, cover: Cover, address: ItemAddress): Slo
   return;
 }
 
-/** The uncovered sessions of the call, as the result reports them (Section 3.4). */
+/** The uncovered sessions of the call, as the result reports them (specs/search-tool.md#result). */
 export function uncoveredCount(call: Call): number {
   let count = 0;
   for (const cover of call.covers) {
@@ -2689,7 +2688,7 @@ export function uncoveredCount(call: Call): number {
   return count;
 }
 
-/** The sessions of the call, for `<n>` (Section 3.4). */
+/** The sessions of the call, for `<n>` (specs/search-tool.md#result). */
 export function sessionCount(call: Call): number {
   let count = 0;
   for (const cover of call.covers) {
@@ -2699,7 +2698,7 @@ export function sessionCount(call: Call): number {
   return count;
 }
 
-/** Start the continuation of catch-up after the call returned (Section 2.2). */
+/** Start the continuation of catch-up after the call returned (specs/search-tool.md#coverage). */
 export function startContinuation(
   call: Call,
   register: (continuation: CatchUpContinuation) => void,
