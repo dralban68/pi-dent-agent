@@ -12,6 +12,7 @@ import {
   hitAddresses,
   hitLines,
   setMtime,
+  SMALL_LIMITS,
   stamp,
   testClock,
   userLine,
@@ -20,6 +21,7 @@ import {
 } from "./support.ts";
 import { openSessionIndex } from "../../lib/session-index.ts";
 import type { SearchHost } from "../../lib/search-tool.ts";
+import { oracle } from "./oracle-support.ts";
 
 /**
  * specs/search-tool.md#coverage and specs/search-tool.md#result: covering, its exceptions, the
@@ -684,6 +686,79 @@ test("the after session that loses its cover mid-call is covered again by a dire
   assert.equal(outcome.isError, false, outcome.text);
   assert.equal(outcome.lines.length > 0, true);
   assert.deepEqual(hitAddresses(outcome), ["self:b", "self:c", "self:d"]);
+});
+
+// specs/search-tool.md#coverage: the after session that loses its cover is covered again
+// by a direct read; specs/search-tool.md#evaluation: its hits are those of the direct read.
+test("the after session that finds a stale row while evaluating is read directly, its hits all kept", async () => {
+  for (const [order, cursor] of [
+    ["oldest", "self:a"],
+    ["newest", "self:e"],
+  ] as const) {
+    const made = fixture("search-tool-after-stale-");
+    const lines = [
+      userLine("a", null, "alpha a", 1),
+      userLine("b", "a", "alpha b", 2),
+      userLine("c", "b", "alpha c", 3),
+      userLine("d", "c", "alpha d", 4),
+      userLine("e", "d", "alpha e", 5),
+    ];
+    writeSession(made.mainFile, headerLine("main-session-0001"), ...lines);
+    // A second session whose items fall between the after session's, in the same window.
+    const otherPath = join(made.sessions, "m2.jsonl");
+    writeSession(
+      otherPath,
+      headerLine("other-session-0004"),
+      userLine("v1", null, "alpha v1", 2),
+      userLine("v2", "v1", "alpha v2", 3),
+      userLine("v3", "v2", "alpha v3", 4),
+    );
+    const host: SearchHost = {
+      sessionFile: made.mainFile,
+      agentDirectory: made.agentDir,
+      main: true,
+    };
+    const h = harness({ db: made.db, limits: SMALL_LIMITS });
+    let swapped = false;
+    h.hook((event) => {
+      if (event.phase !== "cover" || event.key !== "self" || swapped) return;
+      swapped = true;
+      // After the catch-up, lines c and d trade places, same size: the rows of c and d
+      // name lines holding the other entry, so they are stale (specs/session-index.md#catch-up).
+      const [a, b, c, d, e] = lines;
+      if (
+        a === undefined ||
+        b === undefined ||
+        c === undefined ||
+        d === undefined ||
+        e === undefined
+      ) {
+        throw new Error("five lines");
+      }
+      writeSession(made.mainFile, headerLine("main-session-0001"), a, b, d, c, e);
+    });
+    const outcome = await h.call(host, {
+      action: "find",
+      query: "alpha",
+      scope: "project",
+      order,
+      after: cursor,
+    });
+    assert.equal(swapped, true, order);
+    assert.equal(outcome.isError, false, outcome.text);
+    const expected = oracle(
+      {
+        self: { key: "self", path: made.mainFile },
+        other: { key: "~other-session", path: otherPath },
+      },
+      "project",
+      { query: "alpha", order },
+      Number.MAX_SAFE_INTEGER,
+      cursor,
+    );
+    assert.equal(expected.length, 7, order);
+    assert.deepEqual(hitAddresses(outcome), expected, order);
+  }
 });
 
 test("a file that is not a session file on a direct read is not a session of the call", async () => {

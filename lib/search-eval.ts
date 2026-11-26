@@ -2353,6 +2353,17 @@ class Merger {
     }
   }
 
+  /** Add a source while the merge runs: every slot it holds follows the slots already taken. */
+  add(source: Source): void {
+    const reach = source.reach();
+    let at = this.pendingAt;
+    for (; at < this.pending.length; at += 1) {
+      const entry = this.pending[at];
+      if (entry === undefined || (this.newest ? entry.reach < reach : entry.reach > reach)) break;
+    }
+    this.pending.splice(at, 0, { source, reach });
+  }
+
   /** True when any source stopped for the budget or the abort (specs/search-tool.md#evaluation). */
   get stopped(): boolean {
     return this.halted || this.sourceStopped;
@@ -2476,6 +2487,15 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
   let stopped = false;
   let more = false;
   let unmatched = 0;
+  /** The last slot the call has handled, from which a recovered after session is merged. */
+  let reached = call.after;
+  const recover = async (cover: Cover): Promise<void> => {
+    call.afterRecovered = true;
+    const source = await recoverAfterSession(call, cover, newest, reached);
+    if (source === undefined) return;
+    sources.push(source);
+    merger.add(source);
+  };
   const stop = (): boolean => isAborted(call) || call.now() >= call.budgetDeadline;
   let seenGeneration = call.index?.generation;
   for (;;) {
@@ -2504,8 +2524,7 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
     // The session the key of `after` names is covered again by a direct read (specs/search-tool.md#coverage).
     const lostAfter = call.afterCover;
     if (lostAfter !== undefined && lostAfter.dropped && !call.afterRecovered) {
-      call.afterRecovered = true;
-      await recoverAfterSession(call, lostAfter, sources, newest);
+      await recover(lostAfter);
     }
     const window: Slot[] = [];
     while (window.length < WINDOW_SLOTS) {
@@ -2541,12 +2560,26 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
         if (cover !== undefined) {
           dropCover(call, cover);
           if (cover === call.afterCover && !call.afterRecovered) {
-            call.afterRecovered = true;
-            await recoverAfterSession(call, cover, sources, newest);
+            await recover(cover);
+            // The direct read holds the session's items from this slot on: the rest
+            // of the window is merged with them again, without the session's rows.
+            const rest = window
+              .slice(index + 1)
+              .filter((other) => coverOfSlot(call, other) !== cover);
+            merger.add(
+              new SlotListSource(
+                rest,
+                newest,
+                newest ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY,
+              ),
+            );
+            break;
           }
         }
+        reached = slot;
         continue;
       }
+      reached = slot;
       const key = `${slot.sessionKey}\u0000${slot.sessionPath}`;
       let hit: ShownHit | undefined;
       if (entry.kind === "hit") {
@@ -2614,14 +2647,15 @@ export async function evaluate(call: Call): Promise<FindEvaluation> {
 
 /**
  * Cover the session the key of `after` names again by a direct read after it lost
- * its cover, and merge its items from where the call had reached (specs/search-tool.md#coverage).
+ * its cover, and give the source of its items after `reached`, the last slot the
+ * call handled, for the merge (specs/search-tool.md#coverage).
  */
 export async function recoverAfterSession(
   call: Call,
   cover: Cover,
-  sources: Source[],
   newest: boolean,
-): Promise<void> {
+  reached?: Slot,
+): Promise<Source | undefined> {
   cover.dropped = false;
   cover.lineageIds = undefined;
   await coverDirectly(call, cover, call.budgetDeadline);
@@ -2637,8 +2671,8 @@ export async function recoverAfterSession(
     newest,
     newest ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY,
   );
-  source.startAfter(call.after, newest);
-  sources.push(source);
+  source.startAfter(reached, newest);
+  return source;
 }
 
 /** The covers of a call by session key and path, built once per covers list (specs/search-tool.md#abort). */

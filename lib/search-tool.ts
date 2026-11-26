@@ -1197,7 +1197,7 @@ async function findAction(
     if (slot === undefined && cover.state === "catchup") {
       // The rows no longer answer: the after session is covered again by a direct
       // read, and the item is looked up there (specs/search-tool.md#coverage).
-      await recoverAfterSession(call, cover, [], false);
+      await recoverAfterSession(call, cover, false);
       if (!isCovered(cover)) {
         return textError(`no item ${settings.after} in the searched sessions`);
       }
