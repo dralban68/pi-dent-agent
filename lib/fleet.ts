@@ -210,14 +210,18 @@ function bootLockName(bootId: string): string {
  * Hold the boot lock until the returned release is called. The lock manager
  * grants an uncontended request before `request` returns, so the lock is held
  * before the caller writes any record; it releases the lock itself when the
- * thread ends.
+ * thread ends. A failed request goes to `onFailure`.
  */
-function holdBootLock(bootId: string): () => void {
+function holdBootLock(bootId: string, onFailure: (error: unknown) => void): () => void {
   let release = (): void => {};
   const held = new Promise<void>((done) => {
     release = done;
   });
-  void navigator.locks.request(bootLockName(bootId), { mode: "shared" }, () => held);
+  try {
+    navigator.locks.request(bootLockName(bootId), { mode: "shared" }, () => held).catch(onFailure);
+  } catch (error) {
+    onFailure(error);
+  }
   return release;
 }
 
@@ -228,6 +232,25 @@ function bootLockIsFree(bootId: string): Promise<boolean> {
     { ifAvailable: true },
     (lock) => lock !== null,
   );
+}
+
+/** The warning of a boot lock its boot window could not hold (specs/session-store.md#membership-lifecycle). */
+export function bootLockHeldWarning(bootId: string, error: unknown): string {
+  return `pi-dent: Fleet boot lock ${bootLockName(bootId)} could not be held: ${errorMessage(error)}; this session may vanish from the fleet`;
+}
+
+/** The warning of a boot lock check that failed (specs/session-store.md#membership-lifecycle). */
+export function bootLockCheckWarning(bootId: string, error: unknown): string {
+  return `pi-dent: Fleet boot lock ${bootLockName(bootId)} could not be checked: ${errorMessage(error)}; records of other threads' boot windows are kept until a check succeeds`;
+}
+
+/** Show a warning to a session; a host that cannot notify reports nothing. */
+function notifyEndpoint(endpoint: FleetEndpoint, message: string): void {
+  try {
+    endpoint.notify?.(message);
+  } catch {
+    // A failed host notify call reports nothing (the nothing-silent exemption of specs/AGENTS.md).
+  }
 }
 
 function isPidAlive(pid: number): boolean {
@@ -407,6 +430,12 @@ export class FleetCoordinator {
   private lastSweep = 0;
   private closed = false;
   private releaseBootLock: () => void = () => {};
+  /** Shown to every session this boot window registers: its boot lock is not held. */
+  private bootLockWarning: string | undefined;
+  /** A failed boot lock check, reported once per boot window (specs/session-store.md#membership-lifecycle). */
+  private checkFailureReported = false;
+  /** Warnings for the next session to register, raised while none is registered. */
+  private heldWarnings: string[] = [];
   /** The deletion pass in progress, so periodic passes never overlap. */
   private reaping: Promise<void> | undefined;
 
@@ -431,7 +460,11 @@ export class FleetCoordinator {
       this.db.close();
       throw error;
     }
-    this.releaseBootLock = holdBootLock(this.bootId);
+    this.releaseBootLock = holdBootLock(this.bootId, (error) => {
+      const warning = bootLockHeldWarning(this.bootId, error);
+      this.bootLockWarning = warning;
+      for (const endpoint of this.endpoints.values()) notifyEndpoint(endpoint, warning);
+    });
     this.purgeAncientRows();
     trackBootWindow(this.bootId);
     this.sweepDeadOwners();
@@ -500,6 +533,8 @@ export class FleetCoordinator {
       return true;
     });
     if (!claimed) return false;
+    if (this.bootLockWarning !== undefined) notifyEndpoint(endpoint, this.bootLockWarning);
+    for (const warning of this.heldWarnings.splice(0)) notifyEndpoint(endpoint, warning);
     this.ensurePollLoop();
     this.drainForTarget(endpoint.sessionId);
     return true;
@@ -1958,6 +1993,17 @@ export class FleetCoordinator {
     return this.reaping;
   }
 
+  /** Report the first failed boot lock check, to the registered sessions or else the next one. */
+  private reportCheckFailure(warning: string): void {
+    if (this.checkFailureReported) return;
+    this.checkFailureReported = true;
+    if (this.endpoints.size === 0) {
+      this.heldWarnings.push(warning);
+      return;
+    }
+    for (const endpoint of this.endpoints.values()) notifyEndpoint(endpoint, warning);
+  }
+
   private async reapGoneOwnersOnce(): Promise<void> {
     if (this.closed) return;
     this.sweepDeadOwners();
@@ -1975,7 +2021,14 @@ export class FleetCoordinator {
       byBoot.set(boot, [...(byBoot.get(boot) ?? []), session]);
     }
     for (const [boot, sessions] of byBoot) {
-      const free = await bootLockIsFree(boot);
+      let free: boolean;
+      try {
+        free = await bootLockIsFree(boot);
+      } catch (error) {
+        // A failed check finds the lock not free: the record is kept.
+        this.reportCheckFailure(bootLockCheckWarning(boot, error));
+        continue;
+      }
       if (this.closed) return;
       if (!free) continue;
       for (const session of sessions) {
