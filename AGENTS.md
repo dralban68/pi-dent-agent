@@ -19,7 +19,7 @@ This repository follows the dev repo standard.
 
 ```sh
 pnpm check        # the done-set: typecheck, lint, fmt:check, then test
-pnpm test         # node --test --test-timeout=30000 test/
+pnpm test         # node --import "$PWD/lib/strip-types-hook.mjs" --test --test-timeout=30000 test/
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # oxlint .
 pnpm fmt          # oxfmt . (rewrites files, Markdown included)
@@ -35,3 +35,7 @@ pi -ne -e ./      # run the agent with this repository's extensions only
 - The entry is `index.ts`, registered under `pi.extensions` in `package.json`.
 - Commit no absolute home path or user name: write `<absolute path of …>`. Only `package.json`'s
   publishing fields name the owner's account; `test/repo/no-personal-paths.test.ts` enforces it.
+- Published to npm, so package.json is not private: one of the two accepted dev audit findings.
+- `scripts.test` loads `lib/strip-types-hook.mjs`: the other accepted dev audit finding. Tests load
+  sibling packages' TypeScript from `node_modules`, where Node refuses to strip types
+  ([package.md, installation](specs/package.md#installation)).

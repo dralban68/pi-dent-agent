@@ -95,7 +95,7 @@ conflict:
 ## Documentation
 
 - [specs/](specs/AGENTS.md): the behaviour of every tool and setting.
-- [docs/](docs/development.md): how extensions load, search internals, the Script sandbox research.
+- [docs/](docs/development.md): how extensions load, search internals, the `Script` sandbox research.
 
 ## License
 
