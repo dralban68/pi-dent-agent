@@ -2,17 +2,17 @@ import Schema from "typebox/schema";
 import type { CallableTool } from "./script-tool-types.ts";
 
 /**
- * A nested call of a tool function, host side (specs/script-tool.md Section 10.3, steps 2 to 4).
+ * A nested call of a tool function, host side (specs/script-tool.md#calling-tool, steps 2 to 4).
  * Step 1 runs in the script worker.
  */
 
-/** A `ToolContent` part (Section 10.2). */
+/** A `ToolContent` part (specs/script-tool.md#tool-declarations). */
 export type ToolCallContent =
   | { type: "text"; text: string }
   | { type: "image"; data: string; mimeType: string }
   | { type: "other"; kind: string };
 
-/** The resolved value of a tool function, before the worker freezes it (Section 10.3). */
+/** The resolved value of a tool function, before the worker freezes it (specs/script-tool.md#calling-tool). */
 export interface ToolCallValue {
   text: string;
   content: ToolCallContent[];
@@ -40,7 +40,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-/** A content part as a `ToolContent` (Section 10.3): text, image, or `other` naming its type. */
+/** A content part as a `ToolContent` (specs/script-tool.md#calling-tool): text, image, or `other` naming its type. */
 function contentPart(part: unknown): ToolCallContent {
   if (!isRecord(part)) return { type: "other", kind: "" };
   if (part.type === "text" && typeof part.text === "string") {
@@ -52,14 +52,14 @@ function contentPart(part: unknown): ToolCallContent {
   return { type: "other", kind: typeof part.type === "string" ? part.type : "" };
 }
 
-/** `details` through a JSON round trip; `undefined` when it does not survive one (Section 10.3). */
+/** `details` through a JSON round trip; `undefined` when it does not survive one (specs/script-tool.md#calling-tool). */
 function jsonDetails(details: unknown): unknown {
   if (details === undefined) return undefined;
   let json: string | undefined;
   try {
     json = JSON.stringify(details);
   } catch {
-    // Section 10.3: details that JSON.stringify rejects become undefined.
+    // specs/script-tool.md#calling-tool: details that JSON.stringify rejects become undefined.
     return undefined;
   }
   return json === undefined ? undefined : JSON.parse(json);
@@ -71,12 +71,12 @@ function validates(schema: unknown, value: unknown): boolean {
   try {
     return Schema.Check(schema, value);
   } catch {
-    // The mismatch rejection reports it to the script (Section 10.3, step 3).
+    // The mismatch rejection reports it to the script (specs/script-tool.md#calling-tool, step 3).
     return false;
   }
 }
 
-/** Run one nested call and settle it per Section 10.3, steps 2 to 4. */
+/** Run one nested call and settle it per specs/script-tool.md#calling-tool, steps 2 to 4. */
 export async function callBoundTool(
   tool: CallableTool,
   args: unknown,

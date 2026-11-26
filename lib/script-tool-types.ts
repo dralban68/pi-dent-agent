@@ -1,5 +1,5 @@
 /**
- * The tool functions' pure side (specs/script-tool.md Sections 10.1 and 10.2): which callable
+ * The tool functions' pure side (specs/script-tool.md#bound-tools and specs/script-tool.md#tool-declarations): which callable
  * tools a call binds, and the TypeScript declarations of the bound tools.
  */
 
@@ -18,10 +18,10 @@ export interface ToolSelection<T extends CallableTool> {
   unbound: T[];
 }
 
-/** Default of `script.tools.allow` (specs/script-tool.md#tool-functions). */
+/** Default of `script.tools.allow` (specs/script-tool.md#configuration). */
 export const DEFAULT_TOOLS_ALLOW: readonly string[] = ["*"];
 
-/** Whether an allow entry admits `name` (Section 10.1): equal, or a `*`-terminated prefix. */
+/** Whether an allow entry admits `name` (specs/script-tool.md#bound-tools): equal, or a `*`-terminated prefix. */
 export function allowMatches(allow: readonly string[], name: string): boolean {
   return allow.some((entry) =>
     entry.endsWith("*") ? name.startsWith(entry.slice(0, -1)) : entry === name,
@@ -32,7 +32,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Whether a tool's `parameters` is an object schema (Section 10.1). */
+/** Whether a tool's `parameters` is an object schema (specs/script-tool.md#bound-tools). */
 function isBindable(tool: CallableTool): boolean {
   return isObject(tool.parameters) && tool.parameters.type === "object";
 }
@@ -40,7 +40,7 @@ function isBindable(tool: CallableTool): boolean {
 const byName = (a: CallableTool, b: CallableTool): number =>
   a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
 
-/** The bound and unbound tools of one reading of the callable tools (Section 10.1). */
+/** The bound and unbound tools of one reading of the callable tools (specs/script-tool.md#bound-tools). */
 export function selectTools<T extends CallableTool>(
   callable: readonly T[],
   allow: readonly string[],
@@ -76,7 +76,7 @@ const UNSUPPORTED_KEYWORDS = [
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
-/** A member or property key (Section 10.2). */
+/** A member or property key (specs/script-tool.md#tool-declarations). */
 function keyText(name: string): string {
   return IDENTIFIER.test(name) ? name : JSON.stringify(name);
 }
@@ -210,12 +210,12 @@ function typeOf(schema: unknown, ctx: TypingContext): Typed {
   return { text: base.text + unsupportedSuffix(schema), kind: base.kind };
 }
 
-/** The type text of a root schema: a tool's `parameters` or `outputSchema` (Section 10.2). */
+/** The type text of a root schema: a tool's `parameters` or `outputSchema` (specs/script-tool.md#tool-declarations). */
 export function schemaTypeText(schema: unknown): string {
   return typeOf(schema, { root: schema, typing: new Set() }).text;
 }
 
-/** A tool's doc text (Section 10.2): first line, trimmed, `*\/` defused, 200 characters. */
+/** A tool's doc text (specs/script-tool.md#tool-declarations): first line, trimmed, `*\/` defused, 200 characters. */
 function docText(description: string | undefined): string {
   const first = (description ?? "").split(/\r\n|\r|\n/, 1)[0] ?? "";
   return first.trim().replaceAll("*/", "* /").slice(0, 200);
@@ -236,7 +236,7 @@ const PREAMBLE = [
   "declare const tools: {",
 ];
 
-/** The tool declarations of a selection (Section 10.2). */
+/** The tool declarations of a selection (specs/script-tool.md#tool-declarations). */
 export function toolDeclarations(selection: ToolSelection<CallableTool>): string {
   const lines = [...PREAMBLE];
   for (const tool of selection.bound) {

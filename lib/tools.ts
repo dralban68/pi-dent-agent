@@ -395,7 +395,7 @@ function isOwnHeaderLine(line: string, resultPath: string): boolean {
   return HEADER_FORMS.some((form) => form.test(head));
 }
 
-/** Whether `line` is exactly a `--- tool calls` line of a `script` row for `taskId` (specs/script-tool.md#timeout-delivery). */
+/** Whether `line` is exactly a `--- tool calls` line of a `script` row for `taskId` (specs/script-tool.md#result-contract). */
 function isOwnToolCallsLine(line: string, taskId: string): boolean {
   const tail = `; Search it with session ${taskId} ---`;
   return /^--- tool calls: \d+; log: ./.test(line) && line.endsWith(tail);

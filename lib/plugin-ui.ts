@@ -199,7 +199,7 @@ export interface PluginUiToolDeps {
   activeToolNames?: () => readonly string[];
   /** Fallback list of session tool names when `allTools` is omitted (used by unit tests). */
   allToolNames?: () => readonly string[];
-  /** `script.tools.allow` (specs/script-tool.md#tool-functions); absent gives the default. */
+  /** `script.tools.allow` (specs/script-tool.md#configuration); absent gives the default. */
   toolsAllow?: () => readonly string[];
   /** Lazily creates the parent session's long-lived tool proxy on the first proxied call. */
   createProxy?: () => PluginUiToolProxy | undefined;

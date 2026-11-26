@@ -1054,7 +1054,7 @@ export default function (pi: ExtensionAPI) {
       hostProvider: () => currentHost,
       cohortFor: (toolCallId) => cohorts.cohortFor(toolCallId),
       agentDir: agentDirForHost,
-      // specs/script-tool.md#tool-functions; its diagnostics are boot diagnostics.
+      // specs/script-tool.md#configuration; its diagnostics are boot diagnostics.
       toolsAllow: () => scriptToolsAllow,
     }),
   );

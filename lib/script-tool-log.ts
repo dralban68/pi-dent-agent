@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { errorMessage, safeName } from "./util.ts";
 
 /**
- * The tool log of a `Script` run (specs/script-tool.md Section 10.4): a session file in the
+ * The tool log of a `Script` run (specs/script-tool.md#tool-log): a session file in the
  * invoking session's agent directory recording the run's source and every nested call, so that
  * `Search` reads it as a member of the session tree. Lines are appended synchronously, in event
  * order; a write failure is reported once on the run's stderr and ends the log.

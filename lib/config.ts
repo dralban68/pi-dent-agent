@@ -589,7 +589,7 @@ export function parseTaskBrowser(config: BootConfig): {
 }
 
 /**
- * The `script` configuration (specs/script-tool.md#tool-functions) with its diagnostics: the allow lists,
+ * The `script` configuration (specs/script-tool.md#configuration) with its diagnostics: the allow lists,
  * `undefined` where the key is absent or ignored.
  */
 export function parseScript(config: BootConfig): {

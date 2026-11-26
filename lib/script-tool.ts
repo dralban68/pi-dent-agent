@@ -30,7 +30,7 @@ import { errorCode, errorMessage } from "./util.ts";
  * The Script tool (specs/script-tool.md): in-process execution of agent-authored
  * JavaScript or TypeScript, its sources, inputs, results, timeout, and delivery
  * modes, and the tool functions through which a script calls the session's other tools
- * (specs/script-tool.md#gaps).
+ * (specs/script-tool.md#tool-functions).
  */
 
 export const scriptParameterSchema = Type.Object(
@@ -111,7 +111,7 @@ interface ScriptToolDeps {
   agentDir: (host: HostSession) => string;
   /** Extra environment variables for the script worker, merged over process.env (never mutating it). */
   extraEnv?: () => Record<string, string> | undefined;
-  /** `script.tools.allow` (specs/script-tool.md#tool-functions); absent gives the default. */
+  /** `script.tools.allow` (specs/script-tool.md#configuration); absent gives the default. */
   toolsAllow?: () => readonly string[];
 }
 
@@ -210,7 +210,7 @@ function buildBody(opts: {
   returnJson?: string | undefined;
   /** The output file path, when the body names the full return value (specs/script-tool.md#result-contract). */
   fullValuePath?: string | undefined;
-  /** The `--- tool calls` block's line, when the run made nested calls (specs/script-tool.md#timeout-delivery). */
+  /** The `--- tool calls` block's line, when the run made nested calls (specs/script-tool.md#result-contract). */
   toolCallsLine?: string | undefined;
 }): string {
   let text = opts.stdout;
@@ -343,7 +343,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
       "Run one JavaScript or TypeScript program in a fresh worker thread with the caller's privileges and full Node capabilities: ESM, TypeScript syntax, top-level await, no build step, no state kept between calls. Source: inline `code`, or a plugin script (`plugin` + `path`). Imports: node:* builtins and the bundled cheerio, csv-parse, csv-stringify, fast-xml-parser, file-type, glob, gray-matter, ini, js-yaml, jsonc-parser, jszip, semver, smol-toml; any other package resolves from `cwd`, or for a plugin script from its own location. fetch and the other web globals are available; console output is captured. Child processes: use async `spawn`, `exec`, or `execFile` with `await`; `spawnSync`, `execSync`, and `execFileSync` throw. Every settled run terminates every process it spawned, so start a process that must outlive the run with `Bash` `background: true`. `tools.<Name>(args)` calls another tool of the session, MCP tools included, and resolves to `{ text, content, details, structured }` or rejects with the tool's error; `dent.toolTypes()` returns their TypeScript declarations. Tool calls are logged to a session file that `Search` reads by the run's task ID. `background: true` returns a task ID at once with a completion notification; in a user session, prefer it for long-running scripts so you do not block user input.",
     promptSnippet: "Run an in-process JavaScript or TypeScript program",
     parameters: scriptParameterSchema,
-    // Section 10.1: a call can reach every callable tool.
+    // specs/script-tool.md#bound-tools: a call can reach every callable tool.
     reachesTools: () => "all",
     async execute(
       toolCallId: string,
@@ -427,7 +427,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
       const failRun = (error: unknown): ToolResult =>
         reject(`Script error: ${errorMessage(error)}`);
 
-      // Section 10.4: the tool log, created at the run's first nested call.
+      // specs/script-tool.md#tool-log: the tool log, created at the run's first nested call.
       let runHandle: ScriptRunHandle | undefined;
       const toolLog = new ScriptToolLog({
         agentDir,
@@ -462,7 +462,7 @@ export function makeScriptTool(deps: ScriptToolDeps) {
         };
         if (timeoutMs !== undefined) request.timeoutMs = timeoutMs;
         if (!background && signal !== undefined) request.signal = signal;
-        // Section 10.1: the callable tools are read once, after the checks of specs/script-tool.md#validation.
+        // specs/script-tool.md#bound-tools: the callable tools are read once, after the checks of specs/script-tool.md#validation.
         const selection = selectTools(ctx?.tools ?? [], deps.toolsAllow?.() ?? DEFAULT_TOOLS_ALLOW);
         request.tools = {
           names: selection.bound.map((tool) => tool.name),

@@ -38,11 +38,11 @@ interface ScriptWorkerData {
   input: unknown;
   /** Package name -> absolute directory, for jiti's `alias` (bundled packages). */
   aliases: Record<string, string>;
-  /** Bound tool names, in declaration order (Section 10.3). */
+  /** Bound tool names, in declaration order (specs/script-tool.md#calling-tool). */
   toolNames: string[];
   /** Session tool names unavailable in a plugin UI call (specs/plugin-ui.md#tool-functions). */
   unavailableToolNames?: string[];
-  /** The tool declarations (Section 10.2). */
+  /** The tool declarations (specs/script-tool.md#tool-declarations). */
   toolTypes: string;
   /** Whether this run is a plugin UI call (specs/plugin-ui.md). */
   uiCall?: boolean;

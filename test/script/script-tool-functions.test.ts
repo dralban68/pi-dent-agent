@@ -19,7 +19,7 @@ import {
 } from "../search-tool/support.ts";
 
 /**
- * Script tool functions (specs/script-tool.md Section 10.3) through `execute`, against a real
+ * Script tool functions (specs/script-tool.md#calling-tool) through `execute`, against a real
  * worker and a fake host `executeTool`.
  */
 

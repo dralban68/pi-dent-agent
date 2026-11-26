@@ -7,7 +7,7 @@ import {
   toolDeclarations,
 } from "../../lib/script-tool-types.ts";
 
-/** specs/script-tool.md Sections 10.1 and 10.2: bound tools and tool declarations. */
+/** specs/script-tool.md#bound-tools and specs/script-tool.md#tool-declarations: bound tools and tool declarations. */
 
 const cases: [string, unknown, string][] = [
   ["false", false, "never"],

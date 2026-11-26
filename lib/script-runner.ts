@@ -90,7 +90,7 @@ export interface ScriptRunRequest {
    * kept (no `env` option).
    */
   extraEnv?: Record<string, string>;
-  /** The tool functions (specs/script-tool.md#gaps); absent binds none. */
+  /** The tool functions (specs/script-tool.md#tool-functions); absent binds none. */
   tools?: ScriptRunTools;
   /** Whether this run is a plugin UI call (specs/plugin-ui.md). */
   uiCall?: boolean;
@@ -106,13 +106,13 @@ export interface ScriptRunRequest {
 /** Pre-validated return outcome of a plugin UI call (specs/plugin-ui.md#ui-feed). */
 export type UiReturnOutcome = { ok: true; json: string } | { ok: false; error: string };
 
-/** The tool functions of a run (Section 10.3). */
+/** The tool functions of a run (specs/script-tool.md#calling-tool). */
 export interface ScriptRunTools {
   /** Bound tool names, in declaration order. */
   names: string[];
   /** Session tool names bound as rejecting stubs (specs/plugin-ui.md#tool-functions). */
   unavailableNames?: string[];
-  /** The tool declarations (Section 10.2), returned by `dent.toolTypes()`. */
+  /** The tool declarations (specs/script-tool.md#tool-declarations), returned by `dent.toolTypes()`. */
   declarations: string;
   /** Runs one nested call; the signal aborts at settlement. */
   call: (name: string, args: unknown, signal: AbortSignal) => Promise<ToolCallReply>;
@@ -140,11 +140,11 @@ export interface ScriptRunResult {
 export interface ScriptRunHandle {
   promise: Promise<ScriptRunResult>;
   cancel: (reason: "killed" | "aborted") => void;
-  /** When the run started (specs/script-tool.md#timeout-delivery), in ms since the epoch; absent when none started. */
+  /** When the run started (specs/script-tool.md#result-contract), in ms since the epoch; absent when none started. */
   startedAt: () => number | undefined;
   /**
    * Append one line of the host's own to the run's stderr, until the result is built
-   * (the tool log's write failure, Section 10.4). Returns `false` when it is too late.
+   * (the tool log's write failure, specs/script-tool.md#tool-log). Returns `false` when it is too late.
    */
   stderrLine: (line: string) => boolean;
 }
@@ -212,7 +212,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
     const groupPids = new Set<number>();
     let worker: Worker | undefined;
     let timer: NodeJS.Timeout | undefined;
-    /** Signals of the nested calls still running (Section 10.3). */
+    /** Signals of the nested calls still running (specs/script-tool.md#calling-tool). */
     const nestedCalls = new Set<AbortController>();
 
     const finish = (partial: Partial<ScriptRunResult>) => {
@@ -285,7 +285,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
       ended = Date.now();
       if (timer) clearTimeout(timer);
       req.signal?.removeEventListener("abort", onAbort);
-      // Section 10.3: nested calls still running are aborted, not awaited, and their outcomes dropped.
+      // specs/script-tool.md#calling-tool: nested calls still running are aborted, not awaited, and their outcomes dropped.
       for (const controller of nestedCalls) controller.abort();
       nestedCalls.clear();
       settleTree(partial);
@@ -403,7 +403,7 @@ export function runScript(req: ScriptRunRequest): ScriptRunHandle {
       }
     });
 
-    /** Section 10.3, step 2 onward: run the nested call and post its reply unless the run settled. */
+    /** specs/script-tool.md#calling-tool, step 2 onward: run the nested call and post its reply unless the run settled. */
     function startNestedCall(id: unknown, name: string, args: unknown): void {
       const controller = new AbortController();
       nestedCalls.add(controller);
