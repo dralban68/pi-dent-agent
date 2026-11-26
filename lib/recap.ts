@@ -159,6 +159,8 @@ export function recapRuntime(config: BootConfig, append: (data: RecapData) => vo
         const text = trimRecapOutput(textContent(response.content));
         if (!text) throw new Error("empty recap");
         if (active === controller) append({ text });
+        if (active === controller && response.stopReason === "length")
+          ctx.ui.notify("Recap reached the model's output limit.", "info");
       } catch {
         if (active === controller) ctx.ui.notify("Recap failed.", "error");
       } finally {

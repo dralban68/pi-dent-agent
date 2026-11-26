@@ -210,6 +210,20 @@ test("recap reports input truncation and stores normalized, uncapped text", asyn
   assert.deepEqual(h.entries, [{ text: "x".repeat(1201) }]);
 });
 
+test("recap notices a completion stopped at the token limit and still appends", async () => {
+  const h = harness();
+  h.completion(async () => ({
+    stopReason: "length",
+    content: [{ type: "text", text: "Goal: ship\nDone: code" }],
+  }));
+  await h.runtime.run(h.ctx);
+  assert.deepEqual(h.notices, [
+    ["Generating recap…", "info"],
+    ["Recap reached the model's output limit.", "info"],
+  ]);
+  assert.deepEqual(h.entries, [{ text: "Goal: ship\nDone: code" }]);
+});
+
 test("recap selects configured models and thinking, including classes", async () => {
   const h = harness("p/selected:low");
   await h.runtime.run(h.ctx);

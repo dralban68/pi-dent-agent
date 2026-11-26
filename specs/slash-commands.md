@@ -136,10 +136,14 @@ failure to append MUST show `Recap failed.` at `error` level and MUST NOT append
 On success, the command MUST join response text blocks with newlines, strip ANSI escape sequences
 and control characters other than LF and tab, collapse runs of spaces/tabs to one space, collapse
 three or more consecutive LF characters to two, and trim. Tabs are retained only until space
-normalization. The command MUST NOT cut or otherwise cap the normalized text.
+normalization. The command MUST NOT cut or otherwise cap the normalized text. A completion
+whose stop reason is `length` (the 1024-token maximum of Section 5.1 reached) is still a
+success: the command MUST append its entry first and then show `Recap reached the model's output
+limit.` at `info` level.
 
 > Note (non-normative): the text is bounded only by the request's 1024-token maximum (Section
-> 5.1); a recap that fits the token budget is stored and shown in full, whatever its length.
+> 5.1); a recap that fits the token budget is stored and shown in full, whatever its length. One
+> stopped at the budget is stored as received and marked only by the notice above.
 
 The command MUST append exactly one host custom entry through `appendEntry("pi-dent-recap", data)`.
 Its `data` MUST be `{ text: string }`, with `text` the normalized text. It MUST NOT use a
