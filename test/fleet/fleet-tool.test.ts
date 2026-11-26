@@ -756,7 +756,7 @@ test("Fleet send/query: a main session with no record of its own has no live ses
   }
 });
 
-test("Fleet accepts the calling session as a target", async () => {
+test("Fleet accepts the invoking session as a target", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-dent-fleet-self-"));
   try {
     const fleet = new FleetCoordinator(emptyBoot(dir), { dbPath: join(dir, "fleet.sqlite") });

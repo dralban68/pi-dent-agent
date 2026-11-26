@@ -313,7 +313,7 @@ interface ListedSession {
   turns: Array<{ command: string }>;
 }
 
-/** The sessions a `list` of `scope` shows the calling session `main-id`. */
+/** The sessions a `list` of `scope` shows the invoking session `main-id`. */
 async function listedBy(
   fleet: FleetCoordinator,
   host: HostSession,

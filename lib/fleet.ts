@@ -1152,7 +1152,7 @@ export class FleetCoordinator {
   }
 
   /**
-   * Enqueue a `query` for a calling session this boot window holds no endpoint
+   * Enqueue a `query` for a invoking session this boot window holds no endpoint
    * for — a child session — and block until its reply arrives
    * (specs/fleet-tool.md#waited-query). The address written first gives the reply
    * somewhere to go: its child session record when it has one, else a hidden

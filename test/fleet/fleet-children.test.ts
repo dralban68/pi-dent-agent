@@ -375,7 +375,7 @@ test("a child session is not a fleet session: absent from the machine and repo s
   }
 });
 
-test("the children scope lists the calling session's direct children, whatever their repository", (t) => {
+test("the children scope lists the invoking session's direct children, whatever their repository", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "pi-dent-fleet-child-anyrepo-"));
   try {
     const repoDir = repositoryAt(join(dir, "repo"));
@@ -792,7 +792,7 @@ test("a boot window that closes deletes the child records whose dispatch it ran"
   }
 });
 
-test("Fleet list of scope children needs the calling session's ID", async (t) => {
+test("Fleet list of scope children needs the invoking session's ID", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "pi-dent-fleet-child-identity-"));
   try {
     const fleet = new FleetCoordinator(emptyBoot(dir), { dbPath: join(dir, "fleet.sqlite") });
