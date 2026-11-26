@@ -628,6 +628,14 @@ export default function (pi: ExtensionAPI) {
     recap.abort();
     pluginUi.cancelAll("Session ended");
     await pluginUi.disposeProxy();
+    // specs/session-store.md#membership-lifecycle: records of gone owners, boot windows of
+    // terminated threads included, are deleted before the session registers.
+    await fleet.reapGoneOwners().catch((error: unknown) => {
+      reportDiagnostic({
+        level: "warning",
+        message: `fleet: the records of gone sessions could not be deleted: ${errorMessage(error)}`,
+      });
+    });
     currentProjectTrusted =
       typeof ctx.isProjectTrusted === "function" ? ctx.isProjectTrusted() : false;
     // specs/billing.md#diagnostics: the diagnostics held with no open session go out first.

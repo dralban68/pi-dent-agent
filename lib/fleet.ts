@@ -179,23 +179,55 @@ function deliveryFailedReason(error: unknown): string {
 }
 
 /**
- * Boot windows alive in this process (reference counts, by boot ID): a record
- * owned by one of them has a live owner, so it is not gone
- * (specs/session-store.md#membership-lifecycle).
+ * Boot windows alive in this thread (reference counts, by boot ID), and those
+ * closed in it. Module state is per thread: a boot window of another thread is
+ * in neither, and only its boot lock tells (specs/session-store.md#membership-lifecycle).
  */
 const liveBootWindows = new Map<string, number>();
+const closedBootWindows = new Set<string>();
 
 function trackBootWindow(bootId: string): void {
   liveBootWindows.set(bootId, (liveBootWindows.get(bootId) ?? 0) + 1);
+  closedBootWindows.delete(bootId);
 }
 
 function untrackBootWindow(bootId: string): void {
   const live = (liveBootWindows.get(bootId) ?? 0) - 1;
   if (live <= 0) {
     liveBootWindows.delete(bootId);
+    closedBootWindows.add(bootId);
     return;
   }
   liveBootWindows.set(bootId, live);
+}
+
+/** The process-wide lock a boot window holds while open (specs/session-store.md#membership-lifecycle). */
+function bootLockName(bootId: string): string {
+  return `pi-dent-fleet-boot:${bootId}`;
+}
+
+/**
+ * Hold the boot lock until the returned release is called. The lock manager
+ * grants an uncontended request before `request` returns, so the lock is held
+ * before the caller writes any record; it releases the lock itself when the
+ * thread ends.
+ */
+function holdBootLock(bootId: string): () => void {
+  let release = (): void => {};
+  const held = new Promise<void>((done) => {
+    release = done;
+  });
+  void navigator.locks.request(bootLockName(bootId), { mode: "shared" }, () => held);
+  return release;
+}
+
+/** True when no boot window holds the boot lock: a non-waiting exclusive request is granted. */
+function bootLockIsFree(bootId: string): Promise<boolean> {
+  return navigator.locks.request(
+    bootLockName(bootId),
+    { ifAvailable: true },
+    (lock) => lock !== null,
+  );
 }
 
 function isPidAlive(pid: number): boolean {
@@ -374,6 +406,9 @@ export class FleetCoordinator {
   private pollTimer: NodeJS.Timeout | undefined;
   private lastSweep = 0;
   private closed = false;
+  private releaseBootLock: () => void = () => {};
+  /** The deletion pass in progress, so periodic passes never overlap. */
+  private reaping: Promise<void> | undefined;
 
   constructor(
     boot: BootSnapshot,
@@ -396,6 +431,7 @@ export class FleetCoordinator {
       this.db.close();
       throw error;
     }
+    this.releaseBootLock = holdBootLock(this.bootId);
     this.purgeAncientRows();
     trackBootWindow(this.bootId);
     this.sweepDeadOwners();
@@ -694,6 +730,7 @@ export class FleetCoordinator {
     } catch {
       // Best effort.
     }
+    this.releaseBootLock();
   }
 
   /** Upsert a session record in the local store. */
@@ -1860,10 +1897,15 @@ export class FleetCoordinator {
   }): boolean {
     if (session.ownerBoot === this.bootId) return false; // owned by this live coordinator
     if (session.ownerPid === process.pid) {
-      // Same pid: a boot window of this process (live, or released without a
-      // session_shutdown), or a recycled pid from before this process started.
-      if (session.ownerBoot !== undefined) return !liveBootWindows.has(session.ownerBoot);
-      return session.ownerStarted < PROCESS_STARTED_MS - 1000;
+      // Same pid: a recycled pid from before this process started, or a boot
+      // window of this process. One of another thread is gone only once its
+      // boot lock is found free (reapGoneOwners).
+      if (session.ownerStarted < PROCESS_STARTED_MS - 1000) return true;
+      return (
+        session.ownerBoot !== undefined &&
+        !liveBootWindows.has(session.ownerBoot) &&
+        closedBootWindows.has(session.ownerBoot)
+      );
     }
     return !isPidAlive(session.ownerPid);
   }
@@ -1899,6 +1941,50 @@ export class FleetCoordinator {
     const rows = this.db.prepare(`SELECT ${SESSION_COLUMNS} FROM fleet_sessions`).all();
     for (const row of rows) {
       this.reapIfGone(this.hydrateSession(row));
+    }
+  }
+
+  /**
+   * Delete every record whose owner process is gone, boot windows of other
+   * threads of this process included: each such record is read first, then its
+   * boot lock checked, so a boot window that opened after the read is never
+   * taken for gone (specs/session-store.md#membership-lifecycle). Joins a pass
+   * already in progress.
+   */
+  reapGoneOwners(): Promise<void> {
+    this.reaping ??= this.reapGoneOwnersOnce().finally(() => {
+      this.reaping = undefined;
+    });
+    return this.reaping;
+  }
+
+  private async reapGoneOwnersOnce(): Promise<void> {
+    if (this.closed) return;
+    this.sweepDeadOwners();
+    const byBoot = new Map<string, FleetSessionRecord[]>();
+    const rows = this.db
+      .prepare(
+        `SELECT ${SESSION_COLUMNS} FROM fleet_sessions WHERE owner_pid = ? AND owner_boot IS NOT NULL`,
+      )
+      .all(process.pid);
+    for (const row of rows) {
+      const session = this.hydrateSession(row);
+      const boot = session.ownerBoot;
+      if (boot === undefined || liveBootWindows.has(boot)) continue;
+      if (this.endpointFor(session.sessionId) !== undefined) continue;
+      byBoot.set(boot, [...(byBoot.get(boot) ?? []), session]);
+    }
+    for (const [boot, sessions] of byBoot) {
+      const free = await bootLockIsFree(boot);
+      if (this.closed) return;
+      if (!free) continue;
+      for (const session of sessions) {
+        this.deleteIfUnchanged(
+          "DELETE FROM fleet_sessions WHERE session_id = ? AND owner_pid IS ? AND owner_boot IS ? AND owner_started IS ?",
+          [session.sessionId, session.ownerPid, boot, session.ownerStarted],
+          session.sessionId,
+        );
+      }
     }
   }
 
@@ -2033,8 +2119,9 @@ export class FleetCoordinator {
     const now = Date.now();
     if (now - this.lastSweep < SWEEP_INTERVAL_MS) return;
     this.lastSweep = now;
-    this.pollStep(() => {
-      this.sweepDeadOwners();
+    void this.reapGoneOwners().catch(() => {
+      // The next pass retries it; a periodic pass reports no failure
+      // (specs/session-store.md#delivery).
     });
   }
 
