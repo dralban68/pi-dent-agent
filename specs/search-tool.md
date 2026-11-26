@@ -342,6 +342,14 @@ number of other session files in the project and of `files` rows in the index.
 > among 2002 sessions, with room for a slower machine; a call that searches one session must
 > not pay for the sessions it does not search.
 
+A `find` call with `scope` `project` and no `after`, that has no hit, whose sessions number at
+most 2000, each holding at most 2 transcript items and having a complete catch-up when the call
+starts, MUST return within 1000 ms of its start.
+
+> Note (non-normative): the bound was set from 0.25 s measured over 2000 sessions, against 3.1 s
+> for a merge whose cost grew with the square of the sessions; it keeps a project-wide call
+> about linear in the sessions it searches.
+
 ## 3. Action `find` {#find}
 
 ### 3.1 Candidates {#candidates}
@@ -538,7 +546,7 @@ the equivalence rule of [evaluation](#evaluation) at any values [test seam](#tes
 | `windowRows`           | 100000 rows  | A scan reads in windows: one spans this many `items` rows of the index from where the scan stands, in the call's order, and every row at the `time` of its last.                                                                                                       |
 | `pageRows`             | 256 rows     | A scan reads a window in pages of at most this many rows. The test seam does not change it.                                                                                                                                                                            |
 | `groupRows`            | 50000 rows   | A full page is completed by reading the rows of the call's sessions at the `time` of its last row, at most this many in one statement; with this many or more at that time, the scan walks them session by session instead.                                            |
-| `groupChunkRows`       | 20000 rows   | That walk reads at most this many rows of one session in one statement, on whole lines.                                                                                                                                                                                |
+| `groupChunkRows`       | 20000 rows   | That walk reads at most this many rows of one session in one statement, on whole lines; a line of more items is read in several.                                                                                                                                       |
 | `collectionRows`       | 20000 rows   | A scan with `kinds`, `tool`, or `isError` first collects the `item_id`s of the rows that pass them: at most this many are every candidate of the call; with more, the scan reads windows.                                                                              |
 | `collectionChunkItems` | 200000 items | That collection reads a range of at most this many `item_id`s in one statement.                                                                                                                                                                                        |
 | `firstLookupMatches`   | 2000 matches | A call that narrows by trigrams ([evaluation](#evaluation)) first looks up the trigrams' matches in the whole index and selects its rows by them when there are at most this many; with more, it narrows the rows as it reads them.                                    |
