@@ -22,7 +22,16 @@ default prompt, and both are rejected; `model` is the only parameter that takes 
 is optional; `agent` never takes a model; a foreground call blocks until the child finishes;
 `background: true` returns a task ID with automatic completion notification; `resume` continues
 a retained session in place, by its file path or by task ID, as the agent it last ran as unless
-`agent` or `prompt` is given; and children sharing a working directory share its files.
+`agent` or `prompt` is given, the task ID ending each foreground result
+([result contract](#result-contract)) and given in the background start line
+([background contract](#background-contract)); and children sharing a working directory share its files.
+
+The schema's description of `model` MUST state that a model string without a thinking suffix runs
+at the level thinking precedence ([model and thinking](#model-thinking)) gives it — a class mapping's level,
+else the persisted thinking on the persisted model, else the dispatching session's thinking on its
+own model, else none, which is the host's default level on a fresh dispatch and `off` on a
+continuation — and that a caller that wants a level writes the suffix. The schema's description of
+`resume` MUST state where the task ID is given, as the base description does.
 
 The agent catalog MUST be baked once from the boot snapshot and stay unchanged for the boot
 window; when non-empty, the agent catalog lists its entries in agent catalog order, each entry
@@ -44,9 +53,10 @@ recovery attempts keep it.
 
 `renderCall` MUST show the agent identity and the definition's `description` when
 present, falling back to `task`. The agent identity shown is the call's `agent`, else `dynamic`;
-for a `resume` call with neither `agent` nor `prompt`, it is the `agent` of the latest result or
-partial result of the call ([result contract](#result-contract)) once one exists, and `dynamic` before. `renderResult` MUST stream intermediate assistant text as
-it is produced and replace it with the final result text ([result contract](#result-contract)) at settlement. Visual
+for a `resume` call with neither `agent` nor `prompt`, it is the plan's agent identity once the
+call has a result or a partial result, and `dynamic` before. `renderResult` MUST stream intermediate assistant text as
+it is produced and replace it with the final result text ([result contract](#result-contract)) at settlement;
+it MUST NOT show the continuation line ([result contract](#result-contract)). Visual
 layout is the renderer's own; only content is normative.
 
 ### 1.1 Parameter schema {#parameter-schema}
@@ -60,7 +70,7 @@ The parameter schema is a JSON object schema with `type: "object"` and
 | `prompt`     | string?           | Inline system prompt defining the agent at call time (dynamic dispatch); exclusive with `agent`. Default: the agent source of [dispatch plan](#dispatch-plan).                                                                                                          |
 | `task`       | string (required) | Task instructions; becomes the child's user message.                                                                                                                                                                                                                    |
 | `model`      | string?           | Model string ([model-string.md](model-string.md)) selecting the child's model and thinking; the call tier of [model and thinking](#model-thinking).                                                                                                                     |
-| `resume`     | string?           | In-place continuation: an absolute path to a retained `Agent` session `.jsonl`, or a task ID naming a task of the invoking session's own task registry ([continuation (`resume`)](#resume)).                                                                            |
+| `resume`     | string?           | In-place continuation: an absolute path to a retained `Agent` session `.jsonl`, or a task ID or session file stem naming a task of the invoking session's own task registry ([continuation (`resume`)](#resume)).                                                       |
 | `cwd`        | string?           | Child working directory: the `cwd` parameter ([task.md, the `cwd` parameter](task.md#cwd-parameter)). Default: for a `resume` dispatch, the working directory recorded in the source session file ([continuation (`resume`)](#resume)), else the dispatching session's. |
 | `background` | boolean?          | Background dispatch mode (default `false`).                                                                                                                                                                                                                             |
 
@@ -77,9 +87,8 @@ creates no file.
 The checks the schema cannot express MUST reject the call as a pre-start rejection ([invocation lifecycle](#invocation-lifecycle);
 `failureCode: "invalid-plan"`), checked in this order, the first failure reported:
 
-- `resume` that is a task ID ([task-registry.md, task row](task-registry.md#task-row)) naming no `agent`
-  row of the invoking session's own task registry, or naming a row without `sessionPath`; the
-  failure MUST carry the received value ([continuation (`resume`)](#resume)).
+- `resume` that is not an absolute path and resolves to no row ([continuation (`resume`)](#resume)); the
+  failure text is the unresolved-`resume` text of that section.
 - both `agent` and `prompt`.
 - `agent` that names no entry in the agent catalog; the failure MUST list the available agent
   names in agent catalog order, joined by `", "` (`(none)` when the agent catalog is empty).
@@ -89,7 +98,6 @@ The checks the schema cannot express MUST reject the call as a pre-start rejecti
   ([model-string.md, grammar](model-string.md#grammar)), or parses as a class reference whose class
   name is a key of the active `modelClasses` mapping
   ([model-string.md, model classes](model-string.md#model-classes)); inventory membership is not checked.
-- `resume` that is not an absolute path; the failure MUST carry the received value.
 - `resume` whose path does not exist or cannot be examined; the failure text MUST name
   `PI_DENT_SESSION_TTL_DAYS` and its effective value in days ([retention sweep](#retention-sweep)), stating that the
   retention sweep can have deleted the file.
@@ -229,8 +237,9 @@ call  >  agent model (static only)  >  persisted (resume source)  >  dispatching
 - Thinking precedence: the selected tier's resolved descriptor thinking
   ([model-string.md, thinking precedence](model-string.md#thinking-precedence)) > the persisted thinking (when the selected
   model matches the persisted `provider/id`) > the dispatching session's thinking (when the
-  selected model matches its `provider/id`) > absent (the run sets no level; a continuation
-  records it as `off`, [continuation (`resume`)](#resume)). The result is the effective thinking level. Support for the level is checked when a model string resolves
+  selected model matches its `provider/id`) > absent (the run sets no level, so a fresh child
+  session runs at the host's own default level; a continuation records it as `off`,
+  [continuation (`resume`)](#resume)). The result is the effective thinking level. Support for the level is checked when a model string resolves
   ([model-string.md, thinking precedence](model-string.md#thinking-precedence)); a level taken from the persisted
   thinking or the dispatching session is not checked.
 - While model guidance is active, plan resolution applies the dispatch restriction of
@@ -509,6 +518,17 @@ one record with no attempt (`status: "failed"`, `stopReason: "error"`, empty usa
   chain attempt error message → final assistant text → `<stopReason>`, followed, when
   `sessionPath` is present, by `\nSession: <sessionPath>` (a line break, then `Session: `, then
   the path). A result is unsuccessful exactly when its `status` is not `completed`.
+- Continuation line: the tool result of a foreground dispatch whose last record carries
+  `sessionPath` MUST end with a blank line and then the continuation line: its text is the text
+  above, `"\n\n"`, and `(To continue this agent, call Agent with resume: "<taskId>".)`, `<taskId>`
+  being the task row's task ID. The result text of this section is the text without it: the task
+  row's `result`, a result spill file, and a Fleet query's reply
+  ([fleet-tool.md, action `query`](fleet-tool.md#query)) carry no continuation line, and neither does a
+  pre-start rejection.
+
+  > Note (non-normative): `details` does not reach the caller's model, so without this line a
+  > foreground caller has no task ID to `resume` with.
+
 - `details.results` carries one record per attempt in execution order; the last record is the
   accepted outcome. Each record carries `agent`, `status`
   (`completed|failed|cancelled`), `stopReason` (`stop|error|aborted|timeout`),
@@ -594,15 +614,42 @@ its system prompt, tool cap, and skills from this call's plan; a call that gives
 `prompt` can name an agent other than the one that created the source session, and one that gives
 neither continues with the recorded agent source ([dispatch plan](#dispatch-plan)).
 
-`resume` MAY instead be a task ID, whose form is owned by [task-registry.md, task row](task-registry.md#task-row). A task ID MUST resolve to the `sessionPath` of the `agent` row of the invoking
-session's own task registry with that `taskId`; a resolved row that is `running` is left unchanged
-and the dispatch is subject to the concurrent-`resume` rejection of this section. The resolved
-`sessionPath` is then the source session file, continued exactly as the path form.
+A `resume` value that is not an absolute path resolves to a row of the invoking session's own task
+registry when it is:
+
+- a task ID, whose form is owned by [task-registry.md, task row](task-registry.md#task-row), that is the
+  `taskId` of an `agent` row with `sessionPath`; or
+- a session file stem: `-` and a task ID end the value, that task ID is the `taskId` of an
+  `agent` row with `sessionPath`, and the value equals that `sessionPath`'s basename without its
+  `.jsonl` extension.
+
+> Note (non-normative): a direct child session's session key in `Search` is its session file stem
+> ([session-transcript.md, session tree](session-transcript.md#session-tree)), so a caller can take one from there.
+
+A resolved row that is `running` is left unchanged and the dispatch is subject to the
+concurrent-`resume` rejection of this section. The resolved row's `sessionPath` is then the source
+session file, continued exactly as the path form. No other value resolves; a relative path is not
+resolved against any directory.
+
+The unresolved-`resume` text is `resume must be an absolute path to an Agent session file or the
+task ID of an agent task of this session; received <value>.`, `<value>` being the received value
+as a JSON string literal, then a line break and the resumable-task list. A resumable task is an
+`agent` row of the invoking session's own task registry that has `sessionPath` and is not
+`running`; of rows whose `sessionPath` values are the same file (real paths equal, as for
+consumption below), only the newest is a resumable task. The list is the line
+`This session has no resumable agent tasks.` when there is none; otherwise the line
+`Resumable agent tasks, newest first:` followed by one line per task, newest first, at most 5:
+`- <taskId> · <agent> · <summary>`, `<agent>` being the row's agent identity and `<summary>` the
+first line of the row's `task`, cut to its first 60 characters followed by `…` when longer, or the
+literal `task` when that line is empty. When tasks are left out, a last line follows:
+`(<n> more not listed; only the <cap> newest are listed)`, `<n>` being the number left out and
+`<cap>` the limit of this paragraph. Lines are joined by `"\n"`. Newest is the latest
+`startedAt`; among equal `startedAt`, the later-registered row.
 
 A settled row that a `resume` continues MUST be `consume`d ([task-registry.md, operations](task-registry.md#operations)), and its task record deleted per [task-record.md, lifecycle](task-record.md#lifecycle), once the
 dispatch has passed its pre-start checks ([invocation lifecycle](#invocation-lifecycle)) and not before:
 
-- The row a task ID resolved, when that row is settled.
+- The row a task ID or a session file stem resolved, when that row is settled.
 - Every `agent` row of the invoking session's own task registry that is settled, whose `consumed`
   is `false`, and whose `sessionPath` is the same file as the `resume` path: their real paths are
   equal, so symbolic links and `..` segments do not distinguish them, and a path that does not
@@ -808,8 +855,8 @@ Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
 - Deadlines and cancellation behavior while an inherited extension factory or session-start
   handler remains unresolved.
 - Cleanup of extension factory side effects when SDK session creation fails before session start.
-- The base description's wording is open: any wording that states every dispatch-contract fact
-  listed in [tool registration surface](#registration) is allowed.
+- The wording of the base description and of the `model` and `resume` descriptions is open: any
+  wording that states every fact [tool registration surface](#registration) requires of it is allowed.
 - A recorded agent key whose definition's prompt changed since the record is used with the current
   prompt; the record holds the key, not the text.
 - A `resume` of a session file held by a running dispatch of another process is not detected:
