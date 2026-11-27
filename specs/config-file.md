@@ -8,13 +8,19 @@ how they merge, and how failures behave.
 `<cwd>` is the process working directory at the time of the boot read; the resulting snapshot
 is shared by every consumer in the boot window regardless of a consumer's own working directory.
 The global layer directory is `~/.pi/pi-dent/`; the project layer directory is `<cwd>/.pi/pi-dent/`.
-Each layer's `pi-dent.conf` lies directly in its layer directory. Configuration is read from at
-most two layers, in merge order:
+Each layer's `pi-dent.conf` lies directly in its layer directory. An optional lowest-priority
+`bundled` layer MAY be supplied through the environment variable `PI_DENT_BUNDLED_CONF`: when set
+to a non-empty string naming an absolute path, that file is read as the `bundled` layer; when unset
+or empty, no `bundled` layer is read; when set to a non-empty string that is not an absolute path,
+reading MUST produce one diagnostic naming `PI_DENT_BUNDLED_CONF` and contribute no `bundled` layer.
+The `bundled` layer supplies configuration only and is not a layer directory for bare agents or
+skills. Configuration is read from at most three layers, in merge order:
 
-| Order        | Layer     | Path                             |
-| ------------ | --------- | -------------------------------- |
-| 1 (base)     | `global`  | `~/.pi/pi-dent/pi-dent.conf`     |
-| 2 (priority) | `project` | `<cwd>/.pi/pi-dent/pi-dent.conf` |
+| Order        | Layer     | Path                                                      |
+| ------------ | --------- | --------------------------------------------------------- |
+| 0 (optional) | `bundled` | `PI_DENT_BUNDLED_CONF`, when set to an absolute file path |
+| 1 (base)     | `global`  | `~/.pi/pi-dent/pi-dent.conf`                              |
+| 2 (priority) | `project` | `<cwd>/.pi/pi-dent/pi-dent.conf`                          |
 
 A missing file contributes no layer, silently. One layer alone stands as the whole configuration.
 pi-dent ignores project trust and trusts the workspace: it reads the project layer whether or not
@@ -70,15 +76,15 @@ Layers merge before any consumer validation or defaulting, on raw parsed values:
 - Arrays and every other value from the higher-priority layer replace the lower layer's value.
 - A key present only in the lower layer is retained unchanged.
 
-The project layer wins every conflict; the global layer supplies only what the project layer
-does not declare.
+Each higher-priority layer wins every conflict (`project` over `global` over `bundled`); lower
+layers supply only what higher layers do not declare.
 
 ## 4. Attribution {#attribution}
 
 For any configuration key, the owning layer is the highest-priority layer that declares that
 key as an own property (its path in the layer's root object). Diagnostics for a key MUST name
 the owning layer's file path; when no layer declares the key, diagnostics MUST name the
-highest-priority existing layer (or `<cwd>/.pi/pi-dent/pi-dent.conf` when neither file exists).
+highest-priority existing layer (or `<cwd>/.pi/pi-dent/pi-dent.conf` when no layer file exists).
 
 ## 5. Snapshot {#snapshot}
 

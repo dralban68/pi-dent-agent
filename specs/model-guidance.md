@@ -42,9 +42,10 @@ The `modelGuidance` root key loads and merges per the
   a thinking level guides dispatches at that level only ([dispatch restriction](#dispatch-restriction)) and sets no thinking level;
   a key without one guides its `provider/id` at any level. One model can be keyed at several
   thinking levels.
-- Two `models` keys that are equal after trimming name the same model: a key of the project layer
-  MUST load before a key of the global layer, and within one layer the first in the object's key
-  order MUST load; each other key MUST produce one diagnostic and be skipped
+- Two `models` keys that are equal after trimming name the same model: a key of a higher-priority
+  layer MUST load before a key of a lower-priority layer (`project`, then `global`, then `bundled`
+  per [config-file.md, layers](config-file.md#layers)), and within one layer the first in the
+  object's key order MUST load; each other key MUST produce one diagnostic and be skipped
   ([model-string.md, grammar](model-string.md#grammar)).
 - Regular expressions are ECMAScript regular expressions ([ECMA-262]) compiled with the `u` flag
   and no other flag, and are unanchored: a value matches when the expression matches any

@@ -82,11 +82,12 @@ which are not plugin resources.
 - Plugins are configured under the `plugins` root key of `pi-dent.conf`, which loads and merges per
   the [configuration file specification](config-file.md). The value of `plugins` is an object
   mapping an entry key to `{ "path": string }` (non-empty string naming a plugin directory on the
-  local filesystem).
+  local filesystem) or `null`. An entry whose merged value is `null` disables that key: it is not
+  admitted and produces no diagnostic.
 - Merged `plugins` entries are read in lexicographic key order. A relative `path` resolves
-  against the layer directory ([config-file.md, layers](config-file.md#layers)) of the owning layer
-  ([config-file.md, attribution](config-file.md#attribution)) of `plugins.<key>.path`; `~` is not expanded, so
-  a `path` starting with it is relative.
+  against the directory containing the owning layer's configuration file
+  ([config-file.md, layers](config-file.md#layers), [config-file.md, attribution](config-file.md#attribution));
+  `~` is not expanded, so a `path` starting with it is relative.
 - A non-object `plugins` value, malformed entry, or resolved `path` that does not exist or is not
   a directory MUST be skipped with one diagnostic; each directory without a valid plugin manifest
   is skipped per [plugin manifest](#plugin-manifest).
@@ -262,18 +263,18 @@ in the extension's own boot reads it.
 
 The plugin inventory is an object:
 
-| Field         | Type             | Value                                                                                                                                                 |
-| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cwd`         | string           | The `cwd` argument, verbatim.                                                                                                                         |
-| `layers`      | array of layers  | The `global` layer, then the `project` layer, both always present.                                                                                    |
-| `diagnostics` | array of strings | The messages of the diagnostics that belong to no candidate, in production order.                                                                     |
-| `candidates`  | array            | One candidate per entry of the merged `plugins` object, in the key order of [discovery](#discovery); empty when `plugins` is absent or not an object. |
+| Field         | Type             | Value                                                                                                                                                                  |
+| ------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cwd`         | string           | The `cwd` argument, verbatim.                                                                                                                                          |
+| `layers`      | array of layers  | The `bundled` layer when `PI_DENT_BUNDLED_CONF` names an absolute path, then the `global` layer, then the `project` layer (`global` and `project` are always present). |
+| `diagnostics` | array of strings | The messages of the diagnostics that belong to no candidate, in production order.                                                                                      |
+| `candidates`  | array            | One candidate per non-`null` entry of the merged `plugins` object, in the key order of [discovery](#discovery); empty when `plugins` is absent or not an object.       |
 
 A layer is an object:
 
 | Field   | Type   | Value                                                                                                                                                                                    |
 | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `layer` | string | `global` or `project`.                                                                                                                                                                   |
+| `layer` | string | `bundled`, `global`, or `project`.                                                                                                                                                       |
 | `file`  | string | The absolute path of the layer's `pi-dent.conf` ([config-file.md, layers](config-file.md#layers)).                                                                                       |
 | `state` | string | `missing` when the file is missing and contributes no layer; `dropped` when the layer was dropped with a diagnostic ([config-file.md, format](config-file.md#format)); `read` otherwise. |
 
@@ -282,7 +283,7 @@ A candidate is an object:
 | Field         | Type             | Value                                                                                                                                                                                                                                            |
 | ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `key`         | string           | The entry key.                                                                                                                                                                                                                                   |
-| `layer`       | string           | `global` or `project`: the layer whose file [config-file.md, attribution](config-file.md#attribution) names for `plugins.<key>.path`, the owning layer when one declares it.                                                                     |
+| `layer`       | string           | `bundled`, `global`, or `project`: the layer whose file [config-file.md, attribution](config-file.md#attribution) names for `plugins.<key>.path`, the owning layer when one declares it.                                                         |
 | `configFile`  | string           | The `file` of that layer.                                                                                                                                                                                                                        |
 | `root`        | string or `null` | The absolute path the entry's `path` resolves to per [discovery](#discovery), whether or not a directory is there; `null` when the entry is malformed or names a remote or URL source.                                                           |
 | `plugin`      | object or `null` | The admitted plugin, per the next table; `null` when the candidate was skipped.                                                                                                                                                                  |
@@ -328,16 +329,19 @@ An MCP server is an object:
   this order: those of discovery ([plugin manifest](#plugin-manifest), [identity and namespace](#identity-namespace), [discovery](#discovery), [slash commands](#slash-commands) and [plugin context](#plugin-context)), in the order discovery produces them;
   those of catalog composition ([catalog composition](#catalog-composition)), in the order composition produces them; those of
   [plugin script listing](#script-listing).
-- The inventory's `diagnostics` holds the diagnostics of reading each layer
-  ([config-file.md, format](config-file.md#format) and [config-file.md, value substitution](config-file.md#value-substitution): a failed read or parse, a root that is no
-  object, unknown root keys, a failed substitution), then the diagnostic of a `plugins` value
-  that is not an object ([discovery](#discovery)). It holds no diagnostic about another root key's value, about
-  the layer directories' own agents and skills, about the `agents` override, or about an
-  environment value.
+- The inventory's `diagnostics` holds the diagnostic of an invalid `PI_DENT_BUNDLED_CONF`
+  ([config-file.md, layers](config-file.md#layers)), then the diagnostics of reading each layer in
+  merge order ([config-file.md, format](config-file.md#format) and
+  [config-file.md, value substitution](config-file.md#value-substitution): a failed read or parse,
+  a root that is no object, unknown root keys, a failed substitution), then the diagnostic of a
+  `plugins` value that is not an object ([discovery](#discovery)). It holds no diagnostic about
+  another root key's value, about the layer directories' own agents and skills, about the `agents`
+  override, or about any other environment value.
 - A message is the diagnostic's message without the `pi-dent: ` of its host report
   ([config-file.md, diagnostics](config-file.md#diagnostics)).
-- When both layers have the same `file`, as when `cwd` is the user's home directory, `layer` is
-  `project`.
+- When two layers have the same `file` (for example, when `cwd` is the user's home directory, or
+  `PI_DENT_BUNDLED_CONF` names the global or project file), `layer` is the highest-priority layer
+  with that `file` (`project` over `global` over `bundled`).
 
 ### 11.2 Plugin script listing {#script-listing}
 
