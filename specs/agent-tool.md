@@ -16,11 +16,13 @@ The extension MUST register the `Agent` tool through the host `registerTool` API
 | `parameters`  | The parameter schema of [parameter schema](#parameter-schema)                                                                                     |
 
 The base description MUST state the dispatch contract: the child session sees only its system
-prompt and `task` and returns its final answer; exactly one of a named definition or an inline
-`prompt` is given, with `resume` too; a foreground call blocks until the child finishes;
+prompt and `task` and returns its final answer; only `task` is required; `agent` names a
+definition of the agent catalog, `prompt` gives an ad-hoc agent's system prompt, neither gives the
+default prompt, and both are rejected; `model` is the only parameter that takes a model string and
+is optional; `agent` never takes a model; a foreground call blocks until the child finishes;
 `background: true` returns a task ID with automatic completion notification; `resume` continues
-a retained session in place, by its file path or by task ID; and children sharing a working
-directory share its files.
+a retained session in place, by its file path or by task ID, as the agent it last ran as unless
+`agent` or `prompt` is given; and children sharing a working directory share its files.
 
 The agent catalog MUST be baked once from the boot snapshot and stay unchanged for the boot
 window; when non-empty, the agent catalog lists its entries in agent catalog order, each entry
@@ -41,7 +43,9 @@ recovery attempts keep it.
 > description at the next `session_start`, such as a reload or a new session.
 
 `renderCall` MUST show the agent identity and the definition's `description` when
-present, falling back to `task`. `renderResult` MUST stream intermediate assistant text as
+present, falling back to `task`. The agent identity shown is the call's `agent`, else `dynamic`;
+for a `resume` call with neither `agent` nor `prompt`, it is the `agent` of the latest result or
+partial result of the call ([result contract](#result-contract)) once one exists, and `dynamic` before. `renderResult` MUST stream intermediate assistant text as
 it is produced and replace it with the final result text ([result contract](#result-contract)) at settlement. Visual
 layout is the renderer's own; only content is normative.
 
@@ -52,8 +56,8 @@ The parameter schema is a JSON object schema with `type: "object"` and
 
 | Field        | Type              | Contract                                                                                                                                                                                                                                                                |
 | ------------ | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent`      | string?           | The key of an agent definition in the agent catalog (static dispatch; [agent.md](agent.md)). Exactly one of `agent` or `prompt` MUST be provided.                                                                                                                       |
-| `prompt`     | string?           | Inline system prompt defining the agent at call time (dynamic dispatch); exclusive with `agent`.                                                                                                                                                                        |
+| `agent`      | string?           | The key of an agent definition in the agent catalog (static dispatch; [agent.md](agent.md)); exclusive with `prompt`.                                                                                                                                                   |
+| `prompt`     | string?           | Inline system prompt defining the agent at call time (dynamic dispatch); exclusive with `agent`. Default: the agent source of [dispatch plan](#dispatch-plan).                                                                                                          |
 | `task`       | string (required) | Task instructions; becomes the child's user message.                                                                                                                                                                                                                    |
 | `model`      | string?           | Model string ([model-string.md](model-string.md)) selecting the child's model and thinking; the call tier of [model and thinking](#model-thinking).                                                                                                                     |
 | `resume`     | string?           | In-place continuation: an absolute path to a retained `Agent` session `.jsonl`, or a task ID naming a task of the invoking session's own task registry ([continuation (`resume`)](#resume)).                                                                            |
@@ -76,9 +80,15 @@ The checks the schema cannot express MUST reject the call as a pre-start rejecti
 - `resume` that is a task ID ([task-registry.md, task row](task-registry.md#task-row)) naming no `agent`
   row of the invoking session's own task registry, or naming a row without `sessionPath`; the
   failure MUST carry the received value ([continuation (`resume`)](#resume)).
-- both `agent` and `prompt`, or neither.
+- both `agent` and `prompt`.
 - `agent` that names no entry in the agent catalog; the failure MUST list the available agent
   names in agent catalog order, joined by `", "` (`(none)` when the agent catalog is empty).
+  When the value is model-like, the failure MUST also state that the value is a model, that a
+  model is passed as `model`, and that `agent` is omitted for an ad-hoc agent. A value is
+  model-like when it contains `/` and parses as a concrete model string
+  ([model-string.md, grammar](model-string.md#grammar)), or parses as a class reference whose class
+  name is a key of the active `modelClasses` mapping
+  ([model-string.md, model classes](model-string.md#model-classes)); inventory membership is not checked.
 - `resume` that is not an absolute path; the failure MUST carry the received value.
 - `resume` whose path does not exist or cannot be examined; the failure text MUST name
   `PI_DENT_SESSION_TTL_DAYS` and its effective value in days ([retention sweep](#retention-sweep)), stating that the
@@ -87,14 +97,18 @@ The checks the schema cannot express MUST reject the call as a pre-start rejecti
   state that it is not a regular file, and MUST NOT name `PI_DENT_SESSION_TTL_DAYS`.
 - `resume` whose real path equals the real path of a session file held by a running dispatch of
   this process ([continuation (`resume`)](#resume)), so a symbolic link or a `..` segment does not hide a held file.
+- `resume` with neither `agent` nor `prompt` whose recorded agent source
+  ([continuation (`resume`)](#resume)) is an `agent` key that names no entry in the agent catalog;
+  the failure MUST name the key, state that `agent` or `prompt` is to be passed, and list the
+  available agent names as the unknown-`agent` check does.
 - The `cwd` check of [task.md, the `cwd` parameter](task.md#cwd-parameter).
 
 ## 2. Agent definitions {#agent-definitions}
 
 A dispatch is static or dynamic. A static dispatch resolves its agent from the agent catalog
 ([agent.md](agent.md)) by key; the catalog key is the agent identity. A dynamic dispatch
-defines its agent entirely by the call's `prompt` parameter and uses no definition; its agent
-identity is `dynamic`. The definition resource — file format, discovery, catalog composition, and
+defines its agent entirely by a system prompt ([dispatch plan](#dispatch-plan)) and uses no definition; its
+agent identity is `dynamic`. The definition resource — file format, discovery, catalog composition, and
 the `agents` configuration override — is owned by [agent.md](agent.md).
 
 ## 3. Dispatch plan {#dispatch-plan}
@@ -103,6 +117,18 @@ One dispatch plan MUST be resolved once per invocation, before the child starts,
 every attempt uses the same plan. The plan carries: agent identity, resolved cwd, effective tool
 cap, skill catalog, resolved model and thinking, system prompt, session policy, the dispatching
 session's identity, and its agent directory ([child session](#child-session)).
+
+The agent source of the plan is, first match winning: the call's `agent` (static dispatch); the
+call's `prompt`; for a `resume` dispatch, the recorded agent source of the source session file
+([continuation (`resume`)](#resume)), a recorded `agent` key resolving against the current agent catalog
+as a static dispatch and a recorded prompt used verbatim; else the default prompt. The default
+prompt is exactly:
+
+```text
+You are a general-purpose agent dispatched by another agent to carry out the task in the user message. Work autonomously with your tools, stay within the task's scope, and end with a complete report of what you did and found.
+```
+
+A dynamic dispatch's `prompt` is its agent source's prompt text.
 
 Plan resolution failures are typed errors carrying `failurePhase: "plan-resolution"` and a
 `failureCode` from the plan-resolution codes of [result contract](#result-contract).
@@ -563,9 +589,10 @@ and the default applies).
 
 ## 9. Continuation (`resume`) {#resume}
 
-`resume` continues a retained session; the source file MUST exist. A `resume` call MUST still
-name `agent` or `prompt`; the continued session takes its system prompt, tool cap, and skills from
-this call's plan, and the named agent can differ from the agent that created the source session.
+`resume` continues a retained session; the source file MUST exist. The continued session takes
+its system prompt, tool cap, and skills from this call's plan; a call that gives `agent` or
+`prompt` can name an agent other than the one that created the source session, and one that gives
+neither continues with the recorded agent source ([dispatch plan](#dispatch-plan)).
 
 `resume` MAY instead be a task ID, whose form is owned by [task-registry.md, task row](task-registry.md#task-row). A task ID MUST resolve to the `sessionPath` of the `agent` row of the invoking
 session's own task registry with that `taskId`; a resolved row that is `running` is left unchanged
@@ -589,11 +616,22 @@ adoption has moved it into that registry.
 
 The source session file records, as lines of JSON objects, the facts a continuation reads:
 
-| Persisted fact             | Source                                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------------ |
-| persisted model            | `provider` and `modelId` of the last entry of `type` `model_change`.                       |
-| persisted thinking         | `thinkingLevel` of the last entry of `type` `thinking_level_change` that is a valid level. |
-| recorded working directory | `cwd` of the last entry of `type` `session` that carries a string `cwd`.                   |
+| Persisted fact             | Source                                                                                                         |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| persisted model            | `provider` and `modelId` of the last entry of `type` `model_change`.                                           |
+| persisted thinking         | `thinkingLevel` of the last entry of `type` `thinking_level_change` that is a valid level.                     |
+| recorded working directory | `cwd` of the last entry of `type` `session` that carries a string `cwd`.                                       |
+| recorded agent source      | `data` of the last entry of `type` `custom` with `customType` `pi-dent-agent` whose `data` is an agent record. |
+
+An agent record is a JSON object with exactly one of a string `agent` (the agent catalog key) or a
+string `prompt` (the prompt text), or the empty object (the default prompt); an entry whose `data`
+is no agent record is skipped. A source with no agent record has the default prompt as its
+recorded agent source. Before the first prompt of every dispatch, once per dispatch, pi-dent MUST
+append to the child session file a host custom entry with `customType` `pi-dent-agent` and the
+plan's agent record as `data`: `{ "agent": <key> }` for a static dispatch, `{ "prompt": <text> }`
+when the agent source is a call's or a recorded prompt, `{}` for the default prompt; a `resume`
+dispatch whose agent record equals the source's last agent record appends none. The host keeps
+custom entries in the session file and out of the model's context.
 
 A line that is not a JSON object is skipped. The persisted model becomes a precedence tier
 ([model and thinking](#model-thinking)) unless superseded. Before the first prompt of a `resume` dispatch, when the plan's
@@ -772,6 +810,8 @@ Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
 - Cleanup of extension factory side effects when SDK session creation fails before session start.
 - The base description's wording is open: any wording that states every dispatch-contract fact
   listed in [tool registration surface](#registration) is allowed.
+- A recorded agent key whose definition's prompt changed since the record is used with the current
+  prompt; the record holds the key, not the text.
 - A `resume` of a session file held by a running dispatch of another process is not detected:
   only this process's running dispatches are checked ([parameter schema](#parameter-schema)).
 - Behavior when `resume` names a regular file that is not an `Agent` session file.
