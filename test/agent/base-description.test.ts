@@ -41,6 +41,12 @@ test("the Agent description states the dispatch contract of specs/agent-tool.md#
     "file path or by task ID",
     "working directory",
     "share",
+    "Only `task` is required",
+    "omit both",
+    "never give both",
+    "`model` is the only place for a model",
+    "`agent` never takes a model",
+    "as the agent it last ran as",
   ]) {
     assert.ok(description.includes(fact), `the description states ${fact}: ${description}`);
   }

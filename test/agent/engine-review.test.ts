@@ -711,69 +711,6 @@ test("an empty agent name over an empty catalog reports (none)", async () => {
   assert.ok(textOf(result).includes("Available agents: (none)"), textOf(result));
 });
 
-test("omitting both agent and prompt over an empty catalog directs the caller to prompt", async () => {
-  faux.setResponses([]);
-  const { root, sessionFile } = newRoot();
-  const host = makeHost(sessionFile, "main-id", root);
-  const engine = new DispatchEngine(
-    bootWith(),
-    () => undefined,
-    undefined,
-    undefined,
-    undefined,
-    engineDeps(),
-  );
-  const result = await engine.dispatch({
-    toolCallId: "call-1",
-    params: { task: "sleep 10" },
-    host,
-    cohortId: "cohort-1",
-  });
-  assert.equal(result.isError, true);
-  assert.ok(
-    textOf(result).includes("neither agent nor prompt") && textOf(result).includes("pass prompt"),
-    textOf(result),
-  );
-});
-
-test("omitting both agent and prompt over a populated catalog lists available agents", async () => {
-  faux.setResponses([]);
-  const { root, sessionFile } = newRoot();
-  const host = makeHost(sessionFile, "main-id", root);
-  const alpha: AgentDefinition = {
-    name: "alpha",
-    description: "first",
-    prompt: "alpha prompt",
-    source: "project",
-  };
-  const beta: AgentDefinition = {
-    name: "beta",
-    description: "second",
-    prompt: "beta prompt",
-    source: "project",
-  };
-  const engine = new DispatchEngine(
-    bootWith([alpha, beta]),
-    () => undefined,
-    undefined,
-    undefined,
-    undefined,
-    engineDeps(),
-  );
-  const result = await engine.dispatch({
-    toolCallId: "call-1",
-    params: { task: "go" },
-    host,
-    cohortId: "cohort-1",
-  });
-  assert.equal(result.isError, true);
-  assert.ok(
-    textOf(result).includes("neither agent nor prompt") &&
-      textOf(result).includes("available: alpha, beta"),
-    textOf(result),
-  );
-});
-
 test("providing both agent and prompt reports that both were provided", async () => {
   faux.setResponses([]);
   const { root, sessionFile } = newRoot();

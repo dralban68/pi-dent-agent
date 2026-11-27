@@ -68,12 +68,14 @@ import {
   type Descriptor,
   isThinkingLevel,
   ModelStringError,
+  parseModelString,
   resolveContextFromConfig,
   resolveModelString,
   serializeDescriptor,
   type ThinkingLevel,
   modelClassDiagnostics,
 } from "./model-string.ts";
+import { mergedObject } from "./config.ts";
 import { type FleetCoordinator, ownedElsewhereWarning, ownSessionWarning } from "./fleet.ts";
 import { AgentTaskRow, TaskRegistry, type TaskStatus, SPILL_THRESHOLD } from "./registry.ts";
 import type { SettleStatus } from "./task-row.ts";
@@ -255,6 +257,8 @@ export interface DispatchPlan {
   readonly thinking?: ThinkingLevel | undefined;
   readonly modelSource: "call" | "agent" | "persisted" | "inherited";
   readonly previousModel?: string | undefined;
+  /** The agent record the dispatch appends to its session file (specs/agent-tool.md#resume). */
+  readonly agentRecord: AgentRecord;
   readonly sessionPolicy:
     | { readonly kind: "persistent" }
     | {
@@ -264,6 +268,7 @@ export interface DispatchPlan {
         /** Persisted facts read at plan time, before the dispatch appends anything (specs/agent-tool.md#resume). */
         readonly persistedModel?: { readonly provider: string; readonly id: string } | undefined;
         readonly persistedThinking?: ThinkingLevel | undefined;
+        readonly persistedAgent?: AgentRecord | undefined;
       };
   readonly task: string;
   readonly descriptor: Descriptor;
@@ -601,11 +606,36 @@ function hasToolCall(content: AssistantMessage["content"]): boolean {
   return content.some((block) => block.type === "toolCall");
 }
 
+/** The default prompt of a dynamic dispatch with no other agent source (specs/agent-tool.md#dispatch-plan). */
+export const DEFAULT_AGENT_PROMPT =
+  "You are a general-purpose agent dispatched by another agent to carry out the task in the user message. Work autonomously with your tools, stay within the task's scope, and end with a complete report of what you did and found.";
+
+/** The `customType` of the agent record entry (specs/agent-tool.md#resume). */
+export const AGENT_RECORD_TYPE = "pi-dent-agent";
+
+/** An agent record: a catalog key, a prompt text, or neither for the default prompt. */
+export type AgentRecord = { agent: string } | { prompt: string } | Record<string, never>;
+
+function toAgentRecord(data: unknown): AgentRecord | undefined {
+  if (!isPlainObject(data)) return undefined;
+  const keys = Object.keys(data);
+  if (keys.length === 0) return {};
+  if (keys.length !== 1) return undefined;
+  if (typeof data.agent === "string") return { agent: data.agent };
+  if (typeof data.prompt === "string") return { prompt: data.prompt };
+  return undefined;
+}
+
+function sameAgentRecord(a: AgentRecord | undefined, b: AgentRecord): boolean {
+  return a !== undefined && JSON.stringify(a) === JSON.stringify(b);
+}
+
 /** Persisted session facts read from a retained session file. */
 interface PersistedSession {
   cwd?: string;
   model?: { provider: string; id: string };
   thinking?: ThinkingLevel;
+  agent?: AgentRecord;
 }
 
 function readPersistedSession(path: string): PersistedSession | undefined {
@@ -639,6 +669,10 @@ function readPersistedSession(path: string): PersistedSession | undefined {
       isThinkingLevel(entry.thinkingLevel)
     ) {
       result.thinking = entry.thinkingLevel;
+    }
+    if (entry.type === "custom" && entry.customType === AGENT_RECORD_TYPE) {
+      const record = toAgentRecord(entry.data);
+      if (record !== undefined) result.agent = record;
     }
   }
   return result;
@@ -1477,7 +1511,8 @@ export class DispatchEngine {
     let params = call.params;
     // The registry registered into, kept even if the session's registry is replaced.
     const registry = this.registry;
-    const agentIdentity = params.agent ?? "dynamic";
+    // Reassigned when a `resume` with neither agent nor prompt takes its recorded agent key.
+    let agentIdentity = params.agent ?? "dynamic";
     const definition = params.agent ? this.boot.agentIndex.get(params.agent) : undefined;
     // One row per invocation, registered before execution begins (specs/agent-tool.md#invocation-lifecycle);
     // registration into a registry that is not live fails the invocation
@@ -1570,6 +1605,17 @@ export class DispatchEngine {
     }
 
     const validation = this.validateParams(params, host);
+    if ("inherited" in validation && validation.inherited !== undefined) {
+      // A `resume` with neither agent nor prompt continues as its recorded agent source
+      // (specs/agent-tool.md#dispatch-plan); the default prompt needs no rewrite.
+      const inherited = validation.inherited;
+      if ("agent" in inherited) {
+        agentIdentity = inherited.agent;
+        params = { ...params, agent: inherited.agent };
+      } else if ("prompt" in inherited) {
+        params = { ...params, prompt: inherited.prompt };
+      }
+    }
     if ("error" in validation) return rejection(validation.error);
 
     // A dispatch with no live main session has no tool cap and fails the
@@ -1641,7 +1687,7 @@ export class DispatchEngine {
     );
 
     registry.amend(row, {
-      label: rowLabel(plan.agent, definition, plan.task),
+      label: rowLabel(plan.agent, this.boot.agentIndex.get(plan.agent), plan.task),
       agent: plan.agent,
       model: plan.modelLabel,
     });
@@ -1699,30 +1745,58 @@ export class DispatchEngine {
   private validateParams(
     params: AgentToolParams,
     host: HostSession | undefined,
-  ): { error: string } | { cwd: string | undefined } {
+  ):
+    | { error: string; inherited?: AgentRecord | undefined }
+    | { cwd: string | undefined; inherited?: AgentRecord | undefined } {
     const error = this.validateParamValues(params);
     if (error !== undefined) return { error };
-    if (host === undefined) return { cwd: undefined };
-    return resolveCwdParam(params.cwd, host.cwd());
+    let inherited: AgentRecord | undefined;
+    if (params.resume !== undefined && params.agent === undefined && params.prompt === undefined) {
+      inherited = readPersistedSession(params.resume)?.agent ?? {};
+      if ("agent" in inherited && !this.boot.agentIndex.has(inherited.agent)) {
+        return {
+          error: `the resumed session last ran as agent "${inherited.agent}", which is no longer in the agent catalog; pass agent or prompt. Available agents: ${this.availableAgents()}`,
+          inherited,
+        };
+      }
+    }
+    if (host === undefined) return { cwd: undefined, inherited };
+    return { ...resolveCwdParam(params.cwd, host.cwd()), inherited };
+  }
+
+  private availableAgents(): string {
+    const available = this.boot.agents.map((agent) => agent.name);
+    return available.length > 0 ? available.join(", ") : "(none)";
+  }
+
+  /**
+   * Whether an unknown `agent` value is model-like (specs/agent-tool.md#parameter-schema): a
+   * concrete model string, or a class reference naming a `modelClasses` key.
+   */
+  private isModelLike(value: string): boolean {
+    let parsed: ReturnType<typeof parseModelString>;
+    try {
+      parsed = parseModelString(value);
+    } catch (error) {
+      if (error instanceof ModelStringError) return false;
+      throw error;
+    }
+    if (parsed.selector.kind === "concrete") return value.includes("/");
+    const classes = mergedObject(this.boot.config, "modelClasses");
+    return classes !== undefined && Object.hasOwn(classes, parsed.selector.name);
   }
 
   private validateParamValues(params: AgentToolParams): string | undefined {
     const hasAgent = params.agent !== undefined;
     const hasPrompt = params.prompt !== undefined;
     if (hasAgent && hasPrompt) {
-      return "both agent and prompt were provided; pass exactly one of agent or prompt";
-    }
-    if (!hasAgent && !hasPrompt) {
-      const available = this.boot.agents.map((agent) => agent.name);
-      return available.length > 0
-        ? `neither agent nor prompt was provided; pass either agent (available: ${available.join(", ")}) or prompt (inline system prompt)`
-        : "neither agent nor prompt was provided; no named agents are configured, so pass prompt (inline system prompt)";
+      return "both agent and prompt were provided; pass agent for a named definition, prompt for an ad-hoc agent, or neither for a general-purpose agent";
     }
     if (params.agent !== undefined && !this.boot.agentIndex.has(params.agent)) {
-      const available = this.boot.agents.map((agent) => agent.name);
-      return `unknown agent "${params.agent}". Available agents: ${
-        available.length > 0 ? available.join(", ") : "(none)"
-      }`;
+      const hint = this.isModelLike(params.agent)
+        ? ` "${params.agent}" is a model, not an agent: pass it as model, and omit agent for an ad-hoc agent.`
+        : "";
+      return `unknown agent "${params.agent}".${hint} Available agents: ${this.availableAgents()}`;
     }
     if (params.resume !== undefined) {
       if (!isAbsolute(params.resume)) {
@@ -1767,11 +1841,13 @@ export class DispatchEngine {
     const tools = planToolCap ?? host.activeTools();
 
     const definition = params.agent ? this.boot.agentIndex.get(params.agent) : undefined;
-    const prompt = definition?.prompt ?? params.prompt;
-    if (prompt === undefined) {
-      // Unreachable after validateParams; guarded so no cast is needed.
-      throw planError("invalid-plan", "exactly one of agent or prompt must be provided");
-    }
+    // Agent source (specs/agent-tool.md#dispatch-plan); a recorded one was folded into params.
+    const prompt = definition?.prompt ?? params.prompt ?? DEFAULT_AGENT_PROMPT;
+    const agentRecord: AgentRecord = definition
+      ? { agent: definition.name }
+      : params.prompt === undefined
+        ? {}
+        : { prompt: params.prompt };
 
     let cwd = resolvedCwd;
 
@@ -1788,6 +1864,7 @@ export class DispatchEngine {
         cwdOverride: cwd,
         persistedModel: persisted?.model,
         persistedThinking: persisted?.thinking,
+        persistedAgent: persisted?.agent,
       };
     }
     if (cwd === undefined) {
@@ -1923,6 +2000,7 @@ export class DispatchEngine {
     return {
       agent: definition ? definition.name : "dynamic",
       prompt,
+      agentRecord,
       cwd,
       tools,
       // Skills follow the tool cap: no `Skill` in the cap, no skills (specs/agent-tool.md#skills).
@@ -2183,6 +2261,14 @@ export class DispatchEngine {
       // A continuation records the model and thinking it runs with, so a later
       // `resume` without them continues what the session last ran with (specs/agent-tool.md#resume).
       // Once per dispatch: a recovery attempt continues this same file.
+      // The agent source a later `resume` with neither agent nor prompt continues with
+      // (specs/agent-tool.md#resume); once per dispatch, only when it changed.
+      if (
+        plan.sessionPolicy.kind === "persistent" ||
+        !sameAgentRecord(plan.sessionPolicy.persistedAgent, plan.agentRecord)
+      ) {
+        manager.appendCustomEntry(AGENT_RECORD_TYPE, plan.agentRecord);
+      }
       if (plan.sessionPolicy.kind === "resume") {
         const persistedModel = plan.sessionPolicy.persistedModel;
         const sameModel =

@@ -20,7 +20,7 @@ import {
   type SessionUsageReport,
 } from "./task-ledger-wiring.ts";
 import { type SkillEntry, catalogLine } from "./catalogs.ts";
-import { errorCode, errorMessage, firstLine, shortenSessionDir } from "./util.ts";
+import { errorCode, errorMessage, firstLine, isPlainObject, shortenSessionDir } from "./util.ts";
 import {
   relativeSegments,
   resolveContainedPath,
@@ -51,11 +51,11 @@ import {
  */
 
 export const AGENT_PROMPT_SNIPPET =
-  "Dispatch an isolated child Agent (requires task plus exactly one of agent or prompt)";
+  "Dispatch an isolated child Agent (only task is required; agent, prompt and model are optional)";
 
-const AGENT_BASE_DESCRIPTION = `Dispatch one agent: an isolated child session with its own context window and session file. Required: \`task\`, plus exactly one of \`agent\` (a named definition from Available agents) or \`prompt\` (an inline system prompt) — never both, never neither, and required with \`resume\` too.
+const AGENT_BASE_DESCRIPTION = `Dispatch one agent: an isolated child session with its own context window and session file. Only \`task\` is required. \`agent\` picks a named definition from Available agents; \`prompt\` sets an ad-hoc agent's system prompt; omit both for a general-purpose agent, never give both. \`model\` is the only place for a model id or model class, and is optional; \`agent\` never takes a model.
 
-The child sees only its system prompt and \`task\`, nothing of this conversation, and returns its final answer. A foreground call blocks until the child finishes. \`background: true\` returns a task ID at once; a completion notification follows when every background task launched by the same message has settled — in a user session, prefer \`background: true\` and end your turn so you do not block user input. \`resume\` continues a retained session file in place, by its file path or by task ID.
+The child sees only its system prompt and \`task\`, nothing of this conversation, and returns its final answer. A foreground call blocks until the child finishes. \`background: true\` returns a task ID at once; a completion notification follows when every background task launched by the same message has settled — in a user session, prefer \`background: true\` and end your turn so you do not block user input. \`resume\` continues a retained session file in place, by its file path or by task ID, as the agent it last ran as unless \`agent\` or \`prompt\` is given.
 
 Children that share a working directory share its files and Git state.`;
 
@@ -79,14 +79,14 @@ export const agentParameterSchema = Type.Object(
       Type.String({
         pattern: "\\S",
         description:
-          "Required unless `prompt` is set; exclusive with `prompt`. Name of an agent definition listed under Available agents (if none are listed, omit `agent` and pass `prompt`). Non-blank.",
+          "Name of an agent definition listed under Available agents; omit for an ad-hoc agent. Never a model id: models go in `model`. Exclusive with `prompt`.",
       }),
     ),
     prompt: Type.Optional(
       Type.String({
         pattern: "\\S",
         description:
-          "Required unless `agent` is set; exclusive with `agent`. Inline system prompt defining the agent's role and instructions at call time. Non-blank.",
+          "System prompt of an ad-hoc agent; omitted, a general-purpose default. Exclusive with `agent`.",
       }),
     ),
     task: Type.String({
@@ -97,14 +97,14 @@ export const agentParameterSchema = Type.Object(
       Type.String({
         pattern: "\\S",
         description:
-          "The child's model and thinking for this call: provider/id[:<thinking-level>] or a model class. Overrides the agent definition; omitted, the agent definition's model applies, else this session's. Non-blank.",
+          "Optional; the only parameter for a model: provider/id[:<thinking-level>] or a model class. Omitted: the agent definition's model, else the resumed session's, else this session's.",
       }),
     ),
     resume: Type.Optional(
       Type.String({
         pattern: "\\S",
         description:
-          "Absolute path to a retained Agent session .jsonl, or a task ID; `task` continues that session. Still requires exactly one of `agent` or `prompt`. Non-blank.",
+          "Absolute path to a retained Agent session .jsonl, or a task ID; `task` continues that session as the agent it last ran as, unless `agent` or `prompt` is given.",
       }),
     ),
     cwd: Type.Optional(
@@ -283,6 +283,8 @@ function textError(message: string): ToolResult {
 
 /** Live result panel components keyed by tool-call id (renderer state fallback). */
 const resultPanels = new Map<string, Text>();
+/** The plan's agent identity per tool call, from its latest result (bounded like resultPanels). */
+const resultAgents = new Map<string, string>();
 
 /**
  * The main session's `Agent` registration (specs/agent-tool.md#registration): registered
@@ -340,16 +342,34 @@ export function makeAgentTool(deps: AgentToolDeps) {
     // The host already separates tool blocks with a blank line, so the
     // components carry no vertical padding of their own.
     renderCall(args: AgentToolParams, _theme, context) {
-      const identity = args.agent ?? "dynamic";
-      const definition = args.agent ? deps.boot.agentIndex.get(args.agent) : undefined;
-      const subtitle =
-        definition?.description ?? (typeof args.task === "string" ? firstLine(args.task, 500) : "");
-      return new TruncatedText(
-        subtitle ? `Agent ${identity} — ${shortenSessionDir(subtitle)}` : `Agent ${identity}`,
-        context.outputPad,
-      );
+      const toolCallId = context.toolCallId;
+      const pad = context.outputPad;
+      // The identity of a `resume` call with neither agent nor prompt is the plan's, known
+      // from its first (partial) result; read at render time (specs/agent-tool.md#registration).
+      const line = (): string => {
+        const inherited =
+          args.agent === undefined && args.prompt === undefined && args.resume !== undefined;
+        const identity =
+          args.agent ?? (inherited ? (resultAgents.get(toolCallId) ?? "dynamic") : "dynamic");
+        const definition = deps.boot.agentIndex.get(identity);
+        const subtitle =
+          definition?.description ??
+          (typeof args.task === "string" ? firstLine(args.task, 500) : "");
+        return subtitle
+          ? `Agent ${identity} — ${shortenSessionDir(subtitle)}`
+          : `Agent ${identity}`;
+      };
+      return {
+        render: (width: number) => new TruncatedText(line(), pad).render(width),
+        invalidate: () => {},
+      };
     },
     renderResult(result: ToolResult, _options, _theme, context) {
+      const agent: unknown = isPlainObject(result.details) ? result.details.agent : undefined;
+      if (typeof agent === "string") {
+        if (resultAgents.size >= 64) resultAgents.clear();
+        resultAgents.set(context.toolCallId, agent);
+      }
       const first = result.content[0];
       const text = first?.type === "text" ? first.text : "";
       let panel = resultPanels.get(context.toolCallId);

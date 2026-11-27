@@ -67,7 +67,7 @@ test("schema: a blank cwd is admitted; the tool treats it as absent (specs/agent
   }
 });
 
-test("schema: exactly one of agent and prompt is cross-field, so the tool keeps it (specs/agent-tool.md#parameter-schema)", () => {
+test("schema: both agent and prompt is a cross-field check, so the tool keeps it (specs/agent-tool.md#parameter-schema)", () => {
   const base = { task: "go" };
   assert.equal(Value.Check(agentParameterSchema, { ...base, agent: "a", prompt: "p" }), true);
   assert.equal(Value.Check(agentParameterSchema, base), true);

@@ -75,7 +75,7 @@ Specs: [model-string.md, resolution](../specs/model-string.md#resolution);
 ```text
 dispatch (one `Agent` call of the dispatching session, itself a main session or a child session)
 ├─ its agent: static dispatch ─> agent definition, by key from the agent catalog
-│             dynamic dispatch ─> the call's prompt, no definition
+│             dynamic dispatch ─> the call's prompt, a resume's recorded one, or the default; no definition
 ├─ dispatch plan (resolved once, then frozen; every attempt uses it)
 └─ child session (in-process, one session file)
    └─ attempt, then recovery attempts in the same child session ──> final answer ──> caller
