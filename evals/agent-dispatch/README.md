@@ -18,6 +18,8 @@ Scenarios are the exact strings in `run.ts`: ad-hoc with a model, ad-hoc without
 
 Repeat the original options and add `--resume /absolute/path/results.json`. Completed job keys are not repeated. Atomic, serialized checkpoints preserve completed runs; an in-flight job interrupted before checkpointing runs again. Extension, model selection, scenarios, repetitions and child models must match. Do not change the extension build during an invocation or resume.
 
+To change the model selection or repetition count without repeating collected work, start a new invocation with `--seed /absolute/path/results.json`. Matching model/scenario/repetition keys are imported; the source remains untouched. Seed options must match the extension path and scenario wording. Build identity is not hashed: keep the checkout unchanged. Imported unavailable slots still suppress further requests for that model.
+
 After a model's first unscored run, pending jobs for that model are recorded as unscored without executing. Up to two probes can already be in flight at concurrency two. This avoids repeated requests to unavailable or non-tool models. Skipped slots have an empty `dir` and retain the triggering reason. Totals count planned slots, not just launched processes.
 
 ## Reading results

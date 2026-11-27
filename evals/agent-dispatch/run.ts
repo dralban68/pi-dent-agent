@@ -293,7 +293,31 @@ function isRun(value: unknown): value is Run {
     Array.isArray(r.calls)
   );
 }
-const runs: Run[] = Array.isArray(saved.runs) ? saved.runs.filter(isRun) : [];
+const seedPath = options.get("seed");
+const seed = seedPath ? object(JSON.parse(await readFile(resolve(seedPath), "utf8"))) : {};
+if (
+  seedPath &&
+  (seed.extension !== extension ||
+    seed.childModel !== childModel ||
+    seed.alternateModel !== alternateModel ||
+    JSON.stringify(seed.scenarios) !== JSON.stringify(scenarios))
+)
+  throw new Error("Seed build or scenario options differ");
+if (seedPath && (!Array.isArray(seed.runs) || !seed.runs.every(isRun)))
+  throw new Error("Invalid seed runs");
+const imported = Array.isArray(seed.runs)
+  ? seed.runs
+      .filter(isRun)
+      .filter(
+        (r) =>
+          models.includes(r.model) && selected.includes(r.scenario) && r.repetition <= repetitions,
+      )
+  : [];
+if (seedPath)
+  console.error(
+    `Imported ${imported.length} matching run slots from ${seed.runs instanceof Array ? seed.runs.length : 0} seed slots; other slots remain in the seed file.`,
+  );
+const runs: Run[] = Array.isArray(saved.runs) ? saved.runs.filter(isRun) : imported;
 if (Array.isArray(saved.runs) && saved.runs.length !== runs.length)
   throw new Error("Invalid saved run");
 const metadata = {
@@ -307,6 +331,7 @@ const metadata = {
   repetitions,
   modelSelection: options.get("models"),
   providerExtensions,
+  seedPath: seedPath ?? saved.seedPath ?? null,
 };
 let saving = Promise.resolve();
 function save() {
