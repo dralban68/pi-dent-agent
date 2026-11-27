@@ -705,10 +705,15 @@ recorded agent source. A dispatch's continuation records are, in this order:
    `{ "agent": <key> }` for a static dispatch, `{ "prompt": <text> }` when the agent source is a
    call's or a recorded prompt, `{}` for the default prompt; a `resume` dispatch whose agent
    record equals the source's last agent record has none;
-2. on a `resume` dispatch whose plan's model differs from the persisted model, or whose source has
-   none, a `model_change` entry for the plan's model;
-3. on a `resume` dispatch whose run level ([model and thinking](#model-thinking)) differs from the persisted
-   thinking, a `thinking_level_change` entry for the run level.
+2. on a `resume` dispatch, a `model_change` entry for the plan's model, unless the file's last
+   `model_change` at that point already names it;
+3. on a `resume` dispatch, a `thinking_level_change` entry for the run level
+   ([model and thinking](#model-thinking)), unless the file's last `thinking_level_change` at that point
+   already holds it.
+
+> Note (non-normative): when a run starts, the host itself records a level the file does not imply
+> after clamping, but keeps a requested level it clamped; the comparison with the file as it then
+> stands avoids a duplicate and replaces a clamped request with the level that ran.
 
 pi-dent MUST append them once per dispatch, when the child session records the dispatch's first
 user message, so that in the session file they are the entries immediately before that message.
