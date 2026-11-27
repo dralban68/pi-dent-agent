@@ -382,7 +382,8 @@ Its text is one block per record, blocks in record order:
    not `null`, and `; stale` when `stale` is `true`;
 2. per balance item: two spaces, `balance <amount> <currency> <severity>`, `amount` in decimal
    rendering to 2 places;
-3. per limit window: two spaces, `limit <label>: <percent>%`, then ` (<used>/<limit> <unit>)`
+3. per limit window: two spaces, `limit <label>: <percent>%`, then ` used` when `percent` is not
+   `null`, then ` (<used>/<limit> <unit>)`
    when `used` is not `null` (`<unit>` being the window's `currency` when `unit` is `currency`,
    and ` <unit>` omitted when that is `null`), then `; resets <second stamp>` when `resetsAt` is
    not `null`, then `; for <models>` when `models` is not `null` and not empty, then

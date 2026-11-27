@@ -554,9 +554,9 @@ test("billing report: records, sanitization, filters, and text", () => {
     [
       "anthropic: critical; status partial; reason http-429; plan Max b5x/b; captured 2026-05-12T20:00:30Z (2026-05-12T22:00:30+02:00); stale",
       "  balance 12.35 USD low",
-      "  limit 5 hourwindow: 12.3% (0.123/1 percent); resets 2026-05-12T23:00:00Z (2026-05-13T01:00:00+02:00); for claude-opus-4-5,ok:v1/2; low",
-      "  limit ?: ?% (1/10 USD); ok",
-      "  limit 5 hour: 50%; critical",
+      "  limit 5 hourwindow: 12.3% used (0.123/1 percent); resets 2026-05-12T23:00:00Z (2026-05-13T01:00:00+02:00); for claude-opus-4-5,ok:v1/2; low",
+      "  limit ?: ? (1/10 USD); ok",
+      "  limit 5 hour: 50% used; critical",
       "  anthropic/claude-haiku-4-5: $1/$5, cache $?/$?; ok",
       "  anthropic/claude-opus-4-5: $5/$25, cache $?/$?, ×0.5 from 2026-05-13T01:00:00Z (2026-05-13T03:00:00+02:00); ok",
     ].join("\n"),
@@ -676,8 +676,8 @@ test("report limit line: usage with a missing limit, and the models of a scoped 
   );
   const report = buildBillingReport({ zone: "UTC", entries: new Map([["p", e]]) }, ["p"], []);
   assert.deepEqual(billingReportText(must(report)).split("\n").slice(1), [
-    "  limit 5 hour: ?% (12.5/? percent); for a,b; critical",
-    "  limit 5 hour: 5%; resets 2026-05-12T23:00:00Z (2026-05-12T23:00:00+00:00); critical",
-    "  limit 5 hour: 0% (0/0); critical",
+    "  limit 5 hour: ? (12.5/? percent); for a,b; critical",
+    "  limit 5 hour: 5% used; resets 2026-05-12T23:00:00Z (2026-05-12T23:00:00+00:00); critical",
+    "  limit 5 hour: 0% used (0/0); critical",
   ]);
 });

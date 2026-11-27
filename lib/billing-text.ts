@@ -420,7 +420,8 @@ function reportModelLine(m: ReportModel, zone: string): string {
 }
 
 function reportLimitLine(w: ReportLimit, zone: string): string {
-  let line = `  limit ${w.label ?? "?"}: ${decimalOrQuestion(w.percent, 1)}%`;
+  const percent = decimalOrQuestion(w.percent, 1);
+  let line = `  limit ${w.label ?? "?"}: ${w.percent === null ? percent : `${percent}% used`}`;
   if (w.used !== null) {
     const unit = w.unit === "currency" ? w.currency : w.unit;
     line += ` (${decimal(w.used, 3)}/${decimalOrQuestion(w.limit, 3)}${unit === null ? "" : ` ${unit}`})`;

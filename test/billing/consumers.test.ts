@@ -390,7 +390,7 @@ test("Session: the report query, details.billing, and the billing text", async (
   );
   assert.ok(
     text.includes(
-      "anthropic: critical; status ok; plan Max; captured 2026-05-12T20:00:30Z (2026-05-12T20:00:30+00:00)\n  limit 5 hour: 90% (90/100 percent); critical\n  anthropic/opus: $5/$25, cache $?/$?; ok\ngoogle: unknown; status ok; plan Max; captured",
+      "anthropic: critical; status ok; plan Max; captured 2026-05-12T20:00:30Z (2026-05-12T20:00:30+00:00)\n  limit 5 hour: 90% used (90/100 percent); critical\n  anthropic/opus: $5/$25, cache $?/$?; ok\ngoogle: unknown; status ok; plan Max; captured",
     ),
   );
   assert.ok(!text.includes("["), "no annotation brackets in the Session text");
