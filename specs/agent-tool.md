@@ -29,8 +29,8 @@ a retained session in place, by its file path or by task ID, as the agent it las
 The schema's description of `model` MUST state that a model string without a thinking suffix runs
 at the level thinking precedence ([model and thinking](#model-thinking)) gives it — a class mapping's level,
 else the persisted thinking on the persisted model, else the dispatching session's thinking on its
-own model, else none, which is the host's default level on a fresh dispatch and `off` on a
-continuation — and that a caller that wants a level writes the suffix. The schema's description of
+own model, else the default level for the model, fresh or resumed — and that a caller that wants a
+level writes the suffix. The schema's description of
 `resume` MUST state where the task ID is given, as the base description does.
 
 The agent catalog MUST be baked once from the boot snapshot and stay unchanged for the boot
@@ -237,11 +237,22 @@ call  >  agent model (static only)  >  persisted (resume source)  >  dispatching
 - Thinking precedence: the selected tier's resolved descriptor thinking
   ([model-string.md, thinking precedence](model-string.md#thinking-precedence)) > the persisted thinking (when the selected
   model matches the persisted `provider/id`) > the dispatching session's thinking (when the
-  selected model matches its `provider/id`) > absent (the run sets no level, so a fresh child
-  session runs at the host's own default level; a continuation records it as `off`,
-  [continuation (`resume`)](#resume)). The result is the effective thinking level. Support for the level is checked when a model string resolves
+  selected model matches its `provider/id`) > absent. The result is the effective thinking level. Support for the level is checked when a model string resolves
   ([model-string.md, thinking precedence](model-string.md#thinking-precedence)); a level taken from the persisted
   thinking or the dispatching session is not checked.
+- The run level is the level the child session runs at: the effective thinking level when
+  present, else the default level for the plan's model, on a fresh and on a `resume` dispatch
+  alike. The default level is the child's settings' per-model thinking level for
+  `<provider>/<modelId>` (`modelThinkingLevels`), else their `defaultThinkingLevel`, else
+  `medium`, then clamped to the levels the model supports
+  ([model-string.md, thinking precedence](model-string.md#thinking-precedence)): the level itself when supported, else
+  the next higher supported level, else the next lower one. A `resume` dispatch MUST start its
+  child session at the run level; for a fresh dispatch with an absent effective level the host
+  applies this default itself.
+
+  > Note (non-normative): the host reopens a session file at its last recorded level, whatever
+  > model recorded it, so a continuation left without a level would replay the old model's level.
+
 - While model guidance is active, plan resolution applies the dispatch restriction of
   [model-guidance.md, dispatch restriction](model-guidance.md#dispatch-restriction).
 - The `model` value MUST be the canonical serialization ([model-string.md, canonical serialization](model-string.md#serialization)) of the resolved model with its effective thinking level. The result MUST record
@@ -683,9 +694,9 @@ custom entries in the session file and out of the model's context.
 A line that is not a JSON object is skipped. The persisted model becomes a precedence tier
 ([model and thinking](#model-thinking)) unless superseded. Before the first prompt of a `resume` dispatch, when the plan's
 model differs from the persisted model, or the source has none, pi-dent MUST append a `model_change`
-entry for the plan's model to the source session file; when the plan's thinking differs from the
-persisted thinking, a `thinking_level_change` entry for it, `off` when the plan's thinking is
-absent. A later `resume` so continues with the model and thinking the session last ran with. The
+entry for the plan's model to the source session file; when the run level
+([model and thinking](#model-thinking)) differs from the persisted thinking, a `thinking_level_change` entry for
+the run level. A later `resume` so continues with the model and thinking the session last ran with. The
 continuation appends to the source session file in place
 under its existing session ID: history is never copied and never rewritten, and later `resume`
 calls on the same path continue the same lineage. A concurrent `resume` check MUST follow [parameter schema](#parameter-schema). The `cwd` override
