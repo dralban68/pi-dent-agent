@@ -54,9 +54,11 @@ recovery attempts keep it.
 `renderCall` MUST show the agent identity and the definition's `description` when
 present, falling back to `task`. The agent identity shown is the call's `agent`, else `dynamic`;
 for a `resume` call with neither `agent` nor `prompt`, it is the plan's agent identity once the
-call has a result or a partial result, and `dynamic` before. `renderResult` MUST stream intermediate assistant text as
+call has a result or a partial result, and `dynamic` before; once shown, it MUST stay for as long
+as the host keeps the call's rendered row, however many other calls render meanwhile. `renderResult` MUST stream intermediate assistant text as
 it is produced and replace it with the final result text ([result contract](#result-contract)) at settlement;
-it MUST NOT show the continuation line ([result contract](#result-contract)). Visual
+it MUST NOT show the continuation line of a result whose `details.continuation` is `true`
+([result contract](#result-contract)), and MUST show the text of any other result whole. Visual
 layout is the renderer's own; only content is normative.
 
 ### 1.1 Parameter schema {#parameter-schema}
@@ -105,6 +107,11 @@ The checks the schema cannot express MUST reject the call as a pre-start rejecti
   state that it is not a regular file, and MUST NOT name `PI_DENT_SESSION_TTL_DAYS`.
 - `resume` whose real path equals the real path of a session file held by a running dispatch of
   this process ([continuation (`resume`)](#resume)), so a symbolic link or a `..` segment does not hide a held file.
+- `resume` whose session file cannot be read to its end; the failure text MUST be
+  `resume source cannot be read: <path>: <error>`, `<path>` being the resolved source path and
+  `<error>` the read error's message. pi-dent reads the persisted facts
+  ([continuation (`resume`)](#resume)) for this check, and a read failure is never taken for a file
+  without records.
 - `resume` with neither `agent` nor `prompt` whose recorded agent source
   ([continuation (`resume`)](#resume)) is an `agent` key that names no entry in the agent catalog;
   the failure MUST name the key, state that `agent` or `prompt` is to be passed, and list the
@@ -240,22 +247,23 @@ call  >  agent model (static only)  >  persisted (resume source)  >  dispatching
   selected model matches its `provider/id`) > absent. The result is the effective thinking level. Support for the level is checked when a model string resolves
   ([model-string.md, thinking precedence](model-string.md#thinking-precedence)); a level taken from the persisted
   thinking or the dispatching session is not checked.
-- The run level is the level the child session runs at: the effective thinking level when
-  present, else the default level for the plan's model, on a fresh and on a `resume` dispatch
-  alike. The default level is the child's settings' per-model thinking level for
-  `<provider>/<modelId>` (`modelThinkingLevels`), else their `defaultThinkingLevel`, else
-  `medium`, then clamped to the levels the model supports
+- The effective thinking level is a selection; the run level is the level the child session
+  runs at. The run level is the effective thinking level when present, else the default level
+  for the plan's model, then clamped to the levels the model supports
   ([model-string.md, thinking precedence](model-string.md#thinking-precedence)): the level itself when supported, else
-  the next higher supported level, else the next lower one. A `resume` dispatch MUST start its
-  child session at the run level; for a fresh dispatch with an absent effective level the host
-  applies this default itself.
+  the next higher supported level, else the next lower one. The default level is the child's
+  settings' per-model thinking level for `<provider>/<modelId>` (`modelThinkingLevels`), else
+  their `defaultThinkingLevel`, else `medium`; the child's settings are those of the plan's
+  working directory ([compaction and session policy](#compaction)). A `resume` dispatch MUST start its child
+  session at the run level, resolved with the plan. A fresh dispatch passes the host the effective
+  thinking level, or none when it is absent, and the host applies the same default and clamp.
 
   > Note (non-normative): the host reopens a session file at its last recorded level, whatever
   > model recorded it, so a continuation left without a level would replay the old model's level.
 
 - While model guidance is active, plan resolution applies the dispatch restriction of
   [model-guidance.md, dispatch restriction](model-guidance.md#dispatch-restriction).
-- The `model` value MUST be the canonical serialization ([model-string.md, canonical serialization](model-string.md#serialization)) of the resolved model with its effective thinking level. The result MUST record
+- The `model` value MUST be the canonical serialization ([model-string.md, canonical serialization](model-string.md#serialization)) of the resolved model with, on a `resume` dispatch, its run level and, on a fresh dispatch, its effective thinking level. The result MUST record
   `model`, `modelSource` (`call|agent|persisted|inherited`, where `inherited` is the
   dispatching-session tier), and `previousModel`, as `<provider>/<modelId>` with no thinking
   suffix, when a continuation's persisted model was superseded.
@@ -526,13 +534,18 @@ one record with no attempt (`status: "failed"`, `stopReason: "error"`, empty usa
 
 - Success: `content[0].text` is the final assistant text (or `"(no output)"`); `isError` unset.
 - Error: `isError: true`; text is `Agent <stopReason>: <message>` with the message fallback
-  chain attempt error message → final assistant text → `<stopReason>`, followed, when
-  `sessionPath` is present, by `\nSession: <sessionPath>` (a line break, then `Session: `, then
-  the path). A result is unsuccessful exactly when its `status` is not `completed`.
-- Continuation line: the tool result of a foreground dispatch whose last record carries
-  `sessionPath` MUST end with a blank line and then the continuation line: its text is the text
-  above, `"\n\n"`, and `(To continue this agent, call Agent with resume: "<taskId>".)`, `<taskId>`
-  being the task row's task ID. The result text of this section is the text without it: the task
+  chain attempt error message → final assistant text → `<stopReason>`, followed, when the last
+  record's `sessionPath` names a file that exists when the dispatch settles, by
+  `\nSession: <sessionPath>` (a line break, then `Session: `, then the path). A record carries
+  the `sessionPath` the child session was assigned even when no file was written; the host writes
+  a fresh session's file with its first user message, so a dispatch cancelled or failed before its
+  first prompt has none. A result is unsuccessful exactly when its `status` is not `completed`.
+- Continuation line: the tool result of a foreground dispatch whose last record's `sessionPath`
+  names a file that exists when the dispatch settles MUST end with a blank line and then the
+  continuation line: its text is the text above, `"\n\n"`, and
+  `(To continue this agent, call Agent with resume: "<taskId>".)`, `<taskId>` being the task
+  row's task ID; its `details.continuation` MUST be `true`, and no other result carries
+  `details.continuation`. The result text of this section is the text without it: the task
   row's `result`, a result spill file, and a Fleet query's reply
   ([fleet-tool.md, action `query`](fleet-tool.md#query)) carry no continuation line, and neither does a
   pre-start rejection.
@@ -635,7 +648,9 @@ registry when it is:
   `.jsonl` extension.
 
 > Note (non-normative): a direct child session's session key in `Search` is its session file stem
-> ([session-transcript.md, session tree](session-transcript.md#session-tree)), so a caller can take one from there.
+> ([session-transcript.md, session tree](session-transcript.md#session-tree)), so a caller can take one from there. The stem names
+> the task that created the file; when that task is no row of the registry but a later one continued
+> the file, only that row's task ID or the absolute path resolves.
 
 A resolved row that is `running` is left unchanged and the dispatch is subject to the
 concurrent-`resume` rejection of this section. The resolved row's `sessionPath` is then the source
@@ -645,8 +660,8 @@ resolved against any directory.
 The unresolved-`resume` text is `resume must be an absolute path to an Agent session file or the
 task ID of an agent task of this session; received <value>.`, `<value>` being the received value
 as a JSON string literal, then a line break and the resumable-task list. A resumable task is an
-`agent` row of the invoking session's own task registry that has `sessionPath` and is not
-`running`; of rows whose `sessionPath` values are the same file (real paths equal, as for
+`agent` row of the invoking session's own task registry whose `sessionPath` names an existing
+regular file and that is not `running`; of rows whose `sessionPath` values are the same file (real paths equal, as for
 consumption below), only the newest is a resumable task. The list is the line
 `This session has no resumable agent tasks.` when there is none; otherwise the line
 `Resumable agent tasks, newest first:` followed by one line per task, newest first, at most 5:
@@ -684,19 +699,27 @@ The source session file records, as lines of JSON objects, the facts a continuat
 An agent record is a JSON object with exactly one of a string `agent` (the agent catalog key) or a
 string `prompt` (the prompt text), or the empty object (the default prompt); an entry whose `data`
 is no agent record is skipped. A source with no agent record has the default prompt as its
-recorded agent source. Before the first prompt of every dispatch, once per dispatch, pi-dent MUST
-append to the child session file a host custom entry with `customType` `pi-dent-agent` and the
-plan's agent record as `data`: `{ "agent": <key> }` for a static dispatch, `{ "prompt": <text> }`
-when the agent source is a call's or a recorded prompt, `{}` for the default prompt; a `resume`
-dispatch whose agent record equals the source's last agent record appends none. The host keeps
-custom entries in the session file and out of the model's context.
+recorded agent source. A dispatch's continuation records are, in this order:
+
+1. a host custom entry with `customType` `pi-dent-agent` and the plan's agent record as `data`:
+   `{ "agent": <key> }` for a static dispatch, `{ "prompt": <text> }` when the agent source is a
+   call's or a recorded prompt, `{}` for the default prompt; a `resume` dispatch whose agent
+   record equals the source's last agent record has none;
+2. on a `resume` dispatch whose plan's model differs from the persisted model, or whose source has
+   none, a `model_change` entry for the plan's model;
+3. on a `resume` dispatch whose run level ([model and thinking](#model-thinking)) differs from the persisted
+   thinking, a `thinking_level_change` entry for the run level.
+
+pi-dent MUST append them once per dispatch, when the child session records the dispatch's first
+user message, so that in the session file they are the entries immediately before that message.
+A dispatch whose child session records no user message — a pre-start rejection, or a dispatch
+cancelled or failed before its first prompt — appends none and leaves the source file unchanged.
+The host keeps custom entries in the session file and out of the model's context; for a fresh
+session it holds every entry in memory and writes the file only with the first user message.
 
 A line that is not a JSON object is skipped. The persisted model becomes a precedence tier
-([model and thinking](#model-thinking)) unless superseded. Before the first prompt of a `resume` dispatch, when the plan's
-model differs from the persisted model, or the source has none, pi-dent MUST append a `model_change`
-entry for the plan's model to the source session file; when the run level
-([model and thinking](#model-thinking)) differs from the persisted thinking, a `thinking_level_change` entry for
-the run level. A later `resume` so continues with the model and thinking the session last ran with. The
+([model and thinking](#model-thinking)) unless superseded. A later `resume` so continues with the agent, model and
+thinking the session last ran with. The
 continuation appends to the source session file in place
 under its existing session ID: history is never copied and never rewritten, and later `resume`
 calls on the same path continue the same lineage. A concurrent `resume` check MUST follow [parameter schema](#parameter-schema). The `cwd` override
@@ -873,6 +896,10 @@ Example: `3 agents · 41 turns · ↑182k ↓9.6k R1.2M W88k · $0.214 │`.
 - A `resume` of a session file held by a running dispatch of another process is not detected:
   only this process's running dispatches are checked ([parameter schema](#parameter-schema)).
 - Behavior when `resume` names a regular file that is not an `Agent` session file.
+- Behavior when the source session file holds a line that is a JSON array or primitive (`[]`,
+  `42`): pi-dent skips it, but the host's session loader takes it as an entry, and a `resume` of
+  such a file has been seen to succeed while the provider received none of the earlier
+  conversation.
 - A record whose owner process ID was reused by another live process is judged live, so its
   agent directory is kept; the store cannot tell the two processes apart.
 - Behavior when the recorded working directory of a `resume` source no longer exists or is not a
