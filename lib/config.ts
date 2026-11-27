@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { KeyId } from "@earendil-works/pi-tui";
 import { parseModelString } from "./model-string.ts";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import {
   type Diagnostic,
   errorCode,
@@ -13,8 +13,8 @@ import {
 } from "./util.ts";
 
 /**
- * Layered configuration per specs/config-file.md: two JSONC layers, deep merge,
- * `${...}` value substitution at layer read time, and a boot snapshot.
+ * Layered configuration per specs/config-file.md: optional bundled layer plus global and project
+ * JSONC layers, deep merge, `${...}` value substitution at layer read time, and a boot snapshot.
  */
 
 export const SUPPORTED_ROOT_KEYS = [
@@ -48,7 +48,11 @@ export interface LivenessDeadlines {
 export interface BootConfig {
   /** Merged raw values over the supported root keys. */
   merged: Record<string, unknown>;
-  layers: { global?: LayerRead | undefined; project?: LayerRead | undefined };
+  layers: {
+    bundled?: LayerRead | undefined;
+    global?: LayerRead | undefined;
+    project?: LayerRead | undefined;
+  };
   /** Process working directory at the boot read. */
   projectRoot: string;
   diagnostics: Diagnostic[];
@@ -187,7 +191,9 @@ export interface LayerLoad {
 export interface ConfigRead {
   config: BootConfig;
   /** Per-layer read outcomes (specs/config-file.md#layers), for the plugin inventory (specs/plugin.md#plugin-inventory). */
-  layerLoads: { global: LayerLoad; project: LayerLoad };
+  layerLoads: { bundled?: LayerLoad | undefined; global: LayerLoad; project: LayerLoad };
+  /** Diagnostics from resolving `PI_DENT_BUNDLED_CONF` (specs/config-file.md#layers). */
+  bundledEnvDiagnostics: string[];
 }
 
 function loadLayer(path: string, projectRoot: string): LayerLoad {
@@ -235,11 +241,30 @@ function loadLayer(path: string, projectRoot: string): LayerLoad {
   return state("read", { path, values: substituted });
 }
 
-function loadLayers(cwd: string): { global: LayerLoad; project: LayerLoad } {
+function resolveBundledConfPath(diagnostics: string[]): string | undefined {
+  const raw = process.env.PI_DENT_BUNDLED_CONF;
+  if (raw === undefined || raw === "") return undefined;
+  if (!isAbsolute(raw)) {
+    diagnostics.push("config: PI_DENT_BUNDLED_CONF must be an absolute path; ignored");
+    return undefined;
+  }
+  return raw;
+}
+
+function loadLayers(cwd: string): {
+  layerLoads: { bundled?: LayerLoad | undefined; global: LayerLoad; project: LayerLoad };
+  bundledEnvDiagnostics: string[];
+} {
+  const bundledEnvDiagnostics: string[] = [];
+  const bundledPath = resolveBundledConfPath(bundledEnvDiagnostics);
   const paths = configLayerPaths(cwd);
   return {
-    global: loadLayer(paths.global, cwd),
-    project: loadLayer(paths.project, cwd),
+    layerLoads: {
+      ...(bundledPath === undefined ? {} : { bundled: loadLayer(bundledPath, cwd) }),
+      global: loadLayer(paths.global, cwd),
+      project: loadLayer(paths.project, cwd),
+    },
+    bundledEnvDiagnostics,
   };
 }
 
@@ -300,19 +325,33 @@ function resolveEnvDeadline(envVar: string, diagnostics: Diagnostic[]): number |
   return undefined;
 }
 
-export function configLayerPaths(cwd: string): { global: string; project: string } {
+export function configLayerPaths(cwd: string): {
+  bundled?: string | undefined;
+  global: string;
+  project: string;
+} {
+  const rawBundled = process.env.PI_DENT_BUNDLED_CONF;
+  const bundled =
+    rawBundled !== undefined && rawBundled !== "" && isAbsolute(rawBundled)
+      ? rawBundled
+      : undefined;
   return {
+    ...(bundled === undefined ? {} : { bundled }),
     global: join(homedir(), ".pi", "pi-dent", "pi-dent.conf"),
     project: join(cwd, ".pi", "pi-dent", "pi-dent.conf"),
   };
 }
 
 function attributePath(
-  layers: { global?: LayerRead | undefined; project?: LayerRead | undefined },
+  layers: {
+    bundled?: LayerRead | undefined;
+    global?: LayerRead | undefined;
+    project?: LayerRead | undefined;
+  },
   projectRoot: string,
   path: string[],
 ): string {
-  for (const layer of [layers.project, layers.global]) {
+  for (const layer of [layers.project, layers.global, layers.bundled]) {
     if (!layer) continue;
     let node: unknown = layer.values;
     let found = true;
@@ -325,10 +364,15 @@ function attributePath(
     }
     if (found) return layer.path;
   }
-  return layers.project?.path ?? layers.global?.path ?? configLayerPaths(projectRoot).project;
+  return (
+    layers.project?.path ??
+    layers.global?.path ??
+    layers.bundled?.path ??
+    configLayerPaths(projectRoot).project
+  );
 }
 
-/** Read both layers, substitute, validate, merge, and resolve liveness deadlines. */
+/** Read all configured layers, substitute, validate, merge, and resolve liveness deadlines. */
 export function readConfig(cwd: string): BootConfig {
   return readConfigDetailed(cwd).config;
 }
@@ -339,16 +383,19 @@ export function readConfig(cwd: string): BootConfig {
  * inventory reads this (specs/plugin.md#plugin-inventory); boot itself needs only `config`.
  */
 export function readConfigDetailed(cwd: string): ConfigRead {
-  const layerLoads = loadLayers(cwd);
+  const { layerLoads, bundledEnvDiagnostics } = loadLayers(cwd);
   const diagnostics: Diagnostic[] = [];
-  for (const load of [layerLoads.global, layerLoads.project]) {
+  for (const message of bundledEnvDiagnostics) diagnostics.push({ level: "warning", message });
+  for (const load of [layerLoads.bundled, layerLoads.global, layerLoads.project]) {
+    if (!load) continue;
     for (const message of load.diagnostics) diagnostics.push({ level: "warning", message });
   }
+  const bundled = layerLoads.bundled?.layer;
   const global = layerLoads.global.layer;
   const project = layerLoads.project.layer;
-  const layers = { global, project };
+  const layers = { bundled, global, project };
   const merged: Record<string, unknown> = {};
-  for (const layer of [global, project]) {
+  for (const layer of [bundled, global, project]) {
     if (!layer) continue;
     for (const [key, value] of Object.entries(layer.values)) {
       setOwnKey(merged, key, Object.hasOwn(merged, key) ? mergeDeep(merged[key], value) : value);
@@ -420,6 +467,7 @@ export function readConfigDetailed(cwd: string): ConfigRead {
       },
     },
     layerLoads,
+    bundledEnvDiagnostics,
   };
 }
 

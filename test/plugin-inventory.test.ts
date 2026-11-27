@@ -42,6 +42,7 @@ interface Fixture {
 
 const ENV_KEYS = [
   "HOME",
+  "PI_DENT_BUNDLED_CONF",
   "PI_DENT_AGENT_IDLE_TIMEOUT_MS",
   "PI_DENT_AGENT_ABSOLUTE_TIMEOUT_MS",
   "PI_DENT_AGENT_RECOVERY_MAX_RETRIES",
@@ -700,5 +701,98 @@ test("inventory: agreement with boot for the same cwd", () => {
         message,
       );
     }
+  });
+});
+
+// specs/config-file.md#layers, specs/plugin.md#discovery, specs/plugin.md#shape
+test("bundled layer via PI_DENT_BUNDLED_CONF: relative paths, overrides, null disable, and inventory shape", () => {
+  withFixture((fixture) => {
+    const bundledDir = join(fixture.root, "bundled-resources", "plugins");
+    mkdirSync(bundledDir, { recursive: true });
+    const bundledConf = join(bundledDir, "pi-dent.conf");
+
+    const demoDir = pluginDir(bundledDir, "demo", { name: "demo", description: "Bundled demo" });
+    const forgeBundled = pluginDir(bundledDir, "forge", {
+      name: "forge",
+      description: "Bundled forge",
+    });
+    const forgeGlobal = pluginDir(fixture.globalLayer, "plugins/forge", {
+      name: "forge",
+      description: "Global forge",
+    });
+    pluginDir(bundledDir, "disabled-one", { name: "disabled-one" });
+
+    writeConf(bundledConf, {
+      plugins: {
+        demo: { path: "./demo" },
+        forge: { path: "./forge" },
+        "disabled-one": { path: "./disabled-one" },
+      },
+    });
+    writeConf(fixture.globalConf, {
+      plugins: {
+        forge: { path: "plugins/forge" },
+        "disabled-one": null,
+      },
+    });
+    process.env.PI_DENT_BUNDLED_CONF = bundledConf;
+
+    const inventory = readPluginInventory(fixture.project);
+    const snapshot = readBootSnapshot(fixture.project);
+
+    assert.deepEqual(inventory.layers, [
+      { layer: "bundled", file: bundledConf, state: "read" },
+      { layer: "global", file: fixture.globalConf, state: "read" },
+      { layer: "project", file: fixture.projectConf, state: "missing" },
+    ]);
+    assert.deepEqual(inventory.diagnostics, []);
+    assert.deepEqual(
+      inventory.candidates.map((c) => c.key),
+      ["demo", "forge"],
+    );
+
+    const demo = candidateOf(inventory, "demo");
+    assert.equal(demo.layer, "bundled");
+    assert.equal(demo.configFile, bundledConf);
+    assert.equal(demo.root, demoDir);
+    assert.equal(must(demo.plugin).description, "Bundled demo");
+
+    const forge = candidateOf(inventory, "forge");
+    assert.equal(forge.layer, "global");
+    assert.equal(forge.configFile, fixture.globalConf);
+    assert.equal(forge.root, forgeGlobal);
+    assert.notEqual(forge.root, forgeBundled);
+    assert.equal(must(forge.plugin).description, "Global forge");
+
+    assert.deepEqual(
+      snapshot.plugins.map((p) => p.name),
+      ["demo", "forge"],
+    );
+    assert.deepEqual(snapshot.diagnostics, []);
+  });
+});
+
+// specs/plugin.md#shape
+test("bundled layer states in plugin inventory: missing file and invalid relative PI_DENT_BUNDLED_CONF", () => {
+  withFixture((fixture) => {
+    const missingBundled = join(fixture.root, "absent", "pi-dent.conf");
+    process.env.PI_DENT_BUNDLED_CONF = missingBundled;
+    const invMissing = readPluginInventory(fixture.project);
+    assert.deepEqual(invMissing.layers, [
+      { layer: "bundled", file: missingBundled, state: "missing" },
+      { layer: "global", file: fixture.globalConf, state: "missing" },
+      { layer: "project", file: fixture.projectConf, state: "missing" },
+    ]);
+    assert.deepEqual(invMissing.diagnostics, []);
+
+    process.env.PI_DENT_BUNDLED_CONF = "relative/pi-dent.conf";
+    const invInvalid = readPluginInventory(fixture.project);
+    assert.deepEqual(invInvalid.layers, [
+      { layer: "global", file: fixture.globalConf, state: "missing" },
+      { layer: "project", file: fixture.projectConf, state: "missing" },
+    ]);
+    assert.deepEqual(invInvalid.diagnostics, [
+      "config: PI_DENT_BUNDLED_CONF must be an absolute path; ignored",
+    ]);
   });
 });

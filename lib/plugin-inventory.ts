@@ -63,7 +63,7 @@ export interface InventoryPlugin {
 /** One plugin candidate, per specs/plugin.md#shape. */
 export interface InventoryCandidate {
   key: string;
-  layer: "global" | "project";
+  layer: "bundled" | "global" | "project";
   configFile: string;
   root: string | null;
   plugin: InventoryPlugin | null;
@@ -73,7 +73,7 @@ export interface InventoryCandidate {
 
 /** One configuration layer, per specs/plugin.md#shape. */
 export interface InventoryLayer {
-  layer: "global" | "project";
+  layer: "bundled" | "global" | "project";
   file: string;
   state: "missing" | "dropped" | "read";
 }
@@ -195,8 +195,10 @@ export function readPluginInventory(cwd: string): PluginInventory {
     throw new Error("readPluginInventory: cwd must be an absolute path");
   }
   const paths = configLayerPaths(cwd);
-  const { config, layerLoads } = readConfigDetailed(cwd);
+  const { config, layerLoads, bundledEnvDiagnostics } = readConfigDetailed(cwd);
   const diagnostics: string[] = [
+    ...bundledEnvDiagnostics,
+    ...(layerLoads.bundled === undefined ? [] : layerLoads.bundled.diagnostics),
     ...layerLoads.global.diagnostics,
     ...layerLoads.project.diagnostics,
   ];
@@ -226,8 +228,12 @@ export function readPluginInventory(cwd: string): PluginInventory {
   );
 
   const candidates: InventoryCandidate[] = discovery.candidates.map((candidate) => {
-    const layer: "global" | "project" =
-      candidate.configFile === paths.project ? "project" : "global";
+    const layer: "bundled" | "global" | "project" =
+      candidate.configFile === paths.project
+        ? "project"
+        : candidate.configFile === paths.global
+          ? "global"
+          : "bundled";
     if (candidate.plugin === undefined || candidate.manifest === undefined) {
       const skip = candidate.diagnostics.at(-1);
       if (skip === undefined) {
@@ -293,12 +299,18 @@ export function readPluginInventory(cwd: string): PluginInventory {
     };
   });
 
+  const layers: InventoryLayer[] = [];
+  if (paths.bundled !== undefined && layerLoads.bundled !== undefined) {
+    layers.push({ layer: "bundled", file: paths.bundled, state: layerLoads.bundled.state });
+  }
+  layers.push(
+    { layer: "global", file: paths.global, state: layerLoads.global.state },
+    { layer: "project", file: paths.project, state: layerLoads.project.state },
+  );
+
   return {
     cwd,
-    layers: [
-      { layer: "global", file: paths.global, state: layerLoads.global.state },
-      { layer: "project", file: paths.project, state: layerLoads.project.state },
-    ],
+    layers,
     diagnostics,
     candidates,
   };

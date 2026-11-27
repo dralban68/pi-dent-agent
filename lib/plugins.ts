@@ -530,6 +530,8 @@ export function discoverPluginCandidates(config: BootConfig): PluginDiscovery {
   }
   for (const key of Object.keys(configured).toSorted()) {
     const value = configured[key];
+    // A merged `null` disables the entry key silently (specs/plugin.md#discovery).
+    if (value === null) continue;
     const owningFile = attributeKey(config, ["plugins", key, "path"]);
     const candidate: PluginCandidate = {
       key,

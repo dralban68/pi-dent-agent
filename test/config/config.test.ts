@@ -11,10 +11,12 @@ function withIsolatedEnv<T>(fn: (ctx: { home: string; project: string }) => T): 
   const home = mkdtempSync(join(tmpdir(), "pi-dent-test-home-"));
   const project = mkdtempSync(join(tmpdir(), "pi-dent-test-project-"));
   const origHome = process.env.HOME;
+  const origBundled = process.env.PI_DENT_BUNDLED_CONF;
   const origIdle = process.env.PI_DENT_AGENT_IDLE_TIMEOUT_MS;
   const origAbs = process.env.PI_DENT_AGENT_ABSOLUTE_TIMEOUT_MS;
 
   process.env.HOME = home;
+  delete process.env.PI_DENT_BUNDLED_CONF;
   delete process.env.PI_DENT_AGENT_IDLE_TIMEOUT_MS;
   delete process.env.PI_DENT_AGENT_ABSOLUTE_TIMEOUT_MS;
 
@@ -23,6 +25,9 @@ function withIsolatedEnv<T>(fn: (ctx: { home: string; project: string }) => T): 
   } finally {
     if (origHome === undefined) delete process.env.HOME;
     else process.env.HOME = origHome;
+
+    if (origBundled === undefined) delete process.env.PI_DENT_BUNDLED_CONF;
+    else process.env.PI_DENT_BUNDLED_CONF = origBundled;
 
     if (origIdle === undefined) delete process.env.PI_DENT_AGENT_IDLE_TIMEOUT_MS;
     else process.env.PI_DENT_AGENT_IDLE_TIMEOUT_MS = origIdle;
@@ -428,5 +433,74 @@ test("2147483647 is the largest accepted deadline, from the environment and the 
     assert.equal(config.liveness.idleTimeoutMs, 2147483647);
     assert.equal(config.liveness.absoluteTimeoutMs, 2147483647);
     assert.deepEqual(config.diagnostics, []);
+  });
+});
+
+// specs/config-file.md#layers, specs/config-file.md#merge, specs/config-file.md#attribution
+test("PI_DENT_BUNDLED_CONF loads as lowest-priority bundled layer beneath global and project", () => {
+  withIsolatedEnv(({ home, project }) => {
+    const bundledDir = mkdtempSync(join(tmpdir(), "pi-dent-test-bundled-"));
+    try {
+      const bundledFile = join(bundledDir, "pi-dent.conf");
+      writeFileSync(
+        bundledFile,
+        JSON.stringify({
+          modelClasses: {
+            onlyBundled: "zai/glm-5.3-flash",
+            overriddenByGlobal: "zai/glm-5.3-flash",
+            overriddenByProject: "zai/glm-5.3-flash",
+          },
+        }),
+      );
+      const globalFile = writeConf(
+        home,
+        JSON.stringify({
+          modelClasses: {
+            overriddenByGlobal: "anthropic/claude-haiku-4-5",
+            overriddenByProject: "anthropic/claude-haiku-4-5",
+          },
+        }),
+      );
+      const projectFile = writeConf(
+        project,
+        JSON.stringify({
+          modelClasses: {
+            overriddenByProject: "anthropic/claude-opus-4-6",
+          },
+        }),
+      );
+      process.env.PI_DENT_BUNDLED_CONF = bundledFile;
+
+      const config = readConfig(project);
+      assert.deepEqual(config.diagnostics, []);
+      assert.deepEqual(config.merged.modelClasses, {
+        onlyBundled: "zai/glm-5.3-flash",
+        overriddenByGlobal: "anthropic/claude-haiku-4-5",
+        overriddenByProject: "anthropic/claude-opus-4-6",
+      });
+      assert.equal(attributeKey(config, ["modelClasses", "onlyBundled"]), bundledFile);
+      assert.equal(attributeKey(config, ["modelClasses", "overriddenByGlobal"]), globalFile);
+      assert.equal(attributeKey(config, ["modelClasses", "overriddenByProject"]), projectFile);
+    } finally {
+      rmSync(bundledDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// specs/config-file.md#layers
+test("PI_DENT_BUNDLED_CONF missing file is silent; relative path produces one diagnostic", () => {
+  withIsolatedEnv(({ project }) => {
+    process.env.PI_DENT_BUNDLED_CONF = join(project, "does-not-exist", "pi-dent.conf");
+    const missing = readConfig(project);
+    assert.deepEqual(missing.diagnostics, []);
+    assert.equal(missing.layers.bundled, undefined);
+
+    process.env.PI_DENT_BUNDLED_CONF = "relative/pi-dent.conf";
+    const invalid = readConfig(project);
+    assert.deepEqual(
+      invalid.diagnostics.map((d) => d.message),
+      ["config: PI_DENT_BUNDLED_CONF must be an absolute path; ignored"],
+    );
+    assert.equal(invalid.layers.bundled, undefined);
   });
 });

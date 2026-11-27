@@ -185,7 +185,7 @@ export function parseModelGuidance(config: BootConfig): ParsedModelGuidance {
       // order is not a layer's order: a key both layers declare sits at the global position.
       const order: Array<{ key: string; value: unknown }> = [];
       const visited = new Set<string>();
-      for (const layer of [config.layers.project, config.layers.global]) {
+      for (const layer of [config.layers.project, config.layers.global, config.layers.bundled]) {
         for (const key of Object.keys(layerModelsOf(layer?.values) ?? {})) {
           if (visited.has(key)) continue;
           visited.add(key);
