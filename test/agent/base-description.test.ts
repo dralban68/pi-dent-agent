@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { BootSnapshot } from "../../lib/engine.ts";
-import { makeAgentTool } from "../../lib/tools.ts";
+import { agentParameterSchema, makeAgentTool } from "../../lib/tools.ts";
 
 /**
  * specs/agent-tool.md#registration: the base `Agent` description states the dispatch contract,
@@ -47,9 +47,34 @@ test("the Agent description states the dispatch contract of specs/agent-tool.md#
     "`model` is the only place for a model",
     "`agent` never takes a model",
     "as the agent it last ran as",
+    "given at the end of each foreground result and in the background start line",
   ]) {
     assert.ok(description.includes(fact), `the description states ${fact}: ${description}`);
   }
+});
+
+// specs/agent-tool.md#registration: the `model` description states where thinking comes from
+// without a suffix, and the `resume` description where the task ID is given.
+test("the model and resume descriptions state the thinking default and where the task ID is", () => {
+  const properties = (
+    agentParameterSchema as unknown as { properties: Record<string, { description?: string }> }
+  ).properties;
+  const model = properties.model?.description ?? "";
+  for (const fact of [
+    "Without a :<thinking-level> suffix",
+    "the class's level",
+    "the resumed session's on its own model",
+    "yours on your own model",
+    "the host default (off on a resume)",
+    "write the suffix",
+  ]) {
+    assert.ok(model.includes(fact), `the model description states ${fact}: ${model}`);
+  }
+  const resume = properties.resume?.description ?? "";
+  assert.ok(
+    resume.includes("given at the end of each foreground result and in the background start line"),
+    resume,
+  );
 });
 
 test("the description carries the catalog suffix only when the agent catalog is non-empty", () => {

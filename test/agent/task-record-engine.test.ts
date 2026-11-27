@@ -515,6 +515,7 @@ test("resume by task ID: a running row is left unchanged and rejected as an in-f
   await waitSettled(engine, taskId);
 });
 
+// specs/agent-tool.md#resume: the unresolved-`resume` text carries the value and the (empty) resumable list.
 test("resume by task ID: an unknown, script, or session-less task ID is rejected with the value", async () => {
   answerDone();
   const { root, sessionFile } = newRoot();
@@ -549,7 +550,7 @@ test("resume by task ID: an unknown, script, or session-less task ID is rejected
     assert.equal(result.isError, true);
     assert.equal(
       textOf(result),
-      `Agent error: resume must name an agent task with a session file; received ${JSON.stringify(value)}`,
+      `Agent error: resume must be an absolute path to an Agent session file or the task ID of an agent task of this session; received ${JSON.stringify(value)}.\nThis session has no resumable agent tasks.`,
     );
     const attempt = detailsOf(result).results?.[0];
     assert.equal(attempt?.failureCode, "invalid-plan");

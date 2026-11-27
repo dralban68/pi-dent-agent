@@ -1327,6 +1327,74 @@ function rowLabel(agent: string, definition: AgentDefinition | undefined, task: 
   return agent === "dynamic" ? summary : `${agent} — ${summary}`;
 }
 
+const TASK_ID = /^[0-9a-f]{8}$/;
+const STEM_TASK_ID = /-([0-9a-f]{8})$/;
+/** The most resumable tasks the unresolved-`resume` text lists (specs/agent-tool.md#resume). */
+const RESUMABLE_LIST_CAP = 5;
+/** The longest task summary in that list, in UTF-16 code units, before `…`. */
+const RESUMABLE_SUMMARY_MAX = 60;
+
+type ResumableRow = AgentTaskRow & { sessionPath: string };
+
+function isResumableRow(row: unknown): row is ResumableRow {
+  return row instanceof AgentTaskRow && row.sessionPath !== undefined;
+}
+
+function agentRowWithSession(registry: TaskRegistry, taskId: string): ResumableRow | undefined {
+  const row = registry.get(taskId);
+  return isResumableRow(row) ? row : undefined;
+}
+
+/**
+ * The row a non-absolute `resume` names (specs/agent-tool.md#resume): a task ID, or a session
+ * file stem `<safeAgent>-<taskId>` equal to that row's session file stem.
+ */
+function resolveResumeRow(registry: TaskRegistry, value: string): ResumableRow | undefined {
+  if (TASK_ID.test(value)) return agentRowWithSession(registry, value);
+  const taskId = STEM_TASK_ID.exec(value)?.[1];
+  if (taskId === undefined) return undefined;
+  const row = agentRowWithSession(registry, taskId);
+  return row !== undefined && basename(row.sessionPath, ".jsonl") === value ? row : undefined;
+}
+
+/** The unresolved-`resume` rejection text with the resumable-task list (specs/agent-tool.md#resume). */
+function unresolvedResumeText(registry: TaskRegistry, value: string): string {
+  const head = `resume must be an absolute path to an Agent session file or the task ID of an agent task of this session; received ${JSON.stringify(value)}.`;
+  // Newest first: latest startedAt, then the later-registered row.
+  const rows = registry
+    .list()
+    .map((row, index) => ({ row, index }))
+    .filter(
+      (entry): entry is { row: ResumableRow; index: number } =>
+        isResumableRow(entry.row) && entry.row.status !== "running",
+    )
+    .toSorted((a, b) => b.row.startedAt - a.row.startedAt || b.index - a.index);
+  const seen = new Set<string>();
+  const resumable: ResumableRow[] = [];
+  for (const { row } of rows) {
+    const file = realPath(row.sessionPath);
+    if (seen.has(file)) continue;
+    seen.add(file);
+    resumable.push(row);
+  }
+  if (resumable.length === 0) return `${head}\nThis session has no resumable agent tasks.`;
+  const lines = resumable.slice(0, RESUMABLE_LIST_CAP).map((row) => {
+    const first = (row.task ?? "").split("\n", 1)[0] ?? "";
+    const summary =
+      first === ""
+        ? "task"
+        : first.length > RESUMABLE_SUMMARY_MAX
+          ? `${first.slice(0, RESUMABLE_SUMMARY_MAX)}…`
+          : first;
+    return `- ${row.taskId} · ${row.agent ?? "dynamic"} · ${summary}`;
+  });
+  const left = resumable.length - RESUMABLE_LIST_CAP;
+  if (left > 0) {
+    lines.push(`(${left} more not listed; only the ${RESUMABLE_LIST_CAP} newest are listed)`);
+  }
+  return `${head}\nResumable agent tasks, newest first:\n${lines.join("\n")}`;
+}
+
 /**
  * What the extension instance supplies the engine beyond its boot snapshot (index.ts): the
  * dependencies its child sessions and its task registry need.
@@ -1568,13 +1636,10 @@ export class DispatchEngine {
     // consumes none.
     const consumeResumed: AgentTaskRow[] = [];
     let resumeSource: string | undefined;
-    if (typeof params.resume === "string" && /^[0-9a-f]{8}$/.test(params.resume)) {
-      const resumed = registry.get(params.resume);
-      if (!(resumed instanceof AgentTaskRow) || resumed.sessionPath === undefined) {
-        return rejection(
-          `resume must name an agent task with a session file; received ${JSON.stringify(params.resume)}`,
-        );
-      }
+    if (typeof params.resume === "string" && !isAbsolute(params.resume)) {
+      // A task ID or a session file stem (specs/agent-tool.md#resume); nothing else resolves.
+      const resumed = resolveResumeRow(registry, params.resume);
+      if (resumed === undefined) return rejection(unresolvedResumeText(registry, params.resume));
       resumeSource = resumed.sessionPath;
       ledgerResume = { by: "task", row: resumed.ledger?.ref };
       // The resolved row is consumed even when it already is: a consumed row's
@@ -1799,9 +1864,7 @@ export class DispatchEngine {
       return `unknown agent "${params.agent}".${hint} Available agents: ${this.availableAgents()}`;
     }
     if (params.resume !== undefined) {
-      if (!isAbsolute(params.resume)) {
-        return `resume must be an absolute path; received ${JSON.stringify(params.resume)}`;
-      }
+      // A value that is not an absolute path was resolved or rejected before validation.
       // One `stat` decides both checks: a path that cannot be examined is the
       // not-found rejection, so no failure escapes a dispatch that already
       // registered its row (specs/agent-tool.md#invocation-lifecycle).

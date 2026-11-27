@@ -55,7 +55,7 @@ export const AGENT_PROMPT_SNIPPET =
 
 const AGENT_BASE_DESCRIPTION = `Dispatch one agent: an isolated child session with its own context window and session file. Only \`task\` is required. \`agent\` picks a named definition from Available agents; \`prompt\` sets an ad-hoc agent's system prompt; omit both for a general-purpose agent, never give both. \`model\` is the only place for a model id or model class, and is optional; \`agent\` never takes a model.
 
-The child sees only its system prompt and \`task\`, nothing of this conversation, and returns its final answer. A foreground call blocks until the child finishes. \`background: true\` returns a task ID at once; a completion notification follows when every background task launched by the same message has settled — in a user session, prefer \`background: true\` and end your turn so you do not block user input. \`resume\` continues a retained session file in place, by its file path or by task ID, as the agent it last ran as unless \`agent\` or \`prompt\` is given.
+The child sees only its system prompt and \`task\`, nothing of this conversation, and returns its final answer. A foreground call blocks until the child finishes. \`background: true\` returns a task ID at once; a completion notification follows when every background task launched by the same message has settled — in a user session, prefer \`background: true\` and end your turn so you do not block user input. \`resume\` continues a retained session file in place, by its file path or by task ID (given at the end of each foreground result and in the background start line), as the agent it last ran as unless \`agent\` or \`prompt\` is given.
 
 Children that share a working directory share its files and Git state.`;
 
@@ -97,14 +97,14 @@ export const agentParameterSchema = Type.Object(
       Type.String({
         pattern: "\\S",
         description:
-          "Optional; the only parameter for a model: provider/id[:<thinking-level>] or a model class. Omitted: the agent definition's model, else the resumed session's, else this session's.",
+          "Optional; the only parameter for a model: provider/id[:<thinking-level>] or a model class. Omitted: the agent definition's model, else the resumed session's, else this session's. Without a :<thinking-level> suffix, thinking is the class's level, else the resumed session's on its own model, else yours on your own model, else the host default (off on a resume): write the suffix to choose.",
       }),
     ),
     resume: Type.Optional(
       Type.String({
         pattern: "\\S",
         description:
-          "Absolute path to a retained Agent session .jsonl, or a task ID; `task` continues that session as the agent it last ran as, unless `agent` or `prompt` is given.",
+          "A task ID (given at the end of each foreground result and in the background start line) or an absolute path to a retained Agent session .jsonl; `task` continues that session as the agent it last ran as, unless `agent` or `prompt` is given.",
       }),
     ),
     cwd: Type.Optional(
@@ -281,6 +281,42 @@ function textError(message: string): ToolResult {
   return { content: [{ type: "text", text: message }], details: {}, isError: true };
 }
 
+/** The continuation line of a foreground result (specs/agent-tool.md#result-contract). */
+export function continuationLine(taskId: string): string {
+  return `(To continue this agent, call Agent with resume: "${taskId}".)`;
+}
+
+/** The task ID of a settled result whose last record carries `sessionPath`, else undefined. */
+function continuableTaskId(result: ToolResult): string | undefined {
+  const details = result.details;
+  if (!isPlainObject(details) || typeof details.taskId !== "string") return undefined;
+  const records = details.results;
+  const last: unknown = Array.isArray(records) ? records.at(-1) : undefined;
+  return isPlainObject(last) && typeof last.sessionPath === "string" ? details.taskId : undefined;
+}
+
+/** A foreground result with the continuation line appended when it has a session file. */
+function withContinuationLine(result: ToolResult): ToolResult {
+  const taskId = continuableTaskId(result);
+  const first = result.content[0];
+  if (taskId === undefined || first?.type !== "text") return result;
+  return {
+    ...result,
+    content: [
+      { ...first, text: `${first.text}\n\n${continuationLine(taskId)}` },
+      ...result.content.slice(1),
+    ],
+  };
+}
+
+/** The text shown to the user: the continuation line is for the caller's model only. */
+function withoutContinuationLine(text: string, result: ToolResult): string {
+  const taskId = continuableTaskId(result);
+  if (taskId === undefined) return text;
+  const suffix = `\n\n${continuationLine(taskId)}`;
+  return text.endsWith(suffix) ? text.slice(0, -suffix.length) : text;
+}
+
 /** Live result panel components keyed by tool-call id (renderer state fallback). */
 const resultPanels = new Map<string, Text>();
 /** The plan's agent identity per tool call, from its latest result (bounded like resultPanels). */
@@ -330,7 +366,7 @@ export function makeAgentTool(deps: AgentToolDeps) {
       // A missing host (no live main session) flows through dispatch, which
       // registers the pre-start rejection row and fails the plan with
       // missing-tool-authority (specs/agent-tool.md#tools and specs/agent-tool.md#invocation-lifecycle).
-      return deps.dispatch({
+      const result = await deps.dispatch({
         toolCallId,
         params,
         signal,
@@ -338,6 +374,7 @@ export function makeAgentTool(deps: AgentToolDeps) {
         host: deps.hostProvider(),
         cohortId: deps.cohortFor(toolCallId),
       });
+      return params.background === true ? result : withContinuationLine(result);
     },
     // The host already separates tool blocks with a blank line, so the
     // components carry no vertical padding of their own.
@@ -371,7 +408,7 @@ export function makeAgentTool(deps: AgentToolDeps) {
         resultAgents.set(context.toolCallId, agent);
       }
       const first = result.content[0];
-      const text = first?.type === "text" ? first.text : "";
+      const text = withoutContinuationLine(first?.type === "text" ? first.text : "", result);
       let panel = resultPanels.get(context.toolCallId);
       if (!panel) {
         // Bounded cache: panels are stateless between renders (text is
