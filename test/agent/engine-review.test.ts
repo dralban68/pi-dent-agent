@@ -265,6 +265,8 @@ test("an empty error message falls back to the model error text", async () => {
 
 // --- specs/agent-tool.md#model-thinking: persisted thinking is not checked against the model ---------
 
+// specs/agent-tool.md#model-thinking: no support check, and the resume runs, records and reports
+// the level clamped to the model.
 test("a persisted thinking level is applied to the persisted model without a support check", async () => {
   const { root, sessionFile } = newRoot();
   const host = makeHost(sessionFile, "main-id", root);
@@ -291,7 +293,13 @@ test("a persisted thinking level is applied to the persisted model without a sup
     `${JSON.stringify({ type: "thinking_level_change", thinkingLevel: "high" })}\n`,
   );
 
-  faux.setResponses([() => fauxAssistantMessage("continued")]);
+  let requested: string | undefined;
+  faux.setResponses([
+    (_context, options) => {
+      requested = options?.reasoning ?? "off";
+      return fauxAssistantMessage("continued");
+    },
+  ]);
   const resumed = await engine.dispatch({
     toolCallId: "call-2",
     params: { prompt: "P", task: "go", resume: source },
@@ -300,7 +308,13 @@ test("a persisted thinking level is applied to the persisted model without a sup
   });
   const record = must(detailsOf(resumed).results?.[0]);
   assert.equal(resumed.isError, undefined, textOf(resumed));
-  assert.equal(record.model, `${modelLabel}:high`, textOf(resumed));
+  assert.equal(requested, "off", "the request runs at the level clamped to the model");
+  assert.equal(record.model, `${modelLabel}:off`, textOf(resumed));
+  const levels = readFileSync(source, "utf8")
+    .split("\n")
+    .filter((line) => line.includes('"thinking_level_change"'))
+    .map((line) => (JSON.parse(line) as { thinkingLevel: string }).thinkingLevel);
+  assert.equal(levels.at(-1), "off", "the clamped level is recorded");
   assert.equal(record.modelSource, "persisted");
   assert.notEqual(record.failureCode, "unsupported-thinking", textOf(resumed));
 });

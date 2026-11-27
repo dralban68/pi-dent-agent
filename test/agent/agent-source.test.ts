@@ -295,7 +295,8 @@ test("renderCall of a resume with neither shows the agent of its latest result",
     hostProvider: () => undefined,
     cohortFor: () => "cohort-1",
   });
-  const context = { toolCallId: "render-1", outputPad: 0 } as never;
+  // The host gives one row's call and result renders a shared state object.
+  const context = { toolCallId: "render-1", outputPad: 0, state: {} } as never;
   const args = { task: "go on", resume: "/x.jsonl" };
   const call = must(tool.renderCall)(args, {} as never, context);
   assert.match(call.render(120).join(""), /Agent dynamic — go on/);

@@ -2,7 +2,9 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
+  openSync,
+  readSync,
+  closeSync,
   readdirSync,
   realpathSync,
   rmSync,
@@ -13,6 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 import {
   type AgentSession,
@@ -254,7 +257,10 @@ export interface DispatchPlan {
   skills: readonly SkillEntry[];
   readonly model: Model<Api>;
   readonly modelLabel: string;
+  /** The effective thinking level: the selection of thinking precedence. */
   readonly thinking?: ThinkingLevel | undefined;
+  /** The level the child starts at: a resume's clamped run level, else `thinking` (specs/agent-tool.md#model-thinking). */
+  readonly runLevel?: ThinkingLevel | undefined;
   readonly modelSource: "call" | "agent" | "persisted" | "inherited";
   readonly previousModel?: string | undefined;
   /** The agent record the dispatch appends to its session file (specs/agent-tool.md#resume). */
@@ -634,15 +640,21 @@ function sameAgentRecord(a: AgentRecord | undefined, b: AgentRecord): boolean {
 const HOST_DEFAULT_THINKING_LEVEL: ThinkingLevel = "medium";
 
 /**
- * The default level of a model (specs/agent-tool.md#model-thinking): the per-model setting, else
- * the default setting, else the host's default, clamped to the model as the host clamps it.
+ * The run level of a `resume` dispatch (specs/agent-tool.md#model-thinking): the effective level,
+ * else the default level (the per-model setting, else the default setting, else the host's
+ * default), clamped to the model as the host clamps every level it is given.
  */
-function defaultThinkingLevel(settings: SettingsManager, model: Model<Api>): ThinkingLevel {
+function resumeRunLevel(
+  effective: ThinkingLevel | undefined,
+  settings: SettingsManager,
+  model: Model<Api>,
+): ThinkingLevel {
   // The host's own order and tests (an empty per-model value counts as none); its clamp also
   // maps a level it does not know to the model's first supported one.
   const level =
-    settings.getModelThinkingLevel(model.provider, model.id) ||
-    (settings.getDefaultThinkingLevel() ?? HOST_DEFAULT_THINKING_LEVEL);
+    effective ??
+    (settings.getModelThinkingLevel(model.provider, model.id) ||
+      (settings.getDefaultThinkingLevel() ?? HOST_DEFAULT_THINKING_LEVEL));
   return clampThinkingLevel(model, level);
 }
 
@@ -654,44 +666,63 @@ interface PersistedSession {
   agent?: AgentRecord;
 }
 
-function readPersistedSession(path: string): PersistedSession | undefined {
-  let text: string;
-  try {
-    text = readFileSync(path, "utf8");
-  } catch {
-    return undefined;
-  }
+/**
+ * The persisted facts of a session file (specs/agent-tool.md#resume), read once, line by line in
+ * bounded chunks, as the host's own loader does. A read error throws: it is the caller's to
+ * report, never a file without records. Synchronous, so `dispatch` reaches the arming of its
+ * cancellation handler without yielding (specs/agent-tool.md#cancellation).
+ */
+function readPersistedSession(path: string): PersistedSession {
   const result: PersistedSession = {};
-  for (const line of text.split("\n")) {
-    if (line.trim() === "") continue;
-    let entry: unknown;
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      continue;
+  const fd = openSync(path, "r");
+  try {
+    const decoder = new StringDecoder("utf8");
+    const chunk = Buffer.alloc(64 * 1024);
+    let pending = "";
+    for (;;) {
+      const bytesRead = readSync(fd, chunk, 0, chunk.length, null);
+      if (bytesRead === 0) break;
+      pending += decoder.write(chunk.subarray(0, bytesRead));
+      const lines = pending.split("\n");
+      pending = lines.pop() ?? "";
+      for (const line of lines) applyPersistedLine(result, line);
     }
-    if (!isPlainObject(entry)) continue;
-    if (entry.type === "session" && typeof entry.cwd === "string") result.cwd = entry.cwd;
-    if (
-      entry.type === "model_change" &&
-      typeof entry.provider === "string" &&
-      typeof entry.modelId === "string"
-    ) {
-      result.model = { provider: entry.provider, id: entry.modelId };
-    }
-    if (
-      entry.type === "thinking_level_change" &&
-      typeof entry.thinkingLevel === "string" &&
-      isThinkingLevel(entry.thinkingLevel)
-    ) {
-      result.thinking = entry.thinkingLevel;
-    }
-    if (entry.type === "custom" && entry.customType === AGENT_RECORD_TYPE) {
-      const record = toAgentRecord(entry.data);
-      if (record !== undefined) result.agent = record;
-    }
+    applyPersistedLine(result, pending + decoder.end());
+  } finally {
+    closeSync(fd);
   }
   return result;
+}
+
+/** One session file line into the persisted facts; a line that is no JSON object is skipped. */
+function applyPersistedLine(result: PersistedSession, line: string): void {
+  if (line.trim() === "") return;
+  let entry: unknown;
+  try {
+    entry = JSON.parse(line);
+  } catch {
+    return;
+  }
+  if (!isPlainObject(entry)) return;
+  if (entry.type === "session" && typeof entry.cwd === "string") result.cwd = entry.cwd;
+  if (
+    entry.type === "model_change" &&
+    typeof entry.provider === "string" &&
+    typeof entry.modelId === "string"
+  ) {
+    result.model = { provider: entry.provider, id: entry.modelId };
+  }
+  if (
+    entry.type === "thinking_level_change" &&
+    typeof entry.thinkingLevel === "string" &&
+    isThinkingLevel(entry.thinkingLevel)
+  ) {
+    result.thinking = entry.thinkingLevel;
+  }
+  if (entry.type === "custom" && entry.customType === AGENT_RECORD_TYPE) {
+    const record = toAgentRecord(entry.data);
+    if (record !== undefined) result.agent = record;
+  }
 }
 
 /** Decimal-digit environment count no smaller than `min`; any other value reports one diagnostic and falls back. */
@@ -1382,7 +1413,9 @@ function unresolvedResumeText(registry: TaskRegistry, value: string): string {
     .map((row, index) => ({ row, index }))
     .filter(
       (entry): entry is { row: ResumableRow; index: number } =>
-        isResumableRow(entry.row) && entry.row.status !== "running",
+        isResumableRow(entry.row) &&
+        entry.row.status !== "running" &&
+        statOrUndefined(entry.row.sessionPath)?.isFile() === true,
     )
     .toSorted((a, b) => b.row.startedAt - a.row.startedAt || b.index - a.index);
   const seen = new Set<string>();
@@ -1710,7 +1743,7 @@ export class DispatchEngine {
 
     let plan: DispatchPlan;
     try {
-      plan = this.resolvePlan(params, host, call.planToolCap, validation.cwd);
+      plan = this.resolvePlan(params, host, call.planToolCap, validation.cwd, validation.persisted);
     } catch (error) {
       if (error instanceof ModelStringError) return rejection(error.message, error.code);
       if (error instanceof PlanError) return rejection(error.message, error.code);
@@ -1828,12 +1861,28 @@ export class DispatchEngine {
     host: HostSession | undefined,
   ):
     | { error: string; inherited?: AgentRecord | undefined }
-    | { cwd: string | undefined; inherited?: AgentRecord | undefined } {
+    | {
+        cwd: string | undefined;
+        inherited?: AgentRecord | undefined;
+        persisted?: PersistedSession | undefined;
+      } {
     const error = this.validateParamValues(params);
     if (error !== undefined) return { error };
+    // The source's persisted facts, read once per dispatch for this check and the plan; a read
+    // failure is a rejection, never a file without records (specs/agent-tool.md#parameter-schema).
+    let persisted: PersistedSession | undefined;
+    if (params.resume !== undefined) {
+      try {
+        persisted = readPersistedSession(params.resume);
+      } catch (readError) {
+        return {
+          error: `resume source cannot be read: ${resolve(params.resume)}: ${errorMessage(readError)}`,
+        };
+      }
+    }
     let inherited: AgentRecord | undefined;
     if (params.resume !== undefined && params.agent === undefined && params.prompt === undefined) {
-      inherited = readPersistedSession(params.resume)?.agent ?? {};
+      inherited = persisted?.agent ?? {};
       if ("agent" in inherited && !this.boot.agentIndex.has(inherited.agent)) {
         return {
           error: `the resumed session last ran as agent "${inherited.agent}", which is no longer in the agent catalog; pass agent or prompt. Available agents: ${this.availableAgents()}`,
@@ -1841,8 +1890,9 @@ export class DispatchEngine {
         };
       }
     }
-    if (host === undefined) return { cwd: undefined, inherited };
-    return { ...resolveCwdParam(params.cwd, host.cwd()), inherited };
+    if (host === undefined) return { cwd: undefined, inherited, persisted };
+    const cwd = resolveCwdParam(params.cwd, host.cwd());
+    return "error" in cwd ? { ...cwd, inherited } : { ...cwd, inherited, persisted };
   }
 
   private availableAgents(): string {
@@ -1905,6 +1955,8 @@ export class DispatchEngine {
     host: HostSession,
     planToolCap: string[] | undefined,
     resolvedCwd: string | undefined,
+    /** The `resume` source's facts, read once by validation. */
+    persisted: PersistedSession | undefined,
   ): DispatchPlan {
     // Tool authority: the main session's live active tool set.
     if (!host.activeTools().includes("Agent")) {
@@ -1931,12 +1983,10 @@ export class DispatchEngine {
     let cwd = resolvedCwd;
 
     let sessionPolicy: DispatchPlan["sessionPolicy"];
-    let persisted: PersistedSession | undefined;
     if (params.resume === undefined) {
       sessionPolicy = { kind: "persistent" };
     } else {
       const resumePath = resolve(params.resume);
-      persisted = readPersistedSession(resumePath);
       sessionPolicy = {
         kind: "resume",
         resume: resumePath,
@@ -2076,6 +2126,13 @@ export class DispatchEngine {
       );
     }
 
+    // A continuation runs, records and reports one level: the run level, resolved here with the
+    // child's settings (specs/agent-tool.md#model-thinking). A fresh dispatch leaves it to the host.
+    const runLevel =
+      sessionPolicy.kind === "resume"
+        ? resumeRunLevel(thinking, SettingsManager.create(cwd, getAgentDir()), selected.model)
+        : thinking;
+
     return {
       agent: definition ? definition.name : "dynamic",
       prompt,
@@ -2085,8 +2142,9 @@ export class DispatchEngine {
       // Skills follow the tool cap: no `Skill` in the cap, no skills (specs/agent-tool.md#skills).
       skills: tools.includes("Skill") ? this.boot.skills : [],
       model: selected.model,
-      modelLabel: serializeDescriptor(finalDescriptor),
+      modelLabel: serializeDescriptor({ ...finalDescriptor, thinking: runLevel }),
       thinking,
+      runLevel,
       modelSource: selected.source,
       previousModel,
       sessionPolicy,
@@ -2337,27 +2395,37 @@ export class DispatchEngine {
       sessionPath = manager.getSessionFile();
       claimSessionFile(sessionPath);
 
-      // A continuation records the model and thinking it runs with, so a later
-      // `resume` without them continues what the session last ran with (specs/agent-tool.md#resume).
-      // Once per dispatch: a recovery attempt continues this same file.
-      // The agent source a later `resume` with neither agent nor prompt continues with
-      // (specs/agent-tool.md#resume); once per dispatch, only when it changed.
-      if (
-        plan.sessionPolicy.kind === "persistent" ||
-        !sameAgentRecord(plan.sessionPolicy.persistedAgent, plan.agentRecord)
-      ) {
-        manager.appendCustomEntry(AGENT_RECORD_TYPE, plan.agentRecord);
-      }
-      if (plan.sessionPolicy.kind === "resume") {
-        const persistedModel = plan.sessionPolicy.persistedModel;
+      // The continuation records (specs/agent-tool.md#resume): the agent source, model and run level
+      // a later bare `resume` inherits. They are written once per dispatch, when the child records
+      // its first user message, so a dispatch that never prompts leaves the file unchanged; the
+      // listener runs before the host persists that message, so they land right before it.
+      let recordsWritten = false;
+      const writeContinuationRecords = (): void => {
+        if (recordsWritten) return;
+        recordsWritten = true;
+        const policy = plan.sessionPolicy;
+        if (
+          policy.kind === "persistent" ||
+          !sameAgentRecord(policy.persistedAgent, plan.agentRecord)
+        ) {
+          manager.appendCustomEntry(AGENT_RECORD_TYPE, plan.agentRecord);
+        }
+        if (policy.kind !== "resume") return;
+        // Compared with the file as it now stands: the host records a selection itself when a run
+        // starts (a virtual model, or a level the branch does not imply after clamping), and keeps
+        // a requested level it clamped, which the run level replaces.
+        const branch = manager.getBranch();
+        const lastModel = branch.findLast((entry) => entry.type === "model_change");
         const sameModel =
-          persistedModel !== undefined &&
-          persistedModel.provider === plan.model.provider &&
-          persistedModel.id === plan.model.id;
+          lastModel !== undefined &&
+          lastModel.provider === plan.model.provider &&
+          lastModel.modelId === plan.model.id;
         if (!sameModel) manager.appendModelChange(plan.model.provider, plan.model.id);
-        // The run level is recorded where the child session is created, once the child's
-        // settings, which give an absent level its default, are loaded.
-      }
+        const lastLevel = branch.findLast((entry) => entry.type === "thinking_level_change");
+        if (plan.runLevel !== undefined && lastLevel?.thinkingLevel !== plan.runLevel) {
+          manager.appendThinkingLevelChange(plan.runLevel);
+        }
+      };
 
       // The child's own agent directory (specs/agent-tool.md#child-session), exposed to its tools as
       // PI_DENT_SESSION_DIR; a resumed session maps to the same directory. It was
@@ -2586,22 +2654,13 @@ export class DispatchEngine {
       // proxy when the cap names none (specs/agent-tool.md#tools).
       const excludedToolNames = MCP_RESOURCE_TOOL_NAMES.filter((name) => !cap.includes(name));
       if (!cap.some((name) => name.startsWith("mcp__"))) excludedToolNames.push("mcp__*");
-      // The run level (specs/agent-tool.md#model-thinking): a continuation with no effective level
-      // runs at the model's default, as a fresh session does; the host would otherwise replay the
-      // file's last level, whatever model recorded it. It is recorded once per dispatch when it
-      // differs from the persisted thinking (specs/agent-tool.md#resume).
-      let runLevel = plan.thinking;
-      if (plan.sessionPolicy.kind === "resume") {
-        runLevel ??= defaultThinkingLevel(settingsManager, plan.model);
-        if (runLevel !== plan.sessionPolicy.persistedThinking) {
-          manager.appendThinkingLevelChange(runLevel);
-        }
-      }
+      // A continuation starts at its run level; the host would otherwise replay the file's last
+      // level, whatever model recorded it (specs/agent-tool.md#model-thinking).
       const sessionOptions: CreateAgentSessionOptions = {
         cwd: plan.cwd,
         modelRuntime: runtime,
         model: plan.model,
-        ...(runLevel === undefined ? {} : { thinkingLevel: runLevel }),
+        ...(plan.runLevel === undefined ? {} : { thinkingLevel: plan.runLevel }),
         tools: cap,
         excludeTools: excludedToolNames,
         customTools: childTools,
@@ -2801,6 +2860,7 @@ export class DispatchEngine {
           }
           case "message_end": {
             const message = event.message;
+            if (message.role === "user") writeContinuationRecords();
             if (message.role === "assistant") {
               const text = textOfContent(message.content);
               const usage = message.usage;
@@ -3282,7 +3342,11 @@ export class DispatchEngine {
         (finalText === "" ? undefined : finalText) ??
         outcome.stopReason;
       text = `Agent ${outcome.stopReason}: ${message}`;
-      if (sessionPath) text += `\nSession: ${sessionPath}`;
+      // Only a file that exists is named: a fresh session cancelled or failed before its first
+      // prompt was assigned a path the host never wrote (specs/agent-tool.md#result-contract).
+      if (sessionPath && statOrUndefined(sessionPath)?.isFile()) {
+        text += `\nSession: ${sessionPath}`;
+      }
     } else {
       text = finalText === "" ? "(no output)" : finalText;
     }

@@ -257,7 +257,8 @@ test("a failed resume records previousModel when it supersedes the persisted mod
   assert.equal(records.length, 1);
   assert.equal(records[0]?.status, "failed");
   assert.equal(records[0]?.failureCode, "execution-error");
-  assert.equal(records[0]?.model, modelB);
+  // A resume reports its run level: m2's default (specs/agent-tool.md#model-thinking).
+  assert.equal(records[0]?.model, `${modelB}:medium`);
   assert.equal(records[0]?.modelSource, "call");
   assert.equal(records[0]?.previousModel, modelA);
 });

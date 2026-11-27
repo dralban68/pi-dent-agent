@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { Type, type Static } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool, keyHint, type ToolDefinition } from "@earendil-works/pi-coding-agent";
@@ -286,41 +286,51 @@ export function continuationLine(taskId: string): string {
   return `(To continue this agent, call Agent with resume: "${taskId}".)`;
 }
 
-/** The task ID of a settled result whose last record carries `sessionPath`, else undefined. */
+/**
+ * The task ID of a settled result whose last record's session file exists, else undefined: a
+ * fresh session cancelled before its first prompt has an assigned path but no file.
+ */
 function continuableTaskId(result: ToolResult): string | undefined {
   const details = result.details;
   if (!isPlainObject(details) || typeof details.taskId !== "string") return undefined;
   const records = details.results;
   const last: unknown = Array.isArray(records) ? records.at(-1) : undefined;
-  return isPlainObject(last) && typeof last.sessionPath === "string" ? details.taskId : undefined;
+  if (!isPlainObject(last) || typeof last.sessionPath !== "string") return undefined;
+  return existsSync(last.sessionPath) ? details.taskId : undefined;
 }
 
-/** A foreground result with the continuation line appended when it has a session file. */
+/**
+ * A foreground result with the continuation line appended when its session file exists, marked
+ * with `details.continuation` so the renderer hides that line and no other
+ * (specs/agent-tool.md#result-contract).
+ */
 function withContinuationLine(result: ToolResult): ToolResult {
   const taskId = continuableTaskId(result);
   const first = result.content[0];
-  if (taskId === undefined || first?.type !== "text") return result;
+  if (taskId === undefined || first?.type !== "text" || !isPlainObject(result.details)) {
+    return result;
+  }
   return {
     ...result,
     content: [
       { ...first, text: `${first.text}\n\n${continuationLine(taskId)}` },
       ...result.content.slice(1),
     ],
+    details: { ...result.details, continuation: true },
   };
 }
 
-/** The text shown to the user: the continuation line is for the caller's model only. */
+/** The text shown to the user: the line `execute` appended is for the caller's model only. */
 function withoutContinuationLine(text: string, result: ToolResult): string {
-  const taskId = continuableTaskId(result);
-  if (taskId === undefined) return text;
-  const suffix = `\n\n${continuationLine(taskId)}`;
+  const details = result.details;
+  if (!isPlainObject(details) || details.continuation !== true) return text;
+  if (typeof details.taskId !== "string") return text;
+  const suffix = `\n\n${continuationLine(details.taskId)}`;
   return text.endsWith(suffix) ? text.slice(0, -suffix.length) : text;
 }
 
 /** Live result panel components keyed by tool-call id (renderer state fallback). */
 const resultPanels = new Map<string, Text>();
-/** The plan's agent identity per tool call, from its latest result (bounded like resultPanels). */
-const resultAgents = new Map<string, string>();
 
 /**
  * The main session's `Agent` registration (specs/agent-tool.md#registration): registered
@@ -379,15 +389,17 @@ export function makeAgentTool(deps: AgentToolDeps) {
     // The host already separates tool blocks with a blank line, so the
     // components carry no vertical padding of their own.
     renderCall(args: AgentToolParams, _theme, context) {
-      const toolCallId = context.toolCallId;
       const pad = context.outputPad;
+      // The host's state of this call's row, which its result render shares.
+      const state: unknown = context.state;
       // The identity of a `resume` call with neither agent nor prompt is the plan's, known
       // from its first (partial) result; read at render time (specs/agent-tool.md#registration).
       const line = (): string => {
         const inherited =
           args.agent === undefined && args.prompt === undefined && args.resume !== undefined;
-        const identity =
-          args.agent ?? (inherited ? (resultAgents.get(toolCallId) ?? "dynamic") : "dynamic");
+        const planAgent =
+          isPlainObject(state) && typeof state.agent === "string" ? state.agent : "dynamic";
+        const identity = args.agent ?? (inherited ? planAgent : "dynamic");
         const definition = deps.boot.agentIndex.get(identity);
         const subtitle =
           definition?.description ??
@@ -402,11 +414,10 @@ export function makeAgentTool(deps: AgentToolDeps) {
       };
     },
     renderResult(result: ToolResult, _options, _theme, context) {
+      // Kept in the row's own state, which lives as long as the row (specs/agent-tool.md#registration).
       const agent: unknown = isPlainObject(result.details) ? result.details.agent : undefined;
-      if (typeof agent === "string") {
-        if (resultAgents.size >= 64) resultAgents.clear();
-        resultAgents.set(context.toolCallId, agent);
-      }
+      const state: unknown = context.state;
+      if (typeof agent === "string" && isPlainObject(state)) state.agent = agent;
       const first = result.content[0];
       const text = withoutContinuationLine(first?.type === "text" ? first.text : "", result);
       let panel = resultPanels.get(context.toolCallId);
