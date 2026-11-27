@@ -1,7 +1,7 @@
 /* eslint-disable no-console -- A CLI evaluation prints progress and results. */
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, readFile, readdir, writeFile, rename } from "node:fs/promises";
+import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -29,17 +29,61 @@ const repetitions = Number(options.get("repetitions") ?? 3);
 const timeout = Number(options.get("timeout-ms") ?? 120000);
 for (const n of [concurrency, repetitions, timeout])
   if (!Number.isSafeInteger(n) || n < 1) throw new Error("Positive integers required");
-const root = await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), "agent-dispatch-"));
-const output = resolve(options.get("output") ?? join(root, "results.json"));
+const previous: unknown = options.has("resume")
+  ? JSON.parse(await readFile(resolve(options.get("resume") ?? ""), "utf8"))
+  : null;
+const saved = object(previous);
+const root =
+  typeof saved.root === "string"
+    ? saved.root
+    : await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), "agent-dispatch-"));
+const output = resolve(
+  options.get("resume") ?? options.get("output") ?? join(root, "results.json"),
+);
+const alternateModel = options.get("alternate-model") ?? "anthropic/claude-haiku-5-5";
+// Discover only provider-registering entrypoints from installed npm packages, not their tools.
+const agentHome = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi/agent");
+const settings = object(JSON.parse(await readFile(join(agentHome, "settings.json"), "utf8")));
+const providerExtensions: string[] = [];
+if (Array.isArray(settings.packages))
+  for (const pkg of settings.packages) {
+    if (typeof pkg !== "string" || !pkg.startsWith("npm:")) continue;
+    const name = pkg.slice(4).replace(/(?<!^)@[^/]*$/, "");
+    const packageRoot = join(agentHome, "npm/node_modules", name);
+    const manifest = object(JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")));
+    const entries = object(manifest.pi).extensions;
+    if (Array.isArray(entries))
+      for (const entry of entries) {
+        if (typeof entry !== "string") continue;
+        const path = resolve(packageRoot, entry);
+        if (/\bregisterProvider\s*\(/.test(await readFile(path, "utf8")))
+          providerExtensions.push(path);
+      }
+  }
+const extensionArgs = ["-ne", "-e", extension, ...providerExtensions.flatMap((p) => ["-e", p])];
 const scenarios = [
   `Have a separate ad-hoc agent running on ${childModel} reply with the single word pong. Tell me its answer.`,
   "Have a separate ad-hoc agent reply with the single word pong. Tell me its answer.",
   "Use the summarizer agent to summarize 'The sky is blue' in one word. Tell me its answer.",
   "Have a separate ad-hoc agent remember the word violet and acknowledge in one word. Then send that same agent a follow-up asking which word it remembers. Tell me its answer.",
   `Use the summarizer agent running on ${childModel} to summarize 'The sky is blue' in one word. Tell me its answer.`,
+  `Split this job across three separate workers in parallel, all running on ${childModel}: one says red, one says green, one says blue. Launch them together and report their answers.`,
+  `Ask ${childModel} to reply with the single word pong. Tell me its answer.`,
+  `Have a separate ad-hoc agent running on ${childModel} remember the word violet and acknowledge in one word. Then ask that same agent to answer on ${alternateModel}: which word does it remember? Tell me its answer.`,
+  "Use the summarizer agent to summarize 'The sky is blue' in one word. Then send that same agent a follow-up asking it to repeat its answer. Tell me the final answer.",
 ];
-const selected = (options.get("scenarios") ?? "1,2,3,4,5").split(",").map(Number);
-if (selected.some((s) => !scenarios[s - 1])) throw new Error("Scenarios must be 1..5");
+const selected = (options.get("scenarios") ?? "1,2,3,4,5,6,7,8,9").split(",").map(Number);
+if (selected.some((s) => !scenarios[s - 1])) throw new Error("Scenarios must be 1..9");
+if (
+  previous &&
+  (saved.extension !== extension ||
+    saved.childModel !== childModel ||
+    saved.alternateModel !== alternateModel ||
+    JSON.stringify(saved.selected) !== JSON.stringify(selected) ||
+    saved.repetitions !== repetitions ||
+    saved.modelSelection !== options.get("models"))
+)
+  throw new Error("Resume options differ from saved invocation");
 async function command(args: string[], cwd: string, env: NodeJS.ProcessEnv = process.env) {
   return await new Promise<{
     code: number | null;
@@ -72,7 +116,7 @@ async function command(args: string[], cwd: string, env: NodeJS.ProcessEnv = pro
   });
 }
 // Discovery only: no prompt is sent and no session is created.
-const listing = await command(["--list-models"], root);
+const listing = await command([...extensionArgs, "--list-models"], root);
 if (listing.code !== 0) throw new Error(listing.stderr);
 const available = listing.stdout.split("\n").flatMap((line) => {
   const match = /^(\S+)\s+(\S+)\s+\S+\s+\S+\s+(?:yes|no)\s+(?:yes|no)\s*$/.exec(line);
@@ -89,6 +133,7 @@ export function score(transcript: string) {
     arguments: Record<string, unknown>;
     accepted: boolean | null;
     error: string | null;
+    identities: unknown[];
   }[] = [];
   const parentErrors: string[] = [];
   for (const line of transcript.split("\n").filter(Boolean)) {
@@ -105,6 +150,7 @@ export function score(transcript: string) {
               arguments: object(part.arguments),
               accepted: null,
               error: null,
+              identities: [],
             });
         }
     }
@@ -113,6 +159,7 @@ export function score(transcript: string) {
       if (!call) throw new Error("Unmatched Agent result");
       const error = text(message.content);
       const records = object(message.details).results;
+      call.identities = Array.isArray(records) ? records.map((r: unknown) => object(r).agent) : [];
       const planFailure =
         Array.isArray(records) &&
         records.some((r: unknown) => object(r).failurePhase === "plan-resolution");
@@ -156,9 +203,7 @@ async function run(model: string, scenario: number, repetition: number) {
   if (!prompt) throw new Error("Missing scenario");
   const result = await command(
     [
-      "-ne",
-      "-e",
-      extension,
+      ...extensionArgs,
       "-nc",
       "-ns",
       "-np",
@@ -191,8 +236,8 @@ async function run(model: string, scenario: number, repetition: number) {
             : null
           : "no Agent call"
         : `exit ${result.code}: ${result.stderr || result.stdout}`;
-  const requestedModel = scenario === 1 || scenario === 5;
-  const named = scenario === 3 || scenario === 5;
+  const requestedModel = [1, 5, 6, 7, 8].includes(scenario);
+  const named = [3, 5, 9].includes(scenario);
   return {
     model,
     scenario,
@@ -206,17 +251,72 @@ async function run(model: string, scenario: number, repetition: number) {
       ? null
       : scored.calls.every(
           (c) =>
-            (requestedModel ? c.arguments.model === childModel : true) &&
-            (named ? c.arguments.agent === "summarizer" : c.arguments.agent === undefined) &&
+            (requestedModel
+              ? c.arguments.model ===
+                (scenario === 8 && c.arguments.resume ? alternateModel : childModel)
+              : true) &&
+            (named
+              ? c.arguments.agent === "summarizer" ||
+                (scenario === 9 &&
+                  c.arguments.resume !== undefined &&
+                  c.arguments.agent === undefined)
+              : c.arguments.agent === undefined) &&
             (!named || c.arguments.prompt === undefined),
         ),
-    continued:
-      scenario === 4
-        ? scored.calls.some((c) => typeof c.arguments.resume === "string" && c.accepted === true)
+    continued: [4, 8, 9].includes(scenario)
+      ? scored.calls.some((c) => typeof c.arguments.resume === "string" && c.accepted === true)
+      : null,
+    resumedAsSummarizer:
+      scenario === 9
+        ? scored.calls.some(
+            (c) => c.arguments.resume !== undefined && c.identities.includes("summarizer"),
+          )
         : null,
+    defaultCalls: scored.calls.filter(
+      (c) => c.arguments.agent === undefined && c.arguments.prompt === undefined,
+    ).length,
+    implicitResumeCalls: scored.calls.filter(
+      (c) =>
+        c.arguments.resume !== undefined &&
+        c.arguments.agent === undefined &&
+        c.arguments.prompt === undefined,
+    ).length,
+    fanoutCalls: scenario === 6 ? scored.calls.length : null,
   };
 }
-const runs: Run[] = [];
+function isRun(value: unknown): value is Run {
+  const r = object(value);
+  return (
+    typeof r.model === "string" &&
+    typeof r.scenario === "number" &&
+    typeof r.repetition === "number" &&
+    Array.isArray(r.calls)
+  );
+}
+const runs: Run[] = Array.isArray(saved.runs) ? saved.runs.filter(isRun) : [];
+if (Array.isArray(saved.runs) && saved.runs.length !== runs.length)
+  throw new Error("Invalid saved run");
+const metadata = {
+  extension,
+  childModel,
+  alternateModel,
+  root,
+  available,
+  scenarios,
+  selected,
+  repetitions,
+  modelSelection: options.get("models"),
+  providerExtensions,
+};
+let saving = Promise.resolve();
+function save() {
+  saving = saving.then(async () => {
+    await writeFile(`${output}.tmp`, JSON.stringify({ ...metadata, runs }, null, 2));
+    await rename(`${output}.tmp`, output);
+  });
+  return saving;
+}
+await save();
 await Promise.all(
   [...new Set(models.map((m) => m.split("/")[0]))].map(async (provider) => {
     const jobs = models
@@ -231,12 +331,30 @@ await Promise.all(
         for (;;) {
           const job = jobs.shift();
           if (!job) break;
-          const result = await run(job.model, job.scenario, job.repetition);
+          if (
+            runs.some(
+              (r) =>
+                r.model === job.model &&
+                r.scenario === job.scenario &&
+                r.repetition === job.repetition,
+            )
+          )
+            continue;
+          const failed = runs.find((r) => r.model === job.model && r.reason !== null);
+          const result = failed
+            ? {
+                ...failed,
+                ...job,
+                dir: "",
+                calls: [],
+                parentErrors: [],
+                reason: `not attempted after unavailable run: ${failed.reason}`,
+                defaultCalls: 0,
+                implicitResumeCalls: 0,
+              }
+            : await run(job.model, job.scenario, job.repetition);
           runs.push(result);
-          await writeFile(
-            output,
-            JSON.stringify({ extension, childModel, root, available, scenarios, runs }, null, 2),
-          );
+          await save();
           console.error(
             `${result.model} S${result.scenario} #${result.repetition}: ${result.reason ?? `first=${result.firstAccepted} all=${result.allAccepted}`}`,
           );
@@ -271,10 +389,7 @@ console.table([
   row("TOTAL", runs),
 ]);
 const rejections: Record<string, number> = {};
-await writeFile(
-  output,
-  JSON.stringify({ extension, childModel, root, available, scenarios, runs }, null, 2),
-);
+await save();
 for (const result of runs)
   for (const call of result.calls)
     if (call.accepted === false && call.error)
