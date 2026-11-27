@@ -65,7 +65,7 @@ test("the model and resume descriptions state the thinking default and where the
     "the class's level",
     "the resumed session's on its own model",
     "yours on your own model",
-    "the host default (off on a resume)",
+    "else the model's default level",
     "write the suffix",
   ]) {
     assert.ok(model.includes(fact), `the model description states ${fact}: ${model}`);

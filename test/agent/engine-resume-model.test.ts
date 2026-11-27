@@ -66,10 +66,10 @@ const modelA = `${base.provider}/${base.id}`;
 const modelB = `${base.provider}/m2`;
 const models = faux.models as unknown as never[];
 
-function boot(maxRecoveryRetries = 0): BootSnapshot {
+function boot(maxRecoveryRetries = 0, settings: Record<string, unknown> = {}): BootSnapshot {
   writeFileSync(
     join(agentDir, "settings.json"),
-    JSON.stringify({ retry: { enabled: false, maxRetries: 0, baseDelayMs: 10 } }),
+    JSON.stringify({ retry: { enabled: false, maxRetries: 0, baseDelayMs: 10 }, ...settings }),
   );
   return {
     cwd: "/tmp",
@@ -211,7 +211,13 @@ test("a resume with a different model persists it, so a later resume keeps it", 
 
   const plan = await resumeWithoutModel(engine, host, source, "third");
   assert.equal(plan.modelSource, "persisted", "the later resume runs the persisted model");
-  assert.equal(plan.model, `${modelB}:off`, "the model is the one the resume ran with");
+  // The bare resume onto m2 ran at m2's default level, not the source's `off`
+  // (specs/agent-tool.md#model-thinking).
+  assert.equal(
+    plan.model,
+    `${modelB}:medium`,
+    "the model and level are the ones the resume ran with",
+  );
   assert.equal(plan.previousModel, undefined, "the persisted model was not superseded");
 });
 
@@ -316,7 +322,7 @@ test("a resume with the same model and thinking appends no entry", async () => {
   );
 });
 
-test("a resume whose plan has no thinking records off when the source ran at a level", async () => {
+test("a resume with no thinking level onto a model without reasoning records its default, off", async () => {
   const { root, sessionFile } = newRoot();
   const host = makeHost(sessionFile, root);
   const engine = new DispatchEngine(
@@ -393,6 +399,92 @@ test("the persisted model is appended once per dispatch, not per recovery attemp
     ofType(source, "thinking_level_change").map((entry) => entry.thinkingLevel),
     ["off", "high"],
   );
+});
+
+// --- specs/agent-tool.md#model-thinking: the run level of a plan with no effective level ---------
+
+/** Dispatch once and return the result and the thinking level the child's request ran at. */
+async function runLevel(
+  engine: DispatchEngine,
+  host: HostSession,
+  params: Record<string, unknown>,
+): Promise<{ result: ToolResult; level: string | undefined }> {
+  let level: string | undefined;
+  faux.setResponses([
+    (_context, options) => {
+      level = options?.reasoning ?? "off";
+      return fauxAssistantMessage("ran");
+    },
+  ]);
+  const result = await engine.dispatch({
+    toolCallId: `call-level-${Math.random()}`,
+    params: { prompt: "P", task: "go", ...params },
+    host,
+    cohortId: "cohort-level",
+  });
+  assert.equal(textOf(result), "ran", textOf(result));
+  return { result, level };
+}
+
+// specs/agent-tool.md#model-thinking and specs/agent-tool.md#resume: a resume onto another bare
+// model runs at what a fresh dispatch on it gets, and a later bare resume keeps that level.
+for (const [name, settings, expected] of [
+  ["the host default", {}, "medium"],
+  ["the default setting", { defaultThinkingLevel: "low" }, "low"],
+  [
+    "the per-model setting",
+    { defaultThinkingLevel: "low", modelThinkingLevels: { [modelB]: "high" } },
+    "high",
+  ],
+] as const) {
+  test(`a resume onto a different bare model runs at the fresh level: ${name}`, async () => {
+    const { root, sessionFile } = newRoot();
+    const host = makeHost(sessionFile, root);
+    const engine = new DispatchEngine(
+      boot(0, settings),
+      () => undefined,
+      undefined,
+      undefined,
+      undefined,
+      engineDeps(),
+    );
+    const fresh = await runLevel(engine, host, { model: modelB });
+    assert.equal(fresh.level, expected, "a fresh dispatch on the model");
+
+    // A source that ran on the caller's model, which has no reasoning, so at `off`.
+    const source = await freshSession(engine, host, modelA);
+    assert.deepEqual(
+      ofType(source, "thinking_level_change").map((entry) => entry.thinkingLevel),
+      ["off"],
+    );
+    const resumed = await runLevel(engine, host, { resume: source, model: modelB });
+    assert.equal(resumed.level, fresh.level, "the resume runs at the fresh level");
+    assert.equal(ofType(source, "thinking_level_change").at(-1)?.thinkingLevel, fresh.level);
+
+    const later = await runLevel(engine, host, { resume: source });
+    assert.equal(later.level, fresh.level, "a later bare resume keeps the level");
+    assert.equal(recordOf(later.result).modelSource, "persisted");
+    assert.equal(recordOf(later.result).model, `${modelB}:${expected}`);
+  });
+}
+
+// specs/agent-tool.md#model-thinking: the tiers above the default are unchanged on a resume.
+test("a suffix and the persisted level on the persisted model still win over the default", async () => {
+  const { root, sessionFile } = newRoot();
+  const host = makeHost(sessionFile, root);
+  const engine = new DispatchEngine(
+    boot(0, { defaultThinkingLevel: "high" }),
+    () => undefined,
+    undefined,
+    undefined,
+    undefined,
+    engineDeps(),
+  );
+  const source = await freshSession(engine, host, `${modelB}:low`);
+  const persisted = await runLevel(engine, host, { resume: source, model: modelB });
+  assert.equal(persisted.level, "low", "the persisted level on the persisted model");
+  const suffixed = await runLevel(engine, host, { resume: source, model: `${modelB}:minimal` });
+  assert.equal(suffixed.level, "minimal", "the call's suffix");
 });
 
 // --- specs/agent-tool.md#recovery item 3: a refusal whose recovery cannot run keeps the refusal text ---

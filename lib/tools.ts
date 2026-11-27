@@ -97,7 +97,7 @@ export const agentParameterSchema = Type.Object(
       Type.String({
         pattern: "\\S",
         description:
-          "Optional; the only parameter for a model: provider/id[:<thinking-level>] or a model class. Omitted: the agent definition's model, else the resumed session's, else this session's. Without a :<thinking-level> suffix, thinking is the class's level, else the resumed session's on its own model, else yours on your own model, else the host default (off on a resume): write the suffix to choose.",
+          "Optional; the only parameter for a model: provider/id[:<thinking-level>] or a model class. Omitted: the agent definition's model, else the resumed session's, else this session's. Without a :<thinking-level> suffix, thinking is the class's level, else the resumed session's on its own model, else yours on your own model, else the model's default level: write the suffix to choose.",
       }),
     ),
     resume: Type.Optional(

@@ -32,7 +32,7 @@ import {
   createToolSearchExtension,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
-import type { Api, AssistantMessage } from "@earendil-works/pi-ai";
+import { type Api, type AssistantMessage, clampThinkingLevel } from "@earendil-works/pi-ai";
 import type { Model } from "@earendil-works/pi-ai/compat";
 import {
   type AgentDefinition,
@@ -628,6 +628,22 @@ function toAgentRecord(data: unknown): AgentRecord | undefined {
 
 function sameAgentRecord(a: AgentRecord | undefined, b: AgentRecord): boolean {
   return a !== undefined && JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** The host's own default thinking level, when its settings set none (pi-coding-agent `DEFAULT_THINKING_LEVEL`). */
+const HOST_DEFAULT_THINKING_LEVEL: ThinkingLevel = "medium";
+
+/**
+ * The default level of a model (specs/agent-tool.md#model-thinking): the per-model setting, else
+ * the default setting, else the host's default, clamped to the model as the host clamps it.
+ */
+function defaultThinkingLevel(settings: SettingsManager, model: Model<Api>): ThinkingLevel {
+  // The host's own order and tests (an empty per-model value counts as none); its clamp also
+  // maps a level it does not know to the model's first supported one.
+  const level =
+    settings.getModelThinkingLevel(model.provider, model.id) ||
+    (settings.getDefaultThinkingLevel() ?? HOST_DEFAULT_THINKING_LEVEL);
+  return clampThinkingLevel(model, level);
 }
 
 /** Persisted session facts read from a retained session file. */
@@ -2339,12 +2355,8 @@ export class DispatchEngine {
           persistedModel.provider === plan.model.provider &&
           persistedModel.id === plan.model.id;
         if (!sameModel) manager.appendModelChange(plan.model.provider, plan.model.id);
-        const persistedThinking = plan.sessionPolicy.persistedThinking;
-        if (plan.thinking !== undefined) {
-          if (plan.thinking !== persistedThinking) manager.appendThinkingLevelChange(plan.thinking);
-        } else if (persistedThinking !== undefined && persistedThinking !== "off") {
-          manager.appendThinkingLevelChange("off");
-        }
+        // The run level is recorded where the child session is created, once the child's
+        // settings, which give an absent level its default, are loaded.
       }
 
       // The child's own agent directory (specs/agent-tool.md#child-session), exposed to its tools as
@@ -2574,11 +2586,22 @@ export class DispatchEngine {
       // proxy when the cap names none (specs/agent-tool.md#tools).
       const excludedToolNames = MCP_RESOURCE_TOOL_NAMES.filter((name) => !cap.includes(name));
       if (!cap.some((name) => name.startsWith("mcp__"))) excludedToolNames.push("mcp__*");
+      // The run level (specs/agent-tool.md#model-thinking): a continuation with no effective level
+      // runs at the model's default, as a fresh session does; the host would otherwise replay the
+      // file's last level, whatever model recorded it. It is recorded once per dispatch when it
+      // differs from the persisted thinking (specs/agent-tool.md#resume).
+      let runLevel = plan.thinking;
+      if (plan.sessionPolicy.kind === "resume") {
+        runLevel ??= defaultThinkingLevel(settingsManager, plan.model);
+        if (runLevel !== plan.sessionPolicy.persistedThinking) {
+          manager.appendThinkingLevelChange(runLevel);
+        }
+      }
       const sessionOptions: CreateAgentSessionOptions = {
         cwd: plan.cwd,
         modelRuntime: runtime,
         model: plan.model,
-        ...(plan.thinking === undefined ? {} : { thinkingLevel: plan.thinking }),
+        ...(runLevel === undefined ? {} : { thinkingLevel: runLevel }),
         tools: cap,
         excludeTools: excludedToolNames,
         customTools: childTools,
