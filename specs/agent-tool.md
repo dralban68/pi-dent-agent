@@ -689,22 +689,22 @@ adoption has moved it into that registry.
 
 The source session file records, as lines of JSON objects, the facts a continuation reads:
 
-| Persisted fact             | Source                                                                                                         |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| persisted model            | `provider` and `modelId` of the last entry of `type` `model_change`.                                           |
-| persisted thinking         | `thinkingLevel` of the last entry of `type` `thinking_level_change` that is a valid level.                     |
-| recorded working directory | `cwd` of the last entry of `type` `session` that carries a string `cwd`.                                       |
-| recorded agent source      | `data` of the last entry of `type` `custom` with `customType` `pi-dent-agent` whose `data` is an agent record. |
+| Persisted fact             | Source                                                                                                                |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| persisted model            | `provider` and `modelId` of the last entry of `type` `model_change`.                                                  |
+| persisted thinking         | `thinkingLevel` of the last entry of `type` `thinking_level_change` that is a valid level.                            |
+| recorded working directory | `cwd` of the last entry of `type` `session` that carries a string `cwd`.                                              |
+| recorded agent source      | `data` of the last entry of `type` `custom` with `customType` `pi-dent-agent` whose `data` is an agent source record. |
 
-An agent record is a JSON object with exactly one of a string `agent` (the agent catalog key) or a
+An agent source record is a JSON object with exactly one of a string `agent` (the agent catalog key) or a
 string `prompt` (the prompt text), or the empty object (the default prompt); an entry whose `data`
-is no agent record is skipped. A source with no agent record has the default prompt as its
+is no agent source record is skipped. A source with no agent source record has the default prompt as its
 recorded agent source. A dispatch's continuation records are, in this order:
 
-1. a host custom entry with `customType` `pi-dent-agent` and the plan's agent record as `data`:
+1. a host custom entry with `customType` `pi-dent-agent` and the plan's agent source record as `data`:
    `{ "agent": <key> }` for a static dispatch, `{ "prompt": <text> }` when the agent source is a
-   call's or a recorded prompt, `{}` for the default prompt; a `resume` dispatch whose agent
-   record equals the source's last agent record has none;
+   call's or a recorded prompt, `{}` for the default prompt; a `resume` dispatch whose agent source
+   record equals the source's last agent source record has none;
 2. on a `resume` dispatch, a `model_change` entry for the plan's model, unless the file's last
    `model_change` at that point already names it;
 3. on a `resume` dispatch, a `thinking_level_change` entry for the run level

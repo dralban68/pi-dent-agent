@@ -132,6 +132,18 @@ terms:
     history:
       - date: 2026-11-25
         op: add
+  - id: agent-source
+    label: agent source
+    meaning: "What defines a dispatch's agent: an agent definition named by key, a prompt text, or the default prompt"
+    owner: specs/agent-tool.md
+    group: Dispatch
+    key: local
+    status: active
+    distinguish:
+      - agent-definition
+    history:
+      - date: 2026-11-27
+        op: add
   - id: argument-string
     label: argument string
     meaning: The text of a slash command invocation that follows its command token
@@ -770,7 +782,7 @@ terms:
         from: specs/thesaurus.md
   - id: dynamic-dispatch
     label: dynamic dispatch
-    meaning: "A dispatch whose agent is defined by the call's prompt and uses no definition"
+    meaning: "A dispatch that uses no agent definition: its agent is defined by a prompt, the call's, a resumed session's recorded one, or the default prompt"
     owner: specs/agent-tool.md
     group: Dispatch
     key: shared
@@ -781,9 +793,12 @@ terms:
       - date: 2026-11-14
         op: import
         from: specs/thesaurus.md
+      - date: 2026-11-27
+        op: update
+        meaning: "A dispatch whose agent is defined by the call's prompt and uses no definition"
   - id: effective-thinking-level
     label: effective thinking level
-    meaning: "The thinking level a dispatch runs at, as thinking precedence settles it"
+    meaning: "The thinking level thinking precedence selects for a dispatch, absent when no tier supplies one"
     owner: specs/agent-tool.md
     group: Configuration and models
     key: shared
@@ -793,6 +808,9 @@ terms:
     history:
       - date: 2026-11-15
         op: add
+      - date: 2026-11-27
+        op: update
+        meaning: "The thinking level a dispatch runs at, as thinking precedence settles it"
   - id: effective-tool-cap
     label: effective tool cap
     meaning: The subset of the tool cap a child session binds in-process
@@ -2175,6 +2193,18 @@ terms:
     status: active
     history:
       - date: 2026-11-26
+        op: add
+  - id: run-level
+    label: run level
+    meaning: "The thinking level a child session actually runs at: the effective thinking level when present, else the model's default level, clamped to the levels the model supports"
+    owner: specs/agent-tool.md
+    group: Configuration and models
+    key: confusable
+    status: active
+    distinguish:
+      - effective-thinking-level
+    history:
+      - date: 2026-11-27
         op: add
   - id: safe-name
     label: safe name
