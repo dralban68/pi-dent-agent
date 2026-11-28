@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -142,6 +143,46 @@ test("entry module loads through pi without development dependencies installed",
   assert.deepEqual(result.errors, []);
   assert.equal(result.extensions.length, 1);
 });
+
+const RUNTIME_IMPORT =
+  /(?:^|[\s;])(?:import|export)\s+(?!type\b)(?:[^"'`]*?\s+from\s+)?["']([^"'`]+)["']|\bimport\(\s*["']([^"'`]+)["']\s*\)/gm;
+
+test("every bare runtime import in index.ts and lib/ is a dependency or peer dependency", () => {
+  // specs/package.md#package-manifest: jiti's bare-specifier fallback can resolve a devDependency
+  // that happens to sit on the host's closure during the staged load test above, so check every
+  // runtime specifier directly against dependencies and peerDependencies.
+  const declared = new Set([
+    ...Object.keys(manifest.dependencies),
+    ...Object.keys(manifest.peerDependencies),
+  ]);
+  const files = [join(root, "index.ts"), ...sourceFilesUnder(join(root, "lib"))];
+  const undeclared: string[] = [];
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(RUNTIME_IMPORT)) {
+      const specifier = match[1] ?? match[2] ?? "";
+      if (specifier === "" || specifier.startsWith(".") || specifier.startsWith("node:")) continue;
+      const pkg = packageNameOf(specifier);
+      if (!declared.has(pkg)) undeclared.push(`${file.slice(root.length + 1)}: ${specifier}`);
+    }
+  }
+  assert.deepEqual(undeclared, []);
+});
+
+function sourceFilesUnder(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...sourceFilesUnder(full));
+    else if (/\.(?:ts|mjs|js)$/.test(entry.name)) out.push(full);
+  }
+  return out;
+}
+
+function packageNameOf(specifier: string): string {
+  const parts = specifier.split("/");
+  return specifier.startsWith("@") ? `${parts[0] ?? ""}/${parts[1] ?? ""}` : (parts[0] ?? "");
+}
 
 /** The package name an entry path under node_modules belongs to. */
 function dependencyName(entry: string): string {

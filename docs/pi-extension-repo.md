@@ -26,6 +26,16 @@ adds to the dev repo standard (`dev:repo-setup`). pi-dent's own manifest rules a
   entry ([package.md, bundled extensions](../specs/package.md#bundled-extensions)).
 - After changing a sibling, publish it, bump its version in the consumer and run `pnpm install`;
   restart pi or `/reload` to load it. To try the change before publishing, use a local link.
+- Every extension and library repository guards clean-install loading with two tests in `pnpm test`:
+  1. A staged load test that copies `package.json` and the published source files into a temporary
+     directory, symlinks only `dependencies` into `node_modules` (omitting `devDependencies` and
+     `peerDependencies`), and loads the entry through `discoverAndLoadExtensions` (for extensions)
+     or Node ESM import (for libraries). This catches unaliased host peer subpaths (such as
+     `typebox/schema`) and missing runtime dependencies outside the host's closure.
+  2. A static scan over published source files asserting every bare runtime import (excluding
+     `node:*` and relative paths) names a package in `dependencies` or `peerDependencies`. This
+     catches `devDependencies`-only imports that jiti's bare-specifier fallback would otherwise
+     resolve from the host's own closure.
 
 ## Local links
 
