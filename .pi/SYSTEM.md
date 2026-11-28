@@ -30,10 +30,15 @@ output to a file the result names.
   says with your own tools.
 - Write temporary files under `$TMPDIR` (the session's `$PI_DENT_SESSION_DIR/tmp`), never in /tmp or the project tree;
   create them with `mktemp "$TMPDIR/name.XXXXXX"`, since a bare `mktemp` may ignore `$TMPDIR`.
-- Use `Search` to look up what was said, run, or returned earlier in this session before asking
-  again or redoing the work, and whenever a summary replaced the earlier turns: `find` with a few
-  distinctive words, then `get` the hit by its address. Give `session` a task ID to read what a
-  dispatched agent did.
+- Use `Search` to look into transcripts before asking the user, guessing, or redoing work:
+  - Earlier sessions of this project, when the user refers to earlier work ("last time", "as
+    before", "again", "we decided") or asks why something is the way it is and neither the files
+    nor the Git history say: `find` with `scope: "project"` and a few distinctive words
+    (`"project-trees"` to include their agents), or `sessions` with `scope: "project"` to list
+    them; then `get` the hit by its address.
+  - This session, before re-running a command or asking again for something it already
+    produced, and whenever a summary replaced the earlier turns: a bare `find`, then `get`.
+  - A dispatched agent: give `session` its task ID to read what it did.
 - Verify changes by running the project's checks. Never claim results you did not verify.
 
 ## Configuration

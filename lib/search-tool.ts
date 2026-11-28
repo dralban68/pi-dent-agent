@@ -147,11 +147,18 @@ export const SEARCH_ITEM_KINDS = [
 
 /** The tool's `description` (specs/search-tool.md#model-texts). */
 export const SEARCH_DESCRIPTION =
-  "Look back into session transcripts. find searches earlier messages, tool calls, and tool results and returns compact hits, each starting with an address; get returns one item's full text by its address; sessions lists sessions. find searches this session only unless scope widens it.";
+  "Look back into session transcripts: this session, the agents it dispatched, and the project's earlier sessions. Use it before asking the user, guessing, or redoing work whenever the answer may already be in a transcript: what was decided, tried, run, or returned, in this session or an earlier one. find searches messages, tool calls, and tool results and returns compact hits, each starting with an address; get returns one item's full text by its address; sessions lists sessions. find searches this session only unless scope widens it: scope project reaches the project's earlier sessions, from a main session only.";
 
 /** The tool's `promptSnippet` (specs/search-tool.md#model-texts). */
 export const SEARCH_PROMPT_SNIPPET =
-  "Search earlier messages, tool calls, and tool results of this session; with scope, also its child sessions and its project";
+  "Look back into transcripts: this session, the agents it dispatched, and with scope project the project's earlier sessions";
+
+/** The tool's `promptGuidelines` (specs/search-tool.md#model-texts). */
+export const SEARCH_PROMPT_GUIDELINES: readonly string[] = [
+  'When the user refers to earlier work ("last time", "as before", "again", "we decided") or asks why something is the way it is and neither the files nor the Git history say, look in the project\'s earlier sessions before asking or guessing: `Search` `find` with `scope: "project"` and a few distinctive words, then `get` the hit by its address; `Search` `sessions` with `scope: "project"` lists them.',
+  "Before re-running a command or asking again for something this session already produced, and after a summary replaced earlier turns, look it up with a bare `Search` `find`.",
+  "Read session transcripts with `Search`, never with shell or file tools.",
+];
 
 /** The `description` of each parameter, verbatim from specs/search-tool.md#model-texts. */
 export const SEARCH_PARAMETER_DESCRIPTIONS = {
@@ -1823,6 +1830,7 @@ export function makeSearchTool(deps: SearchToolDeps) {
     label: SEARCH_TOOL_NAME,
     description: SEARCH_DESCRIPTION,
     promptSnippet: SEARCH_PROMPT_SNIPPET,
+    promptGuidelines: [...SEARCH_PROMPT_GUIDELINES],
     parameters: searchParameterSchema,
     async execute(
       _toolCallId: string,

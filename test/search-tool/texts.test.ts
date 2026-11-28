@@ -70,12 +70,13 @@ const schemaProperties = (schema: unknown): Record<string, unknown> => {
   return isRecord(properties) ? properties : {};
 };
 
-test("the registered Search tool carries the specification's name, label, description, and promptSnippet", () => {
+test("the registered Search tool carries the specification's name, label, description, promptSnippet, and promptGuidelines", () => {
   const tool = registeredTool();
   assert.equal(tool.name, registrationValue("name"));
   assert.equal(tool.label, registrationValue("label"));
   assert.equal(tool.description, blockAfter("The `description` is"));
   assert.equal(tool.promptSnippet, blockAfter("The `promptSnippet` is"));
+  assert.deepEqual(tool.promptGuidelines, blockAfter("The `promptGuidelines` are").split("\n"));
 });
 
 test("every parameter description is the specification's text, verbatim", () => {

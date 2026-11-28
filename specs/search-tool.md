@@ -19,13 +19,14 @@ define.
 
 The extension MUST register the `Search` tool through the host `registerTool` API:
 
-| Field           | Value                                                                                                           |
-| --------------- | --------------------------------------------------------------------------------------------------------------- |
-| `name`          | `"Search"`                                                                                                      |
-| `label`         | `"Search"`                                                                                                      |
-| `description`   | The text of [model-facing texts](#model-texts)                                                                  |
-| `promptSnippet` | The text of [model-facing texts](#model-texts)                                                                  |
-| `parameters`    | The parameter schema of [parameter schema](#parameter-schema), described per [model-facing texts](#model-texts) |
+| Field              | Value                                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `name`             | `"Search"`                                                                                                      |
+| `label`            | `"Search"`                                                                                                      |
+| `description`      | The text of [model-facing texts](#model-texts)                                                                  |
+| `promptSnippet`    | The text of [model-facing texts](#model-texts)                                                                  |
+| `promptGuidelines` | The lines of [model-facing texts](#model-texts), in order                                                       |
+| `parameters`       | The parameter schema of [parameter schema](#parameter-schema), described per [model-facing texts](#model-texts) |
 
 A child session binds `Search` under the rule of [agent-tool.md, tools](agent-tool.md#tools).
 
@@ -104,14 +105,26 @@ registered verbatim, and none cites a specification.
 The `description` is
 
 ```text
-Look back into session transcripts. find searches earlier messages, tool calls, and tool results and returns compact hits, each starting with an address; get returns one item's full text by its address; sessions lists sessions. find searches this session only unless scope widens it.
+Look back into session transcripts: this session, the agents it dispatched, and the project's earlier sessions. Use it before asking the user, guessing, or redoing work whenever the answer may already be in a transcript: what was decided, tried, run, or returned, in this session or an earlier one. find searches messages, tool calls, and tool results and returns compact hits, each starting with an address; get returns one item's full text by its address; sessions lists sessions. find searches this session only unless scope widens it: scope project reaches the project's earlier sessions, from a main session only.
 ```
 
 The `promptSnippet` is
 
 ```text
-Search earlier messages, tool calls, and tool results of this session; with scope, also its child sessions and its project
+Look back into transcripts: this session, the agents it dispatched, and with scope project the project's earlier sessions
 ```
+
+The `promptGuidelines` are the lines of this block, one guideline each, in order:
+
+```text
+When the user refers to earlier work ("last time", "as before", "again", "we decided") or asks why something is the way it is and neither the files nor the Git history say, look in the project's earlier sessions before asking or guessing: `Search` `find` with `scope: "project"` and a few distinctive words, then `get` the hit by its address; `Search` `sessions` with `scope: "project"` lists them.
+Before re-running a command or asking again for something this session already produced, and after a summary replaced earlier turns, look it up with a bare `Search` `find`.
+Read session transcripts with `Search`, never with shell or file tools.
+```
+
+> Note (non-normative): the host shows a tool's `promptSnippet` and `promptGuidelines` only in its
+> default system prompt; under a custom system prompt the `description` is the one text of this
+> section, besides the parameter descriptions, that reaches the model.
 
 Each property of the parameter schema carries this `description`:
 
