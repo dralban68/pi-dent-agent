@@ -1,4 +1,4 @@
-import Schema from "typebox/schema";
+import { Value } from "typebox/value";
 import type { CallableTool } from "./script-tool-types.ts";
 
 /**
@@ -69,7 +69,7 @@ function jsonDetails(details: unknown): unknown {
 function validates(schema: unknown, value: unknown): boolean {
   if (typeof schema !== "boolean" && (typeof schema !== "object" || schema === null)) return false;
   try {
-    return Schema.Check(schema, value);
+    return Value.Check(schema, value);
   } catch {
     // The mismatch rejection reports it to the script (specs/script-tool.md#calling-tool, step 3).
     return false;

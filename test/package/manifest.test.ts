@@ -1,8 +1,18 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { discoverAndLoadExtensions } from "@earendil-works/pi-coding-agent";
 
 /**
  * Package manifest of specs/package.md#package-manifest and specs/package.md#entry-list: the declared entry
@@ -110,6 +120,27 @@ test("Script's bundled packages and jiti are dependencies, never development dep
     assert.equal(typeof manifest.dependencies[name], "string", `${name} is not a dependency`);
     assert.equal(manifest.devDependencies[name], undefined, `${name} is a devDependency`);
   }
+});
+
+test("entry module loads through pi without development dependencies installed", async (t) => {
+  // specs/package.md#package-manifest: the host installs the package with devDependencies omitted
+  // and supplies host peer packages itself; every import in index.ts and lib/ must resolve under
+  // that layout.
+  const stage = mkdtempSync(join(tmpdir(), "pi-dent-load-"));
+  t.after(() => rmSync(stage, { recursive: true, force: true }));
+  cpSync(join(root, "package.json"), join(stage, "package.json"));
+  cpSync(join(root, "index.ts"), join(stage, "index.ts"));
+  cpSync(join(root, "lib"), join(stage, "lib"), { recursive: true });
+  const stageModules = join(stage, "node_modules");
+  mkdirSync(stageModules);
+  for (const name of Object.keys(manifest.dependencies)) {
+    const target = join(stageModules, name);
+    mkdirSync(dirname(target), { recursive: true });
+    symlinkSync(join(root, "node_modules", name), target, "dir");
+  }
+  const result = await discoverAndLoadExtensions([join(stage, "index.ts")], stage);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.extensions.length, 1);
 });
 
 /** The package name an entry path under node_modules belongs to. */
