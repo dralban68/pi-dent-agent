@@ -122,9 +122,9 @@ const scenarios: Scenario[] = [
   },
 ];
 const turn1 = (tokenFile: string) =>
-  `Run the shell command \`cat ${tokenFile}\`. Do not repeat its output; reply with done only.`;
+  `Run the shell command \`cat ${tokenFile}\` and reply with done only.`;
 const compactInstructions =
-  "The summary must be one sentence. Omit every identifier, file path, token, and command output; say only that a shell command was run.";
+  "The summary must be one sentence. Omit every identifier, file path, and command output; say only that a shell command was run.";
 const seeds = [
   "For the record: we renamed the `utils` folder to `lib` and moved the date helpers into `lib/dates.ts`. Reply with OK only.",
   "Decision for the record: the staging server listens on port 7341, because 8080 collides with the VPN client on our laptops. Reply with OK only.",
@@ -557,8 +557,9 @@ async function run(model: string, scenarioId: string, repetition: number) {
       join(cwd, ".pi/settings.json"),
       JSON.stringify({ compaction: { keepRecentTokens: 0 } }),
     );
-    token = `tok-${randomBytes(6).toString("hex")}`;
-    const file = join(dir, "token.txt");
+    // A build label, not something a model takes for a credential and declines to repeat.
+    token = `kestrel-${randomBytes(4).toString("hex")}`;
+    const file = join(dir, "build-label.txt");
     await writeFile(file, `${token}\n`);
     const result = await compactionRun([...args, "--mode", "rpc"], cwd, env, file, token);
     ({ exit } = result);

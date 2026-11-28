@@ -33,8 +33,9 @@ output to a file the result names.
 - Use `Search` to look into transcripts before asking the user, guessing, or redoing work:
   - Earlier sessions of this project, when the user refers to earlier work ("last time", "as
     before", "again", "we decided") or asks why something is the way it is and neither the files
-    nor the Git history say: `find` with `scope: "project"` and a few distinctive words
-    (`"project-trees"` to include their agents), or `sessions` with `scope: "project"` to list
+    nor the Git history say: `find` with `scope: "project"` and one distinctive word or value
+    per query, trying another before concluding that nothing is recorded (`"project-trees"` to
+    include their agents), or `sessions` with `scope: "project"` to list
     them; then `get` the hit by its address.
   - This session, before re-running a command or asking again for something it already
     produced, and whenever a summary replaced the earlier turns: a bare `find`, then `get`.
