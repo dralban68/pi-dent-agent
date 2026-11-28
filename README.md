@@ -66,11 +66,18 @@ Configure `modelGuidance` in `pi-dent.conf` to steer model selection and keep co
 | `Skill`, `Plugin`            | Load a skill's instructions; read a plugin's commands, agent definitions and skills.                                                                      | [skill.md](specs/skill.md), [plugin.md](specs/plugin.md)                                               |
 | `Session`, `AskUserQuestion` | Report the session's identity, models and billing report; ask the user multiple-choice questions.                                                         | [session-tool.md](specs/session-tool.md), [ask-user-question-tool.md](specs/ask-user-question-tool.md) |
 
-Slash commands: `/tasks`, `/fleet`, `/recap` and `/dent` ([slash-commands.md](specs/slash-commands.md)).
+Slash commands: `/tasks`, `/fleet` and `/recap` ([slash-commands.md](specs/slash-commands.md)).
 
-Bundled extensions, each loaded as its own extension ([specs/package.md](specs/package.md)):
-`pi-dent-purse` (billing), `pi-dent-terms` (`Terms`), `pi-dent-web-fetch` (`WebFetch`),
-`pi-dent-web-search` (`WebSearch`), `pi-mcp-adapter`, and `pi-anthropic-oauth`.
+Bundled extensions, each loaded as its own extension ([specs/package.md](specs/package.md)); disable any of them in `pi-dent.conf` by setting its key under `plugins` to `null` ([config-file.md](specs/config-file.md)):
+
+| Extension            | Enables                                                                  | Why it is bundled                                                                |
+| -------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `pi-dent-purse`      | Live rates, discounts, and quota windows (`Session`, `/purse`)           | Lets `modelGuidance` steer model choice by live cost and remaining headroom      |
+| `pi-dent-terms`      | `Terms` tool over `.pi/pi-dent/terms.yaml`                               | Keeps one preferred term per concept across workspace Markdown docs              |
+| `pi-dent-web-fetch`  | `WebFetch` tool (cached Markdown, PDF text extraction, binary downloads) | Lets agents read web pages and documents without shell scraping                  |
+| `pi-dent-web-search` | `WebSearch` tool (`exa`, `perplexity`, `brave`, `google`, `duckduckgo`)  | Gives agents web search out of the box across configured backends                |
+| `pi-mcp-adapter`     | `mcp` tool for installing, authenticating, and calling MCP servers       | Loads MCP tools on demand without bloating the prompt with every server's schema |
+| `pi-anthropic-oauth` | Anthropic OAuth login and token refresh                                  | Lets Claude subscriptions work without a static API key                          |
 
 ## Install
 
