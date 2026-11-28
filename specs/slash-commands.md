@@ -16,22 +16,14 @@ Plugin commands are owned by [plugin.md, slash commands](plugin.md#slash-command
 - Notifications use the host `notify` API ([config-file.md, diagnostics](config-file.md#diagnostics)) at the
   stated level.
 
-| Name      | Description                               | Arguments                | Section                      |
-| --------- | ----------------------------------------- | ------------------------ | ---------------------------- |
-| `dent`    | `Confirm the pi-dent extension is loaded` | Ignored                  | 2                            |
-| `tasks`   | `Open the task browser`                   | `[<verb> <taskId>]`      | 3                            |
-| `fleet`   | `List sibling sessions and query one`     | `[<target> <query>]`     | 4                            |
-| `recap`   | `Recap the current session`               | Ignored                  | 5                            |
-| `dent-ui` | `Run and cancel plugin UI script calls`   | `<run \| cancel> <json>` | [plugin-ui.md](plugin-ui.md) |
+| Name      | Description                             | Arguments                | Section                      |
+| --------- | --------------------------------------- | ------------------------ | ---------------------------- |
+| `tasks`   | `Open the task browser`                 | `[<verb> <taskId>]`      | 2                            |
+| `fleet`   | `List sibling sessions and query one`   | `[<target> <query>]`     | 3                            |
+| `recap`   | `Recap the current session`             | Ignored                  | 4                            |
+| `dent-ui` | `Run and cancel plugin UI script calls` | `<run \| cancel> <json>` | [plugin-ui.md](plugin-ui.md) |
 
-## 2. `dent` {#dent}
-
-The command MUST show the `info` notification
-`pi-dent extension is loaded (<a> agents, <s> skills, <p> plugins, <d> boot diagnostics)`, the
-counts being those of the boot snapshot; `<d>` counts the diagnostics collected while reading
-the boot snapshot, per [config-file.md, diagnostics](config-file.md#diagnostics).
-
-## 3. `tasks` {#tasks}
+## 2. `tasks` {#tasks}
 
 Without arguments, the command MUST act exactly as the task browser shortcut
 ([task-browser.md, activation](task-browser.md#activation)).
@@ -48,7 +40,7 @@ with arguments is a no-op, including otherwise invalid arguments.
 
 Any other arguments in RPC mode MUST show `Usage: /tasks [watch <taskId> | unwatch | kill <taskId>]` as an error notification.
 
-## 4. `fleet` {#fleet}
+## 3. `fleet` {#fleet}
 
 The sibling sessions of the command are the sessions a `Fleet` `list` of scope `machine`
 ([fleet-tool.md, action `list`](fleet-tool.md#list)) returns, in its order, without the current session.
@@ -56,7 +48,7 @@ A current session that a `Fleet` call from it refuses ([fleet-tool.md, parameter
 has no siblings and no sender: the command is a no-op, so it refuses exactly what that call
 refuses.
 
-### 4.1 No arguments {#no-arguments}
+### 3.1 No arguments {#no-arguments}
 
 - Without an interactive terminal UI the command is a no-op.
 - With no sibling session it MUST show the `info` notification `No sibling sessions.`
@@ -67,7 +59,7 @@ refuses.
   entering only whitespace ends the command; any other entry, trimmed, is sent as a query
   ([query](#query)) to that session.
 
-### 4.2 `<target> <query>` {#target-query}
+### 3.2 `<target> <query>` {#target-query}
 
 - `<target>` is the argument string up to its first whitespace; `<query>` is the rest, trimmed.
 - An empty `<query>` MUST show `Usage: /fleet [<target> <query>]` as an error notification.
@@ -76,7 +68,7 @@ refuses.
   current session follows [fleet-tool.md, parameter schema](fleet-tool.md#parameter-schema).
 - Otherwise `<query>` is sent as a query ([query](#query)) to the resolved session.
 
-### 4.3 Query {#query}
+### 3.3 Query {#query}
 
 - The query MUST be enqueued exactly as a `Fleet` `query` ([fleet-tool.md, action `query`](fleet-tool.md#query)) from the current session with that target, `body` the query text, and no `subject`.
 - On enqueue the command MUST show the `info` notification
@@ -85,7 +77,7 @@ refuses.
 - The reply arrives as [fleet-tool.md, action `query`](fleet-tool.md#query) specifies: a `followUp` message
   in the current session's conversation.
 
-## 5. `recap` {#recap}
+## 4. `recap` {#recap}
 
 The command MUST run only on explicit invocation, and only in host modes `tui` and `rpc`. In
 another mode, or without a UI, it MUST change nothing and fail the command with the error
@@ -93,7 +85,7 @@ another mode, or without a UI, it MUST change nothing and fail the command with 
 `info` notification `Recap unavailable while busy.`, then refuse empty input ([input and model](#input)) with
 `Nothing to recap.` at `info` level. Previous recap entries MUST remain unchanged.
 
-### 5.1 Input and model {#input}
+### 4.1 Input and model {#input}
 
 The input MUST be the host's active, compaction-aware context entries at invocation, in their
 existing order. Only user and assistant message text blocks (or string content), and compaction
@@ -125,7 +117,7 @@ It MUST NOT start a session turn or add the recap to any later model context, in
 recap request. Persistence is limited to the custom entry in [output and lifecycle](#output). A provider failure
 MUST NOT retry with another model.
 
-### 5.2 Output and lifecycle {#output}
+### 4.2 Output and lifecycle {#output}
 
 While generating, the command MUST show `Generating recap…` as an `info` notification. The
 request MUST have a 30000 ms deadline and MUST receive an abort signal linked to the host signal.
@@ -156,7 +148,7 @@ notifications. Every completion outcome MUST release the busy state.
 > In `rpc` mode the entry arrives through the host's `entry_appended` event and the notifications
 > as `notify` UI requests; the renderer of [rendering and readers](#rendering) applies to `tui` only.
 
-### 5.3 Rendering and readers {#rendering}
+### 4.3 Rendering and readers {#rendering}
 
 The extension MUST register an entry renderer for `pi-dent-recap`. It MUST render the entry in the
 chat transcript, including after reopening the session, as a wrapping plain-text box with the
@@ -174,6 +166,6 @@ It MUST NOT update a turn record's `goal` ([session-store.md, session records](s
 affect guidance injection's comparison with the latest guidance message. Recap input selection
 ([input and model](#input)) MUST exclude it.
 
-## 6. Specification gaps {#gaps}
+## 5. Specification gaps {#gaps}
 
 - Rendering and key handling of the host `select` and `input` dialogs.

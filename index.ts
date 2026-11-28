@@ -1136,14 +1136,4 @@ export default function (pi: ExtensionAPI) {
       });
     },
   });
-
-  pi.registerCommand("dent", {
-    description: "Confirm the pi-dent extension is loaded",
-    handler: async (_args, ctx) => {
-      ctx.ui.notify(
-        `pi-dent extension is loaded (${boot.agents.length} agents, ${boot.skills.length} skills, ${boot.plugins.length} plugins, ${boot.diagnostics.length} boot diagnostics)`,
-        "info",
-      );
-    },
-  });
 }
