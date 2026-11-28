@@ -46,7 +46,7 @@
     "jsonc-parser": "^3.3.1",
     "jszip": "^3.10.2",
     "pi-anthropic-oauth": "0.3.9",
-    "pi-dent-markdown": "0.2.3",
+    "pi-dent-markdown": "0.3.0",
     "pi-dent-purse": "0.2.4",
     "pi-dent-terms": "0.2.0",
     "pi-dent-web-fetch": "0.3.8",

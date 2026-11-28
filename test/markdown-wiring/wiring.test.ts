@@ -95,6 +95,7 @@ test("the extension registers Markdown with its label, promptSnippet, and parame
       "preview",
       "revision",
       "section",
+      "sections",
     ]);
   } finally {
     sandbox.restore();
